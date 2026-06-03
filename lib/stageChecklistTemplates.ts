@@ -1,0 +1,43 @@
+import type { ChecklistCategory, Stage } from '../types/database'
+
+type ChecklistTemplateItem = {
+  category: ChecklistCategory
+  label: string
+}
+
+export const stageChecklistTemplates: Record<Stage, ChecklistTemplateItem[]> = {
+  Engage: [
+    { category: 'Tool', label: 'Use SALT (Start a conversation, Ask Questions, Listen, Testimony)' },
+    { category: 'Tool', label: 'Prepare 2min Testimony' },
+    { category: 'Action Step', label: 'Meaningful Connection - Implement SALT. Hear their story. Share yours.' },
+    { category: 'Action Step', label: 'Schedule Follow Up' },
+    { category: 'Action Step', label: 'Consistently Pray' },
+  ],
+  Establish: [
+    { category: 'Tool', label: 'Completed One2One' },
+    { category: 'Tool', label: 'Completed Biblical Foundation' },
+    { category: 'Tool', label: 'Completed Church Community' },
+    { category: 'Tool', label: 'Water baptism conversation' },
+    { category: 'Action Step', label: 'Confirm salvation / spiritual birthday' },
+    { category: 'Action Step', label: 'Start One2One' },
+    { category: 'Action Step', label: 'Connect to Small Group' },
+    { category: 'Action Step', label: 'Start SOAPing' },
+  ],
+  Equip: [
+    { category: 'Tool', label: 'Completed Making Disciples' },
+    { category: 'Tool', label: 'Completed Leadership 113' },
+    { category: 'Tool', label: 'Completed Next Steps' },
+    { category: 'Action Step', label: 'Practice Sharing Testimony/Gospel' },
+    { category: 'Action Step', label: 'Begin Serving in a Ministry/Mission' },
+    { category: 'Action Step', label: 'Assist in Leading Small Group' },
+  ],
+  Empower: [
+    { category: 'Tool', label: 'Completed Empowering Leaders' },
+    { category: 'Tool', label: 'Completed Leadership 215' },
+    { category: 'Action Step', label: 'Lead a Grace Group' },
+    { category: 'Action Step', label: 'Identified Their Circle' },
+    { category: 'Action Step', label: 'Joined a D-Group' },
+  ],
+}
+
+export const stages: Stage[] = ['Engage', 'Establish', 'Equip', 'Empower']
