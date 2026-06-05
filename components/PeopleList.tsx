@@ -188,13 +188,13 @@ export default function PeopleList({ filterStages, sortMode = '4e', onChanged }:
                     <div>
                       <div className="font-semibold text-gray-700">Spiritual Birthday</div>
                       <div className="text-gray-900">
-                        {person.spiritual_birthday ? new Date(person.spiritual_birthday).toLocaleDateString() : 'Not added'}
+                        {person.spiritual_birthday ? new Date(person.spiritual_birthday + 'T00:00:00').toLocaleDateString() : 'Not added'}
                       </div>
                     </div>
                     <div>
                       <div className="font-semibold text-gray-700">Baptism Date</div>
                       <div className="text-gray-900">
-                        {person.baptism_date ? new Date(person.baptism_date).toLocaleDateString() : 'Not added'}
+                        {person.baptism_date ? new Date(person.baptism_date + 'T00:00:00').toLocaleDateString() : 'Not added'}
                       </div>
                     </div>
                     <div className="md:col-span-2">

@@ -11,19 +11,27 @@ import DiscipleshipConnectionsSection from './DiscipleshipConnectionsSection'
 import PersonGroupsSection from './PersonGroupsSection'
 import PrayerRequestsList from './PrayerRequestsList'
 import AddPrayerRequestForm from './AddPrayerRequestForm'
-import StageLevelBadge from './StageLevelBadge'
 import DiscipleStarCard from './DiscipleStarCard'
 
 const stages: Stage[] = stageOrder
 
-type PersonProfileModalProps = {
-  person: Person
-  onClose: () => void
-  onSaved?: (person: Person) => void
-  onDeleted?: (personId: string) => void
+const STAGE_COLORS: Record<Stage, string> = {
+  Engage: '#F4B650',
+  Establish: '#36D6C3',
+  Equip: '#5B8DF7',
+  Empower: '#F0729F',
 }
 
 type ModalSection = 'profile' | 'journey' | 'connections' | 'engagements' | 'groups' | 'prayer'
+
+type PersonProfileModalProps = {
+  person: Person
+  initialTab?: ModalSection
+  onClose: () => void
+  onSaved?: (person: Person) => void
+  onDeleted?: (personId: string) => void
+  onAddNewPerson?: () => void
+}
 
 function ModalSectionCard({
   title,
@@ -39,24 +47,24 @@ function ModalSectionCard({
   const [isOpen, setIsOpen] = useState(defaultOpen)
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
+    <div className="overflow-hidden rounded-xl border border-[var(--line-1)] bg-[var(--indigo-2)]">
       <button
         type="button"
         onClick={() => setIsOpen(current => !current)}
-        className="flex w-full items-center justify-between gap-3 p-4 text-left hover:bg-gray-50"
+        className="flex w-full items-center justify-between gap-3 p-3 text-left transition-colors hover:bg-[var(--indigo-3)]"
       >
         <div>
-          <div className="font-semibold text-gray-900">{title}</div>
-          {subtitle && <div className="mt-0.5 text-sm text-gray-600">{subtitle}</div>}
+          <div className="font-semibold text-[var(--fg-1)]">{title}</div>
+          {subtitle && <div className="mt-0.5 text-xs text-[var(--fg-3)]">{subtitle}</div>}
         </div>
-        <div className="text-2xl font-light text-gray-700">{isOpen ? '−' : '+'}</div>
+        <div className="text-lg text-[var(--fg-3)]">{isOpen ? '−' : '+'}</div>
       </button>
-      {isOpen && <div className="border-t border-gray-200 bg-gray-50 p-4">{children}</div>}
+      {isOpen && <div className="border-t border-[var(--line-1)] bg-[var(--indigo)] p-3">{children}</div>}
     </div>
   )
 }
 
-export default function PersonProfileModal({ person, onClose, onSaved, onDeleted }: PersonProfileModalProps) {
+export default function PersonProfileModal({ person, initialTab = 'profile', onClose, onSaved, onDeleted, onAddNewPerson }: PersonProfileModalProps) {
   const [savedPerson, setSavedPerson] = useState(person)
   const [name, setName] = useState(person.name)
   const [email, setEmail] = useState(person.email ?? '')
@@ -71,8 +79,10 @@ export default function PersonProfileModal({ person, onClose, onSaved, onDeleted
   const [message, setMessage] = useState('')
   const [refreshKey, setRefreshKey] = useState(0)
   const [starRefreshKey, setStarRefreshKey] = useState(0)
-  const [activeSection, setActiveSection] = useState<ModalSection>('profile')
+  const [activeSection, setActiveSection] = useState<ModalSection>(initialTab)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+
+  const stageColor = STAGE_COLORS[currentStage]
 
   useEffect(() => {
     setSavedPerson(person)
@@ -87,9 +97,10 @@ export default function PersonProfileModal({ person, onClose, onSaved, onDeleted
     setError('')
     setMessage('')
     setShowDeleteConfirm(false)
+    setActiveSection(initialTab)
     setRefreshKey(key => key + 1)
     setStarRefreshKey(key => key + 1)
-  }, [person])
+  }, [person, initialTab])
 
   const applySavedPerson = (nextPerson: Person, successMessage: string, syncFormFields = true) => {
     setSavedPerson(nextPerson)
@@ -197,42 +208,41 @@ export default function PersonProfileModal({ person, onClose, onSaved, onDeleted
   }
 
   const sectionButtonClass = (section: ModalSection) => (
-    `rounded-full px-3 py-1.5 text-xs font-semibold ${
-      activeSection === section ? 'bg-black text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+    `shrink-0 rounded-full px-2.5 py-1.5 text-[11px] font-semibold transition-all sm:px-3 sm:text-xs ${
+      activeSection === section
+        ? 'bg-[var(--gbm-cobalt-bright)] text-[var(--fg-1)]'
+        : 'bg-[var(--indigo)] text-[var(--fg-2)] hover:bg-[var(--indigo-2)] hover:text-[var(--fg-1)]'
     }`
   )
 
+  const inputClass = "w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] p-2.5 text-sm text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
+
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-3 sm:p-6">
-      <div className="my-6 w-full max-w-5xl rounded-3xl bg-white shadow-2xl">
-        <div className="sticky top-0 z-10 rounded-t-3xl border-b border-gray-200 bg-white p-4 sm:p-5">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-0 sm:p-6">
+      <div className="min-h-screen w-full shadow-2xl sm:my-6 sm:min-h-0 sm:max-w-5xl sm:rounded-2xl" style={{ background: 'var(--space)' }}>
+        <div className="sticky top-0 z-10 border-b border-[var(--line-1)] p-4 sm:rounded-t-2xl" style={{ background: 'var(--space)' }}>
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
-              <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Disciple Profile</div>
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-[var(--fg-3)]">Disciple Profile</div>
               <div className="mt-1 flex flex-col gap-3 sm:flex-row sm:items-center">
-                <h2 className="min-w-0 text-2xl font-bold text-gray-900 sm:truncate">{savedPerson.name}</h2>
-                <div className="flex shrink-0 flex-col gap-1 sm:w-64">
-                  <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">4E Level</label>
-                  <select
-                    value={currentStage}
-                    onChange={event => handleQuickStageChange(event.target.value as Stage)}
-                    disabled={loading}
-                    className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-black disabled:opacity-60"
-                  >
-                    {stages.map(stage => (
-                      <option key={stage} value={stage}>{stageLabels[stage].display}</option>
-                    ))}
-                  </select>
-                </div>
+                <h2 className="min-w-0 text-xl font-bold text-[var(--fg-1)] sm:truncate">{savedPerson.name}</h2>
+                <select
+                  value={currentStage}
+                  onChange={event => handleQuickStageChange(event.target.value as Stage)}
+                  disabled={loading}
+                  className="shrink-0 rounded-lg border border-[var(--line-2)] bg-[var(--indigo)] px-3 py-1.5 text-sm font-semibold focus:border-[var(--gbm-cobalt-bright)] focus:outline-none disabled:opacity-60"
+                  style={{ color: stageColor }}
+                >
+                  {stages.map(stage => (
+                    <option key={stage} value={stage}>{stageLabels[stage].display}</option>
+                  ))}
+                </select>
               </div>
-              <p className="mt-2 text-sm text-gray-600">
-                Gamify the journey of making a disciple: light up tools, grow the star, and release multipliers into new orbits.
-              </p>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="shrink-0 rounded-full bg-gray-100 px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-200"
+              className="cn-chip shrink-0"
             >
               Close
             </button>
@@ -240,140 +250,172 @@ export default function PersonProfileModal({ person, onClose, onSaved, onDeleted
 
           {(error || message) && (
             <div
-              className={`mt-3 rounded-xl border p-3 text-sm ${
-                error ? 'border-red-200 bg-red-50 text-red-700' : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+              className={`mt-3 rounded-lg p-2.5 text-sm ${
+                error ? 'bg-[rgba(240,114,159,.15)] text-[#F2728A]' : 'bg-[rgba(54,214,195,.15)] text-[var(--establish)]'
               }`}
             >
               {error || message}
             </div>
           )}
 
-          <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+          <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1">
             <button type="button" onClick={() => setActiveSection('profile')} className={sectionButtonClass('profile')}>Profile</button>
             <button type="button" onClick={() => setActiveSection('journey')} className={sectionButtonClass('journey')}>4E Checklists</button>
             <button type="button" onClick={() => setActiveSection('connections')} className={sectionButtonClass('connections')}>Connections</button>
-            <button type="button" onClick={() => setActiveSection('engagements')} className={sectionButtonClass('engagements')}>Next Engagements</button>
+            <button type="button" onClick={() => setActiveSection('engagements')} className={sectionButtonClass('engagements')}>Engagements</button>
             <button type="button" onClick={() => setActiveSection('groups')} className={sectionButtonClass('groups')}>Groups</button>
             <button type="button" onClick={() => setActiveSection('prayer')} className={sectionButtonClass('prayer')}>Prayer</button>
           </div>
         </div>
 
-        <div className="space-y-4 p-4 sm:p-5">
+        <div className="space-y-3 p-4">
           <DiscipleStarCard person={savedPerson} currentStage={currentStage} refreshKey={starRefreshKey} />
 
           {activeSection === 'profile' && (
             <ModalSectionCard
               title="Profile Details"
-              subtitle="Contact details, dates, current stage, status, and pastoral notes"
+              subtitle="Contact details, dates, and pastoral notes"
             >
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="mb-1.5 block text-sm font-semibold text-gray-700">Name *</label>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={event => setName(event.target.value)}
-                    className="w-full rounded-xl border border-gray-300 p-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
-                    required
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <form onSubmit={handleSubmit} className="space-y-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <div>
-                    <label className="mb-1.5 block text-sm font-semibold text-gray-700">Email</label>
+                    <label className="mb-1 block text-xs font-semibold text-[var(--fg-2)]">Name *</label>
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={event => setName(event.target.value)}
+                      className={inputClass}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-[var(--fg-2)]">Email</label>
                     <input
                       type="email"
                       value={email}
                       onChange={event => setEmail(event.target.value)}
-                      className="w-full rounded-xl border border-gray-300 p-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
+                      className={inputClass}
                     />
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-sm font-semibold text-gray-700">Phone</label>
+                    <label className="mb-1 block text-xs font-semibold text-[var(--fg-2)]">Phone</label>
                     <input
                       type="tel"
                       value={phone}
                       onChange={event => setPhone(event.target.value)}
-                      className="w-full rounded-xl border border-gray-300 p-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
+                      className={inputClass}
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   <div>
-                    <label className="mb-1.5 block text-sm font-semibold text-gray-700">Current Stage</label>
+                    <label className="mb-1 block text-xs font-semibold text-[var(--fg-2)]">Stage</label>
                     <select
                       value={currentStage}
                       onChange={event => setCurrentStage(event.target.value as Stage)}
-                      className="w-full rounded-xl border border-gray-300 bg-white p-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
+                      className={inputClass}
                     >
                       {stages.map(stage => (
-                        <option key={stage} value={stage}>{stageLabels[stage].display}</option>
+                        <option key={stage} value={stage}>{stageLabels[stage].name}</option>
                       ))}
                     </select>
-                    <div className="mt-2">
-                      <StageLevelBadge stage={currentStage} size="sm" />
-                    </div>
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-sm font-semibold text-gray-700">Status</label>
+                    <label className="mb-1 block text-xs font-semibold text-[var(--fg-2)]">Status</label>
                     <select
                       value={status}
                       onChange={event => setStatus(event.target.value as Person['status'])}
-                      className="w-full rounded-xl border border-gray-300 bg-white p-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
+                      className={inputClass}
                     >
                       <option value="Active">Active</option>
                       <option value="Inactive">Inactive</option>
                     </select>
                   </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
-                    <label className="mb-1.5 block text-sm font-semibold text-gray-700">Spiritual Birthday</label>
+                    <label className="mb-1 block text-xs font-semibold text-[var(--fg-2)]">Spiritual Birthday</label>
                     <input
                       type="date"
                       value={spiritualBirthday}
                       onChange={event => setSpiritualBirthday(event.target.value)}
-                      className="w-full rounded-xl border border-gray-300 p-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
+                      className={inputClass}
                     />
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-sm font-semibold text-gray-700">Baptism Date</label>
+                    <label className="mb-1 block text-xs font-semibold text-[var(--fg-2)]">Baptism Date</label>
                     <input
                       type="date"
                       value={baptismDate}
                       onChange={event => setBaptismDate(event.target.value)}
-                      className="w-full rounded-xl border border-gray-300 p-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
+                      className={inputClass}
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-sm font-semibold text-gray-700">Notes</label>
+                  <label className="mb-1 block text-xs font-semibold text-[var(--fg-2)]">Notes</label>
                   <textarea
                     value={notes}
                     onChange={event => setNotes(event.target.value)}
-                    className="h-32 w-full rounded-xl border border-gray-300 p-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
-                    placeholder="Pastoral notes, context, prayer needs, or next relational observations..."
+                    className={`${inputClass} h-20`}
+                    placeholder="Pastoral notes, context, prayer needs..."
                   />
                 </div>
 
-                <div className="flex flex-col-reverse gap-2 border-t border-gray-200 pt-4 sm:flex-row sm:justify-end">
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-900 hover:bg-gray-50"
-                  >
-                    Close
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="rounded-xl bg-black px-5 py-3 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-60"
-                  >
-                    {loading ? 'Saving...' : 'Save Profile'}
-                  </button>
+                <div className="flex items-center justify-between gap-2 border-t border-[var(--line-1)] pt-3">
+                  <div>
+                    {!showDeleteConfirm ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowDeleteConfirm(true)
+                          setError('')
+                          setMessage('')
+                        }}
+                        disabled={loading}
+                        className="text-xs text-[#F2728A] hover:underline disabled:opacity-60"
+                      >
+                        Delete Profile
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-[#F2728A]">Delete {savedPerson.name}?</span>
+                        <button
+                          type="button"
+                          onClick={() => setShowDeleteConfirm(false)}
+                          disabled={loading}
+                          className="text-xs text-[var(--fg-3)] hover:underline disabled:opacity-60"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleDeletePerson}
+                          disabled={loading}
+                          className="rounded-lg px-2 py-1 text-xs font-semibold transition-colors disabled:opacity-60"
+                          style={{ background: '#F2728A', color: 'var(--void)' }}
+                        >
+                          {loading ? '...' : 'Confirm'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className="cn-btn cn-btn-ghost !py-2 !text-sm"
+                    >
+                      Close
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="cn-btn cn-btn-primary !py-2 !text-sm"
+                    >
+                      {loading ? 'Saving...' : 'Save Profile'}
+                    </button>
+                  </div>
                 </div>
               </form>
             </ModalSectionCard>
@@ -382,33 +424,31 @@ export default function PersonProfileModal({ person, onClose, onSaved, onDeleted
           {activeSection === 'journey' && (
             <ModalSectionCard
               title="4E Tools & Action Steps"
-              subtitle="Check off boxes under Engage, Establish, Equip, and Empower"
+              subtitle="Check off milestones under each stage"
             >
-              <div className="space-y-4">
-                <div className="rounded-2xl border border-gray-200 bg-white p-4">
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_220px] sm:items-end">
-                    <div>
-                      <div className="text-sm font-semibold text-gray-900">Journey Status</div>
-                      <p className="mt-1 text-sm text-gray-600">
-                        Keep this person&apos;s active/inactive status close to the 4E checklist work.
-                      </p>
-                      <div className="mt-3">
-                        <StageLevelBadge stage={currentStage} size="sm" />
-                      </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between rounded-lg border border-[var(--line-1)] bg-[var(--indigo-2)] p-3">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold"
+                      style={{ border: `2px solid ${stageColor}`, color: stageColor }}
+                    >
+                      ✦
                     </div>
                     <div>
-                      <label className="mb-1.5 block text-sm font-semibold text-gray-700">Status</label>
-                      <select
-                        value={status}
-                        onChange={event => handleQuickStatusChange(event.target.value as Person['status'])}
-                        disabled={loading}
-                        className="w-full rounded-xl border border-gray-300 bg-white p-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-black disabled:opacity-60"
-                      >
-                        <option value="Active">Active</option>
-                        <option value="Inactive">Inactive</option>
-                      </select>
+                      <div className="text-sm font-semibold text-[var(--fg-1)]">{stageLabels[currentStage].name}</div>
+                      <div className="text-xs text-[var(--fg-3)]">{stageLabels[currentStage].shortDescription}</div>
                     </div>
                   </div>
+                  <select
+                    value={status}
+                    onChange={event => handleQuickStatusChange(event.target.value as Person['status'])}
+                    disabled={loading}
+                    className="rounded-lg border border-[var(--line-2)] bg-[var(--indigo)] px-3 py-1.5 text-xs font-semibold text-[var(--fg-1)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none disabled:opacity-60"
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
                 </div>
                 <StageChecklist
                   personId={savedPerson.id}
@@ -422,19 +462,23 @@ export default function PersonProfileModal({ person, onClose, onSaved, onDeleted
           {activeSection === 'connections' && (
             <ModalSectionCard
               title="Discipleship Connections"
-              subtitle="Being coached by, called to coach, and notes"
+              subtitle="Being coached by and called to coach"
             >
-              <DiscipleshipConnectionsSection personId={savedPerson.id} />
+              <DiscipleshipConnectionsSection personId={savedPerson.id} onAddNewPerson={onAddNewPerson} />
             </ModalSectionCard>
           )}
 
           {activeSection === 'engagements' && (
             <ModalSectionCard
               title="Next Engagements"
-              subtitle="Follow-up conversations, next steps, and relational touchpoints"
+              subtitle="Follow-up conversations and next steps"
             >
               <div className="space-y-3">
-                <NextStepsList personId={savedPerson.id} refreshKey={refreshKey} />
+                <NextStepsList
+                  personId={savedPerson.id}
+                  refreshKey={refreshKey}
+                  onUpdate={() => setRefreshKey(key => key + 1)}
+                />
                 <AddNextStepForm
                   personId={savedPerson.id}
                   onAdded={() => setRefreshKey(key => key + 1)}
@@ -446,7 +490,7 @@ export default function PersonProfileModal({ person, onClose, onSaved, onDeleted
           {activeSection === 'groups' && (
             <ModalSectionCard
               title="Grace Groups"
-              subtitle="Grace Group membership and recurring group connection"
+              subtitle="Group membership and recurring connection"
             >
               <PersonGroupsSection
                 personId={savedPerson.id}
@@ -461,7 +505,7 @@ export default function PersonProfileModal({ person, onClose, onSaved, onDeleted
           {activeSection === 'prayer' && (
             <ModalSectionCard
               title="Prayer Requests"
-              subtitle="Current prayer needs and answered prayers / praise reports"
+              subtitle="Current prayers and praise reports"
             >
               <div className="space-y-3">
                 <PrayerRequestsList
@@ -477,57 +521,6 @@ export default function PersonProfileModal({ person, onClose, onSaved, onDeleted
             </ModalSectionCard>
           )}
 
-          <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <div className="font-semibold text-red-900">Danger Zone</div>
-                <p className="mt-1 text-sm text-red-800">
-                  Delete this profile only if it was added by mistake. This permanently removes the profile and its related journey records.
-                </p>
-              </div>
-              {!showDeleteConfirm && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowDeleteConfirm(true)
-                    setError('')
-                    setMessage('')
-                  }}
-                  disabled={loading}
-                  className="rounded-xl border border-red-300 bg-white px-4 py-3 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-60"
-                >
-                  Delete Profile
-                </button>
-              )}
-            </div>
-
-            {showDeleteConfirm && (
-              <div className="mt-4 rounded-xl border border-red-300 bg-white p-4">
-                <div className="text-sm font-semibold text-red-900">Permanently delete {savedPerson.name}?</div>
-                <p className="mt-1 text-sm text-red-800">
-                  This cannot be undone. Prayer requests, Next Engagements, 4E checklist progress, group membership, and discipleship connections tied to this profile may also be removed.
-                </p>
-                <div className="mt-3 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setShowDeleteConfirm(false)}
-                    disabled={loading}
-                    className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-900 hover:bg-gray-50 disabled:opacity-60"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleDeletePerson}
-                    disabled={loading}
-                    className="rounded-xl bg-red-700 px-4 py-3 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-60"
-                  >
-                    {loading ? 'Deleting...' : 'Yes, Permanently Delete'}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
         </div>
       </div>
     </div>

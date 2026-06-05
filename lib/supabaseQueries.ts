@@ -115,13 +115,30 @@ export const getAllEngagements = async () => {
   return { data, error }
 }
 
-export const addEngagement = async (engagement: Omit<Engagement, 'id' | 'created_at'>) => {
+export const addEngagement = async (engagement: Omit<Engagement, 'id' | 'created_at' | 'notes' | 'completed_at'> & { follow_up_time?: string | null; location?: string | null }) => {
   const { data, error } = await supabase
     .from('engagements')
     .insert(engagement)
     .select()
     .single()
   return { data, error }
+}
+
+export const updateEngagement = async (id: string, updates: Partial<Omit<Engagement, 'id' | 'person_id' | 'created_at'>>) => {
+  const { data, error } = await supabase
+    .from('engagements')
+    .update(updates)
+    .eq('id', id)
+    .select()
+  return { data: data?.[0] ?? null, error }
+}
+
+export const deleteEngagement = async (id: string) => {
+  const { error } = await supabase
+    .from('engagements')
+    .delete()
+    .eq('id', id)
+  return { error }
 }
 
 // ==================== PRAYER REQUESTS ====================
@@ -151,7 +168,7 @@ export const addPrayerRequest = async (request: Omit<PrayerRequest, 'id' | 'crea
   return { data, error }
 }
 
-export const markPrayerAnswered = async (id: string) => {
+export const markPrayerAnswered = async (id: string, answerNotes?: string | null) => {
   const answeredDate = new Date().toISOString().split('T')[0]
 
   const { data, error } = await supabase
@@ -159,10 +176,11 @@ export const markPrayerAnswered = async (id: string) => {
     .update({
       status: 'Answered',
       answered_date: answeredDate,
+      answer_notes: answerNotes ?? null,
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)
-    .select('id, status, answered_date')
+    .select('id, status, answered_date, answer_notes')
     .maybeSingle()
 
   if (error) return { data, error }
@@ -172,6 +190,31 @@ export const markPrayerAnswered = async (id: string) => {
       data,
       error: {
         message: 'Prayer request was not updated. Supabase may be missing an update policy for prayer_requests.',
+      },
+    }
+  }
+
+  return { data, error: null }
+}
+
+export const updatePrayerAnswerNotes = async (id: string, answerNotes: string | null) => {
+  const { data, error } = await supabase
+    .from('prayer_requests')
+    .update({
+      answer_notes: answerNotes,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .select('id, answer_notes')
+    .maybeSingle()
+
+  if (error) return { data, error }
+
+  if (!data) {
+    return {
+      data,
+      error: {
+        message: 'Prayer request was not updated.',
       },
     }
   }
@@ -242,6 +285,13 @@ export const updateVictoryGroup = async (groupId: string, updates: Partial<Omit<
 }
 
 // ==================== GROUP MEMBERSHIPS ====================
+export const getAllGroupMemberships = async () => {
+  const { data, error } = await supabase
+    .from('person_victory_groups')
+    .select('person_id, victory_group_id')
+  return { data, error }
+}
+
 export const getGroupsForPerson = async (personId: string) => {
   const { data, error } = await supabase
     .from('person_victory_groups')

@@ -15,6 +15,7 @@ interface MultiplicationSnapshotProps {
   refreshKey?: number
   selectedFilterKeys?: string[]
   onToggleFilter?: (filter: SnapshotFilter) => void
+  onAddPerson?: () => void
 }
 
 const stageFilters: Record<Stage, SnapshotFilter> = {
@@ -31,32 +32,39 @@ const stageButtonLabel: Record<Stage, string> = {
   Empower: 'Empower',
 }
 
-function MultiplicationRatioVisual({ ratio, label }: { ratio: number; label: string }) {
+const stageColors: Record<Stage, { color: string; glow: string }> = {
+  Engage: { color: 'var(--engage)', glow: 'var(--engage-glow)' },
+  Establish: { color: 'var(--establish)', glow: 'var(--establish-glow)' },
+  Equip: { color: 'var(--equip)', glow: 'var(--equip-glow)' },
+  Empower: { color: 'var(--empower)', glow: 'var(--empower-glow)' },
+}
+
+function MultiplicationRatioVisual({ ratio, label, color }: { ratio: number; label: string; color?: string }) {
   const barWidth = Math.min(ratio, 100)
   const isHealthy = ratio >= 50
   const isGood = ratio >= 75
 
+  const barColor = color || (isGood ? 'var(--success)' : isHealthy ? 'var(--warning)' : 'var(--danger)')
+
   return (
     <div className="mt-2">
       <div className="flex items-center justify-between text-xs">
-        <span className="font-medium">{label}</span>
-        <span className={`font-bold ${isGood ? 'text-emerald-600' : isHealthy ? 'text-amber-600' : 'text-red-600'}`}>
+        <span className="font-medium text-[var(--fg-2)]">{label}</span>
+        <span className="font-bold" style={{ color: barColor }}>
           {ratio}%
         </span>
       </div>
-      <div className="mt-1 h-2 overflow-hidden rounded-full bg-gray-200">
+      <div className="mt-1 h-2 overflow-hidden rounded-full bg-[var(--indigo)]">
         <div
-          className={`h-full transition-all ${
-            isGood ? 'bg-emerald-500' : isHealthy ? 'bg-amber-500' : 'bg-red-400'
-          }`}
-          style={{ width: `${barWidth}%` }}
+          className="h-full transition-all"
+          style={{ width: `${barWidth}%`, background: barColor }}
         />
       </div>
-      <div className="mt-1 flex justify-between text-[10px] text-gray-500">
+      <div className="mt-1 flex justify-between text-[10px] text-[var(--fg-3)]">
         <span>0%</span>
-        <span className="text-gray-400">|</span>
+        <span style={{ color: 'var(--line-2)' }}>|</span>
         <span>50%</span>
-        <span className="text-gray-400">|</span>
+        <span style={{ color: 'var(--line-2)' }}>|</span>
         <span>100%+</span>
       </div>
     </div>
@@ -67,10 +75,11 @@ export default function MultiplicationSnapshot({
   refreshKey = 0,
   selectedFilterKeys = [],
   onToggleFilter,
+  onAddPerson,
 }: MultiplicationSnapshotProps) {
   const [people, setPeople] = useState<Person[]>([])
   const [connections, setConnections] = useState<DiscipleshipConnection[]>([])
-  const [isExpanded, setIsExpanded] = useState(true)
+  const [isExpanded, setIsExpanded] = useState(false)
 
   useEffect(() => {
     const loadData = async () => {
@@ -102,93 +111,115 @@ export default function MultiplicationSnapshot({
     ? Math.round((activeDisciplers.size / totalPeople) * 100)
     : 0
 
-  const renderStageButton = (stage: Stage, detail?: string) => {
+  const renderStageButton = (stage: Stage) => {
     const filter = stageFilters[stage]
     const isSelected = selectedFilterKeys.includes(filter.key)
+    const colors = stageColors[stage]
 
     return (
       <button
-        key={`${stage}-${detail ?? 'stage'}`}
+        key={stage}
         type="button"
         onClick={() => onToggleFilter?.(filter)}
-        className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
-          isSelected
-            ? 'bg-black text-white ring-2 ring-black ring-offset-1'
-            : 'bg-black text-white hover:bg-gray-800'
-        }`}
+        className="rounded-full px-3 py-1.5 text-xs font-semibold transition-all"
+        style={{
+          background: isSelected ? colors.color : 'var(--indigo)',
+          color: isSelected ? 'var(--void)' : colors.color,
+          boxShadow: isSelected ? `0 0 12px ${colors.glow}` : 'none',
+          border: `1px solid ${isSelected ? colors.color : 'var(--line-2)'}`,
+        }}
         aria-pressed={isSelected}
       >
-        {stageButtonLabel[stage]}{detail ? ` ${detail}` : ''}
+        {stageButtonLabel[stage]}
       </button>
     )
   }
 
-  const metrics = [
+  const metrics: Array<{
+    label: string
+    value: number
+    description: string
+    stages: Stage[]
+    accentColor: string
+    glowColor: string
+  }> = [
     {
       label: 'Reach & Build',
       value: peopleBeingReachedAndBuilt,
       description: 'People in Engage + Establish who need relational care',
-      tone: 'border-blue-200 bg-blue-50 text-blue-900',
-      stageButtons: [renderStageButton('Engage'), renderStageButton('Establish')],
+      stages: ['Engage', 'Establish'],
+      accentColor: 'var(--engage)',
+      glowColor: 'var(--engage-glow)',
     },
     {
       label: 'Emerging Team',
       value: equipCount,
       description: 'People being trained to carry others',
-      tone: 'border-amber-200 bg-amber-50 text-amber-900',
-      stageButtons: [renderStageButton('Equip')],
+      stages: ['Equip'],
+      accentColor: 'var(--equip)',
+      glowColor: 'var(--equip-glow)',
     },
     {
       label: 'Empowered Leaders',
       value: empowerCount,
       description: 'People released to lead and multiply',
-      tone: 'border-violet-200 bg-violet-50 text-violet-900',
-      stageButtons: [renderStageButton('Empower')],
+      stages: ['Empower'],
+      accentColor: 'var(--empower)',
+      glowColor: 'var(--empower-glow)',
     },
     {
       label: 'Leader Pipeline',
       value: leadersBeingFormed,
       description: `${leaderPipelineRatio}% as many leaders forming as people being reached/built`,
-      tone: leaderPipelineRatio >= 50
-        ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
-        : 'border-yellow-200 bg-yellow-50 text-yellow-900',
-      stageButtons: [renderStageButton('Equip'), renderStageButton('Empower')],
+      stages: ['Equip', 'Empower'],
+      accentColor: 'var(--establish)',
+      glowColor: 'var(--establish-glow)',
     },
   ]
 
   return (
-    <section className="mb-8 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+    <section className="cn-card mb-8 p-4 sm:p-5">
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h2 className="text-xl font-semibold text-gray-900">Multiplication Snapshot</h2>
-            <p className="text-sm text-gray-700">Are you building a team that disciples people?</p>
+            <h2 className="cn-h3">Multiplication Snapshot</h2>
+            <p className="text-sm text-[var(--fg-2)]">Are you building a team that disciples people?</p>
           </div>
-          <button
-            type="button"
-            onClick={() => setIsExpanded(current => !current)}
-            className="self-start rounded-full border border-gray-300 bg-white px-3 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50 sm:self-center"
-            aria-expanded={isExpanded}
-          >
-            {isExpanded ? 'Collapse' : 'Expand'}
-          </button>
-        </div>
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
+            {onAddPerson && (
+              <button
+                type="button"
+                onClick={onAddPerson}
+                className="cn-btn cn-btn-primary !px-3 !py-1.5 !text-xs"
+              >
+                + Add Person
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setIsExpanded(current => !current)}
+              className="cn-chip"
+              aria-expanded={isExpanded}
+            >
+              {isExpanded ? 'Collapse' : 'Expand'}
+            </button>
+          </div>
       </div>
 
       {isExpanded && (
         <>
-          <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
+          <div className="mt-4 rounded-xl border border-[var(--line-1)] bg-[var(--indigo)] p-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <div className="text-sm font-semibold text-gray-700">Multiplication Health</div>
-                <p className="mt-1 text-xs text-gray-600">
+                <div className="text-sm font-semibold text-[var(--fg-1)]">Multiplication Health</div>
+                <p className="mt-1 text-xs text-[var(--fg-3)]">
                   {activeDisciplers.size} of {totalPeople} people are actively coaching someone
                 </p>
                 <MultiplicationRatioVisual ratio={multiplicationRatio} label="People who are coaching" />
               </div>
               <div>
-                <div className="text-sm font-semibold text-gray-700">Leader Pipeline Health</div>
-                <p className="mt-1 text-xs text-gray-600">
+                <div className="text-sm font-semibold text-[var(--fg-1)]">Leader Pipeline Health</div>
+                <p className="mt-1 text-xs text-[var(--fg-3)]">
                   {leadersBeingFormed} leaders forming for {peopleBeingReachedAndBuilt} being reached
                 </p>
                 <MultiplicationRatioVisual ratio={leaderPipelineRatio} label="Leaders per people reached" />
@@ -200,19 +231,30 @@ export default function MultiplicationSnapshot({
             {metrics.map(metric => (
               <div
                 key={metric.label}
-                className={`rounded-xl border p-3 text-left ${metric.tone}`}
+                className="rounded-xl border p-3 text-left"
+                style={{
+                  background: 'var(--indigo)',
+                  borderColor: `color-mix(in srgb, ${metric.accentColor} 30%, transparent)`,
+                  boxShadow: `inset 0 1px 0 rgba(246,241,231,.04), 0 0 20px -8px ${metric.glowColor}`,
+                }}
               >
-                <div className="text-2xl font-bold">{metric.value}</div>
-                <div className="mt-1 text-sm font-semibold leading-5">{metric.label}</div>
-                <div className="mt-1 text-xs leading-4 opacity-80">{metric.description}</div>
+                <div
+                  className="text-2xl font-bold"
+                  style={{ color: metric.accentColor }}
+                >
+                  {metric.value}
+                </div>
+                <div className="mt-1 text-sm font-semibold leading-5 text-[var(--fg-1)]">{metric.label}</div>
+                <div className="mt-1 text-xs leading-4 text-[var(--fg-3)]">{metric.description}</div>
                 <div className="mt-3 flex flex-wrap gap-1.5">
-                  {metric.stageButtons}
+                  {metric.stages.map(stage => renderStageButton(stage))}
                 </div>
               </div>
             ))}
           </div>
         </>
       )}
+      </div>
     </section>
   )
 }

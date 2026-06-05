@@ -4,9 +4,15 @@ import { useState } from 'react'
 import { addPerson } from '../lib/supabaseQueries'
 import { Stage } from '../types/database'
 import { stageLabels, stageOrder } from '../lib/stageLabels'
-import StageLevelBadge from './StageLevelBadge'
 
 const stages: Stage[] = stageOrder
+
+const STAGE_COLORS: Record<Stage, string> = {
+  Engage: 'var(--engage)',
+  Establish: 'var(--establish)',
+  Equip: 'var(--equip)',
+  Empower: 'var(--empower)',
+}
 
 export default function AddPersonForm({ onPersonAdded }: { onPersonAdded?: () => void }) {
   const [name, setName] = useState('')
@@ -23,7 +29,7 @@ export default function AddPersonForm({ onPersonAdded }: { onPersonAdded?: () =>
 
     setLoading(true)
     setError('')
-    
+
     const { error: supabaseError } = await addPerson({
       name,
       email: email || null,
@@ -33,6 +39,7 @@ export default function AddPersonForm({ onPersonAdded }: { onPersonAdded?: () =>
       baptism_date: null,
       notes: notes || null,
       status: 'Active',
+      priority: false,
       victory_group_id: null,
     })
 
@@ -50,68 +57,86 @@ export default function AddPersonForm({ onPersonAdded }: { onPersonAdded?: () =>
     setLoading(false)
   }
 
+  const stageColor = STAGE_COLORS[currentStage]
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form onSubmit={handleSubmit} className="space-y-4">
       {error && (
-        <div className="p-3 bg-red-50 text-red-700 rounded-xl text-sm">
+        <div className="rounded-xl bg-[rgba(240,114,159,.15)] p-3 text-sm text-[#F2728A]">
           Error: {error}
         </div>
       )}
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">Name *</label>
+        <label className="mb-1.5 block text-sm font-medium text-[var(--fg-2)]">Name *</label>
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="w-full border border-gray-300 p-3 rounded-xl text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black"
+          className="w-full rounded-xl border border-[var(--line-2)] bg-[var(--indigo)] p-3 text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
           required
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
+          <label className="mb-1.5 block text-sm font-medium text-[var(--fg-2)]">Email</label>
           <input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full border border-gray-300 p-3 rounded-xl text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black"
+            className="w-full rounded-xl border border-[var(--line-2)] bg-[var(--indigo)] p-3 text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone</label>
+          <label className="mb-1.5 block text-sm font-medium text-[var(--fg-2)]">Phone</label>
           <input
             type="tel"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            className="w-full border border-gray-300 p-3 rounded-xl text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black"
+            className="w-full rounded-xl border border-[var(--line-2)] bg-[var(--indigo)] p-3 text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
           />
         </div>
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">Current Stage</label>
-        <select 
-          value={currentStage} 
+        <label className="mb-1.5 block text-sm font-medium text-[var(--fg-2)]">Current Stage</label>
+        <select
+          value={currentStage}
           onChange={(e) => setCurrentStage(e.target.value as Stage)}
-          className="w-full border border-gray-300 p-3 rounded-xl bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
+          className="w-full rounded-xl border border-[var(--line-2)] bg-[var(--indigo)] p-3 text-[var(--fg-1)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
         >
           {stages.map(stage => (
             <option key={stage} value={stage}>{stageLabels[stage].display}</option>
           ))}
         </select>
         <div className="mt-2">
-          <StageLevelBadge stage={currentStage} size="sm" />
+          <div
+            className="inline-flex items-center gap-2 rounded-full px-3 py-1.5"
+            style={{
+              background: `${stageColor}20`,
+              border: `1px solid ${stageColor}40`,
+            }}
+          >
+            <span
+              className="text-xs font-bold"
+              style={{ color: stageColor }}
+            >
+              ✦ {stageLabels[currentStage].name}
+            </span>
+            <span className="text-xs text-[var(--fg-3)]">
+              {stageLabels[currentStage].shortDescription}
+            </span>
+          </div>
         </div>
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">Notes</label>
+        <label className="mb-1.5 block text-sm font-medium text-[var(--fg-2)]">Notes</label>
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          className="w-full border border-gray-300 p-3 rounded-xl text-gray-900 placeholder:text-gray-400 h-24 focus:outline-none focus:ring-2 focus:ring-black"
+          className="h-24 w-full rounded-xl border border-[var(--line-2)] bg-[var(--indigo)] p-3 text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
           placeholder="Initial observations or context..."
         />
       </div>
@@ -119,7 +144,12 @@ export default function AddPersonForm({ onPersonAdded }: { onPersonAdded?: () =>
       <button
         type="submit"
         disabled={loading}
-        className="w-full bg-black text-white py-3.5 rounded-xl font-medium disabled:opacity-50 hover:bg-gray-800 transition-colors"
+        className="w-full rounded-xl py-3.5 font-semibold transition-all disabled:opacity-50"
+        style={{
+          background: 'var(--gbm-cobalt-bright)',
+          color: 'var(--fg-1)',
+          boxShadow: '0 0 20px rgba(46,85,230,.3)',
+        }}
       >
         {loading ? 'Adding...' : 'Add Person'}
       </button>

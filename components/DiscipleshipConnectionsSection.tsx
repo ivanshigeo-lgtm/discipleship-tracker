@@ -8,15 +8,26 @@ import {
   getDiscipleshipConnections,
   getPeople,
 } from '../lib/supabaseQueries'
-import type { DiscipleshipConnection, Person } from '../types/database'
+import type { DiscipleshipConnection, Person, Stage } from '../types/database'
 
-export default function DiscipleshipConnectionsSection({ personId }: { personId: string }) {
+const STAGE_COLORS: Record<Stage, string> = {
+  Engage: '#F4B650',
+  Establish: '#36D6C3',
+  Equip: '#5B8DF7',
+  Empower: '#F0729F',
+}
+
+interface DiscipleshipConnectionsSectionProps {
+  personId: string
+  onAddNewPerson?: () => void
+}
+
+export default function DiscipleshipConnectionsSection({ personId, onAddNewPerson }: DiscipleshipConnectionsSectionProps) {
   const [shepherdingConnections, setShepherdingConnections] = useState<DiscipleshipConnection[]>([])
   const [allConnections, setAllConnections] = useState<DiscipleshipConnection[]>([])
   const [people, setPeople] = useState<Person[]>([])
   const [selectedDisciplerId, setSelectedDisciplerId] = useState('')
   const [selectedDiscipleId, setSelectedDiscipleId] = useState('')
-  const [relationshipNotes, setRelationshipNotes] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -101,8 +112,13 @@ export default function DiscipleshipConnectionsSection({ personId }: { personId:
   }, [personId])
 
   const displayNameForPerson = (personIdToDisplay: string | null | undefined, fallbackName?: string) => {
-    if (!personIdToDisplay) return fallbackName ?? 'Unknown person'
-    return peopleById.get(personIdToDisplay)?.name ?? fallbackName ?? 'Unknown person'
+    if (!personIdToDisplay) return fallbackName ?? 'Unknown'
+    return peopleById.get(personIdToDisplay)?.name ?? fallbackName ?? 'Unknown'
+  }
+
+  const getPersonStage = (personIdToGet: string | null | undefined): Stage => {
+    if (!personIdToGet) return 'Engage'
+    return peopleById.get(personIdToGet)?.current_stage ?? 'Engage'
   }
 
   const handleAddDisciplerConnection = async () => {
@@ -112,12 +128,12 @@ export default function DiscipleshipConnectionsSection({ personId }: { personId:
     const discipler = peopleById.get(selectedDisciplerId)
 
     if (!currentPerson) {
-      setError('Could not find this person in Our Journey yet.')
+      setError('Could not find this person.')
       return
     }
 
     if (!discipler) {
-      setError('Choose a coach from Our Journey first.')
+      setError('Choose a coach first.')
       return
     }
 
@@ -139,7 +155,7 @@ export default function DiscipleshipConnectionsSection({ personId }: { personId:
 
     setSelectedDisciplerId('')
     await loadConnections()
-    setMessage(`${discipler.name} was added as a coach.`)
+    setMessage(`${discipler.name} added as coach.`)
     setSaving(false)
   }
 
@@ -150,7 +166,7 @@ export default function DiscipleshipConnectionsSection({ personId }: { personId:
     const disciple = peopleById.get(selectedDiscipleId)
 
     if (!disciple) {
-      setError('Choose someone to coach from Our Journey first.')
+      setError('Choose someone first.')
       return
     }
 
@@ -160,7 +176,7 @@ export default function DiscipleshipConnectionsSection({ personId }: { personId:
       discipler_person_id: personId,
       disciple_person_id: disciple.id,
       disciple_name: disciple.name,
-      relationship_notes: relationshipNotes.trim() || null,
+      relationship_notes: null,
       status: 'Identified',
     })
 
@@ -171,9 +187,8 @@ export default function DiscipleshipConnectionsSection({ personId }: { personId:
     }
 
     setSelectedDiscipleId('')
-    setRelationshipNotes('')
     await loadConnections()
-    setMessage(`${disciple.name} was added.`)
+    setMessage(`${disciple.name} added.`)
     setSaving(false)
   }
 
@@ -189,179 +204,171 @@ export default function DiscipleshipConnectionsSection({ personId }: { personId:
     await loadConnections()
   }
 
-  return (
-    <div
-      className="space-y-3 rounded-xl border border-violet-200 bg-violet-50 p-3"
-      onClick={event => event.stopPropagation()}
-    >
-      <div>
-        <div className="font-semibold text-gray-900">Discipleship Connections</div>
-        <p className="mt-1 text-xs leading-5 text-gray-700">
-          Everyone stays in Our Journey. A person can be coached by multiple people and can also be called to coach multiple people.
-        </p>
-      </div>
+  const inputClass = "w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] p-2 text-sm text-[var(--fg-1)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none disabled:opacity-60"
 
+  return (
+    <div className="space-y-3" onClick={event => event.stopPropagation()}>
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-2 text-sm text-red-700">
-          <p>{error}</p>
-          <p className="mt-1 text-xs">
-            If this mentions a unique constraint or <span className="font-semibold">disciple_person_id</span>, run the multiple-disciplers SQL migration in Supabase first.
-          </p>
-        </div>
+        <p className="rounded-lg bg-[rgba(240,114,159,.15)] p-2 text-xs text-[#F2728A]">{error}</p>
       )}
 
       {message && (
-        <p className="rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-sm text-emerald-800">{message}</p>
+        <p className="rounded-lg bg-[rgba(54,214,195,.15)] p-2 text-xs text-[var(--establish)]">{message}</p>
       )}
 
-      {loading && !error && <p className="text-sm text-gray-700">Loading connections...</p>}
+      {loading && !error && <p className="text-sm text-[var(--fg-2)]">Loading...</p>}
 
       {!loading && !error && (
-        <div className="space-y-3">
-          <div className="space-y-3 rounded-lg border border-violet-200 bg-white p-2.5">
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-gray-700">Being Coached By</div>
-              {incomingConnections.length > 0 ? (
-                <div className="mt-2 space-y-2">
-                  {incomingConnections.map(connection => (
-                    <div key={connection.id} className="rounded-lg border border-gray-200 bg-gray-50 p-2">
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="min-w-0">
-                          <div className="break-words text-sm font-semibold text-gray-900">
-                            {displayNameForPerson(connection.discipler_person_id)}
-                          </div>
-                          <div className="mt-0.5 text-xs text-gray-600">Coach</div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(connection.id)}
-                          className="self-start rounded-lg border border-red-200 bg-white px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50"
+        <div className="grid gap-3 sm:grid-cols-2">
+          {/* Being Coached By */}
+          <div className="rounded-lg border border-[var(--line-1)] bg-[var(--indigo-2)] p-2.5">
+            <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-[var(--fg-3)]">Being Coached By</div>
+            {incomingConnections.length > 0 ? (
+              <div className="space-y-1.5">
+                {incomingConnections.map(connection => {
+                  const stage = getPersonStage(connection.discipler_person_id)
+                  const stageColor = STAGE_COLORS[stage]
+                  const initials = displayNameForPerson(connection.discipler_person_id)
+                    .split(' ')
+                    .map(n => n[0])
+                    .join('')
+                    .slice(0, 2)
+                    .toUpperCase()
+
+                  return (
+                    <div key={connection.id} className="flex items-center justify-between gap-2 rounded-lg border border-[var(--line-1)] bg-[var(--indigo)] p-2">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
+                          style={{ border: `2px solid ${stageColor}`, color: stageColor }}
                         >
-                          Remove
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="mt-2 rounded-lg border border-gray-200 bg-gray-50 p-2 text-sm text-gray-700">
-                  No coach connected yet.
-                </p>
-              )}
-            </div>
-
-            <div className="border-t border-violet-100 pt-3">
-              <label className="mb-1 block text-xs font-semibold text-gray-700">Add another Coach</label>
-              <select
-                value={selectedDisciplerId}
-                onChange={event => {
-                  setSelectedDisciplerId(event.target.value)
-                  setError('')
-                  setMessage('')
-                }}
-                disabled={saving || possibleDisciplers.length === 0}
-                className="w-full rounded-lg border border-gray-300 bg-white p-2 text-sm text-gray-900 disabled:opacity-60"
-              >
-                <option value="">Choose a Coach from Our Journey</option>
-                {possibleDisciplers.map(person => (
-                  <option key={person.id} value={person.id}>
-                    {person.name} — {person.current_stage}
-                  </option>
-                ))}
-              </select>
-              {possibleDisciplers.length === 0 && (
-                <p className="mt-1 text-xs text-gray-600">Everyone else is already connected as a coach for this person.</p>
-              )}
-              <button
-                type="button"
-                onClick={handleAddDisciplerConnection}
-                disabled={!canAddDisciplerConnection}
-                className="mt-2 w-full rounded-lg bg-black px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {saving ? 'Saving...' : selectedDisciplerId ? 'Add Coach' : 'Choose a Coach First'}
-              </button>
-            </div>
-
-          </div>
-
-          <div className="space-y-3 rounded-lg border border-violet-200 bg-white p-2.5">
-            <div className="text-xs font-semibold uppercase tracking-wide text-gray-700">Called to Coach</div>
-
-            {shepherdingConnections.length > 0 ? (
-              <div className="space-y-2">
-                {shepherdingConnections.map(connection => (
-                  <div key={connection.id} className="rounded-lg border border-gray-200 bg-gray-50 p-2">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="min-w-0">
-                        <div className="break-words text-sm font-semibold text-gray-900">
-                          {displayNameForPerson(connection.disciple_person_id, connection.disciple_name)}
+                          {initials}
                         </div>
-                        {connection.relationship_notes && (
-                          <div className="mt-1 whitespace-pre-wrap text-xs leading-5 text-gray-700">{connection.relationship_notes}</div>
-                        )}
+                        <span className="text-xs font-semibold text-[var(--fg-1)]">
+                          {displayNameForPerson(connection.discipler_person_id)}
+                        </span>
                       </div>
                       <button
                         type="button"
                         onClick={() => handleDelete(connection.id)}
-                        className="self-start rounded-lg border border-red-200 bg-white px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50"
+                        className="text-[10px] text-[#F2728A] hover:underline"
                       >
-                        Remove
+                        ×
                       </button>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             ) : (
-              <p className="rounded-lg border border-gray-200 bg-gray-50 p-2 text-sm text-gray-700">
-                No one identified to coach yet.
-              </p>
+              <p className="rounded-lg bg-[var(--indigo)] p-2 text-xs text-[var(--fg-3)]">No coach yet.</p>
             )}
 
-            <div className="border-t border-violet-100 pt-3">
-              <label className="mb-1 block text-xs font-semibold text-gray-700">Someone called to Coach</label>
+            <div className="mt-2 flex gap-1.5">
               <select
-                value={selectedDiscipleId}
+                value={selectedDisciplerId}
                 onChange={event => {
-                  setSelectedDiscipleId(event.target.value)
-                  setError('')
-                  setMessage('')
+                  if (event.target.value === '__NEW__') {
+                    onAddNewPerson?.()
+                    event.target.value = ''
+                  } else {
+                    setSelectedDisciplerId(event.target.value)
+                  }
                 }}
-                disabled={saving || availablePeopleToShepherd.length === 0}
-                className="w-full rounded-lg border border-gray-300 bg-white p-2 text-sm text-gray-900 disabled:opacity-60"
+                disabled={saving}
+                className={`${inputClass} flex-1`}
               >
-                <option value="">Choose Someone to Coach</option>
-                {availablePeopleToShepherd.map(person => (
-                  <option key={person.id} value={person.id}>
-                    {person.name} — {person.current_stage}
-                  </option>
+                <option value="">+ Add coach...</option>
+                {onAddNewPerson && (
+                  <option value="__NEW__">＋ Create new person...</option>
+                )}
+                {possibleDisciplers.map(person => (
+                  <option key={person.id} value={person.id}>{person.name}</option>
                 ))}
               </select>
-              {availablePeopleToShepherd.length === 0 && (
-                <p className="mt-1 text-xs text-gray-600">Everyone in Our Journey is already connected to be coached by this person or this person is the only one listed.</p>
-              )}
               <button
                 type="button"
-                onClick={handleAddShepherdingConnection}
-                disabled={!canAddShepherdingConnection}
-                className="mt-2 w-full rounded-lg bg-black px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={handleAddDisciplerConnection}
+                disabled={!canAddDisciplerConnection}
+                className="cn-btn cn-btn-primary shrink-0 !px-2.5 !py-1.5 !text-xs"
               >
-                {saving ? 'Saving...' : selectedDiscipleId ? 'Called to Coach' : 'Choose Someone to Coach First'}
+                Add
               </button>
             </div>
           </div>
 
-          <div className="space-y-3 rounded-lg border border-violet-200 bg-white p-2.5">
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-gray-700">Notes</div>
-              <p className="mt-1 text-xs leading-5 text-gray-600">Context for this coaching connection or next conversation.</p>
-            </div>
-            <textarea
-              value={relationshipNotes}
-              onChange={event => setRelationshipNotes(event.target.value)}
-              placeholder="Context, relationship, or next conversation..."
-              className="h-24 w-full rounded-lg border border-gray-300 bg-white p-2 text-sm text-gray-900 placeholder:text-gray-400"
-            />
+          {/* Called to Coach */}
+          <div className="rounded-lg border border-[var(--line-1)] bg-[var(--indigo-2)] p-2.5">
+            <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-[var(--fg-3)]">Called to Coach</div>
+            {shepherdingConnections.length > 0 ? (
+              <div className="space-y-1.5">
+                {shepherdingConnections.map(connection => {
+                  const stage = getPersonStage(connection.disciple_person_id)
+                  const stageColor = STAGE_COLORS[stage]
+                  const name = displayNameForPerson(connection.disciple_person_id, connection.disciple_name)
+                  const initials = name
+                    .split(' ')
+                    .map(n => n[0])
+                    .join('')
+                    .slice(0, 2)
+                    .toUpperCase()
 
+                  return (
+                    <div key={connection.id} className="flex items-center justify-between gap-2 rounded-lg border border-[var(--line-1)] bg-[var(--indigo)] p-2">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
+                          style={{ border: `2px solid ${stageColor}`, color: stageColor }}
+                        >
+                          {initials}
+                        </div>
+                        <span className="text-xs font-semibold text-[var(--fg-1)]">{name}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(connection.id)}
+                        className="text-[10px] text-[#F2728A] hover:underline"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <p className="rounded-lg bg-[var(--indigo)] p-2 text-xs text-[var(--fg-3)]">No one yet.</p>
+            )}
+
+            <div className="mt-2 flex gap-1.5">
+              <select
+                value={selectedDiscipleId}
+                onChange={event => {
+                  if (event.target.value === '__NEW__') {
+                    onAddNewPerson?.()
+                    event.target.value = ''
+                  } else {
+                    setSelectedDiscipleId(event.target.value)
+                  }
+                }}
+                disabled={saving}
+                className={`${inputClass} flex-1`}
+              >
+                <option value="">+ Add person...</option>
+                {onAddNewPerson && (
+                  <option value="__NEW__">＋ Create new person...</option>
+                )}
+                {availablePeopleToShepherd.map(person => (
+                  <option key={person.id} value={person.id}>{person.name}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={handleAddShepherdingConnection}
+                disabled={!canAddShepherdingConnection}
+                className="cn-btn cn-btn-primary shrink-0 !px-2.5 !py-1.5 !text-xs"
+              >
+                Add
+              </button>
+            </div>
           </div>
         </div>
       )}

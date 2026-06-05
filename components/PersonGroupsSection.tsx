@@ -76,73 +76,65 @@ export default function PersonGroupsSection({
   const availableGroups = groups.filter(group => !joinedGroupIds.has(group.id))
 
   return (
-    <div className="space-y-4">
-      {error && <p className="rounded-lg border border-red-200 bg-red-50 p-2 text-sm text-red-700">{error}</p>}
+    <div className="space-y-3">
+      {error && <p className="rounded-lg bg-[rgba(240,114,159,.15)] p-2 text-xs text-[#F2728A]">{error}</p>}
 
-      <div>
-        <div className="mb-2 text-sm font-semibold text-gray-900">Groups this person is part of</div>
-        {memberships.length === 0 ? (
-          <p className="rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700">Not part of any groups yet.</p>
-        ) : (
-          <div className="space-y-2">
-            {memberships.map(membership => {
-              const group = membership.victory_groups
-              if (!group) return null
+      {memberships.length === 0 ? (
+        <p className="rounded-lg bg-[var(--indigo-2)] p-2.5 text-xs text-[var(--fg-3)]">Not part of any groups yet.</p>
+      ) : (
+        <div className="space-y-1.5">
+          {memberships.map(membership => {
+            const group = membership.victory_groups
+            if (!group) return null
 
-              return (
-                <div key={membership.id} className="rounded-lg border border-gray-200 bg-white p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="font-semibold text-gray-900">{group.name}</div>
-                      <div className="mt-1 text-sm text-gray-700">
-                        {group.meeting_day || group.meeting_time ? (
-                          <span>{group.meeting_day ?? 'Recurring'}{group.meeting_time ? ` at ${group.meeting_time}` : ''}</span>
-                        ) : (
-                          <span>No recurring time set</span>
-                        )}
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveGroup(group.id)}
-                      disabled={saving}
-                      className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60"
-                    >
-                      Remove
-                    </button>
+            return (
+              <div key={membership.id} className="flex items-center justify-between gap-2 rounded-lg border border-[var(--line-1)] bg-[var(--indigo-2)] p-2.5">
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-[var(--fg-1)]">{group.name}</div>
+                  <div className="mt-0.5 text-[10px] text-[var(--fg-3)]">
+                    {group.meeting_day || group.meeting_time ? (
+                      <span>{group.meeting_day ?? ''}{group.meeting_time ? ` @ ${group.meeting_time}` : ''}</span>
+                    ) : (
+                      <span>No time set</span>
+                    )}
                   </div>
                 </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
-
-      <div>
-        <label className="mb-1 block text-sm font-semibold text-gray-900">Add to another group</label>
-        <div className="flex gap-2">
-          <select
-            value={selectedGroupId}
-            onChange={event => setSelectedGroupId(event.target.value)}
-            disabled={saving}
-            className="flex-1 rounded-lg border border-gray-300 bg-white p-2.5 text-sm text-gray-900 disabled:opacity-60"
-          >
-            <option value="">Choose group</option>
-            {availableGroups.map(group => (
-              <option key={group.id} value={group.id}>
-                {group.name}{group.meeting_day ? ` — ${group.meeting_day}` : ''}{group.meeting_time ? ` at ${group.meeting_time}` : ''}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            onClick={handleAddGroup}
-            disabled={saving || !selectedGroupId}
-            className="rounded-lg bg-black px-4 text-sm font-semibold text-white disabled:opacity-60"
-          >
-            Add
-          </button>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveGroup(group.id)}
+                  disabled={saving}
+                  className="text-[10px] text-[#F2728A] hover:underline disabled:opacity-60"
+                >
+                  ×
+                </button>
+              </div>
+            )
+          })}
         </div>
+      )}
+
+      <div className="flex gap-1.5">
+        <select
+          value={selectedGroupId}
+          onChange={event => setSelectedGroupId(event.target.value)}
+          disabled={saving}
+          className="flex-1 rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] p-2 text-xs text-[var(--fg-1)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none disabled:opacity-60"
+        >
+          <option value="">+ Add to group...</option>
+          {availableGroups.map(group => (
+            <option key={group.id} value={group.id}>
+              {group.name}{group.meeting_day ? ` — ${group.meeting_day}` : ''}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={handleAddGroup}
+          disabled={saving || !selectedGroupId}
+          className="cn-btn cn-btn-primary shrink-0 !px-3 !py-1.5 !text-xs"
+        >
+          Add
+        </button>
       </div>
     </div>
   )

@@ -9,7 +9,13 @@ import {
 import { stageChecklistTemplates, stages } from '../lib/stageChecklistTemplates'
 import type { ChecklistCategory, Stage, StageChecklistItem } from '../types/database'
 import { stageLabels } from '../lib/stageLabels'
-import StageLevelBadge from './StageLevelBadge'
+
+const STAGE_COLORS: Record<Stage, string> = {
+  Engage: '#F4B650',
+  Establish: '#36D6C3',
+  Equip: '#5B8DF7',
+  Empower: '#F0729F',
+}
 
 export default function StageChecklist({
   personId,
@@ -113,24 +119,29 @@ export default function StageChecklist({
 
   const renderItems = (stage: Stage, category: ChecklistCategory) => {
     const templateItems = stageChecklistTemplates[stage].filter(item => item.category === category)
+    const stageColor = STAGE_COLORS[stage]
 
     return (
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         {templateItems.map(templateItem => {
           const savedItem = findSavedItem(stage, category, templateItem.label)
           const checked = Boolean(savedItem?.completed)
           const itemId = savedItem?.id ?? `${stage}-${category}-${templateItem.label}`
 
           return (
-            <label key={templateItem.label} className="flex items-start gap-3 rounded-lg border border-gray-200 bg-white p-3">
+            <label
+              key={templateItem.label}
+              className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-[var(--line-1)] bg-[var(--indigo-2)] p-2.5 transition-colors hover:border-[var(--line-2)]"
+            >
               <input
                 type="checkbox"
                 checked={checked}
                 disabled={savingId === itemId}
                 onChange={event => handleToggle(stage, category, templateItem.label, event.target.checked)}
-                className="mt-1 h-4 w-4 rounded border-gray-300 text-black"
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-[var(--line-2)] bg-[var(--indigo)]"
+                style={{ accentColor: stageColor }}
               />
-              <span className={`text-sm ${checked ? 'text-gray-700 line-through' : 'text-gray-900'}`}>
+              <span className={`text-xs ${checked ? 'text-[var(--fg-3)] line-through' : 'text-[var(--fg-1)]'}`}>
                 {templateItem.label}
               </span>
             </label>
@@ -141,54 +152,74 @@ export default function StageChecklist({
   }
 
   return (
-    <div className="space-y-3">
-      {error && <p className="rounded-lg border border-red-200 bg-red-50 p-2 text-sm text-red-700">{error}</p>}
+    <div className="space-y-2">
+      {error && <p className="rounded-lg bg-[rgba(240,114,159,.15)] p-2 text-xs text-[#F2728A]">{error}</p>}
 
-      <div className="space-y-2">
-        {stages.map(stage => {
-          const { completedCount, totalCount } = completionForStage(stage)
-          const isOpen = openStages[stage]
-          const isCurrentStage = currentStage === stage
+      {stages.map(stage => {
+        const { completedCount, totalCount } = completionForStage(stage)
+        const isOpen = openStages[stage]
+        const isCurrentStage = currentStage === stage
+        const stageColor = STAGE_COLORS[stage]
+        const percentage = Math.round((completedCount / totalCount) * 100)
 
-          return (
-            <div key={stage} className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-              <button
-                type="button"
-                onClick={() => toggleStageOpen(stage)}
-                className="flex w-full items-center justify-between gap-3 p-3 text-left hover:bg-gray-50"
-              >
+        return (
+          <div
+            key={stage}
+            className="overflow-hidden rounded-lg border border-[var(--line-1)]"
+            style={{ background: 'var(--indigo-2)' }}
+          >
+            <button
+              type="button"
+              onClick={() => toggleStageOpen(stage)}
+              className="flex w-full items-center justify-between gap-3 p-2.5 text-left transition-colors hover:bg-[var(--indigo-3)]"
+            >
+              <div className="flex items-center gap-2.5">
+                <div
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
+                  style={{ border: `2px solid ${stageColor}`, color: stageColor }}
+                >
+                  ✦
+                </div>
                 <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <StageLevelBadge stage={stage} size="sm" />
-                    <span className="font-semibold text-gray-900">{stageLabels[stage].display}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold" style={{ color: stageColor }}>
+                      {stageLabels[stage].name}
+                    </span>
                     {isCurrentStage && (
-                      <span className="rounded-full bg-black px-2 py-0.5 text-xs font-semibold text-white">Current</span>
+                      <span className="rounded-full bg-[var(--gbm-cobalt-bright)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--fg-1)]">
+                        Current
+                      </span>
                     )}
                   </div>
-                  <div className="mt-1 text-xs font-medium text-gray-700">
-                    {completedCount} of {totalCount} completed
+                  <div className="flex items-center gap-2 text-[10px] text-[var(--fg-3)]">
+                    <span>{completedCount}/{totalCount}</span>
+                    <div className="h-1 w-16 overflow-hidden rounded-full bg-[var(--indigo)]">
+                      <div
+                        className="h-full rounded-full"
+                        style={{ width: `${percentage}%`, background: stageColor }}
+                      />
+                    </div>
                   </div>
                 </div>
-                <div className="text-xl font-light text-gray-700">{isOpen ? '−' : '+'}</div>
-              </button>
+              </div>
+              <span className="text-sm text-[var(--fg-3)]">{isOpen ? '−' : '+'}</span>
+            </button>
 
-              {isOpen && (
-                <div className="space-y-4 border-t border-gray-200 bg-gray-50 p-3">
-                  <div>
-                    <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-700">Tools</div>
-                    {renderItems(stage, 'Tool')}
-                  </div>
-
-                  <div>
-                    <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-700">Action Items</div>
-                    {renderItems(stage, 'Action Step')}
-                  </div>
+            {isOpen && (
+              <div className="space-y-3 border-t border-[var(--line-1)] bg-[var(--indigo)] p-2.5">
+                <div>
+                  <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--fg-3)]">Tools</div>
+                  {renderItems(stage, 'Tool')}
                 </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
+                <div>
+                  <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--fg-3)]">Action Steps</div>
+                  {renderItems(stage, 'Action Step')}
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }

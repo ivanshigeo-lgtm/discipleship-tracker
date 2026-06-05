@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getPrayerRequestsByPerson, markPrayerAnswered, deletePrayerRequest } from '../lib/supabaseQueries'
+import { getPrayerRequestsByPerson, markPrayerAnswered, updatePrayerAnswerNotes, deletePrayerRequest } from '../lib/supabaseQueries'
 import type { PrayerRequest } from '../types/database'
 
 export default function PrayerRequestsList({
@@ -15,7 +15,11 @@ export default function PrayerRequestsList({
 }) {
   const [requests, setRequests] = useState<PrayerRequest[]>([])
   const [answeringId, setAnsweringId] = useState<string | null>(null)
+  const [answerNotes, setAnswerNotes] = useState('')
+  const [editingNotesId, setEditingNotesId] = useState<string | null>(null)
+  const [editingNotesText, setEditingNotesText] = useState('')
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [savingNotesId, setSavingNotesId] = useState<string | null>(null)
   const [error, setError] = useState('')
 
   const loadRequests = async () => {
@@ -31,11 +35,20 @@ export default function PrayerRequestsList({
     loadRequests()
   }, [personId, refreshKey])
 
-  const handleMarkAnswered = async (id: string) => {
+  const handleStartAnswering = (id: string) => {
     setAnsweringId(id)
+    setAnswerNotes('')
+  }
+
+  const handleCancelAnswering = () => {
+    setAnsweringId(null)
+    setAnswerNotes('')
+  }
+
+  const handleConfirmAnswered = async (id: string) => {
     setError('')
 
-    const { error } = await markPrayerAnswered(id)
+    const { error } = await markPrayerAnswered(id, answerNotes.trim() || null)
     if (error) {
       setError(error.message)
     } else {
@@ -44,6 +57,29 @@ export default function PrayerRequestsList({
     }
 
     setAnsweringId(null)
+    setAnswerNotes('')
+  }
+
+  const handleStartEditingNotes = (request: PrayerRequest) => {
+    setEditingNotesId(request.id)
+    setEditingNotesText(request.answer_notes || '')
+  }
+
+  const handleSaveNotes = async (id: string) => {
+    setSavingNotesId(id)
+    setError('')
+
+    const { error } = await updatePrayerAnswerNotes(id, editingNotesText.trim() || null)
+    if (error) {
+      setError(error.message)
+    } else {
+      await loadRequests()
+      onUpdate?.()
+    }
+
+    setSavingNotesId(null)
+    setEditingNotesId(null)
+    setEditingNotesText('')
   }
 
   const handleDelete = async (id: string) => {
@@ -67,100 +103,166 @@ export default function PrayerRequestsList({
   const prayingRequests = requests.filter(request => request.status === 'Active')
   const answeredRequests = requests.filter(request => request.status === 'Answered')
 
+  const inputClass = "w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo)] p-2 text-xs text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          {error}
-        </div>
+        <p className="rounded-lg bg-[rgba(240,114,159,.15)] p-2 text-xs text-[#F2728A]">{error}</p>
       )}
 
       {/* Current Prayer List */}
-      <section>
+      <div className="rounded-lg border border-[var(--line-1)] bg-[var(--indigo-2)] p-2.5">
         <div className="mb-2 flex items-center justify-between">
-          <div className="text-sm font-semibold text-gray-900">Current Prayer Requests</div>
-          <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-800">
-            Praying
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--fg-3)]">Current Prayers</span>
+          <span className="rounded-full bg-[rgba(91,141,247,.2)] px-2 py-0.5 text-[10px] font-semibold text-[var(--equip)]">
+            {prayingRequests.length}
           </span>
         </div>
 
         {prayingRequests.length === 0 ? (
-          <p className="rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700">
-            No current prayer requests.
-          </p>
+          <p className="text-xs text-[var(--fg-3)] italic">No current prayers.</p>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             {prayingRequests.map(request => (
-              <div key={request.id} className="rounded-lg border border-blue-100 bg-white p-3">
-                <div className="mb-3 flex items-start justify-between gap-3">
-                  <div>
-                    <div className="mb-1 inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-800">
-                      Status: Praying
-                    </div>
-                    <div className="text-sm font-medium text-gray-900">
-                      {request.request}
+              <div key={request.id} className="rounded-lg border border-[var(--line-1)] bg-[var(--indigo)] p-2.5">
+                <div className="text-xs text-[var(--fg-1)]">{request.request}</div>
+
+                {answeringId === request.id ? (
+                  <div className="mt-2 space-y-2">
+                    <textarea
+                      value={answerNotes}
+                      onChange={(e) => setAnswerNotes(e.target.value)}
+                      placeholder="How was this prayer answered? (optional)"
+                      className={inputClass}
+                      rows={2}
+                    />
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={() => handleConfirmAnswered(request.id)}
+                        className="rounded-lg px-2 py-1 text-[10px] font-semibold transition-colors"
+                        style={{ background: 'rgba(54,214,195,.15)', color: 'var(--establish)' }}
+                      >
+                        Confirm Answered
+                      </button>
+                      <button
+                        onClick={handleCancelAnswering}
+                        className="text-[10px] text-[var(--fg-3)] hover:text-[var(--fg-2)]"
+                      >
+                        Cancel
+                      </button>
                     </div>
                   </div>
-                </div>
-
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleMarkAnswered(request.id)}
-                    disabled={answeringId === request.id || deletingId === request.id}
-                    className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
-                  >
-                    {answeringId === request.id ? 'Moving...' : 'Move to Answered'}
-                  </button>
-                  <button
-                    onClick={() => handleDelete(request.id)}
-                    disabled={deletingId === request.id || answeringId === request.id}
-                    className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60"
-                  >
-                    {deletingId === request.id ? 'Deleting...' : 'Delete'}
-                  </button>
-                </div>
+                ) : (
+                  <div className="mt-2 flex gap-1.5">
+                    <button
+                      onClick={() => handleStartAnswering(request.id)}
+                      disabled={deletingId === request.id}
+                      className="rounded-lg px-2 py-1 text-[10px] font-semibold transition-colors disabled:opacity-60"
+                      style={{ background: 'rgba(54,214,195,.15)', color: 'var(--establish)' }}
+                    >
+                      Answered
+                    </button>
+                    <button
+                      onClick={() => handleDelete(request.id)}
+                      disabled={deletingId === request.id}
+                      className="text-[10px] text-[#F2728A] hover:underline disabled:opacity-60"
+                    >
+                      {deletingId === request.id ? '...' : '×'}
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
         )}
-      </section>
+      </div>
 
       {/* Answered Prayer / Praise Reports */}
-      <section>
+      <div className="rounded-lg border border-[var(--line-1)] bg-[var(--indigo-2)] p-2.5">
         <div className="mb-2 flex items-center justify-between">
-          <div className="text-sm font-semibold text-gray-900">Answered Prayers / Praise Reports</div>
-          <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">
-            Answered
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--fg-3)]">Answered / Praise</span>
+          <span className="rounded-full bg-[rgba(54,214,195,.2)] px-2 py-0.5 text-[10px] font-semibold text-[var(--establish)]">
+            {answeredRequests.length}
           </span>
         </div>
 
         {answeredRequests.length === 0 ? (
-          <p className="rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700">
-            No answered prayers yet.
-          </p>
+          <p className="text-xs text-[var(--fg-3)] italic">No answered prayers yet.</p>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             {answeredRequests.map(request => (
-              <div key={request.id} className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
-                <div className="mb-1 inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">
-                  Status: Answered
-                </div>
-                <div className="text-sm font-medium text-gray-900">{request.request}</div>
-                <div className="mt-1 text-xs font-medium text-emerald-800">
-                  Answered on {request.answered_date ? new Date(request.answered_date).toLocaleDateString() : 'date not recorded'}
-                </div>
-                <button
-                  onClick={() => handleDelete(request.id)}
-                  disabled={deletingId === request.id}
-                  className="mt-3 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60"
-                >
-                  {deletingId === request.id ? 'Deleting...' : 'Delete'}
-                </button>
+              <div
+                key={request.id}
+                className="rounded-lg border p-2.5"
+                style={{ borderColor: 'rgba(54,214,195,.3)', background: 'rgba(54,214,195,.08)' }}
+              >
+                <div className="text-xs text-[var(--fg-1)]">{request.request}</div>
+
+                {/* Answer notes display/edit */}
+                {editingNotesId === request.id ? (
+                  <div className="mt-2 space-y-2">
+                    <textarea
+                      value={editingNotesText}
+                      onChange={(e) => setEditingNotesText(e.target.value)}
+                      placeholder="How was this prayer answered?"
+                      className={inputClass}
+                      rows={2}
+                    />
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={() => handleSaveNotes(request.id)}
+                        disabled={savingNotesId === request.id}
+                        className="rounded-lg px-2 py-1 text-[10px] font-semibold transition-colors disabled:opacity-60"
+                        style={{ background: 'rgba(54,214,195,.15)', color: 'var(--establish)' }}
+                      >
+                        {savingNotesId === request.id ? 'Saving...' : 'Save'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditingNotesId(null)
+                          setEditingNotesText('')
+                        }}
+                        className="text-[10px] text-[var(--fg-3)] hover:text-[var(--fg-2)]"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {request.answer_notes && (
+                      <div className="mt-1.5 rounded-lg bg-[rgba(54,214,195,.1)] p-2 text-xs text-[var(--fg-2)] italic">
+                        "{request.answer_notes}"
+                      </div>
+                    )}
+                    <div className="mt-1.5 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-[var(--establish)]">
+                          {request.answered_date ? new Date(request.answered_date + 'T00:00:00').toLocaleDateString() : 'Answered'}
+                        </span>
+                        <button
+                          onClick={() => handleStartEditingNotes(request)}
+                          className="text-[10px] text-[var(--fg-3)] hover:text-[var(--fg-2)]"
+                        >
+                          {request.answer_notes ? 'Edit note' : '+ Add note'}
+                        </button>
+                      </div>
+                      <button
+                        onClick={() => handleDelete(request.id)}
+                        disabled={deletingId === request.id}
+                        className="text-[10px] text-[#F2728A] hover:underline disabled:opacity-60"
+                      >
+                        {deletingId === request.id ? '...' : '×'}
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             ))}
           </div>
         )}
-      </section>
+      </div>
     </div>
   )
 }

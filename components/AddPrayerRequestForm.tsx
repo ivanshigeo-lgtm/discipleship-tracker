@@ -26,6 +26,7 @@ export default function AddPrayerRequestForm({
       request: request.trim(),
       status: 'Active',
       answered_date: null,
+      answer_notes: null,
     })
 
     if (error) {
@@ -39,28 +40,25 @@ export default function AddPrayerRequestForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mt-3 space-y-2">
-      {error && <p className="text-sm text-red-700">{error}</p>}
-      <div className="flex gap-2">
+    <form onSubmit={handleSubmit} className="space-y-1.5">
+      {error && <p className="text-xs text-[#F2728A]">{error}</p>}
+      <div className="flex gap-1.5">
         <input
           type="text"
           value={request}
           onChange={(e) => setRequest(e.target.value)}
           placeholder="What are you praying for?"
-          className="flex-1 rounded-lg border border-gray-300 p-2 text-sm text-gray-900 placeholder:text-gray-500"
+          className="flex-1 rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] p-2 text-xs text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
           required
         />
         <button
           type="submit"
           disabled={loading}
-          className="rounded-lg bg-black px-4 text-sm font-semibold text-white disabled:opacity-50"
+          className="cn-btn cn-btn-primary shrink-0 !px-3 !py-1.5 !text-xs"
         >
-          {loading ? 'Adding...' : 'Add Prayer'}
+          {loading ? '...' : 'Add'}
         </button>
       </div>
-      <p className="text-xs text-gray-700">
-        New requests are saved as <span className="font-semibold">Praying</span> until you move them to Answered.
-      </p>
     </form>
   )
 }

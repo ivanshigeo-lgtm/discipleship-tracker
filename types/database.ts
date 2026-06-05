@@ -1,5 +1,6 @@
 export type Stage = 'Engage' | 'Establish' | 'Equip' | 'Empower'
 export type ChecklistCategory = 'Tool' | 'Action Step'
+export type MeetingType = 'One2One' | 'Making Disciples' | 'Coffee' | 'Church Community' | 'Empowering Leaders'
 
 export type Person = {
   id: string
@@ -11,6 +12,7 @@ export type Person = {
   baptism_date: string | null
   notes: string | null
   status: 'Active' | 'Inactive'
+  priority: boolean
   victory_group_id: string | null
   created_at: string
   updated_at: string
@@ -21,7 +23,12 @@ export type Engagement = {
   person_id: string
   description: string
   follow_up_date: string | null
+  follow_up_time: string | null
+  location: string | null
+  meeting_type: MeetingType | null
   status: 'Pending' | 'Completed'
+  notes: string | null
+  completed_at: string | null
   created_at: string
 }
 
@@ -31,6 +38,7 @@ export type PrayerRequest = {
   request: string
   status: 'Active' | 'Answered'
   answered_date: string | null
+  answer_notes: string | null
   created_at: string
   updated_at: string
 }

@@ -7,8 +7,6 @@ type ChecklistTemplateItem = {
 
 export const stageChecklistTemplates: Record<Stage, ChecklistTemplateItem[]> = {
   Engage: [
-    { category: 'Tool', label: 'Use SALT (Start a conversation, Ask Questions, Listen, Testimony)' },
-    { category: 'Tool', label: 'Prepare 2min Testimony' },
     { category: 'Action Step', label: 'Meaningful Connection - Implement SALT. Hear their story. Share yours.' },
     { category: 'Action Step', label: 'Schedule Follow Up' },
     { category: 'Action Step', label: 'Consistently Pray' },
@@ -17,11 +15,11 @@ export const stageChecklistTemplates: Record<Stage, ChecklistTemplateItem[]> = {
     { category: 'Tool', label: 'Completed One2One' },
     { category: 'Tool', label: 'Completed Biblical Foundation' },
     { category: 'Tool', label: 'Completed Church Community' },
-    { category: 'Tool', label: 'Water baptism conversation' },
     { category: 'Action Step', label: 'Confirm salvation / spiritual birthday' },
     { category: 'Action Step', label: 'Start One2One' },
     { category: 'Action Step', label: 'Connect to Small Group' },
     { category: 'Action Step', label: 'Start SOAPing' },
+    { category: 'Action Step', label: 'Water baptism conversation' },
   ],
   Equip: [
     { category: 'Tool', label: 'Completed Making Disciples' },
@@ -34,9 +32,8 @@ export const stageChecklistTemplates: Record<Stage, ChecklistTemplateItem[]> = {
   Empower: [
     { category: 'Tool', label: 'Completed Empowering Leaders' },
     { category: 'Tool', label: 'Completed Leadership 215' },
-    { category: 'Action Step', label: 'Lead a Grace Group' },
     { category: 'Action Step', label: 'Identified Their Circle' },
-    { category: 'Action Step', label: 'Joined a D-Group' },
+    { category: 'Action Step', label: 'Lead a Grace Group' },
   ],
 }
 

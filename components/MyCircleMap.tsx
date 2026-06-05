@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { getAllDiscipleshipConnections, getPeople } from '../lib/supabaseQueries'
-import type { DiscipleshipConnection, Person, Stage } from '../types/database'
+import { getAllDiscipleshipConnections, getPeople, getVictoryGroups, getAllGroupMemberships } from '../lib/supabaseQueries'
+import type { DiscipleshipConnection, Person, Stage, VictoryGroup } from '../types/database'
 import { stageLabels } from '../lib/stageLabels'
 import PersonProfileModal from './PersonProfileModal'
 
@@ -19,20 +19,34 @@ type GraphEdge = {
   to: string
 }
 
+const STAGE_COLORS: Record<Stage, string> = {
+  Engage: '#F4B650',
+  Establish: '#36D6C3',
+  Equip: '#5B8DF7',
+  Empower: '#F0729F',
+}
+
+const STAGE_LABELS: Record<Stage, string> = {
+  Engage: 'Reaching',
+  Establish: 'Building',
+  Equip: 'Training',
+  Empower: 'Releasing',
+}
+
+const STAGE_ORDER: Stage[] = ['Engage', 'Establish', 'Equip', 'Empower']
+
 const stageOrbit: Record<Stage, number> = {
-  // Six visible rings. Ring 1 surrounds Christ, then rings 2-6 move outward.
-  // Empower: ring 1-2, Equip: ring 2-3, Establish: ring 3-4, Engage: ring 4-5.
-  Empower: 17,
-  Equip: 27,
-  Establish: 35.5,
-  Engage: 42.5,
+  Empower: 8,
+  Equip: 16,
+  Establish: 26,
+  Engage: 35,
 }
 
 const stageBand: Record<Stage, { min: number; max: number }> = {
-  Empower: { min: 13, max: 21 },
-  Equip: { min: 23, max: 31 },
-  Establish: { min: 32, max: 39 },
-  Engage: { min: 40, max: 46 },
+  Empower: { min: 5, max: 11 },
+  Equip: { min: 13, max: 20 },
+  Establish: { min: 22, max: 30 },
+  Engage: { min: 32, max: 38 },
 }
 
 const stageSortRank: Record<Stage, number> = {
@@ -42,135 +56,26 @@ const stageSortRank: Record<Stage, number> = {
   Empower: 3,
 }
 
-const stageStyle: Record<Stage, { glow: string; ring: string; bg: string; label: string; symbol: string; outline: string; outlineSoft: string }> = {
-  Engage: {
-    glow: 'shadow-emerald-300/60',
-    ring: 'border-emerald-300',
-    bg: 'bg-emerald-400',
-    label: 'Engaged',
-    symbol: '🌱',
-    outline: '#6ee7b7',
-    outlineSoft: 'rgba(110,231,183,0.28)',
-  },
-  Establish: {
-    glow: 'shadow-amber-900/50',
-    ring: 'border-amber-900',
-    bg: 'bg-amber-800',
-    label: 'Established',
-    symbol: '📖',
-    outline: '#f59e0b',
-    outlineSoft: 'rgba(245,158,11,0.24)',
-  },
-  Equip: {
-    glow: 'shadow-amber-300/70',
-    ring: 'border-amber-300',
-    bg: 'bg-amber-400',
-    label: 'Equipped',
-    symbol: '🔥',
-    outline: '#fde68a',
-    outlineSoft: 'rgba(253,230,138,0.34)',
-  },
-  Empower: {
-    glow: 'shadow-black/70',
-    ring: 'border-gray-950',
-    bg: 'bg-gray-950',
-    label: 'Empowered',
-    symbol: '✝',
-    outline: '#facc15',
-    outlineSoft: 'rgba(250,204,21,0.34)',
-  },
-}
-
 const christLineStyle: Record<Stage, { stroke: string; strokeWidth: string; strokeDasharray?: string }> = {
   Empower: {
-    stroke: 'rgba(250, 204, 21, 0.62)',
+    stroke: 'rgba(240, 114, 159, 0.5)',
     strokeWidth: '0.42',
   },
   Equip: {
-    stroke: 'rgba(250, 204, 21, 0.42)',
+    stroke: 'rgba(91, 141, 247, 0.4)',
     strokeWidth: '0.32',
     strokeDasharray: '2 0.85',
   },
   Establish: {
-    stroke: 'rgba(250, 204, 21, 0.28)',
+    stroke: 'rgba(54, 214, 195, 0.3)',
     strokeWidth: '0.24',
     strokeDasharray: '1 1.25',
   },
   Engage: {
-    stroke: 'rgba(250, 204, 21, 0.18)',
+    stroke: 'rgba(244, 182, 80, 0.25)',
     strokeWidth: '0.18',
     strokeDasharray: '0.35 1.45',
   },
-}
-
-function RoyalCrownIcon() {
-  return (
-    <svg viewBox="0 0 120 92" className="h-20 w-24 drop-shadow-[0_0_18px_rgba(250,204,21,0.65)]" role="img" aria-label="Royal crown for Christ the King">
-      <defs>
-        <linearGradient id="royal-crown-gold" x1="15" x2="105" y1="12" y2="82" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#fff7ad" />
-          <stop offset="0.22" stopColor="#facc15" />
-          <stop offset="0.48" stopColor="#f59e0b" />
-          <stop offset="0.72" stopColor="#fde68a" />
-          <stop offset="1" stopColor="#b45309" />
-        </linearGradient>
-        <linearGradient id="royal-crown-shadow" x1="18" x2="104" y1="48" y2="88" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#fef3c7" />
-          <stop offset="0.65" stopColor="#d97706" />
-          <stop offset="1" stopColor="#78350f" />
-        </linearGradient>
-        <radialGradient id="ruby-glow" cx="50%" cy="35%" r="70%">
-          <stop offset="0" stopColor="#fecdd3" />
-          <stop offset="0.38" stopColor="#ef4444" />
-          <stop offset="1" stopColor="#7f1d1d" />
-        </radialGradient>
-        <radialGradient id="sapphire-glow" cx="50%" cy="35%" r="70%">
-          <stop offset="0" stopColor="#dbeafe" />
-          <stop offset="0.42" stopColor="#3b82f6" />
-          <stop offset="1" stopColor="#1e3a8a" />
-        </radialGradient>
-        <radialGradient id="emerald-glow" cx="50%" cy="35%" r="70%">
-          <stop offset="0" stopColor="#bbf7d0" />
-          <stop offset="0.42" stopColor="#22c55e" />
-          <stop offset="1" stopColor="#14532d" />
-        </radialGradient>
-        <filter id="crown-soft-shadow" x="-20%" y="-20%" width="140%" height="150%">
-          <feDropShadow dx="0" dy="5" stdDeviation="4" floodColor="#000" floodOpacity="0.45" />
-          <feDropShadow dx="0" dy="0" stdDeviation="5" floodColor="#facc15" floodOpacity="0.45" />
-        </filter>
-      </defs>
-
-      <g filter="url(#crown-soft-shadow)">
-        <path
-          d="M15 67 23 24l22 25 15-38 15 38 22-25 8 43H15Z"
-          fill="url(#royal-crown-gold)"
-          stroke="#fff7ad"
-          strokeWidth="2.5"
-          strokeLinejoin="round"
-        />
-        <path
-          d="M20 66c11-8 69-8 80 0l-5 16H25l-5-16Z"
-          fill="url(#royal-crown-shadow)"
-          stroke="#fef3c7"
-          strokeWidth="2.4"
-          strokeLinejoin="round"
-        />
-        <path d="M27 63 34 39l12 18M60 21v41M93 63 86 39 74 57" stroke="#fff8c7" strokeWidth="2" strokeLinecap="round" opacity="0.62" />
-        <path d="M30 75c18-5 42-5 60 0" stroke="#fff7ad" strokeWidth="2" strokeLinecap="round" opacity="0.75" />
-        <path d="M27 80h66" stroke="#92400e" strokeWidth="2" strokeLinecap="round" opacity="0.45" />
-
-        <circle cx="23" cy="24" r="6.5" fill="url(#sapphire-glow)" stroke="#bfdbfe" strokeWidth="1.6" />
-        <circle cx="60" cy="12" r="7.5" fill="url(#ruby-glow)" stroke="#fecaca" strokeWidth="1.8" />
-        <circle cx="97" cy="24" r="6.5" fill="url(#emerald-glow)" stroke="#bbf7d0" strokeWidth="1.6" />
-        <ellipse cx="45" cy="70" rx="5.5" ry="7" fill="url(#sapphire-glow)" stroke="#dbeafe" strokeWidth="1.3" />
-        <ellipse cx="60" cy="70" rx="6" ry="8" fill="url(#ruby-glow)" stroke="#fecaca" strokeWidth="1.4" />
-        <ellipse cx="75" cy="70" rx="5.5" ry="7" fill="url(#emerald-glow)" stroke="#bbf7d0" strokeWidth="1.3" />
-
-        <path d="M18 65c14-4 70-4 84 0" stroke="#fff7ad" strokeWidth="3" strokeLinecap="round" opacity="0.7" />
-        <path d="M33 31 45 48M60 20 60 47M87 31 75 48" stroke="#78350f" strokeWidth="1.3" strokeLinecap="round" opacity="0.28" />
-      </g>
-    </svg>
-  )
 }
 
 const hashString = (value: string) => {
@@ -208,7 +113,7 @@ const relationshipLineStyleForDistance = (from: { x: number; y: number }, to: { 
 
   if (closeness > 0.72) {
     return {
-      stroke: `rgba(255,255,255,${opacity.toFixed(2)})`,
+      stroke: `rgba(251,246,236,${opacity.toFixed(2)})`,
       strokeWidth: strokeWidth.toFixed(2),
       strokeDasharray: undefined,
     }
@@ -216,14 +121,14 @@ const relationshipLineStyleForDistance = (from: { x: number; y: number }, to: { 
 
   if (closeness > 0.42) {
     return {
-      stroke: `rgba(255,255,255,${opacity.toFixed(2)})`,
+      stroke: `rgba(251,246,236,${opacity.toFixed(2)})`,
       strokeWidth: strokeWidth.toFixed(2),
       strokeDasharray: '2 1',
     }
   }
 
   return {
-    stroke: `rgba(255,255,255,${opacity.toFixed(2)})`,
+    stroke: `rgba(251,246,236,${opacity.toFixed(2)})`,
     strokeWidth: strokeWidth.toFixed(2),
     strokeDasharray: '0.55 1.45',
   }
@@ -383,7 +288,6 @@ const buildGraphAwareLayout = (people: Person[], connections: DiscipleshipConnec
   for (let iteration = 0; iteration < 260; iteration += 1) {
     const cooling = 1 - iteration / 260
 
-    // Keep connected nodes close: relationship lines should be as short as practical.
     edgePairs.forEach(({ fromIndex, toIndex }) => {
       const from = nodes[fromIndex]
       const to = nodes[toIndex]
@@ -399,10 +303,8 @@ const buildGraphAwareLayout = (people: Person[], connections: DiscipleshipConnec
       nodes[toIndex] = projectNodeIntoStageBand({ ...to, x: to.x - nx * pull, y: to.y - ny * pull })
     })
 
-    // Electron-like repulsion: nodes naturally avoid crowding so names stay readable.
     nodes = applyElectronRepulsion(nodes, 0.78 * cooling)
 
-    // Keep each 4E stage near its Christ-centered ring while still allowing graph clusters.
     nodes = nodes.map(node => {
       const dx = node.x - 50
       const dy = (node.y - 50) / 0.72
@@ -418,7 +320,6 @@ const buildGraphAwareLayout = (people: Person[], connections: DiscipleshipConnec
       })
     })
 
-    // Penalize crossing lines by nudging crossing edge groups apart.
     for (let i = 0; i < edgePairs.length; i += 1) {
       for (let j = i + 1; j < edgePairs.length; j += 1) {
         const first = edgePairs[i]
@@ -493,8 +394,6 @@ const animateOrbitalNodes = (baseNodes: MapNode[], edges: GraphEdge[], seconds: 
     .map(edge => ({ fromIndex: indexById.get(edge.from), toIndex: indexById.get(edge.to) }))
     .filter((edge): edge is { fromIndex: number; toIndex: number } => edge.fromIndex !== undefined && edge.toIndex !== undefined)
 
-  // Connection springs: relationships pull nodes back toward each other so they do not drift away.
-  // Projection keeps everyone inside their own stage band after each pull.
   for (let pass = 0; pass < 3; pass += 1) {
     edgePairs.forEach(({ fromIndex, toIndex }) => {
       const from = nodes[fromIndex]
@@ -512,7 +411,6 @@ const animateOrbitalNodes = (baseNodes: MapNode[], edges: GraphEdge[], seconds: 
     })
   }
 
-  // Electron-like repulsion keeps nodes far enough apart to read names.
   for (let pass = 0; pass < 6; pass += 1) {
     nodes = applyElectronRepulsion(nodes, 0.16)
   }
@@ -538,12 +436,140 @@ const smoothNodesToward = (currentNodes: MapNode[], targetNodes: MapNode[]) => {
     const currentNode = currentById.get(targetNode.id)
     if (!currentNode) return targetNode
 
-    return {
+    const interpolated = {
       ...targetNode,
       x: currentNode.x + (targetNode.x - currentNode.x) * lerp,
       y: currentNode.y + (targetNode.y - currentNode.y) * lerp,
     }
+    return projectNodeIntoStageBand(interpolated)
   })
+}
+
+function StarNode({ node, isSelected, onClick }: { node: MapNode; isSelected: boolean; onClick: (e: React.MouseEvent) => void }) {
+  const stageColor = STAGE_COLORS[node.current_stage]
+  const stageIndex = STAGE_ORDER.indexOf(node.current_stage)
+
+  const initials = node.name
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase()
+
+  const size = 56
+  const strokeWidth = 3
+  const radius = (size - strokeWidth) / 2 - 8
+  const circumference = 2 * Math.PI * radius
+  const gapAngle = 8
+  const segmentAngle = (360 - gapAngle * 4) / 4
+  const segmentLength = (segmentAngle / 360) * circumference
+
+  return (
+    <button
+      type="button"
+      onClick={(e) => onClick(e)}
+      className={`group absolute -translate-x-1/2 -translate-y-1/2 text-left transition-transform hover:scale-110 ${isSelected ? 'z-20 scale-110' : 'z-10'}`}
+      style={{ left: `${node.x}%`, top: `${node.y}%` }}
+    >
+      <div className="relative" style={{ width: size, height: size }}>
+        {/* SVG Progress Ring */}
+        <svg
+          width={size}
+          height={size}
+          className="absolute inset-0"
+          style={{ transform: 'rotate(-90deg)' }}
+        >
+          {/* Background segments */}
+          {STAGE_ORDER.map((stage, idx) => {
+            const startAngle = idx * (segmentAngle + gapAngle)
+            const dashOffset = (startAngle / 360) * circumference
+            return (
+              <circle
+                key={`bg-${stage}`}
+                cx={size / 2}
+                cy={size / 2}
+                r={radius}
+                fill="none"
+                stroke="rgba(246,241,231,.08)"
+                strokeWidth={strokeWidth}
+                strokeDasharray={`${segmentLength} ${circumference}`}
+                strokeDashoffset={-dashOffset}
+                strokeLinecap="round"
+              />
+            )
+          })}
+          {/* Filled segments up to current stage */}
+          {STAGE_ORDER.slice(0, stageIndex + 1).map((stage, idx) => {
+            const startAngle = idx * (segmentAngle + gapAngle)
+            const dashOffset = (startAngle / 360) * circumference
+            const color = STAGE_COLORS[stage]
+            return (
+              <circle
+                key={`fill-${stage}`}
+                cx={size / 2}
+                cy={size / 2}
+                r={radius}
+                fill="none"
+                stroke={color}
+                strokeWidth={strokeWidth}
+                strokeDasharray={`${segmentLength} ${circumference}`}
+                strokeDashoffset={-dashOffset}
+                strokeLinecap="round"
+                style={{ filter: `drop-shadow(0 0 4px ${color})` }}
+              />
+            )
+          })}
+        </svg>
+
+        {/* Center with initials */}
+        <div
+          className="absolute inset-0 flex items-center justify-center"
+        >
+          <div
+            className="flex items-center justify-center rounded-full text-xs font-bold"
+            style={{
+              width: size - 20,
+              height: size - 20,
+              background: `radial-gradient(circle at 40% 35%, rgba(251,246,236,.15) 0%, var(--indigo) 100%)`,
+              border: `2px solid ${stageColor}50`,
+              boxShadow: isSelected
+                ? `0 0 20px ${stageColor}, 0 0 40px ${stageColor}50`
+                : `0 0 12px ${stageColor}40`,
+              color: stageColor,
+            }}
+          >
+            {initials}
+          </div>
+        </div>
+      </div>
+
+      {/* Name label */}
+      <div
+        className="mt-1 max-w-[100px] truncate rounded-full px-2 py-0.5 text-center text-[10px] font-semibold"
+        style={{
+          background: 'rgba(6,8,20,.9)',
+          color: 'var(--fg-1)',
+          backdropFilter: 'blur(4px)',
+        }}
+      >
+        {node.name.split(' ')[0]}
+      </div>
+
+      {/* Connection count badge */}
+      {node.degree > 0 && (
+        <div
+          className="mx-auto mt-1 w-fit rounded-full px-1.5 py-0.5 text-[9px] font-bold"
+          style={{
+            background: `${stageColor}20`,
+            border: `1px solid ${stageColor}40`,
+            color: stageColor,
+          }}
+        >
+          {node.degree} link{node.degree === 1 ? '' : 's'}
+        </div>
+      )}
+    </button>
+  )
 }
 
 export default function MyCircleMap({
@@ -559,6 +585,8 @@ export default function MyCircleMap({
 }) {
   const [people, setPeople] = useState<Person[]>([])
   const [connections, setConnections] = useState<DiscipleshipConnection[]>([])
+  const [groups, setGroups] = useState<VictoryGroup[]>([])
+  const [groupMemberships, setGroupMemberships] = useState<{ person_id: string; victory_group_id: string }[]>([])
   const [animatedNodes, setAnimatedNodes] = useState<MapNode[]>([])
   const frameRef = useRef<number | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -567,6 +595,9 @@ export default function MyCircleMap({
   const [editingPerson, setEditingPerson] = useState<Person | null>(null)
   const [mapRefreshKey, setMapRefreshKey] = useState(0)
   const [error, setError] = useState('')
+  const [activeStages, setActiveStages] = useState<Set<Stage>>(new Set(['Engage', 'Establish', 'Equip', 'Empower']))
+  const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set())
+  const [showGroupsDropdown, setShowGroupsDropdown] = useState(false)
 
   const filterKey = filterStages?.join('|') ?? 'All'
 
@@ -579,9 +610,11 @@ export default function MyCircleMap({
   useEffect(() => {
     const loadMap = async () => {
       setError('')
-      const [peopleResult, connectionResult] = await Promise.all([
+      const [peopleResult, connectionResult, groupsResult, membershipsResult] = await Promise.all([
         getPeople(),
         getAllDiscipleshipConnections(),
+        getVictoryGroups(),
+        getAllGroupMemberships(),
       ])
 
       if (peopleResult.error) {
@@ -602,12 +635,32 @@ export default function MyCircleMap({
 
       setPeople(sortedPeople)
       setConnections((connectionResult.data ?? []) as DiscipleshipConnection[])
+      setGroups((groupsResult.data ?? []) as VictoryGroup[])
+      setGroupMemberships((membershipsResult.data ?? []) as { person_id: string; victory_group_id: string }[])
     }
 
     loadMap()
   }, [refreshKey, mapRefreshKey, filterKey, sortMode])
 
   const visiblePeopleForMap = useMemo(() => {
+    let filtered = people
+
+    // Filter by active stages
+    if (activeStages.size < 4) {
+      filtered = filtered.filter(person => activeStages.has(person.current_stage))
+    }
+
+    // Filter by selected groups (using join table)
+    if (selectedGroupIds.size > 0) {
+      const personIdsInSelectedGroups = new Set(
+        groupMemberships
+          .filter(m => selectedGroupIds.has(m.victory_group_id))
+          .map(m => m.person_id)
+      )
+      filtered = filtered.filter(person => personIdsInSelectedGroups.has(person.id))
+    }
+
+    // If focused on a person, show only their connections
     if (focusedPersonId) {
       const connectedPersonIds = new Set<string>([focusedPersonId])
 
@@ -623,15 +676,16 @@ export default function MyCircleMap({
         }
       })
 
-      return people.filter(person => connectedPersonIds.has(person.id))
+      return filtered.filter(person => connectedPersonIds.has(person.id))
     }
 
+    // Legacy external filter (from parent component)
     if (filterStages && filterStages.length > 0) {
-      return people.filter(person => filterStages.includes(person.current_stage))
+      return filtered.filter(person => filterStages.includes(person.current_stage))
     }
 
-    return people
-  }, [people, connections, focusedPersonId, filterStages])
+    return filtered
+  }, [people, connections, focusedPersonId, filterStages, activeStages, selectedGroupIds, groupMemberships])
 
   const focusedPerson = focusedPersonId ? people.find(person => person.id === focusedPersonId) : undefined
 
@@ -685,36 +739,147 @@ export default function MyCircleMap({
     })
   }, [visibleConnectionsForMap, nodeById])
 
+  const handleNodeClick = (node: MapNode, event: React.MouseEvent) => {
+    if (event.detail >= 2) {
+      if (clickTimerRef.current) clearTimeout(clickTimerRef.current)
+      setSelectedId(node.id)
+      setEditingPerson(node)
+      return
+    }
+
+    if (clickTimerRef.current) clearTimeout(clickTimerRef.current)
+    clickTimerRef.current = setTimeout(() => {
+      setSelectedId(node.id)
+      setFocusedPersonId(current => current === node.id ? null : node.id)
+    }, 220)
+  }
+
   if (visiblePeopleForMap.length === 0) {
     return (
-      <div className="rounded-3xl border border-gray-200 bg-gray-950 p-6 text-center text-white shadow-sm">
-        <p>No people found in this view yet.</p>
+      <div className="cn-card p-6 text-center">
+        <p className="text-[var(--fg-2)]">No people found in this view yet.</p>
       </div>
     )
   }
 
   return (
-    <section className="overflow-hidden rounded-3xl border border-slate-800 bg-slate-950 text-white shadow-sm">
-      <div className="border-b border-white/10 p-4">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+    <section className="cn-card overflow-hidden">
+      <div className="border-b border-[var(--line-1)] p-4">
+        <div className="flex flex-col gap-3">
           <div>
-            <h3 className="text-xl font-semibold">Connection Map</h3>
-            <p className="text-sm text-slate-300">Christ is the center; closer relationships draw darker, steadier lines while distant relationships appear lighter and more dotted.</p>
+            <h3 className="cn-h3">Connection Map</h3>
+            <p className="text-sm text-[var(--fg-2)]">Christ is the center; closer relationships draw darker, steadier lines while distant relationships appear lighter and more dotted.</p>
           </div>
-          <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-            Sorted by {sortMode === 'az' ? 'A-Z' : '4E'} · {visibleConnections.length} visible connection {visibleConnections.length === 1 ? 'line' : 'lines'}
+          <div className="flex flex-wrap items-center gap-2">
+            {(['Engage', 'Establish', 'Equip', 'Empower'] as Stage[]).map(stage => {
+              const isActive = activeStages.has(stage)
+              const color = STAGE_COLORS[stage]
+              return (
+                <button
+                  key={stage}
+                  type="button"
+                  onClick={() => {
+                    setActiveStages(prev => {
+                      const next = new Set(prev)
+                      if (next.has(stage)) {
+                        next.delete(stage)
+                      } else {
+                        next.add(stage)
+                      }
+                      return next
+                    })
+                  }}
+                  className="rounded-full px-3 py-1 text-xs font-semibold transition-all"
+                  style={{
+                    background: isActive ? `${color}25` : 'var(--indigo)',
+                    border: `1.5px solid ${isActive ? color : 'var(--line-2)'}`,
+                    color: isActive ? color : 'var(--fg-3)',
+                    opacity: isActive ? 1 : 0.6,
+                  }}
+                >
+                  {stageLabels[stage].name}
+                </button>
+              )
+            })}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowGroupsDropdown(prev => !prev)}
+                className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-all"
+                style={{
+                  background: selectedGroupIds.size > 0 ? 'rgba(91,141,247,.2)' : 'var(--indigo)',
+                  border: `1.5px solid ${selectedGroupIds.size > 0 ? 'var(--equip)' : 'var(--line-2)'}`,
+                  color: selectedGroupIds.size > 0 ? 'var(--equip)' : 'var(--fg-3)',
+                }}
+              >
+                Grace Groups {selectedGroupIds.size > 0 && `(${selectedGroupIds.size})`}
+                <span className="text-[10px]">▼</span>
+              </button>
+              {showGroupsDropdown && (
+                <div
+                  className="absolute right-0 top-full z-30 mt-1 min-w-[180px] rounded-xl border border-[var(--line-1)] bg-[var(--space)] p-2 shadow-xl"
+                >
+                  {groups.length === 0 ? (
+                    <p className="px-2 py-1 text-xs text-[var(--fg-3)]">No groups yet</p>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedGroupIds(new Set())}
+                        className="mb-1 w-full rounded-lg px-2 py-1 text-left text-xs text-[var(--fg-2)] hover:bg-[var(--indigo-2)]"
+                      >
+                        Show All
+                      </button>
+                      {groups.map(group => {
+                        const isSelected = selectedGroupIds.has(group.id)
+                        return (
+                          <button
+                            key={group.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedGroupIds(prev => {
+                                const next = new Set(prev)
+                                if (next.has(group.id)) {
+                                  next.delete(group.id)
+                                } else {
+                                  next.add(group.id)
+                                }
+                                return next
+                              })
+                            }}
+                            className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs transition-colors hover:bg-[var(--indigo-2)]"
+                          >
+                            <span
+                              className="flex h-4 w-4 items-center justify-center rounded border text-[10px]"
+                              style={{
+                                borderColor: isSelected ? 'var(--equip)' : 'var(--line-2)',
+                                background: isSelected ? 'var(--equip)' : 'transparent',
+                                color: isSelected ? 'var(--void)' : 'transparent',
+                              }}
+                            >
+                              {isSelected && '✓'}
+                            </span>
+                            <span className="text-[var(--fg-1)]">{group.name}</span>
+                          </button>
+                        )
+                      })}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
         {error && (
-          <p className="mt-3 rounded-xl border border-yellow-400/30 bg-yellow-400/10 p-2 text-sm text-yellow-100">
+          <p className="mt-3 rounded-xl border border-[var(--warning)]/30 bg-[var(--warning)]/10 p-2 text-sm text-[var(--warning)]">
             Some connection lines could not load yet: {error}
           </p>
         )}
         {focusedPerson && (
-          <div className="mt-3 flex flex-col gap-2 rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-slate-200 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mt-3 flex flex-col gap-2 rounded-xl border border-[var(--line-1)] bg-[var(--indigo)] p-3 text-sm text-[var(--fg-2)] sm:flex-row sm:items-center sm:justify-between">
             <div>
-              Showing direct connections for <span className="font-semibold text-white">{focusedPerson.name}</span>
-              <span className="text-slate-400"> · {visibleConnections.length} connection {visibleConnections.length === 1 ? 'line' : 'lines'}</span>
+              Showing direct connections for <span className="font-semibold text-[var(--fg-1)]">{focusedPerson.name}</span>
+              <span className="text-[var(--fg-3)]"> · {visibleConnections.length} connection {visibleConnections.length === 1 ? 'line' : 'lines'}</span>
             </div>
             <button
               type="button"
@@ -722,7 +887,7 @@ export default function MyCircleMap({
                 setFocusedPersonId(null)
                 setSelectedId(null)
               }}
-              className="self-start rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-950 hover:bg-slate-100 sm:self-center"
+              className="cn-btn cn-btn-primary self-start !px-3 !py-1.5 !text-xs sm:self-center"
             >
               Show Everyone
             </button>
@@ -731,18 +896,34 @@ export default function MyCircleMap({
       </div>
 
       <div>
-        <div className="relative min-h-[980px] overflow-hidden bg-[radial-gradient(circle_at_center,_rgba(99,102,241,0.18),_rgba(15,23,42,0)_48%),linear-gradient(180deg,_#020617,_#0f172a)] sm:min-h-[1100px] lg:min-h-[1240px]">
-          <div className="absolute left-1/2 top-1/2 h-[98%] w-[98%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/5" />
-          <div className="absolute left-1/2 top-1/2 h-[92%] w-[92%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/5" />
-          <div className="absolute left-1/2 top-1/2 h-[78%] w-[78%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/10" />
-          <div className="absolute left-1/2 top-1/2 h-[62%] w-[62%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/10" />
-          <div className="absolute left-1/2 top-1/2 h-[42%] w-[42%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/10" />
-          <div className="absolute left-1/2 top-1/2 h-[24%] w-[24%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-yellow-200/20" />
+        <div
+          className="relative min-h-[980px] overflow-hidden sm:min-h-[1100px] lg:min-h-[1240px]"
+          style={{
+            background: 'radial-gradient(circle at center, rgba(27,35,71,0.6) 0%, var(--void) 60%)',
+          }}
+        >
+          {/* Orbital rings */}
+          {STAGE_ORDER.slice().reverse().map((stage, idx) => {
+            const sizes = [24, 42, 62, 78]
+            const color = STAGE_COLORS[stage]
+            return (
+              <div
+                key={stage}
+                className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full"
+                style={{
+                  width: `${sizes[idx]}%`,
+                  height: `${sizes[idx]}%`,
+                  border: `1px solid ${color}15`,
+                  boxShadow: `0 0 30px -10px ${color}30`,
+                }}
+              />
+            )
+          })}
 
+          {/* Connection lines SVG */}
           <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
             {nodes.map(node => {
               const christLine = christLineStyle[node.current_stage]
-
               return (
                 <line
                   key={`christ-${node.id}`}
@@ -781,106 +962,52 @@ export default function MyCircleMap({
             })}
           </svg>
 
-          <div className="absolute left-4 top-4 max-w-[250px] rounded-2xl border border-white/10 bg-slate-950/60 px-3 py-2 text-xs font-semibold text-slate-200 backdrop-blur">
-            <div>Click a person to focus their connections</div>
-            <div className="mt-1 text-slate-400">Double-click a person to edit their full profile</div>
+          {/* Instructions */}
+          <div
+            className="absolute left-4 top-4 max-w-[250px] rounded-xl border border-[var(--line-1)] px-3 py-2 text-xs"
+            style={{ background: 'rgba(6,8,20,.8)', backdropFilter: 'blur(8px)' }}
+          >
+            <div className="font-semibold text-[var(--fg-1)]">Click a person to focus their connections</div>
+            <div className="mt-1 text-[var(--fg-3)]">Double-click a person to edit their full profile</div>
           </div>
 
+          {/* Center - Jesus */}
           <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center">
-            <div className="flex h-24 w-24 items-center justify-center rounded-full border-2 border-yellow-200/80 bg-slate-950/50 p-1 shadow-[0_0_56px_rgba(250,204,21,0.36)] backdrop-blur">
-              <div className="relative h-full w-full overflow-hidden rounded-full border border-yellow-100/60 shadow-inner">
-                <img
-                  src="/christ-icon.jpg"
-                  alt="King Jesus icon"
-                  className="h-full w-full object-cover object-center"
-                />
-                <div className="pointer-events-none absolute inset-0 rounded-full bg-[radial-gradient(circle_at_50%_35%,rgba(255,255,255,0.08),rgba(15,23,42,0)_58%,rgba(15,23,42,0.32))]" />
-              </div>
+            <div
+              className="flex h-20 w-20 items-center justify-center rounded-full"
+              style={{
+                background: 'radial-gradient(circle at 50% 40%, #FFF7E4, #F2C879 55%, #E0A94A 100%)',
+                boxShadow: '0 0 60px 12px rgba(242,200,121,.4), 0 0 100px 30px rgba(242,200,121,.2)',
+              }}
+            >
+              <img
+                src="/gbm-flame-white.png"
+                alt="Jesus at the center"
+                className="h-10 w-10"
+                style={{ filter: 'drop-shadow(0 2px 8px rgba(0,0,0,.3))' }}
+              />
             </div>
-            <div className="mt-2 rounded-full border border-yellow-200/50 bg-slate-950/80 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-yellow-100 shadow-[0_0_24px_rgba(250,204,21,0.22)] backdrop-blur">
+            <div
+              className="mt-2 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em]"
+              style={{
+                background: 'rgba(6,8,20,.9)',
+                color: 'var(--gold)',
+                boxShadow: '0 0 20px rgba(242,200,121,.2)',
+              }}
+            >
               King Jesus
             </div>
           </div>
 
-          {nodes.map(node => {
-            const style = stageStyle[node.current_stage]
-            const isSelected = selectedNode?.id === node.id
-            const movementLabel = node.degree === 0 ? 'slowly orbiting' : `${node.degree} connection${node.degree === 1 ? '' : 's'} / drawn closer more often`
-
-            return (
-              <button
-                key={node.id}
-                type="button"
-                onClick={(event) => {
-                  if (event.detail >= 2) {
-                    if (clickTimerRef.current) clearTimeout(clickTimerRef.current)
-                    setSelectedId(node.id)
-                    setEditingPerson(node)
-                    return
-                  }
-
-                  if (clickTimerRef.current) clearTimeout(clickTimerRef.current)
-                  clickTimerRef.current = setTimeout(() => {
-                    setSelectedId(node.id)
-                    setFocusedPersonId(current => current === node.id ? null : node.id)
-                  }, 220)
-                }}
-                onDoubleClick={(event) => {
-                  event.preventDefault()
-                  event.stopPropagation()
-                  if (clickTimerRef.current) clearTimeout(clickTimerRef.current)
-                  setSelectedId(node.id)
-                  setEditingPerson(node)
-                }}
-                title={`Single-click to focus this person's direct connections. Double-click to edit full journey profile. ${movementLabel}.`}
-                className={`group absolute -translate-x-1/2 -translate-y-1/2 text-left transition-transform hover:scale-110 ${isSelected ? 'z-20 scale-110' : 'z-10'}`}
-                style={{ left: `${node.x}%`, top: `${node.y}%` }}
-              >
-                <div className="relative mx-auto h-16 w-16">
-                  <svg
-                    className="pointer-events-none absolute inset-0 h-full w-full overflow-visible transition-transform duration-200 group-hover:scale-105"
-                    viewBox="0 0 64 64"
-                    aria-hidden="true"
-                    style={{ filter: `drop-shadow(0 0 10px ${style.outlineSoft})` }}
-                  >
-                    <polygon
-                      points="32 2 36.5 20.5 52 8.5 43.5 25.2 62 32 43.5 38.8 52 55.5 36.5 43.5 32 62 27.5 43.5 12 55.5 20.5 38.8 2 32 20.5 25.2 12 8.5 27.5 20.5"
-                      fill="rgba(255,255,255,0.055)"
-                      stroke={style.outline}
-                      strokeWidth="2.4"
-                      strokeLinejoin="round"
-                    />
-                    <polygon
-                      points="32 10 35 23.5 45.8 15.8 39.8 28 53 32 39.8 36 45.8 48.2 35 40.5 32 54 29 40.5 18.2 48.2 24.2 36 11 32 24.2 28 18.2 15.8 29 23.5"
-                      fill="none"
-                      stroke="rgba(255,255,255,0.5)"
-                      strokeWidth="0.8"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                  <div className={`absolute inset-2 flex items-center justify-center overflow-hidden rounded-full border-2 ${style.ring} ${style.bg} text-lg shadow-lg ${style.glow} ${isSelected ? 'ring-4 ring-white/40' : ''}`}>
-                    {node.current_stage === 'Empower' || node.current_stage === 'Equip' || node.current_stage === 'Establish' || node.current_stage === 'Engage' ? (
-                      <img
-                        src={node.current_stage === 'Empower' ? '/empower-status-icon.jpg' : node.current_stage === 'Equip' ? '/equip-status-icon.jpg' : node.current_stage === 'Establish' ? '/establish-status-icon.jpg' : '/engage-status-icon.jpg'}
-                        alt={node.current_stage === 'Empower' ? 'Empower status disciple profile' : node.current_stage === 'Equip' ? 'Equip status disciple profile' : node.current_stage === 'Establish' ? 'Establish status disciple profile' : 'Engage status disciple profile'}
-                        className="h-full w-full object-cover object-center"
-                      />
-                    ) : (
-                      style.symbol
-                    )}
-                  </div>
-                </div>
-                <div className="mt-1 max-w-[150px] truncate rounded-full bg-slate-950/90 px-2.5 py-0.5 text-center text-[10px] font-semibold text-white shadow-sm backdrop-blur">
-                  {node.name}
-                </div>
-                {node.degree > 0 && (
-                  <div className="mx-auto mt-1 w-fit rounded-full border border-white/10 bg-white/10 px-1.5 py-0.5 text-[9px] font-bold text-slate-200">
-                    {node.degree} link{node.degree === 1 ? '' : 's'}
-                  </div>
-                )}
-              </button>
-            )
-          })}
+          {/* Star nodes */}
+          {nodes.map(node => (
+            <StarNode
+              key={node.id}
+              node={node}
+              isSelected={selectedNode?.id === node.id}
+              onClick={(e) => handleNodeClick(node, e)}
+            />
+          ))}
         </div>
       </div>
 
@@ -902,21 +1029,22 @@ export default function MyCircleMap({
         />
       )}
 
-      <div className="grid grid-cols-2 gap-2 border-t border-white/10 p-3 text-xs sm:grid-cols-4">
-        {(['Engage', 'Establish', 'Equip', 'Empower'] as Stage[]).map(stage => {
-          const style = stageStyle[stage]
-          const ringText = stage === 'Engage'
-            ? 'outer ring'
-            : stage === 'Establish'
-              ? 'building faith'
-              : stage === 'Equip'
-                ? 'learning to carry others'
-                : 'released, still following Christ'
+      {/* Legend */}
+      <div className="grid grid-cols-2 gap-2 border-t border-[var(--line-1)] p-3 text-xs sm:grid-cols-4">
+        {STAGE_ORDER.map(stage => {
+          const color = STAGE_COLORS[stage]
           return (
-            <div key={stage} className="flex items-center gap-2 rounded-xl bg-white/5 px-2 py-1.5 text-slate-200">
-              <span className={`h-2.5 w-2.5 rounded-full ${style.bg}`} />
-              <span>{stageLabels[stage].display}</span>
-              <span className="hidden text-slate-500 sm:inline">· {ringText}</span>
+            <div
+              key={stage}
+              className="flex items-center gap-2 rounded-xl p-2"
+              style={{ background: `${color}10` }}
+            >
+              <div
+                className="h-2.5 w-2.5 rounded-full"
+                style={{ background: color, boxShadow: `0 0 8px ${color}` }}
+              />
+              <span style={{ color }}>{stageLabels[stage].display}</span>
+              <span className="hidden text-[var(--fg-3)] sm:inline">· {STAGE_LABELS[stage]}</span>
             </div>
           )
         })}
