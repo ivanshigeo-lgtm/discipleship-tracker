@@ -14,6 +14,8 @@ export type Person = {
   status: 'Active' | 'Inactive'
   priority: boolean
   victory_group_id: string | null
+  auth_user_id: string | null
+  is_admin: boolean
   created_at: string
   updated_at: string
 }
@@ -29,6 +31,8 @@ export type Engagement = {
   status: 'Pending' | 'Completed'
   notes: string | null
   completed_at: string | null
+  action_completed: boolean
+  action_completed_at: string | null
   created_at: string
 }
 

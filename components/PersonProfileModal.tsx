@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { deletePerson, updatePerson } from '../lib/supabaseQueries'
+import { useAuth } from '../contexts/AuthContext'
 import type { Person, Stage } from '../types/database'
 import { stageLabels, stageOrder } from '../lib/stageLabels'
 import StageChecklist from './StageChecklist'
@@ -30,7 +31,7 @@ type PersonProfileModalProps = {
   onClose: () => void
   onSaved?: (person: Person) => void
   onDeleted?: (personId: string) => void
-  onAddNewPerson?: () => void
+  onPersonCreated?: () => void
 }
 
 function ModalSectionCard({
@@ -64,7 +65,8 @@ function ModalSectionCard({
   )
 }
 
-export default function PersonProfileModal({ person, initialTab = 'profile', onClose, onSaved, onDeleted, onAddNewPerson }: PersonProfileModalProps) {
+export default function PersonProfileModal({ person, initialTab = 'profile', onClose, onSaved, onDeleted, onPersonCreated }: PersonProfileModalProps) {
+  const { canEdit: checkCanEdit } = useAuth()
   const [savedPerson, setSavedPerson] = useState(person)
   const [name, setName] = useState(person.name)
   const [email, setEmail] = useState(person.email ?? '')
@@ -81,8 +83,18 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
   const [starRefreshKey, setStarRefreshKey] = useState(0)
   const [activeSection, setActiveSection] = useState<ModalSection>(initialTab)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [inviteCopied, setInviteCopied] = useState(false)
 
   const stageColor = STAGE_COLORS[currentStage]
+  const canEdit = checkCanEdit(person.id)
+  const canInvite = (currentStage === 'Equip' || currentStage === 'Empower') && !person.auth_user_id
+
+  const copyInviteLink = () => {
+    const link = `${window.location.origin}/invite/${person.id}`
+    navigator.clipboard.writeText(link)
+    setInviteCopied(true)
+    setTimeout(() => setInviteCopied(false), 2000)
+  }
 
   useEffect(() => {
     setSavedPerson(person)
@@ -215,7 +227,7 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
     }`
   )
 
-  const inputClass = "w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] p-2.5 text-sm text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
+  const inputClass = "w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] p-2.5 text-sm text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-0 sm:p-6">
@@ -229,7 +241,7 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
                 <select
                   value={currentStage}
                   onChange={event => handleQuickStageChange(event.target.value as Stage)}
-                  disabled={loading}
+                  disabled={loading || !canEdit}
                   className="shrink-0 rounded-lg border border-[var(--line-2)] bg-[var(--indigo)] px-3 py-1.5 text-sm font-semibold focus:border-[var(--gbm-cobalt-bright)] focus:outline-none disabled:opacity-60"
                   style={{ color: stageColor }}
                 >
@@ -266,6 +278,25 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
             <button type="button" onClick={() => setActiveSection('groups')} className={sectionButtonClass('groups')}>Groups</button>
             <button type="button" onClick={() => setActiveSection('prayer')} className={sectionButtonClass('prayer')}>Prayer</button>
           </div>
+
+          {!canEdit && (
+            <div className="mt-3 flex items-center gap-2 rounded-lg bg-[var(--indigo)] px-3 py-2 text-xs text-[var(--fg-3)]">
+              <span>View only — not in your downline</span>
+            </div>
+          )}
+
+          {canEdit && canInvite && (
+            <div className="mt-3 flex items-center gap-2 rounded-lg bg-[rgba(91,141,247,.1)] px-3 py-2">
+              <span className="text-xs text-[var(--fg-2)]">Invite to manage their own dashboard:</span>
+              <button
+                type="button"
+                onClick={copyInviteLink}
+                className="rounded-full bg-[var(--equip)] px-2.5 py-1 text-[10px] font-semibold text-[var(--void)] transition-opacity hover:opacity-90"
+              >
+                {inviteCopied ? 'Copied!' : 'Copy Invite Link'}
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="space-y-3 p-4">
@@ -285,6 +316,7 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
                       value={name}
                       onChange={event => setName(event.target.value)}
                       className={inputClass}
+                      disabled={!canEdit}
                       required
                     />
                   </div>
@@ -295,6 +327,7 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
                       value={email}
                       onChange={event => setEmail(event.target.value)}
                       className={inputClass}
+                      disabled={!canEdit}
                     />
                   </div>
                   <div>
@@ -304,6 +337,7 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
                       value={phone}
                       onChange={event => setPhone(event.target.value)}
                       className={inputClass}
+                      disabled={!canEdit}
                     />
                   </div>
                 </div>
@@ -315,6 +349,7 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
                       value={currentStage}
                       onChange={event => setCurrentStage(event.target.value as Stage)}
                       className={inputClass}
+                      disabled={!canEdit}
                     >
                       {stages.map(stage => (
                         <option key={stage} value={stage}>{stageLabels[stage].name}</option>
@@ -327,6 +362,7 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
                       value={status}
                       onChange={event => setStatus(event.target.value as Person['status'])}
                       className={inputClass}
+                      disabled={!canEdit}
                     >
                       <option value="Active">Active</option>
                       <option value="Inactive">Inactive</option>
@@ -339,6 +375,7 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
                       value={spiritualBirthday}
                       onChange={event => setSpiritualBirthday(event.target.value)}
                       className={inputClass}
+                      disabled={!canEdit}
                     />
                   </div>
                   <div>
@@ -348,6 +385,7 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
                       value={baptismDate}
                       onChange={event => setBaptismDate(event.target.value)}
                       className={inputClass}
+                      disabled={!canEdit}
                     />
                   </div>
                 </div>
@@ -359,64 +397,67 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
                     onChange={event => setNotes(event.target.value)}
                     className={`${inputClass} h-20`}
                     placeholder="Pastoral notes, context, prayer needs..."
+                    disabled={!canEdit}
                   />
                 </div>
 
-                <div className="flex items-center justify-between gap-2 border-t border-[var(--line-1)] pt-3">
-                  <div>
-                    {!showDeleteConfirm ? (
+                {canEdit && (
+                  <div className="flex items-center justify-between gap-2 border-t border-[var(--line-1)] pt-3">
+                    <div>
+                      {!showDeleteConfirm ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowDeleteConfirm(true)
+                            setError('')
+                            setMessage('')
+                          }}
+                          disabled={loading}
+                          className="text-xs text-[#F2728A] hover:underline disabled:opacity-60"
+                        >
+                          Delete Profile
+                        </button>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-[#F2728A]">Delete {savedPerson.name}?</span>
+                          <button
+                            type="button"
+                            onClick={() => setShowDeleteConfirm(false)}
+                            disabled={loading}
+                            className="text-xs text-[var(--fg-3)] hover:underline disabled:opacity-60"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleDeletePerson}
+                            disabled={loading}
+                            className="rounded-lg px-2 py-1 text-xs font-semibold transition-colors disabled:opacity-60"
+                            style={{ background: '#F2728A', color: 'var(--void)' }}
+                          >
+                            {loading ? '...' : 'Confirm'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
                       <button
                         type="button"
-                        onClick={() => {
-                          setShowDeleteConfirm(true)
-                          setError('')
-                          setMessage('')
-                        }}
-                        disabled={loading}
-                        className="text-xs text-[#F2728A] hover:underline disabled:opacity-60"
+                        onClick={onClose}
+                        className="cn-btn cn-btn-ghost !py-2 !text-sm"
                       >
-                        Delete Profile
+                        Close
                       </button>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-[#F2728A]">Delete {savedPerson.name}?</span>
-                        <button
-                          type="button"
-                          onClick={() => setShowDeleteConfirm(false)}
-                          disabled={loading}
-                          className="text-xs text-[var(--fg-3)] hover:underline disabled:opacity-60"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleDeletePerson}
-                          disabled={loading}
-                          className="rounded-lg px-2 py-1 text-xs font-semibold transition-colors disabled:opacity-60"
-                          style={{ background: '#F2728A', color: 'var(--void)' }}
-                        >
-                          {loading ? '...' : 'Confirm'}
-                        </button>
-                      </div>
-                    )}
+                      <button
+                        type="submit"
+                        disabled={loading}
+                        className="cn-btn cn-btn-primary !py-2 !text-sm"
+                      >
+                        {loading ? 'Saving...' : 'Save Profile'}
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={onClose}
-                      className="cn-btn cn-btn-ghost !py-2 !text-sm"
-                    >
-                      Close
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="cn-btn cn-btn-primary !py-2 !text-sm"
-                    >
-                      {loading ? 'Saving...' : 'Save Profile'}
-                    </button>
-                  </div>
-                </div>
+                )}
               </form>
             </ModalSectionCard>
           )}
@@ -464,7 +505,7 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
               title="Discipleship Connections"
               subtitle="Being coached by and called to coach"
             >
-              <DiscipleshipConnectionsSection personId={savedPerson.id} onAddNewPerson={onAddNewPerson} />
+              <DiscipleshipConnectionsSection personId={savedPerson.id} onPersonCreated={onPersonCreated} />
             </ModalSectionCard>
           )}
 

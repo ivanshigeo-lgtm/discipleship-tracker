@@ -4,11 +4,11 @@ import { useEffect, useState, useMemo } from 'react'
 import {
   getPeople,
   getAllEngagements,
-  getAllStageChecklistItems,
+  getVictoryGroups,
 } from '../lib/supabaseQueries'
-import type { Person, Stage, Engagement, StageChecklistItem } from '../types/database'
-import EngagementBadges, { type CurriculumCounts, type CurriculumNames } from './EngagementBadges'
+import type { Person, Stage, Engagement, VictoryGroup } from '../types/database'
 import VictoryGroupsList from './VictoryGroupsList'
+import MeetingBadges, { type MeetingCounts } from './MeetingBadges'
 
 interface MyOneToOnesSectionProps {
   refreshKey?: number
@@ -153,22 +153,22 @@ export default function NeedAttentionSection({
 }: MyOneToOnesSectionProps) {
   const [people, setPeople] = useState<Person[]>([])
   const [engagements, setEngagements] = useState<Engagement[]>([])
-  const [checklistItems, setChecklistItems] = useState<StageChecklistItem[]>([])
+  const [victoryGroups, setVictoryGroups] = useState<VictoryGroup[]>([])
   const [groupsKey, setGroupsKey] = useState(0)
   const [loading, setLoading] = useState(true)
   const [isExpanded, setIsExpanded] = useState(false)
 
   const loadData = async () => {
     setLoading(true)
-    const [peopleResult, engagementsResult, checklistResult] = await Promise.all([
+    const [peopleResult, engagementsResult, groupsResult] = await Promise.all([
       getPeople(),
       getAllEngagements(),
-      getAllStageChecklistItems(),
+      getVictoryGroups(),
     ])
 
     if (peopleResult.data) setPeople(peopleResult.data as Person[])
     if (engagementsResult.data) setEngagements(engagementsResult.data as Engagement[])
-    if (checklistResult.data) setChecklistItems(checklistResult.data as StageChecklistItem[])
+    if (groupsResult.data) setVictoryGroups(groupsResult.data as VictoryGroup[])
 
     setLoading(false)
   }
@@ -220,59 +220,88 @@ export default function NeedAttentionSection({
 
   const overdueCount = meetings.filter(m => m.isOverdue).length
   const todayCount = meetings.filter(m => m.isToday).length
-  const upcomingCount = meetings.filter(m => m.isUpcoming).length
 
-  const completedData = useMemo(() => {
+  const meetingCounts = useMemo(() => {
+    const now = new Date()
+    const todayStr = now.toISOString().split('T')[0] // YYYY-MM-DD format
+    const todayDayOfWeek = now.getDay()
+
+    // Tomorrow
+    const tomorrow = new Date(now)
+    tomorrow.setDate(now.getDate() + 1)
+    const tomorrowStr = tomorrow.toISOString().split('T')[0]
+    const tomorrowDayOfWeek = tomorrow.getDay()
+
+    // Get Monday of current week
+    const monday = new Date(now)
+    monday.setHours(0, 0, 0, 0)
+    monday.setDate(now.getDate() - (todayDayOfWeek === 0 ? 6 : todayDayOfWeek - 1))
+    const mondayStr = monday.toISOString().split('T')[0]
+
+    // Get Sunday of current week
+    const sunday = new Date(monday)
+    sunday.setDate(monday.getDate() + 6)
+    const sundayStr = sunday.toISOString().split('T')[0]
+
+    const counts: MeetingCounts = {
+      Engage: { today: 0, week: 0, names: [] },
+      Establish: { today: 0, week: 0, names: [] },
+      Equip: { today: 0, week: 0, names: [] },
+      Empower: { today: 0, week: 0, names: [] },
+      'Grace Groups': { today: 0, week: 0, names: [] },
+    }
+
     const peopleById = new Map(people.map(p => [p.id, p]))
 
-    const counts: CurriculumCounts = {
-      'One2One': 0,
-      'Making Disciples': 0,
-      'Coffee': 0,
-      'Church Community': 0,
-      'Empowering Leaders': 0,
-    }
-
-    const names: Record<keyof CurriculumCounts, string[]> = {
-      'One2One': [],
-      'Making Disciples': [],
-      'Coffee': [],
-      'Church Community': [],
-      'Empowering Leaders': [],
-    }
-
-    const curriculumLabels: Record<string, keyof CurriculumCounts> = {
-      'Completed One2One': 'One2One',
-      'Completed Making Disciples': 'Making Disciples',
-      'Completed Church Community': 'Church Community',
-      'Completed Empowering Leaders': 'Empowering Leaders',
-    }
-
-    checklistItems
-      .filter(item => item.completed && item.label in curriculumLabels)
-      .forEach(item => {
-        const curriculumType = curriculumLabels[item.label]
-        if (curriculumType) {
-          counts[curriculumType]++
-          const person = peopleById.get(item.person_id)
-          if (person) {
-            names[curriculumType].push(person.name)
-          }
-        }
-      })
-
+    // Count engagements by person's stage (both pending and completed this week)
     engagements
-      .filter(e => e.status === 'Completed' && e.meeting_type === 'Coffee')
+      .filter(e => e.follow_up_date)
       .forEach(e => {
         const person = peopleById.get(e.person_id)
-        if (person && !names['Coffee'].includes(person.name)) {
-          names['Coffee'].push(person.name)
-          counts['Coffee']++
+        if (!person) return
+
+        const stage = person.current_stage
+        const followUpDateStr = e.follow_up_date! // Already YYYY-MM-DD format (filtered above)
+
+        // Check if meeting was scheduled for today or this week
+        const isThisWeek = followUpDateStr >= mondayStr && followUpDateStr <= sundayStr
+        const isToday = followUpDateStr === todayStr
+
+        // Count all meetings scheduled today (pending or completed)
+        if (isToday) {
+          counts[stage].today++
+        }
+
+        // Count all meetings (pending or completed) scheduled this week
+        if (isThisWeek) {
+          counts[stage].week++
+          counts[stage].names.push(person.name)
         }
       })
 
-    return { counts, names }
-  }, [checklistItems, engagements, people])
+    // Count Grace Groups
+    const dayMap: Record<string, number> = {
+      'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3,
+      'Thursday': 4, 'Friday': 5, 'Saturday': 6
+    }
+
+    victoryGroups.forEach(group => {
+      if (group.meeting_day) {
+        const meetingDayNum = dayMap[group.meeting_day]
+        if (meetingDayNum !== undefined) {
+          // Count for the week
+          counts['Grace Groups'].week++
+          counts['Grace Groups'].names.push(group.name)
+          // Check if it's today
+          if (meetingDayNum === todayDayOfWeek) {
+            counts['Grace Groups'].today++
+          }
+        }
+      }
+    })
+
+    return counts
+  }, [people, engagements, victoryGroups])
 
   if (loading) {
     return null
@@ -281,12 +310,12 @@ export default function NeedAttentionSection({
   if (meetings.length === 0) {
     return (
       <section className="cn-card mb-6 p-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="cn-h3">My Meetings</h2>
             <p className="text-sm text-[var(--fg-2)]">Scheduled meetings from Next Engagements</p>
           </div>
-          <EngagementBadges completedCounts={completedData.counts} completedNames={completedData.names} />
+          <MeetingBadges counts={meetingCounts} />
         </div>
         <p className="mt-4 text-sm text-[var(--fg-3)]">
           No scheduled meetings. Add a follow-up date in someone's profile to see it here.
@@ -297,39 +326,39 @@ export default function NeedAttentionSection({
 
   return (
     <section className="cn-card mb-6 p-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <h2 className="cn-h3">My Meetings</h2>
           <span className="cn-chip !py-0.5 !text-xs">{meetings.length}</span>
         </div>
 
-        <div className="flex items-center gap-2">
-          {overdueCount > 0 && (
-            <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'rgba(242,114,138,.15)', color: '#F2728A' }}>
-              {overdueCount} overdue
-            </span>
-          )}
-          {todayCount > 0 && (
-            <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'rgba(54,214,195,.15)', color: 'var(--establish)' }}>
-              {todayCount} today
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="cn-chip"
-          >
-            {isExpanded ? 'Collapse' : 'Expand'}
-          </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <MeetingBadges counts={meetingCounts} />
+          <div className="flex items-center gap-2">
+            {overdueCount > 0 && (
+              <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'rgba(242,114,138,.15)', color: '#F2728A' }}>
+                {overdueCount} overdue
+              </span>
+            )}
+            {todayCount > 0 && (
+              <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'rgba(54,214,195,.15)', color: 'var(--establish)' }}>
+                {todayCount} today
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="cn-chip"
+            >
+              {isExpanded ? 'Collapse' : 'Expand'}
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-[var(--fg-2)]">
-          Scheduled meetings from Next Engagements
-        </p>
-        <EngagementBadges completedCounts={completedData.counts} completedNames={completedData.names} />
-      </div>
+      <p className="mt-1 text-sm text-[var(--fg-2)]">
+        Scheduled meetings from Next Engagements
+      </p>
 
       {isExpanded && (
         <>

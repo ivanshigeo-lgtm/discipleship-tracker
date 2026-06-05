@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getPrayerRequestsByPerson, markPrayerAnswered, updatePrayerAnswerNotes, deletePrayerRequest } from '../lib/supabaseQueries'
+import { getPrayerRequestsByPerson, markPrayerAnswered, updatePrayerAnswerNotes, updatePrayerRequestText, deletePrayerRequest } from '../lib/supabaseQueries'
 import type { PrayerRequest } from '../types/database'
 
 export default function PrayerRequestsList({
@@ -18,6 +18,9 @@ export default function PrayerRequestsList({
   const [answerNotes, setAnswerNotes] = useState('')
   const [editingNotesId, setEditingNotesId] = useState<string | null>(null)
   const [editingNotesText, setEditingNotesText] = useState('')
+  const [editingRequestId, setEditingRequestId] = useState<string | null>(null)
+  const [editingRequestText, setEditingRequestText] = useState('')
+  const [savingRequestId, setSavingRequestId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [savingNotesId, setSavingNotesId] = useState<string | null>(null)
   const [error, setError] = useState('')
@@ -58,6 +61,33 @@ export default function PrayerRequestsList({
 
     setAnsweringId(null)
     setAnswerNotes('')
+  }
+
+  const handleStartEditingRequest = (request: PrayerRequest) => {
+    setEditingRequestId(request.id)
+    setEditingRequestText(request.request)
+  }
+
+  const handleSaveRequest = async (id: string) => {
+    if (!editingRequestText.trim()) {
+      setError('Prayer request cannot be empty.')
+      return
+    }
+
+    setSavingRequestId(id)
+    setError('')
+
+    const { error } = await updatePrayerRequestText(id, editingRequestText.trim())
+    if (error) {
+      setError(error.message)
+    } else {
+      await loadRequests()
+      onUpdate?.()
+    }
+
+    setSavingRequestId(null)
+    setEditingRequestId(null)
+    setEditingRequestText('')
   }
 
   const handleStartEditingNotes = (request: PrayerRequest) => {
@@ -126,10 +156,39 @@ export default function PrayerRequestsList({
           <div className="space-y-1.5">
             {prayingRequests.map(request => (
               <div key={request.id} className="rounded-lg border border-[var(--line-1)] bg-[var(--indigo)] p-2.5">
-                <div className="text-xs text-[var(--fg-1)]">{request.request}</div>
-
-                {answeringId === request.id ? (
-                  <div className="mt-2 space-y-2">
+                {editingRequestId === request.id ? (
+                  <div className="space-y-2">
+                    <textarea
+                      value={editingRequestText}
+                      onChange={(e) => setEditingRequestText(e.target.value)}
+                      placeholder="Prayer request..."
+                      className={inputClass}
+                      rows={2}
+                      autoFocus
+                    />
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={() => handleSaveRequest(request.id)}
+                        disabled={savingRequestId === request.id}
+                        className="rounded-lg px-2 py-1 text-[10px] font-semibold transition-colors disabled:opacity-60"
+                        style={{ background: 'rgba(91,141,247,.15)', color: 'var(--equip)' }}
+                      >
+                        {savingRequestId === request.id ? 'Saving...' : 'Save'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditingRequestId(null)
+                          setEditingRequestText('')
+                        }}
+                        className="text-[10px] text-[var(--fg-3)] hover:text-[var(--fg-2)]"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : answeringId === request.id ? (
+                  <div className="space-y-2">
+                    <div className="text-xs text-[var(--fg-1)]">{request.request}</div>
                     <textarea
                       value={answerNotes}
                       onChange={(e) => setAnswerNotes(e.target.value)}
@@ -154,23 +213,38 @@ export default function PrayerRequestsList({
                     </div>
                   </div>
                 ) : (
-                  <div className="mt-2 flex gap-1.5">
-                    <button
-                      onClick={() => handleStartAnswering(request.id)}
-                      disabled={deletingId === request.id}
-                      className="rounded-lg px-2 py-1 text-[10px] font-semibold transition-colors disabled:opacity-60"
-                      style={{ background: 'rgba(54,214,195,.15)', color: 'var(--establish)' }}
+                  <>
+                    <div
+                      onClick={() => handleStartEditingRequest(request)}
+                      className="cursor-pointer text-xs text-[var(--fg-1)] hover:text-[var(--fg-2)]"
+                      title="Click to edit"
                     >
-                      Answered
-                    </button>
-                    <button
-                      onClick={() => handleDelete(request.id)}
-                      disabled={deletingId === request.id}
-                      className="text-[10px] text-[#F2728A] hover:underline disabled:opacity-60"
-                    >
-                      {deletingId === request.id ? '...' : '×'}
-                    </button>
-                  </div>
+                      {request.request}
+                    </div>
+                    <div className="mt-2 flex gap-1.5">
+                      <button
+                        onClick={() => handleStartAnswering(request.id)}
+                        disabled={deletingId === request.id}
+                        className="rounded-lg px-2 py-1 text-[10px] font-semibold transition-colors disabled:opacity-60"
+                        style={{ background: 'rgba(54,214,195,.15)', color: 'var(--establish)' }}
+                      >
+                        Answered
+                      </button>
+                      <button
+                        onClick={() => handleStartEditingRequest(request)}
+                        className="text-[10px] text-[var(--fg-3)] hover:text-[var(--fg-2)]"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(request.id)}
+                        disabled={deletingId === request.id}
+                        className="text-[10px] text-[#F2728A] hover:underline disabled:opacity-60"
+                      >
+                        {deletingId === request.id ? '...' : '×'}
+                      </button>
+                    </div>
+                  </>
                 )}
               </div>
             ))}

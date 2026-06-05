@@ -16,6 +16,7 @@ interface MultiplicationSnapshotProps {
   selectedFilterKeys?: string[]
   onToggleFilter?: (filter: SnapshotFilter) => void
   onAddPerson?: () => void
+  onPersonClick?: (person: Person) => void
 }
 
 const stageFilters: Record<Stage, SnapshotFilter> = {
@@ -76,10 +77,19 @@ export default function MultiplicationSnapshot({
   selectedFilterKeys = [],
   onToggleFilter,
   onAddPerson,
+  onPersonClick,
 }: MultiplicationSnapshotProps) {
   const [people, setPeople] = useState<Person[]>([])
   const [connections, setConnections] = useState<DiscipleshipConnection[]>([])
   const [isExpanded, setIsExpanded] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [showSearchResults, setShowSearchResults] = useState(false)
+
+  const searchResults = searchQuery.trim()
+    ? people
+        .filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
+        .slice(0, 5)
+    : []
 
   useEffect(() => {
     const loadData = async () => {
@@ -186,6 +196,53 @@ export default function MultiplicationSnapshot({
             <p className="text-sm text-[var(--fg-2)]">Are you building a team that disciples people?</p>
           </div>
           <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
+            {/* Search */}
+            {onPersonClick && (
+              <div className="relative">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value)
+                    setShowSearchResults(true)
+                  }}
+                  onFocus={() => setShowSearchResults(true)}
+                  onBlur={() => setTimeout(() => setShowSearchResults(false), 150)}
+                  placeholder="Search people..."
+                  className="w-36 rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-2.5 py-1.5 text-xs text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none sm:w-44"
+                />
+                {showSearchResults && searchResults.length > 0 && (
+                  <div className="absolute right-0 top-full z-50 mt-1 w-56 rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] py-1 shadow-xl">
+                    {searchResults.map(person => (
+                      <button
+                        key={person.id}
+                        type="button"
+                        onClick={() => {
+                          onPersonClick(person)
+                          setSearchQuery('')
+                          setShowSearchResults(false)
+                        }}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-[var(--indigo-3)]"
+                      >
+                        <span
+                          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[9px] font-bold"
+                          style={{
+                            border: `1.5px solid ${stageColors[person.current_stage].color}`,
+                            color: stageColors[person.current_stage].color,
+                          }}
+                        >
+                          {person.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                        </span>
+                        <span className="truncate text-[var(--fg-1)]">{person.name}</span>
+                        <span className="ml-auto text-[10px]" style={{ color: stageColors[person.current_stage].color }}>
+                          {person.current_stage}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             {onAddPerson && (
               <button
                 type="button"
@@ -204,7 +261,7 @@ export default function MultiplicationSnapshot({
               {isExpanded ? 'Collapse' : 'Expand'}
             </button>
           </div>
-      </div>
+        </div>
 
       {isExpanded && (
         <>

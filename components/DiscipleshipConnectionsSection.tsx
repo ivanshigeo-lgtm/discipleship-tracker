@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   addDiscipleshipConnection,
+  addPerson,
   deleteDiscipleshipConnection,
   getAllDiscipleshipConnections,
   getDiscipleshipConnections,
@@ -19,10 +20,12 @@ const STAGE_COLORS: Record<Stage, string> = {
 
 interface DiscipleshipConnectionsSectionProps {
   personId: string
-  onAddNewPerson?: () => void
+  onPersonCreated?: () => void
 }
 
-export default function DiscipleshipConnectionsSection({ personId, onAddNewPerson }: DiscipleshipConnectionsSectionProps) {
+type CreateMode = 'coach' | 'disciple' | null
+
+export default function DiscipleshipConnectionsSection({ personId, onPersonCreated }: DiscipleshipConnectionsSectionProps) {
   const [shepherdingConnections, setShepherdingConnections] = useState<DiscipleshipConnection[]>([])
   const [allConnections, setAllConnections] = useState<DiscipleshipConnection[]>([])
   const [people, setPeople] = useState<Person[]>([])
@@ -32,6 +35,11 @@ export default function DiscipleshipConnectionsSection({ personId, onAddNewPerso
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
+
+  // Inline create person form state
+  const [createMode, setCreateMode] = useState<CreateMode>(null)
+  const [newPersonName, setNewPersonName] = useState('')
+  const [creatingPerson, setCreatingPerson] = useState(false)
 
   const peopleById = useMemo(() => {
     return new Map(people.map(person => [person.id, person]))
@@ -204,6 +212,81 @@ export default function DiscipleshipConnectionsSection({ personId, onAddNewPerso
     await loadConnections()
   }
 
+  const handleCreateAndConnect = async () => {
+    if (!newPersonName.trim()) {
+      setError('Please enter a name.')
+      return
+    }
+
+    setCreatingPerson(true)
+    setError('')
+    setMessage('')
+
+    // Create the new person
+    const { data: newPerson, error: createError } = await addPerson({
+      name: newPersonName.trim(),
+      current_stage: 'Engage',
+      email: null,
+      phone: null,
+      spiritual_birthday: null,
+      baptism_date: null,
+      notes: null,
+      status: 'Active',
+      priority: false,
+      victory_group_id: null,
+    })
+
+    if (createError || !newPerson) {
+      setError(createError?.message ?? 'Failed to create person.')
+      setCreatingPerson(false)
+      return
+    }
+
+    // Now create the connection
+    if (createMode === 'disciple') {
+      // Current person is coaching the new person
+      const { error: connError } = await addDiscipleshipConnection({
+        discipler_person_id: personId,
+        disciple_person_id: newPerson.id,
+        disciple_name: newPerson.name,
+        relationship_notes: null,
+        status: 'Identified',
+      })
+
+      if (connError) {
+        setError(connError.message)
+        setCreatingPerson(false)
+        return
+      }
+
+      setMessage(`${newPerson.name} created and added to Called to Coach.`)
+    } else if (createMode === 'coach') {
+      // New person is coaching the current person
+      const { error: connError } = await addDiscipleshipConnection({
+        discipler_person_id: newPerson.id,
+        disciple_person_id: personId,
+        disciple_name: currentPerson?.name ?? '',
+        relationship_notes: null,
+        status: 'Identified',
+      })
+
+      if (connError) {
+        setError(connError.message)
+        setCreatingPerson(false)
+        return
+      }
+
+      setMessage(`${newPerson.name} created and added as coach.`)
+    }
+
+    // Reset form and reload
+    setNewPersonName('')
+    setCreateMode(null)
+    setCreatingPerson(false)
+    await loadConnections()
+    onPersonCreated?.()
+  }
+
   const inputClass = "w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] p-2 text-sm text-[var(--fg-1)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none disabled:opacity-60"
 
   return (
@@ -268,8 +351,8 @@ export default function DiscipleshipConnectionsSection({ personId, onAddNewPerso
                 value={selectedDisciplerId}
                 onChange={event => {
                   if (event.target.value === '__NEW__') {
-                    onAddNewPerson?.()
-                    event.target.value = ''
+                    setCreateMode('coach')
+                    setSelectedDisciplerId('')
                   } else {
                     setSelectedDisciplerId(event.target.value)
                   }
@@ -278,9 +361,7 @@ export default function DiscipleshipConnectionsSection({ personId, onAddNewPerso
                 className={`${inputClass} flex-1`}
               >
                 <option value="">+ Add coach...</option>
-                {onAddNewPerson && (
-                  <option value="__NEW__">＋ Create new person...</option>
-                )}
+                <option value="__NEW__">＋ Create new person...</option>
                 {possibleDisciplers.map(person => (
                   <option key={person.id} value={person.id}>{person.name}</option>
                 ))}
@@ -343,8 +424,8 @@ export default function DiscipleshipConnectionsSection({ personId, onAddNewPerso
                 value={selectedDiscipleId}
                 onChange={event => {
                   if (event.target.value === '__NEW__') {
-                    onAddNewPerson?.()
-                    event.target.value = ''
+                    setCreateMode('disciple')
+                    setSelectedDiscipleId('')
                   } else {
                     setSelectedDiscipleId(event.target.value)
                   }
@@ -353,9 +434,7 @@ export default function DiscipleshipConnectionsSection({ personId, onAddNewPerso
                 className={`${inputClass} flex-1`}
               >
                 <option value="">+ Add person...</option>
-                {onAddNewPerson && (
-                  <option value="__NEW__">＋ Create new person...</option>
-                )}
+                <option value="__NEW__">＋ Create new person...</option>
                 {availablePeopleToShepherd.map(person => (
                   <option key={person.id} value={person.id}>{person.name}</option>
                 ))}
@@ -369,6 +448,52 @@ export default function DiscipleshipConnectionsSection({ personId, onAddNewPerso
                 Add
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Inline Create Person Form */}
+      {createMode && (
+        <div className="rounded-lg border border-[var(--gbm-cobalt-bright)] bg-[var(--indigo-2)] p-3">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs font-semibold text-[var(--fg-1)]">
+              Create New Person {createMode === 'coach' ? '(as Coach)' : '(to Coach)'}
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setCreateMode(null)
+                setNewPersonName('')
+                setError('')
+              }}
+              className="text-xs text-[var(--fg-3)] hover:text-[var(--fg-2)]"
+            >
+              Cancel
+            </button>
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={newPersonName}
+              onChange={e => setNewPersonName(e.target.value)}
+              placeholder="Enter name..."
+              disabled={creatingPerson}
+              className={`${inputClass} flex-1`}
+              autoFocus
+              onKeyDown={e => {
+                if (e.key === 'Enter' && newPersonName.trim()) {
+                  handleCreateAndConnect()
+                }
+              }}
+            />
+            <button
+              type="button"
+              onClick={handleCreateAndConnect}
+              disabled={creatingPerson || !newPersonName.trim()}
+              className="cn-btn cn-btn-primary shrink-0 !px-3 !py-1.5 !text-xs"
+            >
+              {creatingPerson ? 'Creating...' : 'Create & Add'}
+            </button>
           </div>
         </div>
       )}

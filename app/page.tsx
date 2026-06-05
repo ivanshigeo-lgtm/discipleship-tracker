@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useAuth } from '../contexts/AuthContext'
 import AddPersonForm from '../components/AddPersonForm'
 import PeopleList from '../components/PeopleList'
 import MultiplicationSnapshot from '../components/MultiplicationSnapshot'
@@ -8,9 +9,12 @@ import MyCircleMap from '../components/MyCircleMap'
 import CoachingPipeline from '../components/CoachingPipeline'
 import NeedAttentionSection from '../components/NeedAttentionSection'
 import PointsOfActionSection from '../components/PointsOfActionSection'
+import PrayerWallSection from '../components/PrayerWallSection'
+import CurriculumBadgesSection from '../components/CurriculumBadgesSection'
 import EmergingTeamSection from '../components/EmergingTeamSection'
 import PersonProfileModal from '../components/PersonProfileModal'
 import MobileNav from '../components/MobileNav'
+import LoginPage from '../components/LoginPage'
 import type { Person, Stage } from '../types/database'
 
 type CircleFilter = {
@@ -34,6 +38,7 @@ const uniqueStagesFromFilters = (filters: CircleFilter[]) => {
 }
 
 export default function DiscipleshipTracker() {
+  const { user, profile, loading, signOut, canEdit } = useAuth()
   const [refreshKey, setRefreshKey] = useState(0)
   const [circleFilters, setCircleFilters] = useState<CircleFilter[]>([])
   const [circleView, setCircleView] = useState<ViewMode>('pipeline')
@@ -43,6 +48,18 @@ export default function DiscipleshipTracker() {
   const [initialProfileTab, setInitialProfileTab] = useState<'profile' | 'journey' | 'connections' | 'engagements' | 'groups' | 'prayer'>('profile')
   const [mobileTab, setMobileTab] = useState<MobileTab>('home')
   const [journeyExpanded, setJourneyExpanded] = useState(false)
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <p className="text-[var(--fg-2)]">Loading...</p>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return <LoginPage />
+  }
 
   const handlePersonAdded = () => {
     setRefreshKey(prev => prev + 1)
@@ -93,9 +110,25 @@ export default function DiscipleshipTracker() {
             <span className="text-sm text-[var(--fg-3)]">Coaching Legacies of Disciples</span>
           </div>
           <div className="mx-6 h-14 w-px bg-[var(--line-2)]" />
-          <span className="shrink-0 text-3xl font-semibold text-[var(--fg-1)]" style={{ fontFamily: 'var(--font-display)' }}>
-            Coach's Dashboard
-          </span>
+          <div className="flex shrink-0 items-center gap-3">
+            {profile && (
+              <span className="text-sm text-[var(--fg-2)]">
+                {profile.name}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={async () => {
+                console.log('Sign out clicked')
+                await signOut()
+                console.log('Sign out complete')
+                window.location.href = '/'
+              }}
+              className="cn-chip !text-xs"
+            >
+              Sign Out
+            </button>
+          </div>
         </div>
       </header>
 
@@ -106,11 +139,23 @@ export default function DiscipleshipTracker() {
           alt="Grace Bible Maui"
           className="h-12 w-auto"
         />
-        <div className="text-right">
-          <h1 className="text-lg font-semibold text-[var(--fg-1)]" style={{ fontFamily: 'var(--font-display)' }}>
-            Constellations
-          </h1>
-          <span className="text-[10px] text-[var(--fg-3)]">Coach's Dashboard</span>
+        <div className="flex items-center gap-2">
+          <div className="text-right">
+            <h1 className="text-lg font-semibold text-[var(--fg-1)]" style={{ fontFamily: 'var(--font-display)' }}>
+              Constellations
+            </h1>
+            <span className="text-[10px] text-[var(--fg-3)]">{profile?.name || 'Coach'}</span>
+          </div>
+          <button
+            type="button"
+            onClick={async () => {
+              await signOut()
+              window.location.href = '/'
+            }}
+            className="rounded-full border border-[var(--line-2)] px-2 py-1 text-[10px] text-[var(--fg-3)]"
+          >
+            Sign Out
+          </button>
         </div>
       </header>
 
@@ -140,6 +185,16 @@ export default function DiscipleshipTracker() {
             selectedFilterKeys={selectedFilterKeys}
             onToggleFilter={toggleCircleFilter}
             onAddPerson={() => setShowAddPersonMenu(true)}
+            onPersonClick={(person) => setSelectedPerson(person)}
+          />
+        </div>
+
+        {/* Emerging Team - only on home tab */}
+        <div className={`${mobileTab !== 'home' ? 'hidden md:block' : ''}`}>
+          <EmergingTeamSection
+            refreshKey={refreshKey}
+            onPersonClick={(person) => setSelectedPerson(person)}
+            onChanged={() => setRefreshKey(prev => prev + 1)}
           />
         </div>
 
@@ -167,12 +222,14 @@ export default function DiscipleshipTracker() {
           />
         </div>
 
-        {/* Emerging Team - only on home tab */}
+        {/* Prayer & Praise Wall - only on home tab */}
         <div className={`${mobileTab !== 'home' ? 'hidden md:block' : ''}`}>
-          <EmergingTeamSection
+          <PrayerWallSection
             refreshKey={refreshKey}
-            onPersonClick={(person) => setSelectedPerson(person)}
-            onChanged={() => setRefreshKey(prev => prev + 1)}
+            onPersonClick={(person) => {
+              setSelectedPerson(person)
+              setInitialProfileTab('prayer')
+            }}
           />
         </div>
 
@@ -180,8 +237,11 @@ export default function DiscipleshipTracker() {
         <div className={`cn-card mb-6 p-4 ${mobileTab !== 'home' && mobileTab !== 'pipeline' ? 'hidden md:block' : ''}`}>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="cn-h3">Our Journey</h2>
-              <p className="text-xs text-[var(--fg-2)] sm:text-sm">
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 className="cn-h3">Our Journey</h2>
+                <CurriculumBadgesSection refreshKey={refreshKey} />
+              </div>
+              <p className="mt-1 text-xs text-[var(--fg-2)] sm:text-sm">
                 {circleView === 'pipeline'
                   ? 'Move people through stages with the coaching pipeline.'
                   : 'Visualize people moving toward Christ together.'}
@@ -306,8 +366,8 @@ export default function DiscipleshipTracker() {
             setInitialProfileTab('profile')
             setRefreshKey(prev => prev + 1)
           }}
-          onAddNewPerson={() => {
-            setShowAddPersonMenu(true)
+          onPersonCreated={() => {
+            setRefreshKey(prev => prev + 1)
           }}
         />
       )}

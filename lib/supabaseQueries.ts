@@ -27,10 +27,10 @@ export const getPeople = async (stage?: Stage | Stage[]) => {
   return { data, error }
 }
 
-export const addPerson = async (person: Omit<Person, 'id' | 'created_at' | 'updated_at'>) => {
+export const addPerson = async (person: Omit<Person, 'id' | 'created_at' | 'updated_at' | 'auth_user_id'>) => {
   const { data, error } = await supabase
     .from('people')
-    .insert({ ...person, updated_at: new Date().toISOString() })
+    .insert({ ...person, auth_user_id: null, updated_at: new Date().toISOString() })
     .select()
     .single()
   return { data, error }
@@ -115,10 +115,10 @@ export const getAllEngagements = async () => {
   return { data, error }
 }
 
-export const addEngagement = async (engagement: Omit<Engagement, 'id' | 'created_at' | 'notes' | 'completed_at'> & { follow_up_time?: string | null; location?: string | null }) => {
+export const addEngagement = async (engagement: Omit<Engagement, 'id' | 'created_at' | 'notes' | 'completed_at' | 'action_completed' | 'action_completed_at'> & { follow_up_time?: string | null; location?: string | null }) => {
   const { data, error } = await supabase
     .from('engagements')
-    .insert(engagement)
+    .insert({ ...engagement, action_completed: false, action_completed_at: null })
     .select()
     .single()
   return { data, error }
@@ -139,6 +139,19 @@ export const deleteEngagement = async (id: string) => {
     .delete()
     .eq('id', id)
   return { error }
+}
+
+export const markActionCompleted = async (id: string, completed: boolean) => {
+  const { data, error } = await supabase
+    .from('engagements')
+    .update({
+      action_completed: completed,
+      action_completed_at: completed ? new Date().toISOString() : null,
+    })
+    .eq('id', id)
+    .select()
+    .single()
+  return { data, error }
 }
 
 // ==================== PRAYER REQUESTS ====================
@@ -206,6 +219,31 @@ export const updatePrayerAnswerNotes = async (id: string, answerNotes: string | 
     })
     .eq('id', id)
     .select('id, answer_notes')
+    .maybeSingle()
+
+  if (error) return { data, error }
+
+  if (!data) {
+    return {
+      data,
+      error: {
+        message: 'Prayer request was not updated.',
+      },
+    }
+  }
+
+  return { data, error: null }
+}
+
+export const updatePrayerRequestText = async (id: string, request: string) => {
+  const { data, error } = await supabase
+    .from('prayer_requests')
+    .update({
+      request,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .select('id, request')
     .maybeSingle()
 
   if (error) return { data, error }
