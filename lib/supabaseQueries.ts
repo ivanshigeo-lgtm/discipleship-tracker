@@ -27,10 +27,10 @@ export const getPeople = async (stage?: Stage | Stage[]) => {
   return { data, error }
 }
 
-export const addPerson = async (person: Omit<Person, 'id' | 'created_at' | 'updated_at' | 'auth_user_id'>) => {
+export const addPerson = async (person: Omit<Person, 'id' | 'created_at' | 'updated_at' | 'auth_user_id' | 'is_admin'>) => {
   const { data, error } = await supabase
     .from('people')
-    .insert({ ...person, auth_user_id: null, updated_at: new Date().toISOString() })
+    .insert({ ...person, auth_user_id: null, is_admin: false, updated_at: new Date().toISOString() })
     .select()
     .single()
   return { data, error }
