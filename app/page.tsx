@@ -16,6 +16,7 @@ import EmergingTeamSection from '../components/EmergingTeamSection'
 import PersonProfileModal from '../components/PersonProfileModal'
 import MobileNav from '../components/MobileNav'
 import LoginPage from '../components/LoginPage'
+import GoogleCalendarConnect from '../components/GoogleCalendarConnect'
 import type { Person, Stage } from '../types/database'
 
 type CircleFilter = {
@@ -111,7 +112,9 @@ export default function DiscipleshipTracker() {
             <span className="text-sm text-[var(--fg-3)]">Coaching Legacies of Disciples</span>
           </div>
           <div className="mx-6 h-14 w-px bg-[var(--line-2)]" />
-          <div className="flex shrink-0 items-center gap-3">
+          <div className="flex shrink-0 items-center gap-4">
+            <GoogleCalendarConnect />
+            <div className="h-6 w-px bg-[var(--line-2)]" />
             {profile && (
               <span className="text-sm text-[var(--fg-2)]">
                 {profile.name}

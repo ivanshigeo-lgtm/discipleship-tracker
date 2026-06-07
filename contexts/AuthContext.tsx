@@ -27,35 +27,65 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [downline, setDownline] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
 
-  const fetchProfile = async (userId: string) => {
-    console.log('Fetching profile for auth user:', userId)
-    const { data: personData, error } = await supabase
-      .from('people')
-      .select('*')
-      .eq('auth_user_id', userId)
-      .maybeSingle()
+  const fetchProfile = async (userId: string, retries = 3): Promise<boolean> => {
+    console.log('Fetching profile for auth user:', userId, `(attempt ${4 - retries}/3)`)
 
-    console.log('Profile fetch result:', { personData, error })
+    try {
+      const { data: personData, error } = await supabase
+        .from('people')
+        .select('*')
+        .eq('auth_user_id', userId)
+        .maybeSingle()
 
-    if (personData) {
-      console.log('is_admin:', personData.is_admin)
-      setProfile(personData as Person)
+      console.log('Profile fetch result:', { personData, error })
 
-      const { data: downlineData } = await supabase
-        .rpc('get_downline', { coach_person_id: personData.id })
-
-      if (downlineData) {
-        setDownline(downlineData.map((d: { person_id: string }) => d.person_id))
+      if (error) {
+        console.error('Profile fetch error:', error)
+        if (retries > 1) {
+          await new Promise(r => setTimeout(r, 1000))
+          return fetchProfile(userId, retries - 1)
+        }
+        return false
       }
-    } else {
-      setProfile(null)
-      setDownline([])
+
+      if (personData) {
+        console.log('is_admin:', personData.is_admin)
+        setProfile(personData as Person)
+
+        try {
+          const { data: downlineData } = await supabase
+            .rpc('get_downline', { coach_person_id: personData.id })
+
+          if (downlineData) {
+            setDownline(downlineData.map((d: { person_id: string }) => d.person_id))
+          }
+        } catch (downlineErr) {
+          console.error('Downline fetch error:', downlineErr)
+        }
+        return true
+      } else {
+        console.log('No profile found for user')
+        setProfile(null)
+        setDownline([])
+        return false
+      }
+    } catch (err) {
+      console.error('Profile fetch exception:', err)
+      if (retries > 1) {
+        await new Promise(r => setTimeout(r, 1000))
+        return fetchProfile(userId, retries - 1)
+      }
+      return false
     }
   }
 
   const refreshProfile = async () => {
     if (user) {
-      await fetchProfile(user.id)
+      try {
+        await fetchProfile(user.id)
+      } catch (err) {
+        console.error('Refresh profile error:', err)
+      }
     }
   }
 
@@ -64,28 +94,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const timeout = setTimeout(() => {
       console.log('Auth timeout - forcing loading to false')
       setLoading(false)
-    }, 5000)
+    }, 30000)
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      clearTimeout(timeout)
-      setSession(session)
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        fetchProfile(session.user.id)
+    const initAuth = async () => {
+      try {
+        // Try to refresh the session first to ensure valid tokens
+        const { data: refreshData } = await supabase.auth.refreshSession()
+        console.log('Session refresh result:', refreshData?.session?.user?.email)
+
+        const { data: { session } } = await supabase.auth.getSession()
+        console.log('Got session:', session?.user?.email)
+
+        setSession(session)
+        setUser(session?.user ?? null)
+
+        if (session?.user) {
+          const success = await fetchProfile(session.user.id)
+          console.log('Profile fetch success:', success)
+        }
+      } catch (err) {
+        console.error('Auth init error:', err)
+      } finally {
+        clearTimeout(timeout)
+        setLoading(false)
       }
-      setLoading(false)
-    }).catch((err) => {
-      clearTimeout(timeout)
-      console.error('Auth error:', err)
-      setLoading(false)
-    })
+    }
+
+    initAuth()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      async (event, session) => {
+        console.log('Auth state change:', event, session?.user?.email)
         setSession(session)
         setUser(session?.user ?? null)
         if (session?.user) {
-          await fetchProfile(session.user.id)
+          try {
+            await fetchProfile(session.user.id)
+          } catch (err) {
+            console.error('Profile fetch in auth state change failed:', err)
+          }
         } else {
           setProfile(null)
           setDownline([])
@@ -94,7 +141,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     )
 
-    return () => subscription.unsubscribe()
+    // Handle returning from external sites (like OAuth)
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible') {
+        console.log('Page visible - checking session')
+        try {
+          const { data: { session } } = await supabase.auth.getSession()
+          if (session?.user && !profile) {
+            console.log('Session exists but no profile - fetching...')
+            await fetchProfile(session.user.id)
+          }
+        } catch (err) {
+          console.error('Visibility check error:', err)
+        }
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      subscription.unsubscribe()
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
   }, [])
 
   const canEdit = (personId: string): boolean => {

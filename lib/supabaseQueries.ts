@@ -115,7 +115,7 @@ export const getAllEngagements = async () => {
   return { data, error }
 }
 
-export const addEngagement = async (engagement: Omit<Engagement, 'id' | 'created_at' | 'notes' | 'completed_at' | 'action_completed' | 'action_completed_at'> & { follow_up_time?: string | null; location?: string | null }) => {
+export const addEngagement = async (engagement: Omit<Engagement, 'id' | 'created_at' | 'notes' | 'completed_at' | 'action_completed' | 'action_completed_at' | 'google_calendar_event_id'> & { follow_up_time?: string | null; location?: string | null }) => {
   const { data, error } = await supabase
     .from('engagements')
     .insert({ ...engagement, action_completed: false, action_completed_at: null })

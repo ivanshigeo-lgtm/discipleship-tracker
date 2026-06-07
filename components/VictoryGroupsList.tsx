@@ -65,7 +65,7 @@ export default function VictoryGroupsList({
           getVictoryGroups(),
           getPeople(),
         ]),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000))
       ])
 
       if (groupsError) setError(groupsError.message)

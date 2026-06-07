@@ -167,7 +167,7 @@ export default function NeedAttentionSection({
           getAllEngagements(),
           getVictoryGroups(),
         ]),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000))
       ])
 
       if (peopleResult.data) setPeople(peopleResult.data as Person[])
@@ -314,29 +314,14 @@ export default function NeedAttentionSection({
     return null
   }
 
-  if (meetings.length === 0) {
-    return (
-      <section className="cn-card mb-6 p-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="cn-h3">My Meetings</h2>
-            <p className="text-sm text-[var(--fg-2)]">Scheduled meetings from Next Engagements</p>
-          </div>
-          <MeetingBadges counts={meetingCounts} />
-        </div>
-        <p className="mt-4 text-sm text-[var(--fg-3)]">
-          No scheduled meetings. Add a follow-up date in someone's profile to see it here.
-        </p>
-      </section>
-    )
-  }
-
   return (
     <section className="cn-card mb-6 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <h2 className="cn-h3">My Meetings</h2>
-          <span className="cn-chip !py-0.5 !text-xs">{meetings.length}</span>
+          {meetings.length > 0 && (
+            <span className="cn-chip !py-0.5 !text-xs">{meetings.length}</span>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -370,7 +355,7 @@ export default function NeedAttentionSection({
       {isExpanded && (
         <>
           {/* One-to-One Meetings */}
-          {meetings.length > 0 && (
+          {meetings.length > 0 ? (
             <>
               <div className="mt-4 text-[10px] font-semibold uppercase tracking-wide text-[var(--fg-3)]">
                 One-to-One Meetings
@@ -390,6 +375,10 @@ export default function NeedAttentionSection({
                 </p>
               )}
             </>
+          ) : (
+            <p className="mt-4 text-sm text-[var(--fg-3)]">
+              No one-to-one meetings scheduled. Add a follow-up date in someone's profile.
+            </p>
           )}
 
           {/* Grace Groups */}

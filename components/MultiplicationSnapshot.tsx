@@ -99,7 +99,7 @@ export default function MultiplicationSnapshot({
             getPeople(),
             getAllDiscipleshipConnections(),
           ]),
-          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000))
         ])
         if (peopleResult.data) setPeople(peopleResult.data as Person[])
         if (connectionsResult.data) setConnections(connectionsResult.data as DiscipleshipConnection[])

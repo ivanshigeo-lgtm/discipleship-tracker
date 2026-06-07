@@ -219,7 +219,7 @@ export default function EmergingTeamSection({
   const [isExpanded, setIsExpanded] = useState(false)
   const [empowering, setEmpowering] = useState<string | null>(null)
 
-  const loadData = async () => {
+  const loadData = async (retry = true) => {
     setLoading(true)
     try {
       const [peopleResult, checklistResult, connectionsResult] = await Promise.race([
@@ -228,16 +228,20 @@ export default function EmergingTeamSection({
           getAllStageChecklistItems(),
           getAllDiscipleshipConnections(),
         ]),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000))
       ])
 
       if (peopleResult.data) setPeople(peopleResult.data as Person[])
       if (checklistResult.data) setChecklistItems(checklistResult.data as StageChecklistItem[])
       if (connectionsResult.data) setConnections(connectionsResult.data as DiscipleshipConnection[])
+      setLoading(false)
     } catch (err) {
       console.error('EmergingTeamSection load error:', err)
-    } finally {
-      setLoading(false)
+      if (retry) {
+        setTimeout(() => loadData(false), 2000)
+      } else {
+        setLoading(false)
+      }
     }
   }
 
@@ -294,7 +298,12 @@ export default function EmergingTeamSection({
   }
 
   if (loading) {
-    return null
+    return (
+      <section className="cn-card mb-6 p-4">
+        <h2 className="cn-h3">Emerging Team</h2>
+        <p className="mt-2 text-sm text-[var(--fg-3)]">Loading...</p>
+      </section>
+    )
   }
 
   if (people.length === 0) {

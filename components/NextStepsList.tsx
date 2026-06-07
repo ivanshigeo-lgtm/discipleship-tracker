@@ -22,7 +22,7 @@ export default function NextStepsList({
     try {
       const result = await Promise.race([
         getEngagementsByPerson(personId),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000))
       ])
       if (result.data) setEngagements(result.data)
     } catch (err) {

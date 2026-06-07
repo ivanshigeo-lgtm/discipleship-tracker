@@ -166,7 +166,7 @@ export default function PrayerWallSection({
           getAllPrayerRequests(),
           getPeople(),
         ]),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000))
       ])
 
       if (requestsResult.data) setRequests(requestsResult.data as PrayerRequest[])

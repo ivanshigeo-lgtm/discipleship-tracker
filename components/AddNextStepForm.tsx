@@ -2,17 +2,21 @@
 
 import { useState } from 'react'
 import { addEngagement } from '../lib/supabaseQueries'
+import { useAuth } from '../contexts/AuthContext'
 import type { MeetingType } from '../types/database'
 
 const MEETING_TYPES: MeetingType[] = ['One2One', 'Making Disciples', 'Coffee', 'Church Community', 'Empowering Leaders']
 
 export default function AddNextStepForm({
   personId,
+  personName,
   onAdded
 }: {
   personId: string
+  personName: string
   onAdded: () => void
 }) {
+  const { profile } = useAuth()
   const [description, setDescription] = useState('')
   const [followUpDate, setFollowUpDate] = useState('')
   const [followUpTime, setFollowUpTime] = useState('')
@@ -28,7 +32,7 @@ export default function AddNextStepForm({
     setLoading(true)
     setError('')
 
-    const { error: insertError } = await addEngagement({
+    const { data: newEngagement, error: insertError } = await addEngagement({
       person_id: personId,
       description,
       follow_up_date: followUpDate || null,
@@ -42,6 +46,31 @@ export default function AddNextStepForm({
       setError(insertError.message || 'Failed to add engagement')
       setLoading(false)
       return
+    }
+
+    // Sync with Google Calendar if coach has it connected
+    if (newEngagement && profile && followUpDate) {
+      try {
+        await fetch('/api/calendar/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'create',
+            coachPersonId: profile.id,
+            engagementId: newEngagement.id,
+            personName,
+            engagement: {
+              description,
+              follow_up_date: followUpDate,
+              follow_up_time: followUpTime || null,
+              location: location.trim() || null,
+              meeting_type: meetingType || null,
+            },
+          }),
+        })
+      } catch (err) {
+        console.error('Calendar sync error:', err)
+      }
     }
 
     setDescription('')

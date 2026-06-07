@@ -29,7 +29,7 @@ export default function PrayerRequestsList({
     try {
       const result = await Promise.race([
         getPrayerRequestsByPerson(personId),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000))
       ])
       if (result.error) {
         setError(result.error.message)

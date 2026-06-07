@@ -522,6 +522,7 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
                 />
                 <AddNextStepForm
                   personId={savedPerson.id}
+                  personName={savedPerson.name}
                   onAdded={() => setRefreshKey(key => key + 1)}
                 />
               </div>

@@ -33,6 +33,7 @@ export type Engagement = {
   completed_at: string | null
   action_completed: boolean
   action_completed_at: string | null
+  google_calendar_event_id: string | null
   created_at: string
 }
 

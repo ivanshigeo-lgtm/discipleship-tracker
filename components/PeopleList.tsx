@@ -243,6 +243,7 @@ export default function PeopleList({ filterStages, sortMode = '4e', onChanged }:
                       <NextStepsList personId={person.id} refreshKey={refreshKey} />
                       <AddNextStepForm
                         personId={person.id}
+                        personName={person.name}
                         onAdded={() => setRefreshKey(k => k + 1)}
                       />
                     </div>

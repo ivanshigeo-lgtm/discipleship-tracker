@@ -249,7 +249,7 @@ export default function CoachingPipeline({
           getAllEngagements(),
           getAllPrayerRequests(),
         ]),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000))
       ])
 
       if (peopleResult.data) setPeople(peopleResult.data as Person[])

@@ -91,7 +91,7 @@ export default function DiscipleshipConnectionsSection({ personId, onPersonCreat
           getAllDiscipleshipConnections(),
           getPeople(),
         ]),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000))
       ])
 
       if (ownConnectionsResult.error) {
