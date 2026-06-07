@@ -60,12 +60,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
+    // Timeout fallback in case auth hangs
+    const timeout = setTimeout(() => {
+      console.log('Auth timeout - forcing loading to false')
+      setLoading(false)
+    }, 5000)
+
     supabase.auth.getSession().then(({ data: { session } }) => {
+      clearTimeout(timeout)
       setSession(session)
       setUser(session?.user ?? null)
       if (session?.user) {
         fetchProfile(session.user.id)
       }
+      setLoading(false)
+    }).catch((err) => {
+      clearTimeout(timeout)
+      console.error('Auth error:', err)
       setLoading(false)
     })
 
