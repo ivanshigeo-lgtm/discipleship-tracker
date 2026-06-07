@@ -38,12 +38,20 @@ export default function StageChecklist({
 
   const loadItems = async () => {
     setError('')
-    const { data, error } = await getStageChecklistItems(personId)
-    if (error) {
-      setError(error.message)
-      return
+    try {
+      const result = await Promise.race([
+        getStageChecklistItems(personId),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
+      ])
+      if (result.error) {
+        setError(result.error.message)
+        return
+      }
+      setItems((result.data ?? []) as StageChecklistItem[])
+    } catch (err) {
+      console.error('StageChecklist load error:', err)
+      setError('Failed to load checklist')
     }
-    setItems((data ?? []) as StageChecklistItem[])
   }
 
   useEffect(() => {

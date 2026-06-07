@@ -84,35 +84,41 @@ export default function DiscipleshipConnectionsSection({ personId, onPersonCreat
     setLoading(true)
     setError('')
 
-    const [ownConnectionsResult, allConnectionsResult, peopleResult] = await Promise.all([
-      getDiscipleshipConnections(personId),
-      getAllDiscipleshipConnections(),
-      getPeople(),
-    ])
+    try {
+      const [ownConnectionsResult, allConnectionsResult, peopleResult] = await Promise.race([
+        Promise.all([
+          getDiscipleshipConnections(personId),
+          getAllDiscipleshipConnections(),
+          getPeople(),
+        ]),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
+      ])
 
-    if (ownConnectionsResult.error) {
-      setError(ownConnectionsResult.error.message)
+      if (ownConnectionsResult.error) {
+        setError(ownConnectionsResult.error.message)
+        return
+      }
+
+      if (allConnectionsResult.error) {
+        setError(allConnectionsResult.error.message)
+        return
+      }
+
+      if (peopleResult.error) {
+        setError(peopleResult.error.message)
+        return
+      }
+
+      setShepherdingConnections((ownConnectionsResult.data ?? []) as DiscipleshipConnection[])
+      setAllConnections((allConnectionsResult.data ?? []) as DiscipleshipConnection[])
+      setPeople((peopleResult.data ?? []) as Person[])
+      setSelectedDisciplerId('')
+    } catch (err) {
+      console.error('DiscipleshipConnectionsSection load error:', err)
+      setError('Failed to load connections')
+    } finally {
       setLoading(false)
-      return
     }
-
-    if (allConnectionsResult.error) {
-      setError(allConnectionsResult.error.message)
-      setLoading(false)
-      return
-    }
-
-    if (peopleResult.error) {
-      setError(peopleResult.error.message)
-      setLoading(false)
-      return
-    }
-
-    setShepherdingConnections((ownConnectionsResult.data ?? []) as DiscipleshipConnection[])
-    setAllConnections((allConnectionsResult.data ?? []) as DiscipleshipConnection[])
-    setPeople((peopleResult.data ?? []) as Person[])
-    setSelectedDisciplerId('')
-    setLoading(false)
   }
 
   useEffect(() => {

@@ -19,8 +19,15 @@ export default function NextStepsList({
   const [savingId, setSavingId] = useState<string | null>(null)
 
   const loadEngagements = async () => {
-    const { data } = await getEngagementsByPerson(personId)
-    if (data) setEngagements(data)
+    try {
+      const result = await Promise.race([
+        getEngagementsByPerson(personId),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
+      ])
+      if (result.data) setEngagements(result.data)
+    } catch (err) {
+      console.error('NextStepsList load error:', err)
+    }
   }
 
   useEffect(() => {

@@ -26,12 +26,20 @@ export default function PrayerRequestsList({
   const [error, setError] = useState('')
 
   const loadRequests = async () => {
-    const { data, error } = await getPrayerRequestsByPerson(personId)
-    if (error) {
-      setError(error.message)
-      return
+    try {
+      const result = await Promise.race([
+        getPrayerRequestsByPerson(personId),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
+      ])
+      if (result.error) {
+        setError(result.error.message)
+        return
+      }
+      if (result.data) setRequests(result.data)
+    } catch (err) {
+      console.error('PrayerRequestsList load error:', err)
+      setError('Failed to load prayer requests')
     }
-    if (data) setRequests(data)
   }
 
   useEffect(() => {

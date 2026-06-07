@@ -59,25 +59,33 @@ export default function VictoryGroupsList({
   const [attendanceMessage, setAttendanceMessage] = useState('')
 
   const loadData = async () => {
-    const [{ data: groupsData, error: groupsError }, { data: peopleData, error: peopleError }] = await Promise.all([
-      getVictoryGroups(),
-      getPeople(),
-    ])
+    try {
+      const [{ data: groupsData, error: groupsError }, { data: peopleData, error: peopleError }] = await Promise.race([
+        Promise.all([
+          getVictoryGroups(),
+          getPeople(),
+        ]),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
+      ])
 
-    if (groupsError) setError(groupsError.message)
-    if (peopleError) setError(peopleError.message)
+      if (groupsError) setError(groupsError.message)
+      if (peopleError) setError(peopleError.message)
 
-    const nextGroups = (groupsData ?? []) as VictoryGroup[]
-    const nextPeople = (peopleData ?? []) as Person[]
-    setGroups(nextGroups)
-    setAllPeople(nextPeople)
+      const nextGroups = (groupsData ?? []) as VictoryGroup[]
+      const nextPeople = (peopleData ?? []) as Person[]
+      setGroups(nextGroups)
+      setAllPeople(nextPeople)
 
-    const groupedMembers: Record<string, PersonVictoryGroupWithPerson[]> = {}
-    for (const group of nextGroups) {
-      const { data } = await getPeopleByVictoryGroup(group.id)
-      groupedMembers[group.id] = (data ?? []) as unknown as PersonVictoryGroupWithPerson[]
+      const groupedMembers: Record<string, PersonVictoryGroupWithPerson[]> = {}
+      for (const group of nextGroups) {
+        const { data } = await getPeopleByVictoryGroup(group.id)
+        groupedMembers[group.id] = (data ?? []) as unknown as PersonVictoryGroupWithPerson[]
+      }
+      setMembersByGroup(groupedMembers)
+    } catch (err) {
+      console.error('VictoryGroupsList load error:', err)
+      setError('Failed to load groups')
     }
-    setMembersByGroup(groupedMembers)
   }
 
   useEffect(() => {
