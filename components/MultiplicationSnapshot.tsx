@@ -93,12 +93,19 @@ export default function MultiplicationSnapshot({
 
   useEffect(() => {
     const loadData = async () => {
-      const [peopleResult, connectionsResult] = await Promise.all([
-        getPeople(),
-        getAllDiscipleshipConnections(),
-      ])
-      if (peopleResult.data) setPeople(peopleResult.data as Person[])
-      if (connectionsResult.data) setConnections(connectionsResult.data as DiscipleshipConnection[])
+      try {
+        const [peopleResult, connectionsResult] = await Promise.race([
+          Promise.all([
+            getPeople(),
+            getAllDiscipleshipConnections(),
+          ]),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
+        ])
+        if (peopleResult.data) setPeople(peopleResult.data as Person[])
+        if (connectionsResult.data) setConnections(connectionsResult.data as DiscipleshipConnection[])
+      } catch (err) {
+        console.error('MultiplicationSnapshot load error:', err)
+      }
     }
 
     loadData()

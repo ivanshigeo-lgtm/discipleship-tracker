@@ -127,15 +127,22 @@ export default function PointsOfActionSection({
 
   const loadData = async () => {
     setLoading(true)
-    const [peopleResult, engagementsResult] = await Promise.all([
-      getPeople(),
-      getAllEngagements(),
-    ])
+    try {
+      const [peopleResult, engagementsResult] = await Promise.race([
+        Promise.all([
+          getPeople(),
+          getAllEngagements(),
+        ]),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
+      ])
 
-    if (peopleResult.data) setPeople(peopleResult.data as Person[])
-    if (engagementsResult.data) setEngagements(engagementsResult.data as Engagement[])
-
-    setLoading(false)
+      if (peopleResult.data) setPeople(peopleResult.data as Person[])
+      if (engagementsResult.data) setEngagements(engagementsResult.data as Engagement[])
+    } catch (err) {
+      console.error('PointsOfActionSection load error:', err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {

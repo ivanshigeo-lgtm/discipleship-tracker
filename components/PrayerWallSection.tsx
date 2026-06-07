@@ -160,14 +160,22 @@ export default function PrayerWallSection({
 
   const loadData = async () => {
     setLoading(true)
-    const [requestsResult, peopleResult] = await Promise.all([
-      getAllPrayerRequests(),
-      getPeople(),
-    ])
+    try {
+      const [requestsResult, peopleResult] = await Promise.race([
+        Promise.all([
+          getAllPrayerRequests(),
+          getPeople(),
+        ]),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
+      ])
 
-    if (requestsResult.data) setRequests(requestsResult.data as PrayerRequest[])
-    if (peopleResult.data) setPeople(peopleResult.data as Person[])
-    setLoading(false)
+      if (requestsResult.data) setRequests(requestsResult.data as PrayerRequest[])
+      if (peopleResult.data) setPeople(peopleResult.data as Person[])
+    } catch (err) {
+      console.error('PrayerWallSection load error:', err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
+import ErrorBoundary from '../components/ErrorBoundary'
 import AddPersonForm from '../components/AddPersonForm'
 import PeopleList from '../components/PeopleList'
 import MultiplicationSnapshot from '../components/MultiplicationSnapshot'
@@ -180,57 +181,67 @@ export default function DiscipleshipTracker() {
       <div className={`${mobileTab !== 'home' && mobileTab !== 'meetings' && mobileTab !== 'pipeline' ? 'hidden md:block' : ''}`}>
         {/* Snapshot - always visible on desktop, only on home tab for mobile */}
         <div className={`${mobileTab !== 'home' ? 'hidden md:block' : ''}`}>
-          <MultiplicationSnapshot
-            refreshKey={refreshKey}
-            selectedFilterKeys={selectedFilterKeys}
-            onToggleFilter={toggleCircleFilter}
-            onAddPerson={() => setShowAddPersonMenu(true)}
-            onPersonClick={(person) => setSelectedPerson(person)}
-          />
+          <ErrorBoundary name="MultiplicationSnapshot">
+            <MultiplicationSnapshot
+              refreshKey={refreshKey}
+              selectedFilterKeys={selectedFilterKeys}
+              onToggleFilter={toggleCircleFilter}
+              onAddPerson={() => setShowAddPersonMenu(true)}
+              onPersonClick={(person) => setSelectedPerson(person)}
+            />
+          </ErrorBoundary>
         </div>
 
         {/* Emerging Team - only on home tab */}
         <div className={`${mobileTab !== 'home' ? 'hidden md:block' : ''}`}>
-          <EmergingTeamSection
-            refreshKey={refreshKey}
-            onPersonClick={(person) => setSelectedPerson(person)}
-            onChanged={() => setRefreshKey(prev => prev + 1)}
-          />
+          <ErrorBoundary name="EmergingTeamSection">
+            <EmergingTeamSection
+              refreshKey={refreshKey}
+              onPersonClick={(person) => setSelectedPerson(person)}
+              onChanged={() => setRefreshKey(prev => prev + 1)}
+            />
+          </ErrorBoundary>
         </div>
 
         {/* My Meetings - visible on home and meetings tabs */}
         <div className={`${mobileTab !== 'home' && mobileTab !== 'meetings' ? 'hidden md:block' : ''}`}>
-          <NeedAttentionSection
-            refreshKey={refreshKey}
-            onPersonClick={(person, openTab) => {
-              setSelectedPerson(person)
-              setInitialProfileTab(openTab ?? 'profile')
-            }}
-            onAddNewPerson={() => setShowAddPersonMenu(true)}
-            onGroupsChanged={() => setRefreshKey(prev => prev + 1)}
-          />
+          <ErrorBoundary name="NeedAttentionSection">
+            <NeedAttentionSection
+              refreshKey={refreshKey}
+              onPersonClick={(person, openTab) => {
+                setSelectedPerson(person)
+                setInitialProfileTab(openTab ?? 'profile')
+              }}
+              onAddNewPerson={() => setShowAddPersonMenu(true)}
+              onGroupsChanged={() => setRefreshKey(prev => prev + 1)}
+            />
+          </ErrorBoundary>
         </div>
 
         {/* Points of Action - only on home tab */}
         <div className={`${mobileTab !== 'home' ? 'hidden md:block' : ''}`}>
-          <PointsOfActionSection
-            refreshKey={refreshKey}
-            onPersonClick={(person, openTab) => {
-              setSelectedPerson(person)
-              setInitialProfileTab(openTab ?? 'profile')
-            }}
-          />
+          <ErrorBoundary name="PointsOfActionSection">
+            <PointsOfActionSection
+              refreshKey={refreshKey}
+              onPersonClick={(person, openTab) => {
+                setSelectedPerson(person)
+                setInitialProfileTab(openTab ?? 'profile')
+              }}
+            />
+          </ErrorBoundary>
         </div>
 
         {/* Prayer & Praise Wall - only on home tab */}
         <div className={`${mobileTab !== 'home' ? 'hidden md:block' : ''}`}>
-          <PrayerWallSection
-            refreshKey={refreshKey}
-            onPersonClick={(person) => {
-              setSelectedPerson(person)
-              setInitialProfileTab('prayer')
-            }}
-          />
+          <ErrorBoundary name="PrayerWallSection">
+            <PrayerWallSection
+              refreshKey={refreshKey}
+              onPersonClick={(person) => {
+                setSelectedPerson(person)
+                setInitialProfileTab('prayer')
+              }}
+            />
+          </ErrorBoundary>
         </div>
 
         {/* Our Journey / Pipeline - visible on home and pipeline tabs */}
@@ -313,37 +324,43 @@ export default function DiscipleshipTracker() {
 
           {circleView === 'pipeline' && (
             <div className="mt-4">
-              <CoachingPipeline
-                refreshKey={refreshKey}
-                collapsed={!journeyExpanded}
-                onPersonClick={(person, openTab) => {
-                  setSelectedPerson(person)
-                  setInitialProfileTab(openTab ?? 'profile')
-                }}
-                onChanged={() => setRefreshKey(prev => prev + 1)}
-              />
+              <ErrorBoundary name="CoachingPipeline">
+                <CoachingPipeline
+                  refreshKey={refreshKey}
+                  collapsed={!journeyExpanded}
+                  onPersonClick={(person, openTab) => {
+                    setSelectedPerson(person)
+                    setInitialProfileTab(openTab ?? 'profile')
+                  }}
+                  onChanged={() => setRefreshKey(prev => prev + 1)}
+                />
+              </ErrorBoundary>
             </div>
           )}
 
           {journeyExpanded && circleView === 'visual' && (
             <div className="mt-4">
-              <MyCircleMap
-                refreshKey={refreshKey}
-                filterStages={selectedStageFilters}
-                sortMode={circleSort}
-                onChanged={() => setRefreshKey(prev => prev + 1)}
-              />
+              <ErrorBoundary name="MyCircleMap">
+                <MyCircleMap
+                  refreshKey={refreshKey}
+                  filterStages={selectedStageFilters}
+                  sortMode={circleSort}
+                  onChanged={() => setRefreshKey(prev => prev + 1)}
+                />
+              </ErrorBoundary>
             </div>
           )}
 
           {journeyExpanded && circleView === 'list' && (
             <div className="mt-4">
-              <PeopleList
-                key={refreshKey}
-                filterStages={selectedStageFilters}
-                sortMode={circleSort}
-                onChanged={() => setRefreshKey(prev => prev + 1)}
-              />
+              <ErrorBoundary name="PeopleList">
+                <PeopleList
+                  key={refreshKey}
+                  filterStages={selectedStageFilters}
+                  sortMode={circleSort}
+                  onChanged={() => setRefreshKey(prev => prev + 1)}
+                />
+              </ErrorBoundary>
             </div>
           )}
         </div>

@@ -242,16 +242,24 @@ export default function CoachingPipeline({
 
   const loadData = async () => {
     setLoading(true)
-    const [peopleResult, engagementsResult, prayerResult] = await Promise.all([
-      getPeople(),
-      getAllEngagements(),
-      getAllPrayerRequests(),
-    ])
+    try {
+      const [peopleResult, engagementsResult, prayerResult] = await Promise.race([
+        Promise.all([
+          getPeople(),
+          getAllEngagements(),
+          getAllPrayerRequests(),
+        ]),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
+      ])
 
-    if (peopleResult.data) setPeople(peopleResult.data as Person[])
-    if (engagementsResult.data) setEngagements(engagementsResult.data as Engagement[])
-    if (prayerResult.data) setPrayerRequests(prayerResult.data as PrayerRequest[])
-    setLoading(false)
+      if (peopleResult.data) setPeople(peopleResult.data as Person[])
+      if (engagementsResult.data) setEngagements(engagementsResult.data as Engagement[])
+      if (prayerResult.data) setPrayerRequests(prayerResult.data as PrayerRequest[])
+    } catch (err) {
+      console.error('CoachingPipeline load error:', err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {

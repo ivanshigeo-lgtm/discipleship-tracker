@@ -221,16 +221,24 @@ export default function EmergingTeamSection({
 
   const loadData = async () => {
     setLoading(true)
-    const [peopleResult, checklistResult, connectionsResult] = await Promise.all([
-      getPeople(['Equip']),
-      getAllStageChecklistItems(),
-      getAllDiscipleshipConnections(),
-    ])
+    try {
+      const [peopleResult, checklistResult, connectionsResult] = await Promise.race([
+        Promise.all([
+          getPeople(['Equip']),
+          getAllStageChecklistItems(),
+          getAllDiscipleshipConnections(),
+        ]),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
+      ])
 
-    if (peopleResult.data) setPeople(peopleResult.data as Person[])
-    if (checklistResult.data) setChecklistItems(checklistResult.data as StageChecklistItem[])
-    if (connectionsResult.data) setConnections(connectionsResult.data as DiscipleshipConnection[])
-    setLoading(false)
+      if (peopleResult.data) setPeople(peopleResult.data as Person[])
+      if (checklistResult.data) setChecklistItems(checklistResult.data as StageChecklistItem[])
+      if (connectionsResult.data) setConnections(connectionsResult.data as DiscipleshipConnection[])
+    } catch (err) {
+      console.error('EmergingTeamSection load error:', err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {

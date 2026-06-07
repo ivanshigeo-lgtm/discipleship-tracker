@@ -160,17 +160,24 @@ export default function NeedAttentionSection({
 
   const loadData = async () => {
     setLoading(true)
-    const [peopleResult, engagementsResult, groupsResult] = await Promise.all([
-      getPeople(),
-      getAllEngagements(),
-      getVictoryGroups(),
-    ])
+    try {
+      const [peopleResult, engagementsResult, groupsResult] = await Promise.race([
+        Promise.all([
+          getPeople(),
+          getAllEngagements(),
+          getVictoryGroups(),
+        ]),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
+      ])
 
-    if (peopleResult.data) setPeople(peopleResult.data as Person[])
-    if (engagementsResult.data) setEngagements(engagementsResult.data as Engagement[])
-    if (groupsResult.data) setVictoryGroups(groupsResult.data as VictoryGroup[])
-
-    setLoading(false)
+      if (peopleResult.data) setPeople(peopleResult.data as Person[])
+      if (engagementsResult.data) setEngagements(engagementsResult.data as Engagement[])
+      if (groupsResult.data) setVictoryGroups(groupsResult.data as VictoryGroup[])
+    } catch (err) {
+      console.error('NeedAttentionSection load error:', err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
