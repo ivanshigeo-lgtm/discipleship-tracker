@@ -1,5 +1,5 @@
 import { google } from 'googleapis'
-import { supabase } from './supabaseClient'
+import { getSupabaseAdmin } from './supabaseServer'
 
 const REDIRECT_URI = 'https://discipleship-tracker-ten.vercel.app/api/auth/google/callback'
 
@@ -36,6 +36,7 @@ export async function saveGoogleTokens(personId: string, tokens: {
   refresh_token?: string | null
   expiry_date?: number | null
 }) {
+  const supabase = getSupabaseAdmin()
   const { error } = await supabase
     .from('google_calendar_tokens')
     .upsert({
@@ -53,6 +54,7 @@ export async function saveGoogleTokens(personId: string, tokens: {
 }
 
 export async function getGoogleTokens(personId: string) {
+  const supabase = getSupabaseAdmin()
   const { data, error } = await supabase
     .from('google_calendar_tokens')
     .select('*')
@@ -68,6 +70,7 @@ export async function getGoogleTokens(personId: string) {
 }
 
 export async function deleteGoogleTokens(personId: string) {
+  const supabase = getSupabaseAdmin()
   const { error } = await supabase
     .from('google_calendar_tokens')
     .delete()
@@ -220,4 +223,117 @@ function addHour(time: string): string {
   const [hours, minutes] = time.split(':').map(Number)
   const newHours = (hours + 1) % 24
   return `${newHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
+}
+
+const DAY_TO_RRULE: Record<string, string> = {
+  'Sunday': 'SU',
+  'Monday': 'MO',
+  'Tuesday': 'TU',
+  'Wednesday': 'WE',
+  'Thursday': 'TH',
+  'Friday': 'FR',
+  'Saturday': 'SA',
+}
+
+function getNextDayDate(dayName: string): string {
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  const today = new Date()
+  const todayIndex = today.getDay()
+  const targetIndex = days.indexOf(dayName)
+
+  let daysUntil = targetIndex - todayIndex
+  if (daysUntil <= 0) daysUntil += 7
+
+  const nextDate = new Date(today)
+  nextDate.setDate(today.getDate() + daysUntil)
+
+  return nextDate.toISOString().split('T')[0]
+}
+
+export async function createRecurringCalendarEvent(
+  personId: string,
+  event: {
+    summary: string
+    description?: string
+    dayOfWeek: string
+    time?: string
+  }
+) {
+  const calendar = await getAuthedCalendar(personId)
+  if (!calendar) return null
+
+  const rruleDay = DAY_TO_RRULE[event.dayOfWeek]
+  if (!rruleDay) return null
+
+  const startDate = getNextDayDate(event.dayOfWeek)
+  const startTime = event.time || '19:00'
+  const endTime = addHour(startTime)
+
+  try {
+    const response = await calendar.events.insert({
+      calendarId: 'primary',
+      requestBody: {
+        summary: event.summary,
+        description: event.description,
+        start: {
+          dateTime: `${startDate}T${startTime}:00`,
+          timeZone: 'Pacific/Honolulu',
+        },
+        end: {
+          dateTime: `${startDate}T${endTime}:00`,
+          timeZone: 'Pacific/Honolulu',
+        },
+        recurrence: [`RRULE:FREQ=WEEKLY;BYDAY=${rruleDay}`],
+      },
+    })
+    return response.data.id
+  } catch (error) {
+    console.error('Error creating recurring calendar event:', error)
+    return null
+  }
+}
+
+export async function updateRecurringCalendarEvent(
+  personId: string,
+  eventId: string,
+  event: {
+    summary: string
+    description?: string
+    dayOfWeek: string
+    time?: string
+  }
+) {
+  const calendar = await getAuthedCalendar(personId)
+  if (!calendar) return false
+
+  const rruleDay = DAY_TO_RRULE[event.dayOfWeek]
+  if (!rruleDay) return false
+
+  const startDate = getNextDayDate(event.dayOfWeek)
+  const startTime = event.time || '19:00'
+  const endTime = addHour(startTime)
+
+  try {
+    await calendar.events.update({
+      calendarId: 'primary',
+      eventId,
+      requestBody: {
+        summary: event.summary,
+        description: event.description,
+        start: {
+          dateTime: `${startDate}T${startTime}:00`,
+          timeZone: 'Pacific/Honolulu',
+        },
+        end: {
+          dateTime: `${startDate}T${endTime}:00`,
+          timeZone: 'Pacific/Honolulu',
+        },
+        recurrence: [`RRULE:FREQ=WEEKLY;BYDAY=${rruleDay}`],
+      },
+    })
+    return true
+  } catch (error) {
+    console.error('Error updating recurring calendar event:', error)
+    return false
+  }
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import ErrorBoundary from '../components/ErrorBoundary'
 import AddPersonForm from '../components/AddPersonForm'
@@ -40,7 +40,7 @@ const uniqueStagesFromFilters = (filters: CircleFilter[]) => {
 }
 
 export default function DiscipleshipTracker() {
-  const { user, profile, loading, signOut, canEdit } = useAuth()
+  const { user, profile, loading, signOut, canEdit, refreshProfile } = useAuth()
   const [refreshKey, setRefreshKey] = useState(0)
   const [circleFilters, setCircleFilters] = useState<CircleFilter[]>([])
   const [circleView, setCircleView] = useState<ViewMode>('pipeline')
@@ -50,6 +50,17 @@ export default function DiscipleshipTracker() {
   const [initialProfileTab, setInitialProfileTab] = useState<'profile' | 'journey' | 'connections' | 'engagements' | 'groups' | 'prayer'>('profile')
   const [mobileTab, setMobileTab] = useState<MobileTab>('home')
   const [journeyExpanded, setJourneyExpanded] = useState(false)
+
+  // Handle return from Google Calendar OAuth
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('gcal') === 'connected') {
+      // Clean up URL and refresh profile
+      window.history.replaceState({}, '', '/')
+      refreshProfile()
+      setRefreshKey(prev => prev + 1)
+    }
+  }, [refreshProfile])
 
   if (loading) {
     return (
@@ -61,6 +72,35 @@ export default function DiscipleshipTracker() {
 
   if (!user) {
     return <LoginPage />
+  }
+
+  if (!profile) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-4">
+        <p className="text-center text-[var(--fg-2)]">
+          Having trouble loading your profile.
+        </p>
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              refreshProfile()
+              setRefreshKey(prev => prev + 1)
+            }}
+            className="rounded-lg bg-[var(--gbm-cobalt-bright)] px-4 py-2 font-semibold text-white"
+          >
+            Retry
+          </button>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="rounded-lg border border-[var(--line-2)] px-4 py-2 text-[var(--fg-2)]"
+          >
+            Refresh Page
+          </button>
+        </div>
+      </div>
+    )
   }
 
   const handlePersonAdded = () => {
@@ -109,29 +149,28 @@ export default function DiscipleshipTracker() {
             <h1 className="text-3xl font-semibold text-[var(--fg-1)]" style={{ fontFamily: 'var(--font-display)' }}>
               Constellations
             </h1>
-            <span className="text-sm text-[var(--fg-3)]">Coaching Legacies of Disciples</span>
+            <span className="whitespace-nowrap text-sm text-[var(--fg-3)]">Coaching Legacies of Disciples</span>
           </div>
           <div className="mx-6 h-14 w-px bg-[var(--line-2)]" />
-          <div className="flex shrink-0 items-center gap-4">
-            <GoogleCalendarConnect />
-            <div className="h-6 w-px bg-[var(--line-2)]" />
+          <div className="flex shrink-0 items-center gap-3">
             {profile && (
-              <span className="text-sm text-[var(--fg-2)]">
-                {profile.name}
-              </span>
+              <div className="flex flex-col items-end gap-1">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-[var(--fg-2)]">{profile.name}</span>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await signOut()
+                      window.location.href = '/'
+                    }}
+                    className="cn-chip !text-xs"
+                  >
+                    Sign Out
+                  </button>
+                </div>
+                <GoogleCalendarConnect />
+              </div>
             )}
-            <button
-              type="button"
-              onClick={async () => {
-                console.log('Sign out clicked')
-                await signOut()
-                console.log('Sign out complete')
-                window.location.href = '/'
-              }}
-              className="cn-chip !text-xs"
-            >
-              Sign Out
-            </button>
           </div>
         </div>
       </header>

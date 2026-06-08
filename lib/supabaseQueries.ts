@@ -181,6 +181,23 @@ export const addPrayerRequest = async (request: Omit<PrayerRequest, 'id' | 'crea
   return { data, error }
 }
 
+export const addPraise = async (personId: string, testimony: string) => {
+  const today = new Date().toISOString().split('T')[0]
+  const { data, error } = await supabase
+    .from('prayer_requests')
+    .insert({
+      person_id: personId,
+      request: testimony,
+      status: 'Answered',
+      answered_date: today,
+      answer_notes: null,
+      updated_at: new Date().toISOString(),
+    })
+    .select()
+    .single()
+  return { data, error }
+}
+
 export const markPrayerAnswered = async (id: string, answerNotes?: string | null) => {
   const answeredDate = new Date().toISOString().split('T')[0]
 
@@ -291,7 +308,7 @@ export const getVictoryGroups = async () => {
   return { data, error }
 }
 
-export const addVictoryGroup = async (group: Omit<VictoryGroup, 'id' | 'created_at'>) => {
+export const addVictoryGroup = async (group: Omit<VictoryGroup, 'id' | 'created_at' | 'google_calendar_event_id'>) => {
   const { data, error } = await supabase
     .from('victory_groups')
     .insert(group)

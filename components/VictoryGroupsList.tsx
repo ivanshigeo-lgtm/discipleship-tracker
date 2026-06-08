@@ -14,6 +14,7 @@ import {
 } from '../lib/supabaseQueries'
 import type { Person, PersonVictoryGroupWithPerson, Stage, VictoryGroup, GroupAttendance } from '../types/database'
 import { stageLabels } from '../lib/stageLabels'
+import { useAuth } from '../contexts/AuthContext'
 
 const meetingDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const stageRank: Record<Stage, number> = { Empower: 0, Equip: 1, Establish: 2, Engage: 3 }
@@ -38,6 +39,7 @@ export default function VictoryGroupsList({
   onPersonClick?: (person: Person) => void
   onAddNewPerson?: () => void
 }) {
+  const { profile } = useAuth()
   const [groups, setGroups] = useState<VictoryGroup[]>([])
   const [allPeople, setAllPeople] = useState<Person[]>([])
   const [membersByGroup, setMembersByGroup] = useState<Record<string, PersonVictoryGroupWithPerson[]>>({})
@@ -50,6 +52,25 @@ export default function VictoryGroupsList({
   const [meetingTime, setMeetingTime] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  const syncGroupToCalendar = async (action: 'create' | 'update' | 'delete', groupId: string, group: Partial<VictoryGroup>) => {
+    if (!profile) return
+    try {
+      await fetch('/api/calendar/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'group',
+          action,
+          coachPersonId: profile.id,
+          groupId,
+          group,
+        }),
+      })
+    } catch (err) {
+      console.error('Calendar sync error:', err)
+    }
+  }
 
   // Attendance state
   const [attendanceDate, setAttendanceDate] = useState(toDateInputValue(new Date()))
@@ -146,6 +167,17 @@ export default function VictoryGroupsList({
     if (result.error) {
       setError(result.error.message)
     } else {
+      // Sync to Google Calendar if group has a meeting day
+      if (payload.meeting_day && result.data) {
+        const groupData = Array.isArray(result.data) ? result.data[0] : result.data
+        if (groupData) {
+          await syncGroupToCalendar(
+            editingGroupId ? 'update' : 'create',
+            groupData.id || editingGroupId!,
+            groupData
+          )
+        }
+      }
       resetForm()
       await loadData()
       onChanged?.()

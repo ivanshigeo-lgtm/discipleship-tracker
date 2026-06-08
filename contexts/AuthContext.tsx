@@ -94,14 +94,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const timeout = setTimeout(() => {
       console.log('Auth timeout - forcing loading to false')
       setLoading(false)
-    }, 30000)
+    }, 10000)
 
     const initAuth = async () => {
       try {
-        // Try to refresh the session first to ensure valid tokens
-        const { data: refreshData } = await supabase.auth.refreshSession()
-        console.log('Session refresh result:', refreshData?.session?.user?.email)
-
         const { data: { session } } = await supabase.auth.getSession()
         console.log('Got session:', session?.user?.email)
 
@@ -109,8 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(session?.user ?? null)
 
         if (session?.user) {
-          const success = await fetchProfile(session.user.id)
-          console.log('Profile fetch success:', success)
+          await fetchProfile(session.user.id)
         }
       } catch (err) {
         console.error('Auth init error:', err)

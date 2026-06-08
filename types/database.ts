@@ -53,6 +53,7 @@ export type VictoryGroup = {
   name: string
   meeting_day: string | null
   meeting_time: string | null
+  google_calendar_event_id: string | null
   created_at: string
 }
 

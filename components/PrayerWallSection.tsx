@@ -1,12 +1,13 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
-import { getAllPrayerRequests, getPeople } from '../lib/supabaseQueries'
+import { getAllPrayerRequests, getPeople, addPraise } from '../lib/supabaseQueries'
 import type { PrayerRequest, Person, Stage } from '../types/database'
 
 interface PrayerWallSectionProps {
   refreshKey?: number
   onPersonClick?: (person: Person) => void
+  onChanged?: () => void
 }
 
 const STAGE_COLORS: Record<Stage, string> = {
@@ -152,11 +153,16 @@ function PraiseCard({
 export default function PrayerWallSection({
   refreshKey = 0,
   onPersonClick,
+  onChanged,
 }: PrayerWallSectionProps) {
   const [requests, setRequests] = useState<PrayerRequest[]>([])
   const [people, setPeople] = useState<Person[]>([])
   const [loading, setLoading] = useState(true)
   const [isExpanded, setIsExpanded] = useState(false)
+  const [showPraiseForm, setShowPraiseForm] = useState(false)
+  const [praisePersonId, setPraisePersonId] = useState('')
+  const [praiseText, setPraiseText] = useState('')
+  const [savingPraise, setSavingPraise] = useState(false)
 
   const loadData = async () => {
     setLoading(true)
@@ -228,11 +234,21 @@ export default function PrayerWallSection({
       .sort((a, b) => b.requests.length - a.requests.length)
   }, [answeredRequests, peopleById])
 
-  if (loading) {
-    return null
+  const handleAddPraise = async () => {
+    if (!praisePersonId || !praiseText.trim()) return
+    setSavingPraise(true)
+    const { error } = await addPraise(praisePersonId, praiseText.trim())
+    if (!error) {
+      setPraisePersonId('')
+      setPraiseText('')
+      setShowPraiseForm(false)
+      await loadData()
+      onChanged?.()
+    }
+    setSavingPraise(false)
   }
 
-  if (activeRequests.length === 0 && answeredRequests.length === 0) {
+  if (loading) {
     return null
   }
 
@@ -245,6 +261,14 @@ export default function PrayerWallSection({
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowPraiseForm(!showPraiseForm)}
+            className="rounded-full px-2.5 py-1 text-xs font-semibold transition-colors"
+            style={{ background: 'rgba(54,214,195,.15)', color: 'var(--establish)' }}
+          >
+            + Add Praise
+          </button>
           {activeRequests.length > 0 && (
             <span
               className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
@@ -274,6 +298,53 @@ export default function PrayerWallSection({
       <p className="mt-1 text-sm text-[var(--fg-2)]">
         Prayer requests and answered prayers across all people
       </p>
+
+      {showPraiseForm && (
+        <div className="mt-3 rounded-lg border border-[var(--establish)] bg-[var(--indigo)] p-3">
+          <div className="mb-2 text-xs font-semibold text-[var(--establish)]">Add Testimony / Praise</div>
+          <div className="space-y-2">
+            <select
+              value={praisePersonId}
+              onChange={(e) => setPraisePersonId(e.target.value)}
+              className="w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] p-2 text-sm text-[var(--fg-1)] focus:border-[var(--establish)] focus:outline-none"
+            >
+              <option value="">Select person...</option>
+              {people.map(person => (
+                <option key={person.id} value={person.id}>{person.name}</option>
+              ))}
+            </select>
+            <textarea
+              value={praiseText}
+              onChange={(e) => setPraiseText(e.target.value)}
+              placeholder="What's the testimony or praise?"
+              rows={2}
+              className="w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] p-2 text-sm text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:border-[var(--establish)] focus:outline-none"
+            />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleAddPraise}
+                disabled={savingPraise || !praisePersonId || !praiseText.trim()}
+                className="flex-1 rounded-lg py-2 text-xs font-semibold transition-all disabled:opacity-50"
+                style={{ background: 'var(--establish)', color: 'var(--void)' }}
+              >
+                {savingPraise ? 'Adding...' : 'Add Praise'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPraiseForm(false)
+                  setPraisePersonId('')
+                  setPraiseText('')
+                }}
+                className="rounded-lg border border-[var(--line-2)] px-3 py-2 text-xs text-[var(--fg-2)]"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isExpanded && (
         <div className="mt-4 space-y-4">

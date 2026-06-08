@@ -11,15 +11,18 @@ const successPage = `
     .card { background: #141b2d; padding: 2rem; border-radius: 1rem; text-align: center; max-width: 400px; }
     h1 { color: #36d6c3; margin-bottom: 1rem; }
     p { margin-bottom: 1.5rem; opacity: 0.8; }
-    a { display: inline-block; background: #3b82f6; color: white; padding: 0.75rem 1.5rem; border-radius: 0.5rem; text-decoration: none; font-weight: 600; }
-    a:hover { background: #2563eb; }
   </style>
+  <script>
+    // Redirect after a short delay to allow browser to settle
+    setTimeout(function() {
+      window.location.href = '/?gcal=connected&t=' + Date.now();
+    }, 500);
+  </script>
 </head>
 <body>
   <div class="card">
     <h1>Connected!</h1>
-    <p>Your Google Calendar is now linked. New meetings will sync automatically.</p>
-    <a href="/">Return to Dashboard</a>
+    <p>Redirecting to dashboard...</p>
   </div>
 </body>
 </html>

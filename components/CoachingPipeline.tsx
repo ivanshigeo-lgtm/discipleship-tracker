@@ -309,7 +309,11 @@ export default function CoachingPipeline({
   }
 
   const handlePriorityToggle = async (person: Person) => {
-    await updatePerson(person.id, { priority: !person.priority })
+    const { error } = await updatePerson(person.id, { priority: !person.priority })
+    if (error) {
+      console.error('Priority toggle error:', error)
+      return
+    }
     await loadData()
     onChanged?.()
   }
