@@ -17,6 +17,7 @@ import PersonProfileModal from '../components/PersonProfileModal'
 import MobileNav from '../components/MobileNav'
 import LoginPage from '../components/LoginPage'
 import GoogleCalendarConnect from '../components/GoogleCalendarConnect'
+import FocusDashboard from '../components/FocusDashboard'
 import type { Person, Stage } from '../types/database'
 
 type CircleFilter = {
@@ -28,6 +29,7 @@ type CircleFilter = {
 type CircleSort = 'az' | '4e'
 type ViewMode = 'visual' | 'pipeline' | 'list'
 type MobileTab = 'home' | 'meetings' | 'add' | 'pipeline'
+type DashboardMode = 'focus' | 'full'
 
 const allCircleFilter: CircleFilter = {
   key: 'All',
@@ -50,6 +52,7 @@ export default function DiscipleshipTracker() {
   const [initialProfileTab, setInitialProfileTab] = useState<'profile' | 'journey' | 'connections' | 'engagements' | 'groups' | 'prayer'>('profile')
   const [mobileTab, setMobileTab] = useState<MobileTab>('home')
   const [journeyExpanded, setJourneyExpanded] = useState(false)
+  const [dashboardMode, setDashboardMode] = useState<DashboardMode>('focus')
 
   // Handle return from Google Calendar OAuth
   useEffect(() => {
@@ -219,7 +222,43 @@ export default function DiscipleshipTracker() {
         </div>
       )}
 
-      {/* Main Content - Desktop shows all, Mobile shows based on tab */}
+      {/* Dashboard Mode Toggle */}
+      <div className="mb-4 flex items-center justify-center gap-2">
+        <button
+          type="button"
+          onClick={() => setDashboardMode('focus')}
+          className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all ${
+            dashboardMode === 'focus'
+              ? 'bg-[var(--gbm-cobalt-bright)] text-white'
+              : 'bg-[var(--indigo-2)] text-[var(--fg-2)] hover:bg-[var(--indigo-3)]'
+          }`}
+        >
+          Focus
+        </button>
+        <button
+          type="button"
+          onClick={() => setDashboardMode('full')}
+          className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all ${
+            dashboardMode === 'full'
+              ? 'bg-[var(--gbm-cobalt-bright)] text-white'
+              : 'bg-[var(--indigo-2)] text-[var(--fg-2)] hover:bg-[var(--indigo-3)]'
+          }`}
+        >
+          Full Dashboard
+        </button>
+      </div>
+
+      {/* Focus Dashboard */}
+      {dashboardMode === 'focus' && (
+        <FocusDashboard
+          onPersonClick={(person) => setSelectedPerson(person)}
+          onViewFullDashboard={() => setDashboardMode('full')}
+          onAddPerson={() => setShowAddPersonMenu(true)}
+        />
+      )}
+
+      {/* Full Dashboard - Main Content */}
+      {dashboardMode === 'full' && (
       <div className={`${mobileTab !== 'home' && mobileTab !== 'meetings' && mobileTab !== 'pipeline' ? 'hidden md:block' : ''}`}>
         {/* Snapshot - always visible on desktop, only on home tab for mobile */}
         <div className={`${mobileTab !== 'home' ? 'hidden md:block' : ''}`}>
@@ -407,6 +446,7 @@ export default function DiscipleshipTracker() {
           )}
         </div>
       </div>
+      )}
 
       {/* Person Profile Modal */}
       {selectedPerson && (
