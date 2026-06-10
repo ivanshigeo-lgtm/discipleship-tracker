@@ -36,17 +36,17 @@ const STAGE_LABELS: Record<Stage, string> = {
 const STAGE_ORDER: Stage[] = ['Engage', 'Establish', 'Equip', 'Empower']
 
 const stageOrbit: Record<Stage, number> = {
-  Empower: 8,
-  Equip: 16,
-  Establish: 26,
-  Engage: 35,
+  Empower: 12,
+  Equip: 22,
+  Establish: 32,
+  Engage: 42,
 }
 
 const stageBand: Record<Stage, { min: number; max: number }> = {
-  Empower: { min: 5, max: 11 },
-  Equip: { min: 13, max: 20 },
-  Establish: { min: 22, max: 30 },
-  Engage: { min: 32, max: 38 },
+  Empower: { min: 8, max: 18 },
+  Equip: { min: 15, max: 28 },
+  Establish: { min: 25, max: 38 },
+  Engage: { min: 32, max: 46 },
 }
 
 const stageSortRank: Record<Stage, number> = {
@@ -58,23 +58,23 @@ const stageSortRank: Record<Stage, number> = {
 
 const christLineStyle: Record<Stage, { stroke: string; strokeWidth: string; strokeDasharray?: string }> = {
   Empower: {
-    stroke: 'rgba(240, 114, 159, 0.5)',
-    strokeWidth: '0.42',
+    stroke: 'rgba(255, 128, 176, 0.5)',
+    strokeWidth: '1',
   },
   Equip: {
-    stroke: 'rgba(91, 141, 247, 0.4)',
-    strokeWidth: '0.32',
-    strokeDasharray: '2 0.85',
+    stroke: 'rgba(96, 160, 255, 0.45)',
+    strokeWidth: '1',
+    strokeDasharray: '4 2',
   },
   Establish: {
-    stroke: 'rgba(54, 214, 195, 0.3)',
-    strokeWidth: '0.24',
-    strokeDasharray: '1 1.25',
+    stroke: 'rgba(64, 216, 208, 0.4)',
+    strokeWidth: '1',
+    strokeDasharray: '3 2',
   },
   Engage: {
-    stroke: 'rgba(244, 182, 80, 0.25)',
-    strokeWidth: '0.18',
-    strokeDasharray: '0.35 1.45',
+    stroke: 'rgba(255, 176, 64, 0.35)',
+    strokeWidth: '1',
+    strokeDasharray: '2 2',
   },
 }
 
@@ -108,12 +108,12 @@ const relationshipLineStyleForDistance = (from: { x: number; y: number }, to: { 
   const dy = to.y - from.y
   const distance = Math.sqrt(dx * dx + dy * dy)
   const closeness = 1 - clamp((distance - 6) / 42, 0, 1)
-  const opacity = 0.16 + closeness * 0.62
-  const strokeWidth = 0.18 + closeness * 0.28
+  const opacity = 0.3 + closeness * 0.4
+  const strokeWidth = 1
 
   if (closeness > 0.72) {
     return {
-      stroke: `rgba(251,246,236,${opacity.toFixed(2)})`,
+      stroke: `rgba(200,210,230,${opacity.toFixed(2)})`,
       strokeWidth: strokeWidth.toFixed(2),
       strokeDasharray: undefined,
     }
@@ -121,16 +121,16 @@ const relationshipLineStyleForDistance = (from: { x: number; y: number }, to: { 
 
   if (closeness > 0.42) {
     return {
-      stroke: `rgba(251,246,236,${opacity.toFixed(2)})`,
+      stroke: `rgba(200,210,230,${opacity.toFixed(2)})`,
       strokeWidth: strokeWidth.toFixed(2),
-      strokeDasharray: '2 1',
+      strokeDasharray: '4 2',
     }
   }
 
   return {
-    stroke: `rgba(251,246,236,${opacity.toFixed(2)})`,
+    stroke: `rgba(200,210,230,${opacity.toFixed(2)})`,
     strokeWidth: strokeWidth.toFixed(2),
-    strokeDasharray: '0.55 1.45',
+    strokeDasharray: '2 3',
   }
 }
 
@@ -252,116 +252,64 @@ const buildGraphAwareLayout = (people: Person[], connections: DiscipleshipConnec
   const isolatedCount = components.filter(component => component.every(person => (degreeById.get(person.id) ?? 0) === 0)).length
 
   components.forEach(component => {
-    const isConnectedComponent = component.some(person => (degreeById.get(person.id) ?? 0) > 0)
-    const componentAngle = isConnectedComponent
-      ? (connectedComponentIndex++ / connectedComponentCount) * Math.PI * 2 - Math.PI / 2
-      : (isolatedIndex++ / Math.max(1, isolatedCount)) * Math.PI * 2 + Math.PI / 2
-    const spread = component.length <= 1 ? 0 : Math.min(0.95, 0.22 * component.length)
-
-    component.forEach((person, localIndex) => {
+    component.forEach((person) => {
       const degree = degreeById.get(person.id) ?? 0
       const hash = hashString(person.id)
-      const localOffset = component.length <= 1
-        ? 0
-        : (localIndex - (component.length - 1) / 2) * (spread / Math.max(1, component.length - 1))
-      const angle = componentAngle + localOffset + ((hash % 19) / 19 - 0.5) * 0.08
-      const band = stageBand[person.current_stage]
-      const connectionPull = Math.min(degree * 1.2, 5)
-      const radius = clamp(stageOrbit[person.current_stage] - connectionPull + ((hash % 7) - 3) * 0.28, band.min, band.max)
+      const hash2 = hashString(person.id + 'xy')
+      const hash3 = hashString(person.id + 'pos')
+
+      // Spread stars across the full canvas
+      // Avoid the center where Jesus is
+      let x = 8 + ((hash % 1000) / 1000) * 84
+      let y = 6 + ((hash2 % 1000) / 1000) * 88
+
+      // If too close to center, push outward
+      const dx = x - 50
+      const dy = y - 50
+      const distFromCenter = Math.sqrt(dx * dx + dy * dy)
+      if (distFromCenter < 12) {
+        const pushAngle = Math.atan2(dy, dx)
+        const pushDist = 12 + ((hash3 % 100) / 100) * 8
+        x = 50 + Math.cos(pushAngle) * pushDist
+        y = 50 + Math.sin(pushAngle) * pushDist
+      }
 
       initialNodes.push({
         ...person,
         degree,
-        radius,
-        angle,
-        x: 50 + Math.cos(angle) * radius,
-        y: 50 + Math.sin(angle) * radius * 0.72,
+        radius: distFromCenter,
+        angle: Math.atan2(dy, dx),
+        x: clamp(x, 5, 95),
+        y: clamp(y, 4, 96),
       })
     })
   })
 
+  // Light repulsion only for direct overlaps, preserve randomness
   let nodes = initialNodes
-  const edgePairs = edges
-    .map(edge => ({ edge, fromIndex: nodes.findIndex(node => node.id === edge.from), toIndex: nodes.findIndex(node => node.id === edge.to) }))
-    .filter(edge => edge.fromIndex >= 0 && edge.toIndex >= 0)
-
-  for (let iteration = 0; iteration < 260; iteration += 1) {
-    const cooling = 1 - iteration / 260
-
-    edgePairs.forEach(({ fromIndex, toIndex }) => {
-      const from = nodes[fromIndex]
-      const to = nodes[toIndex]
-      const dx = to.x - from.x
-      const dy = to.y - from.y
-      const distance = Math.sqrt(dx * dx + dy * dy) || 0.1
-      const desiredDistance = 8.5 + Math.abs(stageSortRank[from.current_stage] - stageSortRank[to.current_stage]) * 1.3
-      const pull = (distance - desiredDistance) * 0.045 * cooling
-      const nx = dx / distance
-      const ny = dy / distance
-
-      nodes[fromIndex] = projectNodeIntoStageBand({ ...from, x: from.x + nx * pull, y: from.y + ny * pull })
-      nodes[toIndex] = projectNodeIntoStageBand({ ...to, x: to.x - nx * pull, y: to.y - ny * pull })
-    })
-
-    nodes = applyElectronRepulsion(nodes, 0.78 * cooling)
-
-    nodes = nodes.map(node => {
-      const dx = node.x - 50
-      const dy = (node.y - 50) / 0.72
-      const distanceFromCenter = Math.sqrt(dx * dx + dy * dy) || 0.1
-      const band = stageBand[node.current_stage]
-      const desiredRadius = clamp(stageOrbit[node.current_stage] - Math.min(node.degree * 0.8, 4), band.min, band.max)
-      const radialPull = (desiredRadius - distanceFromCenter) * 0.018 * cooling
-
-      return projectNodeIntoStageBand({
-        ...node,
-        x: node.x + (dx / distanceFromCenter) * radialPull,
-        y: node.y + (dy / distanceFromCenter) * radialPull * 0.72,
-      })
-    })
-
-    for (let i = 0; i < edgePairs.length; i += 1) {
-      for (let j = i + 1; j < edgePairs.length; j += 1) {
-        const first = edgePairs[i]
-        const second = edgePairs[j]
-        if (
-          first.edge.from === second.edge.from ||
-          first.edge.from === second.edge.to ||
-          first.edge.to === second.edge.from ||
-          first.edge.to === second.edge.to
-        ) continue
-
-        const a = nodes[first.fromIndex]
-        const b = nodes[first.toIndex]
-        const c = nodes[second.fromIndex]
-        const d = nodes[second.toIndex]
-
-        if (!segmentIntersects(a, b, c, d)) continue
-
-        const firstMid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
-        const secondMid = { x: (c.x + d.x) / 2, y: (c.y + d.y) / 2 }
-        const dx = firstMid.x - secondMid.x || 0.1
-        const dy = firstMid.y - secondMid.y || 0.1
+  for (let iteration = 0; iteration < 15; iteration += 1) {
+    for (let i = 0; i < nodes.length; i += 1) {
+      for (let j = i + 1; j < nodes.length; j += 1) {
+        const a = nodes[i]
+        const b = nodes[j]
+        const dx = b.x - a.x
+        const dy = b.y - a.y
         const distance = Math.sqrt(dx * dx + dy * dy) || 0.1
-        const push = 0.55 * cooling
-        const nx = dx / distance
-        const ny = dy / distance
+        const minDist = 7 // Just enough to prevent label overlap
 
-        nodes[first.fromIndex] = projectNodeIntoStageBand({ ...a, x: a.x + nx * push, y: a.y + ny * push })
-        nodes[first.toIndex] = projectNodeIntoStageBand({ ...b, x: b.x + nx * push, y: b.y + ny * push })
-        nodes[second.fromIndex] = projectNodeIntoStageBand({ ...c, x: c.x - nx * push, y: c.y - ny * push })
-        nodes[second.toIndex] = projectNodeIntoStageBand({ ...d, x: d.x - nx * push, y: d.y - ny * push })
+        if (distance < minDist) {
+          // Push with some randomness to avoid grid patterns
+          const hash = hashString(a.id + b.id)
+          const jitter = ((hash % 100) / 100 - 0.5) * 0.3
+          const push = (minDist - distance) / 2
+          const nx = (dx / distance) + jitter
+          const ny = (dy / distance) + jitter
+          const len = Math.sqrt(nx * nx + ny * ny) || 1
+          nodes[i] = { ...a, x: clamp(a.x - (nx / len) * push, 6, 94), y: clamp(a.y - (ny / len) * push, 5, 95) }
+          nodes[j] = { ...b, x: clamp(b.x + (nx / len) * push, 6, 94), y: clamp(b.y + (ny / len) * push, 5, 95) }
+        }
       }
     }
-
-    nodes = nodes.map(node => {
-      const constrainedNode = projectNodeIntoStageBand(node)
-      return {
-        ...constrainedNode,
-        x: clamp(constrainedNode.x, 5, 95),
-        y: clamp(constrainedNode.y, 7, 93),
-      }
-    })
   }
 
   return nodes
@@ -445,129 +393,183 @@ const smoothNodesToward = (currentNodes: MapNode[], targetNodes: MapNode[]) => {
   })
 }
 
-function StarNode({ node, isSelected, onClick }: { node: MapNode; isSelected: boolean; onClick: (e: React.MouseEvent) => void }) {
-  const stageColor = STAGE_COLORS[node.current_stage]
+const starKeyframes = `
+@keyframes starTwinkle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+@keyframes starTwinkleSlow {
+  0%, 100% { opacity: 1; }
+  40% { opacity: 0.3; }
+  60% { opacity: 0.35; }
+}
+@keyframes starTwinkleFast {
+  0%, 100% { opacity: 1; }
+  30% { opacity: 0.4; }
+  70% { opacity: 0.2; }
+}
+`
+
+const STAR_COLORS: Record<Stage, { core: string; glow: string }> = {
+  Engage: { core: '#FFFFFF', glow: '#FFB040' },
+  Establish: { core: '#FFFFFF', glow: '#40D8D0' },
+  Equip: { core: '#FFFFFF', glow: '#60A0FF' },
+  Empower: { core: '#FFFFFF', glow: '#FF80B0' },
+}
+
+function StarNode({ node, isSelected, onClick, onMouseEnter, onMouseLeave }: { node: MapNode; isSelected: boolean; onClick: (e: React.MouseEvent) => void; onMouseEnter?: () => void; onMouseLeave?: () => void }) {
+  const starColor = STAR_COLORS[node.current_stage]
   const stageIndex = STAGE_ORDER.indexOf(node.current_stage)
 
-  const initials = node.name
-    .split(' ')
-    .map(n => n[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase()
-
-  const size = 56
-  const strokeWidth = 3
-  const radius = (size - strokeWidth) / 2 - 8
-  const circumference = 2 * Math.PI * radius
-  const gapAngle = 8
-  const segmentAngle = (360 - gapAngle * 4) / 4
-  const segmentLength = (segmentAngle / 360) * circumference
+  const coreSize = 5 + stageIndex * 1.5 + Math.min(node.degree, 4) * 0.5
+  const mainSpike = 14 + stageIndex * 5 + Math.min(node.degree, 4) * 2
+  const diagSpike = mainSpike * 0.55
+  const hash = hashString(node.id)
+  const hash2 = hashString(node.id + 'twinkle')
+  const twinkleDuration = 4 + (hash % 60) / 10  // 4 to 10 seconds
+  const twinkleDelay = (hash2 % 300) / 30  // 0 to 10 seconds delay
+  const animations = ['starTwinkle', 'starTwinkleSlow', 'starTwinkleFast']
+  const twinkleAnim = animations[hash % 3]
+  const totalSize = mainSpike * 2 + 16
+  const cx = totalSize / 2
+  const cy = totalSize / 2
 
   return (
     <button
       type="button"
       onClick={(e) => onClick(e)}
-      className={`group absolute -translate-x-1/2 -translate-y-1/2 text-left transition-transform hover:scale-110 ${isSelected ? 'z-20 scale-110' : 'z-10'}`}
-      style={{ left: `${node.x}%`, top: `${node.y}%` }}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      className={`group absolute -translate-x-1/2 -translate-y-1/2 text-left transition-opacity hover:!opacity-100 ${isSelected ? 'z-20' : 'z-10'}`}
+      style={{
+        left: `${node.x}%`,
+        top: `${node.y}%`,
+        animation: `${twinkleAnim} ${twinkleDuration}s ease-in-out infinite`,
+        animationDelay: `${twinkleDelay}s`,
+      }}
     >
-      <div className="relative" style={{ width: size, height: size }}>
-        {/* SVG Progress Ring */}
+      <style>{starKeyframes}</style>
+      <div className="relative" style={{ width: totalSize, height: totalSize }}>
+        {/* Subtle glow halo */}
+        <div
+          className="pointer-events-none absolute left-1/2 top-1/2"
+          style={{
+            width: coreSize * 5,
+            height: coreSize * 5,
+            transform: 'translate(-50%, -50%)',
+            background: `radial-gradient(circle, ${starColor.glow}50 0%, ${starColor.glow}20 40%, transparent 70%)`,
+          }}
+        />
+
+        {/* 8-point tapered spikes */}
         <svg
-          width={size}
-          height={size}
-          className="absolute inset-0"
-          style={{ transform: 'rotate(-90deg)' }}
+          className="pointer-events-none absolute left-1/2 top-1/2"
+          width={totalSize}
+          height={totalSize}
+          style={{ transform: 'translate(-50%, -50%)' }}
         >
-          {/* Background segments */}
-          {STAGE_ORDER.map((stage, idx) => {
-            const startAngle = idx * (segmentAngle + gapAngle)
-            const dashOffset = (startAngle / 360) * circumference
-            return (
-              <circle
-                key={`bg-${stage}`}
-                cx={size / 2}
-                cy={size / 2}
-                r={radius}
-                fill="none"
-                stroke="rgba(246,241,231,.08)"
-                strokeWidth={strokeWidth}
-                strokeDasharray={`${segmentLength} ${circumference}`}
-                strokeDashoffset={-dashOffset}
-                strokeLinecap="round"
-              />
-            )
-          })}
-          {/* Filled segments up to current stage */}
-          {STAGE_ORDER.slice(0, stageIndex + 1).map((stage, idx) => {
-            const startAngle = idx * (segmentAngle + gapAngle)
-            const dashOffset = (startAngle / 360) * circumference
-            const color = STAGE_COLORS[stage]
-            return (
-              <circle
-                key={`fill-${stage}`}
-                cx={size / 2}
-                cy={size / 2}
-                r={radius}
-                fill="none"
-                stroke={color}
-                strokeWidth={strokeWidth}
-                strokeDasharray={`${segmentLength} ${circumference}`}
-                strokeDashoffset={-dashOffset}
-                strokeLinecap="round"
-                style={{ filter: `drop-shadow(0 0 4px ${color})` }}
-              />
-            )
-          })}
+          <defs>
+            {/* Vertical gradient (up spike) */}
+            <linearGradient id={`up-${node.id}`} x1="50%" y1="0%" x2="50%" y2="100%">
+              <stop offset="0%" stopColor={starColor.glow} stopOpacity="0.1" />
+              <stop offset="70%" stopColor={starColor.glow} stopOpacity="0.8" />
+              <stop offset="100%" stopColor="#FFFFFF" stopOpacity="1" />
+            </linearGradient>
+            {/* Down spike */}
+            <linearGradient id={`down-${node.id}`} x1="50%" y1="100%" x2="50%" y2="0%">
+              <stop offset="0%" stopColor={starColor.glow} stopOpacity="0.1" />
+              <stop offset="70%" stopColor={starColor.glow} stopOpacity="0.8" />
+              <stop offset="100%" stopColor="#FFFFFF" stopOpacity="1" />
+            </linearGradient>
+            {/* Left spike */}
+            <linearGradient id={`left-${node.id}`} x1="0%" y1="50%" x2="100%" y2="50%">
+              <stop offset="0%" stopColor={starColor.glow} stopOpacity="0.1" />
+              <stop offset="70%" stopColor={starColor.glow} stopOpacity="0.8" />
+              <stop offset="100%" stopColor="#FFFFFF" stopOpacity="1" />
+            </linearGradient>
+            {/* Right spike */}
+            <linearGradient id={`right-${node.id}`} x1="100%" y1="50%" x2="0%" y2="50%">
+              <stop offset="0%" stopColor={starColor.glow} stopOpacity="0.1" />
+              <stop offset="70%" stopColor={starColor.glow} stopOpacity="0.8" />
+              <stop offset="100%" stopColor="#FFFFFF" stopOpacity="1" />
+            </linearGradient>
+          </defs>
+
+          {/* Main 4 spikes - tapered triangles */}
+          {/* Up */}
+          <polygon
+            points={`${cx},${cy - mainSpike} ${cx - 1.5},${cy} ${cx + 1.5},${cy}`}
+            fill={`url(#up-${node.id})`}
+          />
+          {/* Down */}
+          <polygon
+            points={`${cx},${cy + mainSpike} ${cx - 1.5},${cy} ${cx + 1.5},${cy}`}
+            fill={`url(#down-${node.id})`}
+          />
+          {/* Left */}
+          <polygon
+            points={`${cx - mainSpike},${cy} ${cx},${cy - 1.5} ${cx},${cy + 1.5}`}
+            fill={`url(#left-${node.id})`}
+          />
+          {/* Right */}
+          <polygon
+            points={`${cx + mainSpike},${cy} ${cx},${cy - 1.5} ${cx},${cy + 1.5}`}
+            fill={`url(#right-${node.id})`}
+          />
+
+          {/* Diagonal 4 spikes - thinner, shorter */}
+          <polygon
+            points={`${cx - diagSpike * 0.707},${cy - diagSpike * 0.707} ${cx - 0.8},${cy + 0.8} ${cx + 0.8},${cy - 0.8}`}
+            fill={starColor.glow}
+            fillOpacity="0.6"
+          />
+          <polygon
+            points={`${cx + diagSpike * 0.707},${cy - diagSpike * 0.707} ${cx - 0.8},${cy - 0.8} ${cx + 0.8},${cy + 0.8}`}
+            fill={starColor.glow}
+            fillOpacity="0.6"
+          />
+          <polygon
+            points={`${cx - diagSpike * 0.707},${cy + diagSpike * 0.707} ${cx + 0.8},${cy + 0.8} ${cx - 0.8},${cy - 0.8}`}
+            fill={starColor.glow}
+            fillOpacity="0.6"
+          />
+          <polygon
+            points={`${cx + diagSpike * 0.707},${cy + diagSpike * 0.707} ${cx + 0.8},${cy - 0.8} ${cx - 0.8},${cy + 0.8}`}
+            fill={starColor.glow}
+            fillOpacity="0.6"
+          />
         </svg>
 
-        {/* Center with initials */}
+        {/* Bright core orb */}
         <div
-          className="absolute inset-0 flex items-center justify-center"
-        >
-          <div
-            className="flex items-center justify-center rounded-full text-xs font-bold"
-            style={{
-              width: size - 20,
-              height: size - 20,
-              background: `radial-gradient(circle at 40% 35%, rgba(251,246,236,.15) 0%, var(--indigo) 100%)`,
-              border: `2px solid ${stageColor}50`,
-              boxShadow: isSelected
-                ? `0 0 20px ${stageColor}, 0 0 40px ${stageColor}50`
-                : `0 0 12px ${stageColor}40`,
-              color: stageColor,
-            }}
-          >
-            {initials}
-          </div>
-        </div>
+          className="absolute left-1/2 top-1/2"
+          style={{
+            width: coreSize,
+            height: coreSize,
+            transform: 'translate(-50%, -50%)',
+            borderRadius: '50%',
+            background: `radial-gradient(circle at 40% 40%, #FFFFFF 0%, #FFFFFF 30%, ${starColor.glow} 100%)`,
+            boxShadow: `
+              0 0 ${coreSize * 0.8}px #FFFFFF,
+              0 0 ${coreSize * 1.5}px ${starColor.glow},
+              0 0 ${coreSize * 2.5}px ${starColor.glow}80
+            `,
+          }}
+        />
       </div>
 
       {/* Name label */}
       <div
-        className="mt-1 max-w-[100px] truncate rounded-full px-2 py-0.5 text-center text-[10px] font-semibold"
+        className="max-w-[90px] truncate rounded-full px-1.5 py-0.5 text-center text-[9px] font-medium"
         style={{
-          background: 'rgba(6,8,20,.9)',
-          color: 'var(--fg-1)',
-          backdropFilter: 'blur(4px)',
+          marginTop: -mainSpike * 0.4,
+          background: 'rgba(6,8,20,.7)',
+          color: starColor.glow,
         }}
       >
         {node.name.split(' ')[0]}
+        {node.degree > 0 && <span style={{ opacity: 0.7 }}> · {node.degree}</span>}
       </div>
-
-      {/* Connection count badge */}
-      {node.degree > 0 && (
-        <div
-          className="mx-auto mt-1 w-fit rounded-full px-1.5 py-0.5 text-[9px] font-bold"
-          style={{
-            background: `${stageColor}20`,
-            border: `1px solid ${stageColor}40`,
-            color: stageColor,
-          }}
-        >
-          {node.degree} link{node.degree === 1 ? '' : 's'}
-        </div>
-      )}
     </button>
   )
 }
@@ -591,6 +593,8 @@ export default function MyCircleMap({
   const frameRef = useRef<number | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [focusedPersonId, setFocusedPersonId] = useState<string | null>(null)
+  const [hoveredPersonId, setHoveredPersonId] = useState<string | null>(null)
+  const [showAllConnections, setShowAllConnections] = useState(false)
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [editingPerson, setEditingPerson] = useState<Person | null>(null)
   const [mapRefreshKey, setMapRefreshKey] = useState(0)
@@ -706,23 +710,8 @@ export default function MyCircleMap({
 
   useEffect(() => {
     if (frameRef.current) cancelAnimationFrame(frameRef.current)
-
-    const start = performance.now()
     setAnimatedNodes(baseNodes)
-
-    const tick = (now: number) => {
-      const seconds = (now - start) / 1000
-      const targetNodes = animateOrbitalNodes(baseNodes, graphEdges, seconds)
-      setAnimatedNodes(currentNodes => smoothNodesToward(currentNodes, targetNodes))
-      frameRef.current = requestAnimationFrame(tick)
-    }
-
-    frameRef.current = requestAnimationFrame(tick)
-
-    return () => {
-      if (frameRef.current) cancelAnimationFrame(frameRef.current)
-    }
-  }, [baseNodes, graphEdges])
+  }, [baseNodes])
 
   const nodes = animatedNodes.length > 0 ? animatedNodes : baseNodes
 
@@ -868,6 +857,19 @@ export default function MyCircleMap({
                 </div>
               )}
             </div>
+            {/* Connection lines toggle */}
+            <button
+              type="button"
+              onClick={() => setShowAllConnections(prev => !prev)}
+              className="rounded-full px-3 py-1 text-xs font-semibold transition-all"
+              style={{
+                background: showAllConnections ? 'rgba(251,246,236,.15)' : 'var(--indigo)',
+                border: `1.5px solid ${showAllConnections ? 'var(--fg-2)' : 'var(--line-2)'}`,
+                color: showAllConnections ? 'var(--fg-1)' : 'var(--fg-3)',
+              }}
+            >
+              {showAllConnections ? '✦ Connections On' : '○ Connections Off'}
+            </button>
           </div>
         </div>
         {error && (
@@ -897,40 +899,78 @@ export default function MyCircleMap({
 
       <div>
         <div
-          className="relative min-h-[980px] overflow-hidden sm:min-h-[1100px] lg:min-h-[1240px]"
+          className="relative min-h-[600px] overflow-hidden sm:min-h-[700px] lg:min-h-[800px]"
           style={{
-            background: 'radial-gradient(circle at center, rgba(27,35,71,0.6) 0%, var(--void) 60%)',
+            background: 'linear-gradient(180deg, #030510 0%, #0a0d1a 50%, #050814 100%)',
           }}
         >
-          {/* Orbital rings */}
-          {STAGE_ORDER.slice().reverse().map((stage, idx) => {
-            const sizes = [24, 42, 62, 78]
-            const color = STAGE_COLORS[stage]
-            return (
-              <div
-                key={stage}
-                className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full"
-                style={{
-                  width: `${sizes[idx]}%`,
-                  height: `${sizes[idx]}%`,
-                  border: `1px solid ${color}15`,
-                  boxShadow: `0 0 30px -10px ${color}30`,
-                }}
-              />
-            )
-          })}
+          {/* Starfield background */}
+          <svg className="pointer-events-none absolute inset-0 h-full w-full" preserveAspectRatio="xMidYMid slice">
+            <defs>
+              <radialGradient id="nebula1" cx="30%" cy="40%" r="40%">
+                <stop offset="0%" stopColor="#5B8DF7" stopOpacity="0.08" />
+                <stop offset="50%" stopColor="#36D6C3" stopOpacity="0.04" />
+                <stop offset="100%" stopColor="transparent" />
+              </radialGradient>
+              <radialGradient id="nebula2" cx="70%" cy="60%" r="35%">
+                <stop offset="0%" stopColor="#F0729F" stopOpacity="0.06" />
+                <stop offset="60%" stopColor="#F4B650" stopOpacity="0.03" />
+                <stop offset="100%" stopColor="transparent" />
+              </radialGradient>
+              <radialGradient id="centerGlow" cx="50%" cy="50%" r="25%">
+                <stop offset="0%" stopColor="#F2C879" stopOpacity="0.15" />
+                <stop offset="40%" stopColor="#F2C879" stopOpacity="0.08" />
+                <stop offset="100%" stopColor="transparent" />
+              </radialGradient>
+            </defs>
+            {/* Nebula clouds */}
+            <rect width="100%" height="100%" fill="url(#nebula1)" />
+            <rect width="100%" height="100%" fill="url(#nebula2)" />
+            <rect width="100%" height="100%" fill="url(#centerGlow)" />
+            {/* Random background stars */}
+            {Array.from({ length: 200 }).map((_, i) => {
+              const seed = i * 7919
+              const x = ((seed * 13) % 1000) / 10
+              const y = ((seed * 17) % 1000) / 10
+              const size = 0.3 + ((seed * 23) % 100) / 100
+              const opacity = 0.3 + ((seed * 31) % 100) / 150
+              const delay = ((seed * 41) % 300) / 25
+              const duration = 3 + ((seed * 53) % 80) / 10
+              const anims = ['starTwinkle', 'starTwinkleSlow', 'starTwinkleFast']
+              const anim = anims[seed % 3]
+              return (
+                <circle
+                  key={i}
+                  cx={`${x}%`}
+                  cy={`${y}%`}
+                  r={size}
+                  fill="white"
+                  opacity={opacity}
+                  style={{
+                    animation: `${anim} ${duration}s ease-in-out infinite`,
+                    animationDelay: `${delay}s`,
+                  }}
+                />
+              )
+            })}
+          </svg>
+
 
           {/* Connection lines SVG */}
-          <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+          <svg className="pointer-events-none absolute inset-0 h-full w-full" style={{ width: '100%', height: '100%' }}>
+            {/* Christ lines - only show for hovered node or when toggle is on */}
             {nodes.map(node => {
+              const showLine = showAllConnections || hoveredPersonId === node.id || focusedPersonId === node.id
+              if (!showLine) return null
+
               const christLine = christLineStyle[node.current_stage]
               return (
                 <line
                   key={`christ-${node.id}`}
-                  x1={50}
-                  y1={50}
-                  x2={node.x}
-                  y2={node.y}
+                  x1="50%"
+                  y1="50%"
+                  x2={`${node.x}%`}
+                  y2={`${node.y}%`}
                   stroke={christLine.stroke}
                   strokeWidth={christLine.strokeWidth}
                   strokeLinecap="round"
@@ -939,20 +979,26 @@ export default function MyCircleMap({
               )
             })}
 
+            {/* Relationship lines - only show when connected to hovered/focused node or toggle is on */}
             {visibleConnections.map(connection => {
               const from = nodeById.get(connection.discipler_person_id)
               const to = connection.disciple_person_id ? nodeById.get(connection.disciple_person_id) : undefined
               if (!from || !to) return null
+
+              const showLine = showAllConnections ||
+                hoveredPersonId === from.id || hoveredPersonId === to.id ||
+                focusedPersonId === from.id || focusedPersonId === to.id
+              if (!showLine) return null
 
               const relationshipLine = relationshipLineStyleForDistance(from, to)
 
               return (
                 <line
                   key={connection.id}
-                  x1={from.x}
-                  y1={from.y}
-                  x2={to.x}
-                  y2={to.y}
+                  x1={`${from.x}%`}
+                  y1={`${from.y}%`}
+                  x2={`${to.x}%`}
+                  y2={`${to.y}%`}
                   stroke={relationshipLine.stroke}
                   strokeWidth={relationshipLine.strokeWidth}
                   strokeLinecap="round"
@@ -967,35 +1013,95 @@ export default function MyCircleMap({
             className="absolute left-4 top-4 max-w-[250px] rounded-xl border border-[var(--line-1)] px-3 py-2 text-xs"
             style={{ background: 'rgba(6,8,20,.8)', backdropFilter: 'blur(8px)' }}
           >
-            <div className="font-semibold text-[var(--fg-1)]">Click a person to focus their connections</div>
-            <div className="mt-1 text-[var(--fg-3)]">Double-click a person to edit their full profile</div>
+            <div className="font-semibold text-[var(--fg-1)]">Hover to see connections</div>
+            <div className="mt-1 text-[var(--fg-3)]">Click to focus · Double-click to edit</div>
           </div>
 
-          {/* Center - Jesus */}
-          <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center">
-            <div
-              className="flex h-20 w-20 items-center justify-center rounded-full"
-              style={{
-                background: 'radial-gradient(circle at 50% 40%, #FFF7E4, #F2C879 55%, #E0A94A 100%)',
-                boxShadow: '0 0 60px 12px rgba(242,200,121,.4), 0 0 100px 30px rgba(242,200,121,.2)',
-              }}
-            >
-              <img
-                src="/gbm-flame-white.png"
-                alt="Jesus at the center"
-                className="h-10 w-10"
-                style={{ filter: 'drop-shadow(0 2px 8px rgba(0,0,0,.3))' }}
+          {/* Center - Jesus (Golden Star) */}
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+            <div className="relative" style={{ width: 200, height: 200 }}>
+              {/* Warm glow halo */}
+              <div
+                className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+                style={{
+                  width: 140,
+                  height: 140,
+                  background: 'radial-gradient(circle, rgba(255,180,60,0.4) 0%, rgba(255,140,40,0.15) 50%, transparent 70%)',
+                }}
+              />
+
+              {/* 8-point star spikes - tapered polygons */}
+              <svg
+                className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+                width="200"
+                height="200"
+              >
+                <defs>
+                  {/* Up spike */}
+                  <linearGradient id="jesusUp" x1="50%" y1="0%" x2="50%" y2="100%">
+                    <stop offset="0%" stopColor="#FFB040" stopOpacity="0.1" />
+                    <stop offset="70%" stopColor="#FFD080" stopOpacity="0.8" />
+                    <stop offset="100%" stopColor="#FFFFFF" stopOpacity="1" />
+                  </linearGradient>
+                  {/* Down spike */}
+                  <linearGradient id="jesusDown" x1="50%" y1="100%" x2="50%" y2="0%">
+                    <stop offset="0%" stopColor="#FFB040" stopOpacity="0.1" />
+                    <stop offset="70%" stopColor="#FFD080" stopOpacity="0.8" />
+                    <stop offset="100%" stopColor="#FFFFFF" stopOpacity="1" />
+                  </linearGradient>
+                  {/* Left spike */}
+                  <linearGradient id="jesusLeft" x1="0%" y1="50%" x2="100%" y2="50%">
+                    <stop offset="0%" stopColor="#FFB040" stopOpacity="0.1" />
+                    <stop offset="70%" stopColor="#FFD080" stopOpacity="0.8" />
+                    <stop offset="100%" stopColor="#FFFFFF" stopOpacity="1" />
+                  </linearGradient>
+                  {/* Right spike */}
+                  <linearGradient id="jesusRight" x1="100%" y1="50%" x2="0%" y2="50%">
+                    <stop offset="0%" stopColor="#FFB040" stopOpacity="0.1" />
+                    <stop offset="70%" stopColor="#FFD080" stopOpacity="0.8" />
+                    <stop offset="100%" stopColor="#FFFFFF" stopOpacity="1" />
+                  </linearGradient>
+                </defs>
+
+                {/* Main 4 spikes - tapered triangles */}
+                <polygon points="100,10 97,100 103,100" fill="url(#jesusUp)" />
+                <polygon points="100,190 97,100 103,100" fill="url(#jesusDown)" />
+                <polygon points="10,100 100,97 100,103" fill="url(#jesusLeft)" />
+                <polygon points="190,100 100,97 100,103" fill="url(#jesusRight)" />
+
+                {/* Diagonal 4 spikes - shorter, thinner */}
+                <polygon points="50,50 98,101 101,98" fill="#FFD080" fillOpacity="0.5" />
+                <polygon points="150,50 99,98 102,101" fill="#FFD080" fillOpacity="0.5" />
+                <polygon points="50,150 101,102 98,99" fill="#FFD080" fillOpacity="0.5" />
+                <polygon points="150,150 102,99 99,102" fill="#FFD080" fillOpacity="0.5" />
+              </svg>
+
+              {/* Bright warm core */}
+              <div
+                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full"
+                style={{
+                  width: 22,
+                  height: 22,
+                  background: 'radial-gradient(circle at 40% 40%, #FFFFFF 0%, #FFFFFF 30%, #FFD060 70%, #FFB030 100%)',
+                  boxShadow: `
+                    0 0 12px 4px rgba(255,255,255,0.9),
+                    0 0 25px 8px rgba(255,200,80,0.5),
+                    0 0 45px 12px rgba(255,160,40,0.3)
+                  `,
+                }}
               />
             </div>
+
+            {/* Label */}
             <div
-              className="mt-2 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em]"
+              className="absolute left-1/2 -translate-x-1/2 rounded-full px-3 py-0.5 text-[10px] font-semibold"
               style={{
-                background: 'rgba(6,8,20,.9)',
-                color: 'var(--gold)',
-                boxShadow: '0 0 20px rgba(242,200,121,.2)',
+                top: 130,
+                background: 'rgba(6,8,20,.75)',
+                color: '#FFD080',
               }}
             >
-              King Jesus
+              Jesus
             </div>
           </div>
 
@@ -1006,6 +1112,8 @@ export default function MyCircleMap({
               node={node}
               isSelected={selectedNode?.id === node.id}
               onClick={(e) => handleNodeClick(node, e)}
+              onMouseEnter={() => setHoveredPersonId(node.id)}
+              onMouseLeave={() => setHoveredPersonId(null)}
             />
           ))}
         </div>
@@ -1030,19 +1138,40 @@ export default function MyCircleMap({
       )}
 
       {/* Legend */}
-      <div className="grid grid-cols-2 gap-2 border-t border-[var(--line-1)] p-3 text-xs sm:grid-cols-4">
-        {STAGE_ORDER.map(stage => {
+      <div className="grid grid-cols-2 gap-2 border-t border-[var(--line-1)] bg-[var(--void)] p-3 text-xs sm:grid-cols-4">
+        {STAGE_ORDER.map((stage, idx) => {
           const color = STAGE_COLORS[stage]
+          const starSize = 8 + idx * 2
           return (
             <div
               key={stage}
               className="flex items-center gap-2 rounded-xl p-2"
-              style={{ background: `${color}10` }}
+              style={{ background: `${color}08` }}
             >
               <div
-                className="h-2.5 w-2.5 rounded-full"
-                style={{ background: color, boxShadow: `0 0 8px ${color}` }}
-              />
+                className="relative flex shrink-0 items-center justify-center"
+                style={{ width: 20, height: 20 }}
+              >
+                {/* Mini star glow */}
+                <div
+                  className="absolute rounded-full"
+                  style={{
+                    width: starSize * 2,
+                    height: starSize * 2,
+                    background: `radial-gradient(circle, ${color}40 0%, transparent 70%)`,
+                  }}
+                />
+                {/* Mini star core */}
+                <div
+                  className="rounded-full"
+                  style={{
+                    width: starSize,
+                    height: starSize,
+                    background: `radial-gradient(circle at 35% 35%, white 0%, ${color} 60%)`,
+                    boxShadow: `0 0 ${starSize / 2}px ${color}`,
+                  }}
+                />
+              </div>
               <span style={{ color }}>{stageLabels[stage].display}</span>
               <span className="hidden text-[var(--fg-3)] sm:inline">· {STAGE_LABELS[stage]}</span>
             </div>

@@ -258,8 +258,14 @@ export default function FocusDashboard({
   }, [people, engagements, checklistItems])
 
   const handleMarkPriority = async (personId: string) => {
-    await updatePerson(personId, { priority: true })
-    await loadData()
+    // Optimistic update
+    setPeople(prev => prev.map(p => p.id === personId ? { ...p, priority: true } : p))
+
+    const { error } = await updatePerson(personId, { priority: true })
+    if (error) {
+      // Revert on error
+      setPeople(prev => prev.map(p => p.id === personId ? { ...p, priority: false } : p))
+    }
   }
 
   const handleDismiss = (personId: string) => {

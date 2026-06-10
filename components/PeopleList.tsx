@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { getPeople, updatePersonStage } from '../lib/supabaseQueries'
+import { useAuth } from '../contexts/AuthContext'
 import type { Person, Stage } from '../types/database'
 import NextStepsList from './NextStepsList'
 import AddNextStepForm from './AddNextStepForm'
@@ -71,6 +72,7 @@ function SectionCard({
 }
 
 export default function PeopleList({ filterStages, sortMode = '4e', onChanged }: PeopleListProps) {
+  const { profile } = useAuth()
   const [people, setPeople] = useState<Person[]>([])
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
@@ -240,7 +242,7 @@ export default function PeopleList({ filterStages, sortMode = '4e', onChanged }:
                         <div className="font-semibold text-gray-900">Next Steps</div>
                         <span className="text-xs font-medium text-gray-700">Follow-up dates</span>
                       </div>
-                      <NextStepsList personId={person.id} refreshKey={refreshKey} />
+                      <NextStepsList personId={person.id} personName={person.name} coachPersonId={profile?.id} refreshKey={refreshKey} />
                       <AddNextStepForm
                         personId={person.id}
                         personName={person.name}

@@ -104,3 +104,24 @@ export type DiscipleshipConnection = {
   created_at: string
   updated_at: string
 }
+
+export type SoapJournal = {
+  id: string
+  person_id: string
+  journal_date: string
+  photo_url: string | null
+  ocr_text: string | null
+  scripture_reference: string | null
+  summary: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type InviteToken = {
+  id: string
+  person_id: string
+  token: string
+  expires_at: string
+  used_at: string | null
+  created_at: string
+}

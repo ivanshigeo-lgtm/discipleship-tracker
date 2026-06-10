@@ -27,22 +27,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [downline, setDownline] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
 
-  const fetchProfile = async (userId: string, retries = 3): Promise<boolean> => {
-    console.log('Fetching profile for auth user:', userId, `(attempt ${4 - retries}/3)`)
+  const fetchProfile = async (userId: string, retries = 2): Promise<boolean> => {
+    console.log('Fetching profile for auth user:', userId, `(attempt ${3 - retries}/2)`)
 
     try {
-      const { data: personData, error } = await supabase
+      const queryPromise = supabase
         .from('people')
         .select('*')
         .eq('auth_user_id', userId)
         .maybeSingle()
 
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Profile query timeout')), 8000)
+      )
+
+      const { data: personData, error } = await Promise.race([queryPromise, timeoutPromise])
+
       console.log('Profile fetch result:', { personData, error })
 
       if (error) {
         console.error('Profile fetch error:', error)
-        if (retries > 1) {
-          await new Promise(r => setTimeout(r, 1000))
+        if (retries > 0) {
+          await new Promise(r => setTimeout(r, 500))
           return fetchProfile(userId, retries - 1)
         }
         return false
@@ -71,8 +77,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (err) {
       console.error('Profile fetch exception:', err)
-      if (retries > 1) {
-        await new Promise(r => setTimeout(r, 1000))
+      if (retries > 0) {
+        await new Promise(r => setTimeout(r, 500))
         return fetchProfile(userId, retries - 1)
       }
       return false
@@ -90,12 +96,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    // Timeout fallback in case auth hangs
-    const timeout = setTimeout(() => {
-      console.log('Auth timeout - forcing loading to false')
-      setLoading(false)
-    }, 10000)
-
     const initAuth = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession()
@@ -103,14 +103,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         setSession(session)
         setUser(session?.user ?? null)
+        setLoading(false) // Stop blocking immediately once we know auth state
 
         if (session?.user) {
-          await fetchProfile(session.user.id)
+          // Fetch profile in background - don't block
+          fetchProfile(session.user.id)
         }
       } catch (err) {
         console.error('Auth init error:', err)
-      } finally {
-        clearTimeout(timeout)
         setLoading(false)
       }
     }

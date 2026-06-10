@@ -6,11 +6,25 @@ import { stageChecklistTemplates, stages } from '../lib/stageChecklistTemplates'
 import { stageLabels } from '../lib/stageLabels'
 import type { ChecklistCategory, Person, Stage, StageChecklistItem } from '../types/database'
 
+const pulseKeyframes = `
+@keyframes starTwinkle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+`
+
 const STAGE_COLORS: Record<Stage, string> = {
   Engage: '#F4B650',
   Establish: '#36D6C3',
   Equip: '#5B8DF7',
   Empower: '#F0729F',
+}
+
+const STAR_COLORS: Record<Stage, { core: string; glow: string }> = {
+  Engage: { core: '#FFFFFF', glow: '#FFB840' },      // Yellow/Gold
+  Establish: { core: '#FFFFFF', glow: '#40C060' },   // Green
+  Equip: { core: '#FFFFFF', glow: '#4080FF' },       // Blue
+  Empower: { core: '#FFFFFF', glow: '#FF4060' },     // Red
 }
 
 const stageRank: Record<Stage, number> = {
@@ -31,47 +45,18 @@ const gemKey = (stage: Stage, category: ChecklistCategory, label: string) => `${
 function ProgressRing({
   stageStats,
   size = 160,
-  progressPercent = 0,
 }: {
   stageStats: Array<{ stage: Stage; completedCount: number; totalCount: number }>
   size?: number
-  progressPercent?: number
 }) {
-  const strokeWidth = 8
+  const strokeWidth = 3
   const radius = (size - strokeWidth) / 2 - 4
   const circumference = 2 * Math.PI * radius
   const segmentLength = circumference / 4
   const gap = 8
 
-  // Center glow grows from 15% to 45% of ring radius based on progress
-  const minGlowRadius = radius * 0.15
-  const maxGlowRadius = radius * 0.5
-  const glowRadius = minGlowRadius + (maxGlowRadius - minGlowRadius) * (progressPercent / 100)
-
   return (
-    <svg width={size} height={size} className="shrink-0" style={{ transform: 'rotate(-90deg)' }}>
-      <defs>
-        <filter id="ring-glow-filter">
-          <feGaussianBlur stdDeviation="2" result="blur" />
-          <feMerge>
-            <feMergeNode in="blur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-        <filter id="center-glow-filter">
-          <feGaussianBlur stdDeviation="4" result="blur" />
-          <feMerge>
-            <feMergeNode in="blur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-        <radialGradient id="center-glow" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="white" stopOpacity="1" />
-          <stop offset="50%" stopColor="white" stopOpacity="0.5" />
-          <stop offset="100%" stopColor="white" stopOpacity="0" />
-        </radialGradient>
-      </defs>
-
+    <svg width={size} height={size} className="absolute inset-0" style={{ transform: 'rotate(-90deg)' }}>
       {/* Background track */}
       <circle
         cx={size / 2}
@@ -83,7 +68,7 @@ function ProgressRing({
       />
 
       {/* Stage segments */}
-      {stageStats.map((stat, index) => {
+      {(stageStats || []).map((stat, index) => {
         const color = STAGE_COLORS[stat.stage]
         const completionRatio = stat.totalCount > 0 ? stat.completedCount / stat.totalCount : 0
         const litLength = (segmentLength - gap) * completionRatio
@@ -116,24 +101,158 @@ function ProgressRing({
                 strokeLinecap="round"
                 strokeDasharray={`${litLength} ${circumference}`}
                 strokeDashoffset={offset}
-                filter="url(#ring-glow-filter)"
                 className="transition-all duration-500"
               />
             )}
           </g>
         )
       })}
-
-      {/* Center glow - grows with progress */}
-      <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={glowRadius}
-        fill="url(#center-glow)"
-        filter="url(#center-glow-filter)"
-        className="transition-all duration-700"
-      />
     </svg>
+  )
+}
+
+function ProgressStar({
+  stage,
+  progressPercent = 0,
+  size = 140,
+  stageStats,
+}: {
+  stage: Stage
+  progressPercent?: number
+  size?: number
+  stageStats: Array<{ stage: Stage; completedCount: number; totalCount: number }>
+}) {
+  const starColor = STAR_COLORS[stage]
+
+  // Scale factor for core and spikes
+  const scale = 1 + (progressPercent * 0.006) // 1.0 at 0%, 1.6 at 100%
+
+  const coreSize = 14 * scale
+  // Glow fills the entire ring at 100% (ring is ~130px diameter inside the 140px container)
+  const glowSize = 40 + (progressPercent * 0.9) // 40px at 0%, 130px at 100%
+
+  // Spike lengths scale with progress
+  const bottomSpike = 42 * scale
+  const topSpike = 32 * scale
+  const horizontalSpike = 26 * scale
+  const diagonalSpike = 16 * scale
+
+  const cx = size / 2
+  const cy = size / 2
+
+  return (
+    <div className="relative" style={{ width: size, height: size }}>
+      {/* Progress ring */}
+      <ProgressRing stageStats={stageStats} size={size} />
+
+      {/* Warm glow halo */}
+      <div
+        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full"
+        style={{
+          width: glowSize,
+          height: glowSize,
+          background: `radial-gradient(circle, ${starColor.glow}60 0%, ${starColor.glow}30 40%, transparent 70%)`,
+        }}
+      />
+
+      {/* 8-point star spikes */}
+      <svg
+        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+        width={size}
+        height={size}
+        style={{ overflow: 'visible' }}
+      >
+        <defs>
+          {/* Spike going UP - gradient from tip to center */}
+          <linearGradient id={`upSpike-${stage}`} x1="50%" y1="0%" x2="50%" y2="100%">
+            <stop offset="0%" stopColor={starColor.glow} stopOpacity="0.1" />
+            <stop offset="70%" stopColor={starColor.glow} stopOpacity="0.8" />
+            <stop offset="100%" stopColor="#FFFFFF" stopOpacity="1" />
+          </linearGradient>
+          {/* Spike going DOWN */}
+          <linearGradient id={`downSpike-${stage}`} x1="50%" y1="100%" x2="50%" y2="0%">
+            <stop offset="0%" stopColor={starColor.glow} stopOpacity="0.1" />
+            <stop offset="70%" stopColor={starColor.glow} stopOpacity="0.8" />
+            <stop offset="100%" stopColor="#FFFFFF" stopOpacity="1" />
+          </linearGradient>
+          {/* Spike going LEFT */}
+          <linearGradient id={`leftSpike-${stage}`} x1="0%" y1="50%" x2="100%" y2="50%">
+            <stop offset="0%" stopColor={starColor.glow} stopOpacity="0.1" />
+            <stop offset="70%" stopColor={starColor.glow} stopOpacity="0.8" />
+            <stop offset="100%" stopColor="#FFFFFF" stopOpacity="1" />
+          </linearGradient>
+          {/* Spike going RIGHT */}
+          <linearGradient id={`rightSpike-${stage}`} x1="100%" y1="50%" x2="0%" y2="50%">
+            <stop offset="0%" stopColor={starColor.glow} stopOpacity="0.1" />
+            <stop offset="70%" stopColor={starColor.glow} stopOpacity="0.8" />
+            <stop offset="100%" stopColor="#FFFFFF" stopOpacity="1" />
+          </linearGradient>
+        </defs>
+
+        {/* Main 4 spikes - tapered triangles */}
+        {/* Top spike */}
+        <polygon
+          points={`${cx},${cy - topSpike} ${cx - 2.5},${cy} ${cx + 2.5},${cy}`}
+          fill={`url(#upSpike-${stage})`}
+        />
+        {/* Bottom spike (longest) */}
+        <polygon
+          points={`${cx},${cy + bottomSpike} ${cx - 3},${cy} ${cx + 3},${cy}`}
+          fill={`url(#downSpike-${stage})`}
+        />
+        {/* Left spike */}
+        <polygon
+          points={`${cx - horizontalSpike},${cy} ${cx},${cy - 2.5} ${cx},${cy + 2.5}`}
+          fill={`url(#leftSpike-${stage})`}
+        />
+        {/* Right spike */}
+        <polygon
+          points={`${cx + horizontalSpike},${cy} ${cx},${cy - 2.5} ${cx},${cy + 2.5}`}
+          fill={`url(#rightSpike-${stage})`}
+        />
+
+        {/* Diagonal spikes - thinner, shorter */}
+        {/* Top-left */}
+        <polygon
+          points={`${cx - diagonalSpike * 0.707},${cy - diagonalSpike * 0.707} ${cx - 1},${cy + 1} ${cx + 1},${cy - 1}`}
+          fill={starColor.glow}
+          fillOpacity="0.6"
+        />
+        {/* Top-right */}
+        <polygon
+          points={`${cx + diagonalSpike * 0.707},${cy - diagonalSpike * 0.707} ${cx - 1},${cy - 1} ${cx + 1},${cy + 1}`}
+          fill={starColor.glow}
+          fillOpacity="0.6"
+        />
+        {/* Bottom-left */}
+        <polygon
+          points={`${cx - diagonalSpike * 0.707},${cy + diagonalSpike * 0.707} ${cx + 1},${cy + 1} ${cx - 1},${cy - 1}`}
+          fill={starColor.glow}
+          fillOpacity="0.6"
+        />
+        {/* Bottom-right */}
+        <polygon
+          points={`${cx + diagonalSpike * 0.707},${cy + diagonalSpike * 0.707} ${cx + 1},${cy - 1} ${cx - 1},${cy + 1}`}
+          fill={starColor.glow}
+          fillOpacity="0.6"
+        />
+      </svg>
+
+      {/* Bright core - white center fading to color */}
+      <div
+        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full"
+        style={{
+          width: coreSize,
+          height: coreSize,
+          background: `radial-gradient(circle at 45% 45%, #FFFFFF 0%, #FFFFFF 30%, ${starColor.glow} 100%)`,
+          boxShadow: `
+            0 0 ${8 + progressPercent * 0.15}px #FFFFFF,
+            0 0 ${15 + progressPercent * 0.25}px ${starColor.glow},
+            0 0 ${25 + progressPercent * 0.35}px ${starColor.glow}90
+          `,
+        }}
+      />
+    </div>
   )
 }
 
@@ -192,35 +311,13 @@ export default function DiscipleStarCard({
   return (
     <div className="rounded-xl border border-[var(--line-1)] bg-[var(--indigo-2)] p-4">
       <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
-        {/* Progress ring with person info */}
+        {/* Star with progress-based glow */}
         <div className="relative flex flex-col items-center">
-          <ProgressRing stageStats={stats.stageStats} size={140} progressPercent={progressPercent} />
-
-          {/* Growing center star glow */}
-          <div
-            className="absolute left-1/2 top-[70px] -translate-x-1/2 -translate-y-1/2 rounded-full transition-all duration-700"
-            style={{
-              width: 20 + (progressPercent * 0.5),
-              height: 20 + (progressPercent * 0.5),
-              background: 'radial-gradient(circle, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.4) 40%, rgba(255,255,255,0) 70%)',
-              boxShadow: `0 0 ${10 + progressPercent * 0.3}px rgba(255,255,255,${0.3 + progressPercent * 0.005})`,
-            }}
-          />
-
-          {/* Initials overlay */}
-          <div
-            className="absolute left-1/2 top-[70px] flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-xs font-bold"
-            style={{
-              background: 'rgba(20,27,61,0.85)',
-              border: `2px solid ${stageColor}`,
-              color: stageColor,
-            }}
-          >
-            {initials}
-          </div>
+          <style>{pulseKeyframes}</style>
+          <ProgressStar stage={currentStage} progressPercent={progressPercent} size={140} stageStats={stats.stageStats} />
 
           {/* Stage label */}
-          <div className="mt-2 text-center">
+          <div className="mt-1 text-center">
             <div className="text-[10px] uppercase tracking-wider text-[var(--fg-3)]">
               Stage {stageRank[currentStage] + 1}
             </div>

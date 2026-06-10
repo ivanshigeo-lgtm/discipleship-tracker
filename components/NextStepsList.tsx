@@ -2,20 +2,35 @@
 
 import { useEffect, useState } from 'react'
 import { getEngagementsByPerson, updateEngagement, deleteEngagement } from '../lib/supabaseQueries'
-import type { Engagement } from '../types/database'
+import type { Engagement, MeetingType } from '../types/database'
+
+const MEETING_TYPES: MeetingType[] = ['One2One', 'Making Disciples', 'Coffee', 'Church Community', 'Empowering Leaders']
+
+type EditingEngagement = {
+  description: string
+  meeting_type: MeetingType | ''
+  follow_up_date: string
+  follow_up_time: string
+  location: string
+  notes: string
+}
 
 export default function NextStepsList({
   personId,
+  personName,
+  coachPersonId,
   refreshKey,
   onUpdate,
 }: {
   personId: string
+  personName: string
+  coachPersonId?: string
   refreshKey: number
   onUpdate?: () => void
 }) {
   const [engagements, setEngagements] = useState<Engagement[]>([])
   const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [editingNotes, setEditingNotes] = useState<string>('')
+  const [editingData, setEditingData] = useState<EditingEngagement | null>(null)
   const [savingId, setSavingId] = useState<string | null>(null)
 
   const loadEngagements = async () => {
@@ -61,22 +76,54 @@ export default function NextStepsList({
     setSavingId(null)
   }
 
-  const handleSaveNotes = async (eng: Engagement) => {
+  const handleSave = async (eng: Engagement) => {
+    if (!editingData) return
     setSavingId(eng.id)
-    const { data, error } = await updateEngagement(eng.id, { notes: editingNotes.trim() || null })
+
+    const updates = {
+      description: editingData.description.trim(),
+      meeting_type: editingData.meeting_type || null,
+      follow_up_date: editingData.follow_up_date || null,
+      follow_up_time: editingData.follow_up_time || null,
+      location: editingData.location.trim() || null,
+      notes: editingData.notes.trim() || null,
+    }
+
+    const { data, error } = await updateEngagement(eng.id, updates)
 
     if (error) {
-      console.error('Failed to save notes:', error)
-      alert(`Failed to save: ${error.message || 'Check Supabase RLS policies for engagements UPDATE'}`)
+      console.error('Failed to save:', error)
+      alert(`Failed to save: ${error.message || 'Check Supabase RLS policies'}`)
     } else if (data) {
+      const updatedEng = { ...eng, ...updates }
       setEngagements(current =>
-        current.map(e =>
-          e.id === eng.id ? { ...e, notes: editingNotes.trim() || null } : e
-        )
+        current.map(e => e.id === eng.id ? updatedEng : e)
       )
+      setExpandedId(null)
+      setEditingData(null)
       onUpdate?.()
-    } else {
-      alert('Save failed: No data returned. Check Supabase RLS UPDATE policy for engagements.')
+
+      // Sync with Google Calendar
+      if (coachPersonId && updates.follow_up_date) {
+        try {
+          await fetch('/api/calendar/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: eng.google_calendar_event_id ? 'update' : 'create',
+              coachPersonId,
+              engagementId: eng.id,
+              personName,
+              engagement: {
+                ...updates,
+                google_calendar_event_id: eng.google_calendar_event_id,
+              },
+            }),
+          })
+        } catch (err) {
+          console.error('Calendar sync error:', err)
+        }
+      }
     }
     setSavingId(null)
   }
@@ -95,11 +142,53 @@ export default function NextStepsList({
   const handleExpand = (eng: Engagement) => {
     if (expandedId === eng.id) {
       setExpandedId(null)
-      setEditingNotes('')
+      setEditingData(null)
     } else {
       setExpandedId(eng.id)
-      setEditingNotes(eng.notes ?? '')
+      setEditingData({
+        description: eng.description,
+        meeting_type: eng.meeting_type || '',
+        follow_up_date: eng.follow_up_date || '',
+        follow_up_time: eng.follow_up_time || '',
+        location: eng.location || '',
+        notes: eng.notes || '',
+      })
     }
+  }
+
+  const handleSyncToCalendar = async (eng: Engagement) => {
+    if (!coachPersonId || !eng.follow_up_date) return
+    setSavingId(eng.id)
+
+    try {
+      const res = await fetch('/api/calendar/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'create',
+          coachPersonId,
+          engagementId: eng.id,
+          personName,
+          engagement: {
+            description: eng.description,
+            follow_up_date: eng.follow_up_date,
+            follow_up_time: eng.follow_up_time,
+            location: eng.location,
+            meeting_type: eng.meeting_type,
+            notes: eng.notes,
+          },
+        }),
+      })
+      const data = await res.json()
+      if (data.synced && data.eventId) {
+        setEngagements(current =>
+          current.map(e => e.id === eng.id ? { ...e, google_calendar_event_id: data.eventId } : e)
+        )
+      }
+    } catch (err) {
+      console.error('Calendar sync error:', err)
+    }
+    setSavingId(null)
   }
 
   if (engagements.length === 0) {
@@ -121,13 +210,15 @@ export default function NextStepsList({
               key={eng.id}
               eng={eng}
               isExpanded={expandedId === eng.id}
-              editingNotes={editingNotes}
+              editingData={editingData}
               savingId={savingId}
+              canSyncCalendar={!!coachPersonId && !!eng.follow_up_date && !eng.google_calendar_event_id}
               onToggleComplete={() => handleToggleComplete(eng)}
               onExpand={() => handleExpand(eng)}
-              onNotesChange={setEditingNotes}
-              onSaveNotes={() => handleSaveNotes(eng)}
+              onEditingChange={setEditingData}
+              onSave={() => handleSave(eng)}
               onDelete={() => handleDelete(eng.id)}
+              onSyncToCalendar={() => handleSyncToCalendar(eng)}
             />
           ))}
         </div>
@@ -143,13 +234,15 @@ export default function NextStepsList({
               key={eng.id}
               eng={eng}
               isExpanded={expandedId === eng.id}
-              editingNotes={editingNotes}
+              editingData={editingData}
               savingId={savingId}
+              canSyncCalendar={!!coachPersonId && !!eng.follow_up_date && !eng.google_calendar_event_id}
               onToggleComplete={() => handleToggleComplete(eng)}
               onExpand={() => handleExpand(eng)}
-              onNotesChange={setEditingNotes}
-              onSaveNotes={() => handleSaveNotes(eng)}
+              onEditingChange={setEditingData}
+              onSave={() => handleSave(eng)}
               onDelete={() => handleDelete(eng.id)}
+              onSyncToCalendar={() => handleSyncToCalendar(eng)}
             />
           ))}
         </div>
@@ -161,26 +254,36 @@ export default function NextStepsList({
 function EngagementCard({
   eng,
   isExpanded,
-  editingNotes,
+  editingData,
   savingId,
+  canSyncCalendar,
   onToggleComplete,
   onExpand,
-  onNotesChange,
-  onSaveNotes,
+  onEditingChange,
+  onSave,
   onDelete,
+  onSyncToCalendar,
 }: {
   eng: Engagement
   isExpanded: boolean
-  editingNotes: string
+  editingData: EditingEngagement | null
   savingId: string | null
+  canSyncCalendar: boolean
   onToggleComplete: () => void
   onExpand: () => void
-  onNotesChange: (notes: string) => void
-  onSaveNotes: () => void
+  onEditingChange: (data: EditingEngagement | null) => void
+  onSave: () => void
   onDelete: () => void
+  onSyncToCalendar: () => void
 }) {
   const isCompleted = eng.status === 'Completed'
   const isSaving = savingId === eng.id
+
+  const updateField = <K extends keyof EditingEngagement>(field: K, value: EditingEngagement[K]) => {
+    if (editingData) {
+      onEditingChange({ ...editingData, [field]: value })
+    }
+  }
 
   return (
     <div
@@ -244,34 +347,118 @@ function EngagementCard({
                 </span>
               )}
               {eng.notes && <span className="text-[var(--equip)]">Has actions</span>}
+              {eng.google_calendar_event_id && <span className="text-[var(--fg-3)]">📅 Synced</span>}
             </div>
           </button>
         </div>
 
-        <span
-          className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold"
-          style={{
-            background: isCompleted ? 'rgba(54,214,195,.15)' : 'rgba(244,182,80,.15)',
-            color: isCompleted ? 'var(--establish)' : 'var(--engage)',
-          }}
-        >
-          {isCompleted ? 'Met' : 'Pending'}
-        </span>
+        <div className="flex shrink-0 items-center gap-2">
+          {canSyncCalendar && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onSyncToCalendar(); }}
+              disabled={isSaving}
+              className="rounded-full px-2 py-0.5 text-[10px] font-medium text-[var(--gbm-cobalt-bright)] hover:bg-[rgba(91,141,247,.1)] disabled:opacity-50"
+              title="Add to Google Calendar"
+            >
+              📅 Sync
+            </button>
+          )}
+          <span
+            className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+            style={{
+              background: isCompleted ? 'rgba(54,214,195,.15)' : 'rgba(244,182,80,.15)',
+              color: isCompleted ? 'var(--establish)' : 'var(--engage)',
+            }}
+          >
+            {isCompleted ? 'Met' : 'Pending'}
+          </span>
+        </div>
       </div>
 
-      {isExpanded && (
-        <div className="border-t border-[var(--line-1)] bg-[var(--indigo)] p-3">
-          <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-[var(--fg-3)]">
-            Points of Action
-          </label>
-          <textarea
-            value={editingNotes}
-            onChange={(e) => onNotesChange(e.target.value)}
-            placeholder="Action items and next steps from this meeting..."
-            className="w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] p-2.5 text-xs text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
-            rows={3}
-          />
-          <div className="mt-2 flex items-center justify-between">
+      {isExpanded && editingData && (
+        <div className="space-y-3 border-t border-[var(--line-1)] bg-[var(--indigo)] p-3">
+          <div>
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[var(--fg-3)]">
+              Description
+            </label>
+            <input
+              type="text"
+              value={editingData.description}
+              onChange={(e) => updateField('description', e.target.value)}
+              className="w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-2.5 py-2 text-xs text-[var(--fg-1)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[var(--fg-3)]">
+                Type
+              </label>
+              <select
+                value={editingData.meeting_type}
+                onChange={(e) => updateField('meeting_type', e.target.value as MeetingType | '')}
+                className="w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-2.5 py-2 text-xs text-[var(--fg-1)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
+              >
+                <option value="">No type</option>
+                {MEETING_TYPES.map(type => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[var(--fg-3)]">
+                Location
+              </label>
+              <input
+                type="text"
+                value={editingData.location}
+                onChange={(e) => updateField('location', e.target.value)}
+                placeholder="Where"
+                className="w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-2.5 py-2 text-xs text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[var(--fg-3)]">
+                Date
+              </label>
+              <input
+                type="date"
+                value={editingData.follow_up_date}
+                onChange={(e) => updateField('follow_up_date', e.target.value)}
+                className="w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-2.5 py-2 text-xs text-[var(--fg-1)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[var(--fg-3)]">
+                Time
+              </label>
+              <input
+                type="time"
+                value={editingData.follow_up_time}
+                onChange={(e) => updateField('follow_up_time', e.target.value)}
+                className="w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-2.5 py-2 text-xs text-[var(--fg-1)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[var(--fg-3)]">
+              Points of Action
+            </label>
+            <textarea
+              value={editingData.notes}
+              onChange={(e) => updateField('notes', e.target.value)}
+              placeholder="Action items and next steps..."
+              className="w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] p-2.5 text-xs text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
+              rows={2}
+            />
+          </div>
+
+          <div className="flex items-center justify-between pt-1">
             <button
               type="button"
               onClick={onDelete}
@@ -280,14 +467,23 @@ function EngagementCard({
             >
               Delete
             </button>
-            <button
-              type="button"
-              onClick={onSaveNotes}
-              disabled={isSaving}
-              className="cn-btn cn-btn-primary !px-3 !py-1.5 !text-xs"
-            >
-              {isSaving ? 'Saving...' : 'Save Actions'}
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={onExpand}
+                className="rounded-lg border border-[var(--line-2)] px-3 py-1.5 text-xs text-[var(--fg-2)]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={onSave}
+                disabled={isSaving || !editingData.description.trim()}
+                className="cn-btn cn-btn-primary !px-3 !py-1.5 !text-xs"
+              >
+                {isSaving ? 'Saving...' : 'Save'}
+              </button>
+            </div>
           </div>
         </div>
       )}

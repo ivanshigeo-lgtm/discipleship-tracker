@@ -89,7 +89,7 @@ export default function InvitePage() {
 
       setSuccess(true)
       setTimeout(() => {
-        router.push('/')
+        router.push('/my-journey')
       }, 2000)
     }
 
@@ -111,7 +111,7 @@ export default function InvitePage() {
           <div className="mb-4 text-4xl">✓</div>
           <h2 className="text-lg font-semibold text-[var(--fg-1)]">Account Created!</h2>
           <p className="mt-2 text-sm text-[var(--fg-2)]">
-            Check your email to confirm your account, then you can sign in.
+            Check your email to confirm your account. Taking you to your journey...
           </p>
           <p className="mt-2 text-xs text-[var(--fg-3)]">Redirecting...</p>
         </div>
@@ -155,7 +155,7 @@ export default function InvitePage() {
             Welcome, {person?.name}!
           </h2>
           <p className="mb-4 text-sm text-[var(--fg-2)]">
-            Set up your account to access your coaching dashboard.
+            Set up your account to track your discipleship journey.
           </p>
 
           {error && (

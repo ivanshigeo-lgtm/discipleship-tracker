@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { useAuth } from '../contexts/AuthContext'
 import ErrorBoundary from '../components/ErrorBoundary'
 import AddPersonForm from '../components/AddPersonForm'
@@ -42,8 +43,19 @@ const uniqueStagesFromFilters = (filters: CircleFilter[]) => {
 }
 
 export default function DiscipleshipTracker() {
+  const router = useRouter()
   const { user, profile, loading, signOut, canEdit, refreshProfile } = useAuth()
   const [refreshKey, setRefreshKey] = useState(0)
+
+  // Check if user is a disciple (not a coach)
+  const isDisciple = profile && !profile.is_admin && profile.current_stage !== 'Empower'
+
+  // Redirect disciples to their journey page
+  useEffect(() => {
+    if (isDisciple) {
+      router.replace('/my-journey')
+    }
+  }, [isDisciple, router])
   const [circleFilters, setCircleFilters] = useState<CircleFilter[]>([])
   const [circleView, setCircleView] = useState<ViewMode>('pipeline')
   const [circleSort, setCircleSort] = useState<CircleSort>('4e')
@@ -53,17 +65,29 @@ export default function DiscipleshipTracker() {
   const [mobileTab, setMobileTab] = useState<MobileTab>('home')
   const [journeyExpanded, setJourneyExpanded] = useState(false)
   const [dashboardMode, setDashboardMode] = useState<DashboardMode>('focus')
+  const [profileLoading, setProfileLoading] = useState(true)
 
   // Handle return from Google Calendar OAuth
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     if (params.get('gcal') === 'connected') {
-      // Clean up URL and refresh profile
       window.history.replaceState({}, '', '/')
       refreshProfile()
       setRefreshKey(prev => prev + 1)
     }
   }, [refreshProfile])
+
+  // Profile loading timeout
+  useEffect(() => {
+    if (profile) {
+      setProfileLoading(false)
+    } else if (user && !loading) {
+      const timeout = setTimeout(() => setProfileLoading(false), 8000)
+      return () => clearTimeout(timeout)
+    } else if (!loading) {
+      setProfileLoading(false)
+    }
+  }, [profile, user, loading])
 
   if (loading) {
     return (
@@ -77,6 +101,15 @@ export default function DiscipleshipTracker() {
     return <LoginPage />
   }
 
+  if (!profile && profileLoading) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-2 p-4">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--gbm-cobalt-bright)] border-t-transparent" />
+        <p className="text-[var(--fg-2)]">Loading your data...</p>
+      </div>
+    )
+  }
+
   if (!profile) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-4">
@@ -87,8 +120,8 @@ export default function DiscipleshipTracker() {
           <button
             type="button"
             onClick={() => {
+              setProfileLoading(true)
               refreshProfile()
-              setRefreshKey(prev => prev + 1)
             }}
             className="rounded-lg bg-[var(--gbm-cobalt-bright)] px-4 py-2 font-semibold text-white"
           >
@@ -102,6 +135,15 @@ export default function DiscipleshipTracker() {
             Refresh Page
           </button>
         </div>
+      </div>
+    )
+  }
+
+  // Block disciples from seeing coach dashboard - show loading while redirecting
+  if (isDisciple) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[var(--void)]">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--gbm-cobalt-bright)] border-t-transparent" />
       </div>
     )
   }

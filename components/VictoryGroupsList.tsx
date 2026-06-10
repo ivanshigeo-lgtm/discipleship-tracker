@@ -187,11 +187,20 @@ export default function VictoryGroupsList({
   }
 
   const handleEdit = (group: VictoryGroup) => {
+    // Exit attendance mode if active
+    if (attendanceGroupId === group.id) {
+      setAttendanceGroupId(null)
+      setDraftAttendance({})
+      setAttendanceMessage('')
+    }
+    // Open the edit form
     setEditingGroupId(group.id)
     setName(group.name)
     setMeetingDay(group.meeting_day ?? '')
     setMeetingTime(group.meeting_time ?? '')
     setShowForm(true)
+    // Make sure the group stays open to show members
+    setOpenGroupId(group.id)
   }
 
   const handleAssignPerson = async (groupId: string, personId: string) => {

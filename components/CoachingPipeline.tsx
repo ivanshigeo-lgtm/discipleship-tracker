@@ -243,13 +243,10 @@ export default function CoachingPipeline({
   const loadData = async () => {
     setLoading(true)
     try {
-      const [peopleResult, engagementsResult, prayerResult] = await Promise.race([
-        Promise.all([
-          getPeople(),
-          getAllEngagements(),
-          getAllPrayerRequests(),
-        ]),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000))
+      const [peopleResult, engagementsResult, prayerResult] = await Promise.all([
+        getPeople(),
+        getAllEngagements(),
+        getAllPrayerRequests(),
       ])
 
       if (peopleResult.data) setPeople(peopleResult.data as Person[])
@@ -309,13 +306,16 @@ export default function CoachingPipeline({
   }
 
   const handlePriorityToggle = async (person: Person) => {
-    const { error } = await updatePerson(person.id, { priority: !person.priority })
+    const newPriority = !person.priority
+    // Optimistic update - update local state immediately
+    setPeople(prev => prev.map(p => p.id === person.id ? { ...p, priority: newPriority } : p))
+
+    const { error } = await updatePerson(person.id, { priority: newPriority })
     if (error) {
       console.error('Priority toggle error:', error)
-      return
+      // Revert on error
+      setPeople(prev => prev.map(p => p.id === person.id ? { ...p, priority: !newPriority } : p))
     }
-    await loadData()
-    onChanged?.()
   }
 
   if (loading) {

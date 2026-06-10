@@ -66,7 +66,7 @@ function ModalSectionCard({
 }
 
 export default function PersonProfileModal({ person, initialTab = 'profile', onClose, onSaved, onDeleted, onPersonCreated }: PersonProfileModalProps) {
-  const { canEdit: checkCanEdit } = useAuth()
+  const { canEdit: checkCanEdit, profile } = useAuth()
   const [savedPerson, setSavedPerson] = useState(person)
   const [name, setName] = useState(person.name)
   const [email, setEmail] = useState(person.email ?? '')
@@ -87,7 +87,7 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
 
   const stageColor = STAGE_COLORS[currentStage]
   const canEdit = checkCanEdit(person.id)
-  const canInvite = (currentStage === 'Equip' || currentStage === 'Empower') && !person.auth_user_id
+  const canInvite = !person.auth_user_id
 
   const copyInviteLink = () => {
     const link = `${window.location.origin}/invite/${person.id}`
@@ -287,7 +287,7 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
 
           {canEdit && canInvite && (
             <div className="mt-3 flex items-center gap-2 rounded-lg bg-[rgba(91,141,247,.1)] px-3 py-2">
-              <span className="text-xs text-[var(--fg-2)]">Invite to manage their own dashboard:</span>
+              <span className="text-xs text-[var(--fg-2)]">Invite to track their journey:</span>
               <button
                 type="button"
                 onClick={copyInviteLink}
@@ -295,6 +295,11 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
               >
                 {inviteCopied ? 'Copied!' : 'Copy Invite Link'}
               </button>
+            </div>
+          )}
+          {person.auth_user_id && (
+            <div className="mt-3 flex items-center gap-2 rounded-lg bg-[rgba(54,214,195,.1)] px-3 py-2">
+              <span className="text-xs text-[var(--establish)]">✓ Has account — tracking their own journey</span>
             </div>
           )}
         </div>
@@ -517,6 +522,8 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
               <div className="space-y-3">
                 <NextStepsList
                   personId={savedPerson.id}
+                  personName={savedPerson.name}
+                  coachPersonId={profile?.id}
                   refreshKey={refreshKey}
                   onUpdate={() => setRefreshKey(key => key + 1)}
                 />

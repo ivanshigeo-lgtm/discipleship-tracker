@@ -8,6 +8,8 @@ import type {
   StageChecklistItem,
   GroupAttendance,
   DiscipleshipConnection,
+  SoapJournal,
+  InviteToken,
 } from '../types/database'
 
 // ==================== PEOPLE ====================
@@ -536,4 +538,154 @@ export const deleteDiscipleshipConnection = async (id: string) => {
   }
 
   return { data, error: null }
+}
+
+// ==================== SOAP JOURNALS ====================
+export const getSoapJournals = async (personId: string, limit?: number) => {
+  let query = supabase
+    .from('soap_journals')
+    .select('*')
+    .eq('person_id', personId)
+    .order('journal_date', { ascending: false })
+
+  if (limit) {
+    query = query.limit(limit)
+  }
+
+  const { data, error } = await query
+  return { data, error }
+}
+
+export const getSoapJournalByDate = async (personId: string, date: string) => {
+  const { data, error } = await supabase
+    .from('soap_journals')
+    .select('*')
+    .eq('person_id', personId)
+    .eq('journal_date', date)
+    .maybeSingle()
+  return { data, error }
+}
+
+export const addSoapJournal = async (
+  journal: Omit<SoapJournal, 'id' | 'created_at' | 'updated_at'>
+) => {
+  const { data, error } = await supabase
+    .from('soap_journals')
+    .insert({ ...journal, updated_at: new Date().toISOString() })
+    .select()
+    .single()
+  return { data, error }
+}
+
+export const updateSoapJournal = async (
+  id: string,
+  updates: Partial<Omit<SoapJournal, 'id' | 'person_id' | 'created_at' | 'updated_at'>>
+) => {
+  const { data, error } = await supabase
+    .from('soap_journals')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single()
+  return { data, error }
+}
+
+export const getSoapStreak = async (personId: string) => {
+  const { data, error } = await supabase
+    .from('soap_journals')
+    .select('journal_date')
+    .eq('person_id', personId)
+    .order('journal_date', { ascending: false })
+    .limit(60)
+
+  if (error || !data) return { streak: 0, error }
+
+  let streak = 0
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  for (let i = 0; i < data.length; i++) {
+    const journalDate = new Date(data[i].journal_date)
+    journalDate.setHours(0, 0, 0, 0)
+
+    const expectedDate = new Date(today)
+    expectedDate.setDate(today.getDate() - i)
+
+    if (journalDate.getTime() === expectedDate.getTime()) {
+      streak++
+    } else if (i === 0 && journalDate.getTime() === expectedDate.getTime() - 86400000) {
+      continue
+    } else {
+      break
+    }
+  }
+
+  return { streak, error: null }
+}
+
+// ==================== INVITE TOKENS ====================
+export const createInviteToken = async (personId: string) => {
+  const token = crypto.randomUUID()
+  const expiresAt = new Date()
+  expiresAt.setDate(expiresAt.getDate() + 7)
+
+  const { data, error } = await supabase
+    .from('invite_tokens')
+    .insert({
+      person_id: personId,
+      token,
+      expires_at: expiresAt.toISOString(),
+    })
+    .select()
+    .single()
+  return { data, error }
+}
+
+export const getInviteToken = async (token: string) => {
+  const { data, error } = await supabase
+    .from('invite_tokens')
+    .select('*, people(*)')
+    .eq('token', token)
+    .is('used_at', null)
+    .gt('expires_at', new Date().toISOString())
+    .maybeSingle()
+  return { data, error }
+}
+
+export const markInviteTokenUsed = async (token: string) => {
+  const { data, error } = await supabase
+    .from('invite_tokens')
+    .update({ used_at: new Date().toISOString() })
+    .eq('token', token)
+    .select()
+    .single()
+  return { data, error }
+}
+
+export const linkAuthUserToPerson = async (personId: string, authUserId: string) => {
+  const { data, error } = await supabase
+    .from('people')
+    .update({ auth_user_id: authUserId, updated_at: new Date().toISOString() })
+    .eq('id', personId)
+    .select()
+    .single()
+  return { data, error }
+}
+
+// ==================== DISCIPLE JOURNEY HELPERS ====================
+export const getMyCoach = async (personId: string) => {
+  const { data, error } = await supabase
+    .from('discipleship_connections')
+    .select('*, discipler:people!discipler_person_id(*)')
+    .eq('disciple_person_id', personId)
+    .maybeSingle()
+  return { data, error }
+}
+
+export const getMyGroups = async (personId: string) => {
+  const { data, error } = await supabase
+    .from('person_victory_groups')
+    .select('*, victory_groups(*)')
+    .eq('person_id', personId)
+  return { data, error }
 }
