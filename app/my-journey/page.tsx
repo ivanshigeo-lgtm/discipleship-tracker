@@ -22,6 +22,7 @@ import SoapEntryModal from '../../components/journey/SoapEntryModal'
 import TestimonyModal from '../../components/journey/TestimonyModal'
 import CommunityLights from '../../components/journey/CommunityLights'
 import ConstellationRail, { ConstellationFeedInline, useConstellationFeed } from '../../components/journey/ConstellationRail'
+import StoryMusic from '../../components/journey/StoryMusic'
 
 const INTRO_KEY = 'journey_intro_seen'
 
@@ -262,6 +263,7 @@ export default function MyJourneyPage() {
         <Starfield count={70} seed={21} />
       </div>
 
+      <StoryMusic active={Boolean(showIntro || showTour)} />
       {showIntro && <JourneyIntro personId={profile.id} name={profile.name} onDone={dismissIntro} />}
       {showTour && (
         <JourneyTour realProgress={ringProgress} realColor={currentLevel?.color ?? '#FBF6EC'} onDone={dismissTour} />
