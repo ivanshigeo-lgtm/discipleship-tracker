@@ -199,3 +199,93 @@ body {
   background: var(--indigo);
   color: var(--fg-1);
 }
+
+/* ---------- My Journey ---------- */
+
+/* ambient star dot */
+.jy-star {
+  position: absolute;
+  display: block;
+  border-radius: 50%;
+  background: #fbf6ec;
+  opacity: var(--o, 0.4);
+  animation: jy-twinkle var(--d, 3s) ease-in-out infinite;
+}
+
+@keyframes jy-twinkle {
+  0%, 100% { opacity: var(--o, 0.4); }
+  50% { opacity: calc(var(--o, 0.4) * 0.3); }
+}
+
+/* slow breathing glow for star cores & celebration stars */
+.jy-breathe {
+  animation: jy-breathe 3.6s ease-in-out infinite;
+}
+@keyframes jy-breathe {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(0.96); opacity: 0.85; }
+}
+
+/* constellation lines drawing themselves */
+.jy-line-draw {
+  stroke-dasharray: 60;
+  stroke-dashoffset: 60;
+  animation: jy-line-draw 1.4s var(--ease-soft) forwards;
+}
+@keyframes jy-line-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+.jy-twinkle-svg {
+  animation: jy-svg-twinkle 2.8s ease-in-out infinite;
+}
+@keyframes jy-svg-twinkle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+/* the star arriving (intro movement 4 / celebrations) */
+.jy-star-arrive {
+  animation: jy-star-arrive 2.4s var(--ease-soft) both;
+}
+@keyframes jy-star-arrive {
+  0% { transform: scale(0.2); opacity: 0; }
+  60% { transform: scale(1.06); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* gentle rise-in for celebration cards */
+.jy-rise-in {
+  animation: jy-rise-in 0.5s var(--ease-soft) both;
+}
+@keyframes jy-rise-in {
+  from { transform: translateY(14px) scale(0.97); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+/* margin rails: slow upward drift, faded at the edges */
+.jy-rail-mask {
+  mask-image: linear-gradient(to bottom, transparent, black 12%, black 88%, transparent);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, black 12%, black 88%, transparent);
+}
+.jy-rail-drift {
+  animation: jy-drift var(--drift-d, 90s) linear infinite;
+}
+@keyframes jy-drift {
+  from { transform: translateY(0); }
+  to { transform: translateY(-50%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jy-star,
+  .jy-breathe,
+  .jy-twinkle-svg,
+  .jy-rail-drift {
+    animation: none;
+  }
+  .jy-line-draw,
+  .jy-star-arrive,
+  .jy-rise-in {
+    animation-duration: 0.01s;
+  }
+}

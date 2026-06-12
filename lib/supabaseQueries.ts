@@ -10,6 +10,7 @@ import type {
   DiscipleshipConnection,
   SoapJournal,
   InviteToken,
+  ShareVisibility,
 } from '../types/database'
 
 // ==================== PEOPLE ====================
@@ -29,7 +30,7 @@ export const getPeople = async (stage?: Stage | Stage[]) => {
   return { data, error }
 }
 
-export const addPerson = async (person: Omit<Person, 'id' | 'created_at' | 'updated_at' | 'auth_user_id' | 'is_admin'>) => {
+export const addPerson = async (person: Omit<Person, 'id' | 'created_at' | 'updated_at' | 'auth_user_id' | 'is_admin' | 'testimony_text' | 'testimony_video_url'>) => {
   const { data, error } = await supabase
     .from('people')
     .insert({ ...person, auth_user_id: null, is_admin: false, updated_at: new Date().toISOString() })
@@ -174,7 +175,10 @@ export const getAllPrayerRequests = async () => {
   return { data, error }
 }
 
-export const addPrayerRequest = async (request: Omit<PrayerRequest, 'id' | 'created_at' | 'updated_at'>) => {
+export const addPrayerRequest = async (
+  request: Omit<PrayerRequest, 'id' | 'created_at' | 'updated_at' | 'visibility' | 'is_praise'> &
+    Partial<Pick<PrayerRequest, 'visibility' | 'is_praise'>>
+) => {
   const { data, error } = await supabase
     .from('prayer_requests')
     .insert({ ...request, updated_at: new Date().toISOString() })
@@ -687,5 +691,70 @@ export const getMyGroups = async (personId: string) => {
     .from('person_victory_groups')
     .select('*, victory_groups(*)')
     .eq('person_id', personId)
+  return { data, error }
+}
+
+// ==================== MY JOURNEY ====================
+export const getSharedSoaps = async (limit = 12) => {
+  const { data, error } = await supabase
+    .from('soap_journals')
+    .select('id, journal_date, scripture_reference, ocr_text, summary, visibility, created_at, people(name)')
+    .eq('visibility', 'constellation')
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  return { data, error }
+}
+
+export const getSharedPraises = async (limit = 12) => {
+  const { data, error } = await supabase
+    .from('prayer_requests')
+    .select('id, request, is_praise, status, created_at, people(name)')
+    .eq('visibility', 'constellation')
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  return { data, error }
+}
+
+export const addJourneyPrayerRequest = async (
+  personId: string,
+  request: string,
+  visibility: ShareVisibility,
+  isPraise: boolean
+) => {
+  const { data, error } = await supabase
+    .from('prayer_requests')
+    .insert({
+      person_id: personId,
+      request,
+      status: 'Active',
+      visibility,
+      is_praise: isPraise,
+      updated_at: new Date().toISOString(),
+    })
+    .select()
+    .single()
+  return { data, error }
+}
+
+export const getSoapLeaderboard = async () => {
+  const { data, error } = await supabase.rpc('soap_leaderboard')
+  return { data, error }
+}
+
+export const getAttendanceLeaderboard = async () => {
+  const { data, error } = await supabase.rpc('attendance_leaderboard')
+  return { data, error }
+}
+
+export const saveTestimony = async (
+  personId: string,
+  updates: { testimony_text?: string | null; testimony_video_url?: string | null }
+) => {
+  const { data, error } = await supabase
+    .from('people')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', personId)
+    .select()
+    .maybeSingle()
   return { data, error }
 }

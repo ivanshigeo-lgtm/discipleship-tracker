@@ -1,4 +1,5 @@
 export type Stage = 'Engage' | 'Establish' | 'Equip' | 'Empower'
+export type ShareVisibility = 'private' | 'coach' | 'group' | 'constellation'
 export type ChecklistCategory = 'Tool' | 'Action Step'
 export type MeetingType = 'One2One' | 'Making Disciples' | 'Coffee' | 'Church Community' | 'Empowering Leaders'
 
@@ -16,6 +17,8 @@ export type Person = {
   victory_group_id: string | null
   auth_user_id: string | null
   is_admin: boolean
+  testimony_text: string | null
+  testimony_video_url: string | null
   created_at: string
   updated_at: string
 }
@@ -44,6 +47,8 @@ export type PrayerRequest = {
   status: 'Active' | 'Answered'
   answered_date: string | null
   answer_notes: string | null
+  visibility: ShareVisibility
+  is_praise: boolean
   created_at: string
   updated_at: string
 }
@@ -113,6 +118,7 @@ export type SoapJournal = {
   ocr_text: string | null
   scripture_reference: string | null
   summary: string | null
+  visibility: ShareVisibility
   created_at: string
   updated_at: string
 }

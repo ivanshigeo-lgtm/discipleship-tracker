@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import LoginPage from '../../components/LoginPage'
 import {
@@ -9,27 +9,94 @@ import {
   getSoapJournals,
   getSoapStreak,
   getStageChecklistItems,
-  addSoapJournal,
 } from '../../lib/supabaseQueries'
-import { supabase } from '../../lib/supabaseClient'
-import { stageChecklistTemplates } from '../../lib/stageChecklistTemplates'
 import type { SoapJournal, StageChecklistItem, Person, VictoryGroup } from '../../types/database'
-import GoogleCalendarConnect from '../../components/GoogleCalendarConnect'
+import { computeJourney, computeBadges, type JourneyStep } from '../../components/journey/journeyModel'
+import { Starfield, StarBadge } from '../../components/journey/StarPrimitives'
+import JourneyIntro from '../../components/journey/JourneyIntro'
+import LevelPath from '../../components/journey/LevelPath'
+import BadgeCelebration from '../../components/journey/BadgeCelebration'
+import SoapEntryModal from '../../components/journey/SoapEntryModal'
+import TestimonyModal from '../../components/journey/TestimonyModal'
+import CommunityLights from '../../components/journey/CommunityLights'
+import ConstellationRail, { ConstellationFeedInline, useConstellationFeed } from '../../components/journey/ConstellationRail'
 
-type JourneyStep = {
-  id: string
-  title: string
-  description: string
-  unlocked: boolean
-  completed: boolean
-  progress?: number
+const INTRO_KEY = 'journey_intro_seen'
+
+function CoachConnectModal({
+  personId,
+  onClose,
+  onConnected,
+}: {
+  personId: string
+  onClose: () => void
+  onConnected: () => void
+}) {
+  const [code, setCode] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  const connect = async () => {
+    setBusy(true)
+    setError('')
+    try {
+      const res = await fetch('/api/connect-coach', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: code.trim(), discipleId: personId }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'Failed to connect')
+      } else {
+        onConnected()
+        onClose()
+      }
+    } catch {
+      setError('Something went wrong. Please try again.')
+    }
+    setBusy(false)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(6,8,20,.8)] p-4 backdrop-blur-sm">
+      <div className="w-full max-w-sm rounded-[var(--r-xl)] border border-[var(--line-2)] bg-[var(--indigo)] p-6" style={{ boxShadow: 'var(--elev-2)' }}>
+        <div className="cn-label" style={{ color: 'var(--establish)' }}>Establish · get connected</div>
+        <h2 className="mt-1 text-2xl" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>
+          Connect with your coach
+        </h2>
+        <p className="mt-2 text-sm leading-relaxed text-[var(--fg-2)]">
+          Ask your coach for their six-character code. Your stars will be joined in the constellation.
+        </p>
+        <input
+          type="text"
+          value={code}
+          onChange={e => {
+            setCode(e.target.value.toUpperCase())
+            setError('')
+          }}
+          placeholder="ABC123"
+          maxLength={6}
+          className="mt-4 w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-3 py-3 text-center font-mono text-lg uppercase tracking-[.4em] text-[var(--fg-1)] placeholder:tracking-normal placeholder:text-[var(--fg-3)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
+        />
+        {error && <p className="mt-2 text-xs text-[var(--danger)]">{error}</p>}
+        <div className="mt-4 flex gap-2">
+          <button type="button" onClick={onClose} className="cn-btn cn-btn-ghost flex-1">
+            Later
+          </button>
+          <button
+            type="button"
+            onClick={connect}
+            disabled={busy || code.length < 4}
+            className="cn-btn cn-btn-primary flex-1 disabled:opacity-50"
+          >
+            {busy ? 'Connecting…' : 'Connect'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
-
-type WeeklySummary = {
-  summary: string
-  journalCount: number
-  period: string
-} | null
 
 export default function MyJourneyPage() {
   const { user, profile, loading, signOut } = useAuth()
@@ -38,31 +105,21 @@ export default function MyJourneyPage() {
   const [soapJournals, setSoapJournals] = useState<SoapJournal[]>([])
   const [soapStreak, setSoapStreak] = useState(0)
   const [checklistItems, setChecklistItems] = useState<StageChecklistItem[]>([])
-  const [dataLoading, setDataLoading] = useState(true)
-  const [showSoapForm, setShowSoapForm] = useState(false)
-  const [uploading, setUploading] = useState(false)
-  const [processingOcr, setProcessingOcr] = useState(false)
-  const [weeklySummary, setWeeklySummary] = useState<WeeklySummary>(null)
-  const [loadingSummary, setLoadingSummary] = useState(false)
+  const [showIntro, setShowIntro] = useState<boolean | null>(null)
+  const [dataReady, setDataReady] = useState(false)
+  const [activeModal, setActiveModal] = useState<'soap' | 'testimony' | 'coach' | null>(null)
   const [selectedJournal, setSelectedJournal] = useState<SoapJournal | null>(null)
-  const [entryMode, setEntryMode] = useState<'photo' | 'type'>('photo')
-  const [typedScripture, setTypedScripture] = useState('')
-  const [typedEntry, setTypedEntry] = useState('')
-  const [submittingTyped, setSubmittingTyped] = useState(false)
-  const [coachCode, setCoachCode] = useState('')
-  const [connectingCoach, setConnectingCoach] = useState(false)
-  const [coachError, setCoachError] = useState('')
+  const [processingOcr, setProcessingOcr] = useState(false)
+  const [weeklySummary, setWeeklySummary] = useState<{ summary: string; journalCount: number } | null>(null)
+  const [loadingSummary, setLoadingSummary] = useState(false)
+  const feedItems = useConstellationFeed()
 
   useEffect(() => {
-    if (profile?.id) {
-      loadData()
-    }
-  }, [profile?.id])
+    setShowIntro(!localStorage.getItem(INTRO_KEY))
+  }, [])
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!profile?.id) return
-    setDataLoading(true)
-
     const [coachRes, groupsRes, journalsRes, streakRes, checklistRes] = await Promise.all([
       getMyCoach(profile.id),
       getMyGroups(profile.id),
@@ -70,92 +127,52 @@ export default function MyJourneyPage() {
       getSoapStreak(profile.id),
       getStageChecklistItems(profile.id),
     ])
-
-    if (coachRes.data?.discipler) {
-      setCoach(coachRes.data.discipler as Person)
-    }
+    if (coachRes.data?.discipler) setCoach(coachRes.data.discipler as Person)
     if (groupsRes.data) {
       setGroups(groupsRes.data.map((g: { victory_groups: VictoryGroup }) => g.victory_groups).filter(Boolean))
     }
-    if (journalsRes.data) {
-      setSoapJournals(journalsRes.data as SoapJournal[])
-    }
-    if (streakRes.streak !== undefined) {
-      setSoapStreak(streakRes.streak)
-    }
-    if (checklistRes.data) {
-      setChecklistItems(checklistRes.data as StageChecklistItem[])
-    }
+    if (journalsRes.data) setSoapJournals(journalsRes.data as SoapJournal[])
+    if (streakRes.streak !== undefined) setSoapStreak(streakRes.streak)
+    if (checklistRes.data) setChecklistItems(checklistRes.data as StageChecklistItem[])
+    setDataReady(true)
+  }, [profile?.id])
 
-    setDataLoading(false)
+  useEffect(() => {
+    loadData()
+  }, [loadData])
+
+  const journeyData = useMemo(
+    () =>
+      profile
+        ? {
+            profile,
+            coach,
+            groups,
+            soapStreak,
+            soapCount: soapJournals.length,
+            hasSoapToday: soapJournals.some(j => j.journal_date === new Date().toISOString().split('T')[0]),
+            checklist: checklistItems,
+          }
+        : null,
+    [profile, coach, groups, soapStreak, soapJournals, checklistItems]
+  )
+
+  const levels = useMemo(() => (journeyData ? computeJourney(journeyData) : []), [journeyData])
+  const badges = useMemo(() => (journeyData ? computeBadges(journeyData, levels) : []), [journeyData, levels])
+  const earnedBadges = badges.filter(b => b.earned)
+  const ringProgress = levels.map(l => l.progress)
+  const fullCircle = levels[3]?.completed ?? false
+
+  const handleStepAction = (step: JourneyStep) => {
+    if (step.action === 'soap') setActiveModal('soap')
+    else if (step.action === 'testimony') setActiveModal('testimony')
+    else if (step.action === 'coach-code') setActiveModal('coach')
   }
 
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file || !profile?.id) return
-
-    setUploading(true)
-
-    const fileExt = file.name.split('.').pop()
-    const fileName = `${profile.id}/${Date.now()}.${fileExt}`
-
-    const { error: uploadError } = await supabase.storage
-      .from('soap-photos')
-      .upload(fileName, file)
-
-    if (uploadError) {
-      console.error('Upload error:', uploadError)
-      setUploading(false)
-      return
-    }
-
-    const { data: { publicUrl } } = supabase.storage
-      .from('soap-photos')
-      .getPublicUrl(fileName)
-
-    const today = new Date().toISOString().split('T')[0]
-    const { data: newJournal, error } = await addSoapJournal({
-      person_id: profile.id,
-      journal_date: today,
-      photo_url: publicUrl,
-      ocr_text: null,
-      scripture_reference: null,
-      summary: null,
-    })
-
-    setUploading(false)
-    setShowSoapForm(false)
-
-    if (!error) {
-      await loadData()
-    }
-  }
-
-  const handleTypedSubmit = async () => {
-    if (!profile?.id || !typedEntry.trim()) return
-
-    setSubmittingTyped(true)
-    const today = new Date().toISOString().split('T')[0]
-
-    const { error } = await addSoapJournal({
-      person_id: profile.id,
-      journal_date: today,
-      photo_url: null,
-      ocr_text: typedEntry.trim(),
-      scripture_reference: typedScripture.trim() || null,
-      summary: null,
-    })
-
-    setSubmittingTyped(false)
-
-    if (!error) {
-      setShowSoapForm(false)
-      setTypedScripture('')
-      setTypedEntry('')
-      setEntryMode('photo')
-      await loadData()
-    }
-  }
+  const dismissIntro = useCallback(() => {
+    localStorage.setItem(INTRO_KEY, '1')
+    setShowIntro(false)
+  }, [])
 
   const runOcrOnJournal = async (journalId: string) => {
     setProcessingOcr(true)
@@ -167,11 +184,7 @@ export default function MyJourneyPage() {
       })
       const data = await res.json()
       if (data.ocr_text && selectedJournal) {
-        setSelectedJournal({
-          ...selectedJournal,
-          ocr_text: data.ocr_text,
-          scripture_reference: data.scripture_reference,
-        })
+        setSelectedJournal({ ...selectedJournal, ocr_text: data.ocr_text, scripture_reference: data.scripture_reference })
         await loadData()
       }
     } catch (err) {
@@ -190,496 +203,276 @@ export default function MyJourneyPage() {
         body: JSON.stringify({ personId: profile.id, period: 'week' }),
       })
       const data = await res.json()
-      if (data.summary) {
-        setWeeklySummary(data)
-      }
+      if (data.summary) setWeeklySummary(data)
     } catch (err) {
       console.error('Summary error:', err)
     }
     setLoadingSummary(false)
   }
 
-  const handleConnectCoach = async () => {
-    if (!profile?.id || !coachCode.trim()) return
-    setConnectingCoach(true)
-    setCoachError('')
-
-    try {
-      const res = await fetch('/api/connect-coach', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: coachCode.trim(), discipleId: profile.id }),
-      })
-      const data = await res.json()
-
-      if (!res.ok) {
-        setCoachError(data.error || 'Failed to connect')
-      } else {
-        setCoachCode('')
-        await loadData()
-      }
-    } catch (err) {
-      setCoachError('Something went wrong. Please try again.')
-    }
-    setConnectingCoach(false)
-  }
-
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[var(--void)]">
+      <div className="relative flex min-h-screen items-center justify-center bg-[var(--void)]">
+        <Starfield count={40} seed={3} />
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--gbm-cobalt-bright)] border-t-transparent" />
       </div>
     )
   }
 
-  if (!user) {
-    return <LoginPage />
-  }
+  if (!user) return <LoginPage />
 
   if (!profile) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[var(--void)] p-4">
+      <div className="relative flex min-h-screen flex-col items-center justify-center gap-4 bg-[var(--void)] p-4">
+        <Starfield count={40} seed={3} />
         <p className="text-[var(--fg-2)]">No profile linked to your account.</p>
         <p className="text-sm text-[var(--fg-3)]">Ask your coach for an invite link.</p>
       </div>
     )
   }
 
-  const isConnected = coach !== null || groups.length > 0
-  const establishChecklist = stageChecklistTemplates['Establish'] || []
-  const completedEstablishItems = checklistItems.filter(
-    (i) => i.stage === 'Establish' && i.completed
-  ).length
-  const establishProgress = establishChecklist.length > 0
-    ? completedEstablishItems / establishChecklist.length
-    : 0
-
-  const hasSoapToday = soapJournals.some(
-    (j) => j.journal_date === new Date().toISOString().split('T')[0]
-  )
-
-  const steps: JourneyStep[] = [
-    {
-      id: 'connect',
-      title: 'Get Connected',
-      description: coach
-        ? `Coached by ${coach.name}`
-        : groups.length > 0
-        ? `In ${groups.map((g) => g.name).join(', ')}`
-        : 'Connect with a coach or join a Grace Group',
-      unlocked: true,
-      completed: isConnected,
-    },
-    {
-      id: 'word',
-      title: 'Establish in the Word',
-      description: `SOAP Journal streak: ${soapStreak} days`,
-      unlocked: isConnected,
-      completed: soapStreak >= 7,
-      progress: Math.min(soapStreak / 7, 1),
-    },
-    {
-      id: 'checklist',
-      title: 'Complete Establish Stage',
-      description: `${completedEstablishItems}/${establishChecklist.length} items completed`,
-      unlocked: isConnected && soapStreak >= 7,
-      completed: establishProgress >= 1,
-      progress: establishProgress,
-    },
-  ]
+  const currentLevel = levels.find(l => l.unlocked && !l.completed) ?? levels[levels.length - 1]
 
   return (
-    <div className="min-h-screen bg-[var(--void)]">
-      {/* Desktop Header - matches Constellations */}
-      <header className="-mb-2 hidden md:block">
-        <div className="mx-auto max-w-6xl p-3 sm:p-6 lg:p-8">
-          <div className="flex items-center">
-            <img
-              src="/gbm-horizontal-lockup-white.png"
-              alt="Grace Bible Maui"
-              className="h-[126px] w-auto shrink-0"
-            />
-            <div className="mx-6 h-14 w-px bg-[var(--line-2)]" />
-            <div className="flex flex-1 items-baseline justify-center gap-2">
-              <h1 className="text-3xl font-semibold text-[var(--fg-1)]" style={{ fontFamily: 'var(--font-display)' }}>
-                My Journey
-              </h1>
-            </div>
-            <div className="mx-6 h-14 w-px bg-[var(--line-2)]" />
-            <div className="flex shrink-0 items-center gap-3">
-              <div className="flex flex-col items-end gap-1">
-                <div className="flex items-center gap-3">
-                  <span className="text-sm text-[var(--fg-2)]">{profile.name}</span>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      await signOut()
-                      window.location.href = '/'
-                    }}
-                    className="cn-chip !text-xs"
-                  >
-                    Sign Out
-                  </button>
-                </div>
-                <GoogleCalendarConnect />
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
+    <div className="relative min-h-screen overflow-x-clip bg-[var(--void)]">
+      {/* cosmic backdrop */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0"
+        style={{
+          background:
+            'radial-gradient(120% 80% at 50% 0%, rgba(46,85,230,.14) 0%, rgba(6,8,20,0) 55%), radial-gradient(70% 50% at 80% 90%, rgba(240,114,159,.06) 0%, rgba(6,8,20,0) 60%)',
+        }}
+      />
+      <div className="pointer-events-none fixed inset-0">
+        <Starfield count={70} seed={21} />
+      </div>
 
-      {/* Mobile Header */}
-      <header className="mb-4 flex items-center justify-between p-3 md:hidden">
-        <img
-          src="/gbm-horizontal-lockup-white.png"
-          alt="Grace Bible Maui"
-          className="h-12 w-auto"
-        />
-        <div className="flex items-center gap-2">
-          <div className="text-right">
-            <h1 className="text-lg font-semibold text-[var(--fg-1)]" style={{ fontFamily: 'var(--font-display)' }}>
-              My Journey
-            </h1>
-            <span className="text-[10px] text-[var(--fg-3)]">{profile.name}</span>
-          </div>
+      {showIntro && <JourneyIntro name={profile.name} onDone={dismissIntro} />}
+      {showIntro === false && <BadgeCelebration badges={badges} ready={dataReady} />}
+
+      <ConstellationRail items={feedItems} />
+
+      {/* header */}
+      <header className="relative z-10 flex items-center justify-between px-4 py-3 sm:px-6">
+        <img src="/gbm-horizontal-lockup-white.png" alt="Grace Bible Maui" className="h-10 w-auto sm:h-14" />
+        <div className="flex items-center gap-3">
+          <span className="hidden text-sm text-[var(--fg-2)] sm:block">{profile.name}</span>
           <button
             type="button"
             onClick={async () => {
               await signOut()
               window.location.href = '/'
             }}
-            className="rounded-full border border-[var(--line-2)] px-2 py-1 text-[10px] text-[var(--fg-3)]"
+            className="cn-chip !text-xs"
           >
-            Sign Out
+            Sign out
           </button>
         </div>
       </header>
 
-      <div className="mx-auto max-w-lg p-3 sm:p-6 md:max-w-2xl lg:p-8">
-
-        <div className="space-y-4">
-          {steps.map((step, index) => (
-            <div
-              key={step.id}
-              className={`rounded-xl border p-4 transition-all ${
-                step.unlocked
-                  ? step.completed
-                    ? 'border-[var(--establish)] bg-[rgba(54,214,195,0.1)]'
-                    : 'border-[var(--line-2)] bg-[var(--indigo)]'
-                  : 'border-[var(--line-1)] bg-[var(--indigo-2)] opacity-50'
-              }`}
-            >
-              <div className="flex items-start gap-3">
-                <div
-                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
-                    step.completed
-                      ? 'bg-[var(--establish)] text-[var(--void)]'
-                      : step.unlocked
-                      ? 'bg-[var(--gbm-cobalt-bright)] text-white'
-                      : 'bg-[var(--line-2)] text-[var(--fg-3)]'
-                  }`}
-                >
-                  {step.completed ? '✓' : index + 1}
-                </div>
-
-                <div className="flex-1">
-                  <h3 className="font-semibold text-[var(--fg-1)]">{step.title}</h3>
-                  <p className="text-sm text-[var(--fg-2)]">{step.description}</p>
-
-                  {step.progress !== undefined && step.unlocked && !step.completed && (
-                    <div className="mt-2">
-                      <div className="h-2 overflow-hidden rounded-full bg-[var(--line-2)]">
-                        <div
-                          className="h-full rounded-full bg-[var(--establish)] transition-all"
-                          style={{ width: `${step.progress * 100}%` }}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {step.id === 'connect' && !step.completed && (
-                    <div className="mt-4">
-                      <label className="mb-2 block text-xs font-medium text-[var(--fg-3)]">
-                        Enter your coach's code to connect
-                      </label>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={coachCode}
-                          onChange={(e) => {
-                            setCoachCode(e.target.value.toUpperCase())
-                            setCoachError('')
-                          }}
-                          placeholder="e.g. ABC123"
-                          maxLength={6}
-                          className="flex-1 rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-3 py-2 text-center text-sm font-mono tracking-widest text-[var(--fg-1)] uppercase placeholder:text-[var(--fg-3)] placeholder:tracking-normal focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleConnectCoach}
-                          disabled={connectingCoach || coachCode.length < 4}
-                          className="rounded-lg bg-[var(--gbm-cobalt-bright)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                        >
-                          {connectingCoach ? 'Connecting...' : 'Connect'}
-                        </button>
-                      </div>
-                      {coachError && (
-                        <p className="mt-2 text-xs text-[var(--danger)]">{coachError}</p>
-                      )}
-                      <p className="mt-2 text-xs text-[var(--fg-3)]">
-                        Ask your coach for their 6-character code
-                      </p>
-                    </div>
-                  )}
-
-                  {step.id === 'word' && step.unlocked && !hasSoapToday && (
-                    <button
-                      type="button"
-                      onClick={() => setShowSoapForm(true)}
-                      className="mt-3 rounded-lg bg-[var(--gbm-cobalt-bright)] px-4 py-2 text-sm font-semibold text-white"
-                    >
-                      + Add Today's SOAP
-                    </button>
-                  )}
-
-                  {step.id === 'word' && hasSoapToday && (
-                    <p className="mt-2 text-xs text-[var(--establish)]">
-                      ✓ SOAP completed today
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {showSoapForm && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-            <div className="w-full max-w-sm rounded-xl bg-[var(--indigo)] p-4">
-              <h2 className="mb-4 text-lg font-semibold text-[var(--fg-1)]">
-                Add SOAP Entry
-              </h2>
-
-              <div className="mb-4 flex rounded-lg bg-[var(--indigo-2)] p-1">
-                <button
-                  type="button"
-                  onClick={() => setEntryMode('photo')}
-                  className={`flex-1 rounded-md py-2 text-sm font-medium transition-colors ${
-                    entryMode === 'photo'
-                      ? 'bg-[var(--gbm-cobalt-bright)] text-white'
-                      : 'text-[var(--fg-2)]'
-                  }`}
-                >
-                  Photo
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEntryMode('type')}
-                  className={`flex-1 rounded-md py-2 text-sm font-medium transition-colors ${
-                    entryMode === 'type'
-                      ? 'bg-[var(--gbm-cobalt-bright)] text-white'
-                      : 'text-[var(--fg-2)]'
-                  }`}
-                >
-                  Type
-                </button>
-              </div>
-
-              {entryMode === 'photo' ? (
-                <>
-                  <p className="mb-4 text-sm text-[var(--fg-2)]">
-                    Take a photo of your handwritten SOAP journal.
-                  </p>
-                  <label className="block">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      onChange={handlePhotoUpload}
-                      disabled={uploading}
-                      className="hidden"
-                    />
-                    <div className="flex cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-[var(--line-2)] p-8 text-center transition-colors hover:border-[var(--gbm-cobalt-bright)]">
-                      {uploading ? (
-                        <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--gbm-cobalt-bright)] border-t-transparent" />
-                      ) : (
-                        <span className="text-[var(--fg-2)]">Tap to take photo</span>
-                      )}
-                    </div>
-                  </label>
-                </>
-              ) : (
-                <div className="space-y-3">
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-[var(--fg-2)]">
-                      Scripture Reference
-                    </label>
-                    <input
-                      type="text"
-                      value={typedScripture}
-                      onChange={(e) => setTypedScripture(e.target.value)}
-                      placeholder="e.g., John 3:16"
-                      className="w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-3 py-2 text-sm text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-[var(--fg-2)]">
-                      SOAP Entry
-                    </label>
-                    <textarea
-                      value={typedEntry}
-                      onChange={(e) => setTypedEntry(e.target.value)}
-                      placeholder="Scripture: What does it say?&#10;Observation: What does it mean?&#10;Application: How does it apply?&#10;Prayer: Your response to God"
-                      rows={6}
-                      className="w-full resize-none rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-3 py-2 text-sm text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleTypedSubmit}
-                    disabled={submittingTyped || !typedEntry.trim()}
-                    className="w-full rounded-lg bg-[var(--gbm-cobalt-bright)] py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-                  >
-                    {submittingTyped ? 'Saving...' : 'Save Entry'}
-                  </button>
-                </div>
-              )}
-
-              <button
-                type="button"
-                onClick={() => {
-                  setShowSoapForm(false)
-                  setEntryMode('photo')
-                  setTypedScripture('')
-                  setTypedEntry('')
-                }}
-                className="mt-4 w-full rounded-lg border border-[var(--line-2)] py-2 text-sm text-[var(--fg-2)]"
+      <main className="relative z-10 mx-auto max-w-xl px-4 pb-20 sm:px-6">
+        {/* hero — your star */}
+        <section className="flex flex-col items-center pt-4 text-center">
+          <div className="cn-label">My journey</div>
+          <div className="relative mt-2">
+            <StarBadge size={250} progress={ringProgress} />
+            {soapStreak > 0 && (
+              <div
+                className="absolute -right-2 top-4 rounded-full border px-2.5 py-1 text-[11px] font-bold"
+                style={{ borderColor: 'rgba(54,214,195,.4)', background: 'rgba(54,214,195,.12)', color: 'var(--establish)' }}
               >
-                Cancel
-              </button>
-            </div>
+                ✦ {soapStreak}d
+              </div>
+            )}
           </div>
+          <h1 className="mt-1 text-3xl sm:text-4xl" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>
+            {profile.name}
+          </h1>
+          <p className="mt-1 text-sm text-[var(--fg-3)]">
+            {fullCircle ? (
+              <span style={{ color: 'var(--empower)' }}>You&rsquo;ve come full circle — light that gives light.</span>
+            ) : (
+              <>
+                Walking through <span style={{ color: currentLevel.color }}>{currentLevel.stage}</span>
+                {coach ? <> with {coach.name}</> : null}
+              </>
+            )}
+          </p>
+
+          {/* today's invitation */}
+          {!journeyData?.hasSoapToday ? (
+            <button type="button" onClick={() => setActiveModal('soap')} className="cn-btn cn-btn-primary mt-4">
+              ✦ Open today&rsquo;s SOAP
+            </button>
+          ) : (
+            <p className="mt-4 text-xs font-semibold" style={{ color: 'var(--establish)' }}>
+              ✦ You&rsquo;ve been in the Word today
+            </p>
+          )}
+        </section>
+
+        {/* full-circle celebration */}
+        {fullCircle && (
+          <section
+            className="mt-8 rounded-[var(--r-xl)] border p-6 text-center"
+            style={{
+              borderColor: 'rgba(240,114,159,.35)',
+              background: 'linear-gradient(180deg, rgba(240,114,159,.10) 0%, rgba(20,27,61,.6) 100%)',
+              boxShadow: '0 0 48px -16px rgba(240,114,159,.5)',
+            }}
+          >
+            <p className="cn-label" style={{ color: 'var(--empower)' }}>Empowered</p>
+            <p className="mt-2 text-xl italic leading-relaxed" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>
+              The light you received is now light you give. New stars are waiting to be lit.
+            </p>
+            <a href="/" className="cn-btn cn-btn-primary mt-4 inline-flex">
+              Open your coach dashboard
+            </a>
+          </section>
         )}
 
-        {soapJournals.length >= 3 && (
-          <div className="mt-8">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-[var(--fg-1)]">Weekly Insight</h2>
-              {!weeklySummary && (
-                <button
-                  type="button"
-                  onClick={fetchWeeklySummary}
-                  disabled={loadingSummary}
-                  className="text-sm text-[var(--gbm-cobalt-bright)]"
+        {/* the path */}
+        <section className="mt-10">
+          <div className="cn-label mb-4">The four E&rsquo;s</div>
+          <LevelPath levels={levels} onStepAction={handleStepAction} />
+        </section>
+
+        {/* lights you carry */}
+        {earnedBadges.length > 0 && (
+          <section className="mt-10">
+            <div className="cn-label mb-3">Lights you carry</div>
+            <div className="flex flex-wrap gap-2">
+              {earnedBadges.map(b => (
+                <span
+                  key={b.id}
+                  title={b.line}
+                  className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold"
+                  style={{ borderColor: `${b.color}44`, background: `${b.color}14`, color: b.color }}
                 >
-                  {loadingSummary ? 'Loading...' : 'Get Summary'}
+                  ✦ {b.title}
+                </span>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* community rhythms */}
+        <section className="mt-10">
+          <CommunityLights myPersonId={profile.id} />
+        </section>
+
+        {/* shared lights inline (small screens) */}
+        <section className="mt-10">
+          <ConstellationFeedInline items={feedItems} />
+        </section>
+
+        {/* weekly insight */}
+        {soapJournals.length >= 3 && (
+          <section className="mt-10">
+            <div className="flex items-center justify-between">
+              <div className="cn-label">Weekly insight</div>
+              {!weeklySummary && (
+                <button type="button" onClick={fetchWeeklySummary} disabled={loadingSummary} className="text-xs font-semibold text-[var(--gbm-cobalt-soft)]">
+                  {loadingSummary ? 'Listening…' : 'Gather this week'}
                 </button>
               )}
             </div>
             {weeklySummary && (
-              <div className="mt-3 rounded-xl border border-[var(--line-2)] bg-[var(--indigo)] p-4">
+              <div className="cn-card mt-3 p-4">
                 <p className="text-sm leading-relaxed text-[var(--fg-2)]">{weeklySummary.summary}</p>
-                <p className="mt-2 text-xs text-[var(--fg-3)]">
-                  Based on {weeklySummary.journalCount} journal entries this week
-                </p>
+                <p className="mt-2 text-xs text-[var(--fg-3)]">From {weeklySummary.journalCount} entries this week</p>
               </div>
             )}
-          </div>
+          </section>
         )}
 
+        {/* recent entries */}
         {soapJournals.length > 0 && (
-          <div className="mt-8">
-            <h2 className="mb-3 text-lg font-semibold text-[var(--fg-1)]">
-              Recent SOAP Entries
-            </h2>
+          <section className="mt-10">
+            <div className="cn-label mb-3">Recent pages</div>
             <div className="grid grid-cols-4 gap-2">
-              {soapJournals.slice(0, 8).map((journal) => (
+              {soapJournals.slice(0, 8).map(journal => (
                 <button
                   type="button"
                   key={journal.id}
                   onClick={() => setSelectedJournal(journal)}
-                  className="aspect-square overflow-hidden rounded-lg bg-[var(--indigo)] transition-transform hover:scale-105"
+                  className="aspect-square overflow-hidden rounded-lg border border-[var(--line-1)] bg-[var(--indigo)] transition-transform hover:scale-105"
                 >
                   {journal.photo_url ? (
-                    <img
-                      src={journal.photo_url}
-                      alt={journal.journal_date}
-                      className="h-full w-full object-cover"
-                    />
+                    <img src={journal.photo_url} alt={journal.journal_date} className="h-full w-full object-cover" />
                   ) : (
-                    <div className="flex h-full items-center justify-center text-xs text-[var(--fg-3)]">
+                    <span className="flex h-full items-center justify-center p-1 text-center text-[10px] text-[var(--fg-3)]">
                       {journal.journal_date}
-                    </div>
+                    </span>
                   )}
                 </button>
               ))}
             </div>
-          </div>
+          </section>
         )}
 
-        {selectedJournal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-            <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl bg-[var(--indigo)] p-4">
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-[var(--fg-1)]">
-                  {selectedJournal.journal_date}
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => setSelectedJournal(null)}
-                  className="text-[var(--fg-3)]"
-                >
-                  ✕
-                </button>
-              </div>
-              {selectedJournal.scripture_reference && (
-                <p className="mb-2 text-sm font-medium text-[var(--establish)]">
-                  {selectedJournal.scripture_reference}
-                </p>
-              )}
-              {selectedJournal.photo_url && (
-                <img
-                  src={selectedJournal.photo_url}
-                  alt="Journal"
-                  className="mb-3 w-full rounded-lg"
-                />
-              )}
-              {selectedJournal.ocr_text ? (
-                <div className="rounded-lg bg-[var(--indigo-2)] p-3">
-                  <p className="whitespace-pre-wrap text-sm text-[var(--fg-2)]">
-                    {selectedJournal.ocr_text}
-                  </p>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => runOcrOnJournal(selectedJournal.id)}
-                  disabled={processingOcr}
-                  className="w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] py-3 text-sm text-[var(--fg-2)] transition-colors hover:border-[var(--gbm-cobalt-bright)]"
-                >
-                  {processingOcr ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--gbm-cobalt-bright)] border-t-transparent" />
-                      Reading...
-                    </span>
-                  ) : (
-                    'Read this entry'
-                  )}
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-
-        <div className="mt-8 text-center">
-          <a
-            href="/"
-            className="text-sm text-[var(--fg-3)] underline"
+        {/* footer */}
+        <footer className="mt-14 flex flex-col items-center gap-2 text-center">
+          <p className="max-w-sm text-xs italic leading-relaxed text-[var(--fg-3)]" style={{ fontFamily: 'var(--font-display)', fontSize: 14 }}>
+            &ldquo;He determines the number of the stars and calls them each by name.&rdquo; — Psalm 147:4
+          </p>
+          <button
+            type="button"
+            onClick={() => setShowIntro(true)}
+            className="text-[11px] text-[var(--fg-3)] underline-offset-2 hover:underline"
           >
-            View Full Dashboard
-          </a>
+            Replay the story
+          </button>
+        </footer>
+      </main>
+
+      {/* modals */}
+      {activeModal === 'soap' && profile && (
+        <SoapEntryModal personId={profile.id} onClose={() => setActiveModal(null)} onSaved={loadData} />
+      )}
+      {activeModal === 'testimony' && profile && (
+        <TestimonyModal profile={profile} onClose={() => setActiveModal(null)} onSaved={loadData} />
+      )}
+      {activeModal === 'coach' && profile && (
+        <CoachConnectModal personId={profile.id} onClose={() => setActiveModal(null)} onConnected={loadData} />
+      )}
+
+      {/* journal viewer */}
+      {selectedJournal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(6,8,20,.8)] p-4 backdrop-blur-sm">
+          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-[var(--r-xl)] border border-[var(--line-2)] bg-[var(--indigo)] p-5">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-xl" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>
+                {selectedJournal.journal_date}
+              </h2>
+              <button type="button" onClick={() => setSelectedJournal(null)} className="text-[var(--fg-3)]">
+                ✕
+              </button>
+            </div>
+            {selectedJournal.scripture_reference && (
+              <p className="mb-2 text-sm font-medium text-[var(--establish)]">{selectedJournal.scripture_reference}</p>
+            )}
+            {selectedJournal.photo_url && (
+              <img src={selectedJournal.photo_url} alt="Journal" className="mb-3 w-full rounded-lg" />
+            )}
+            {selectedJournal.ocr_text ? (
+              <div className="rounded-lg bg-[var(--indigo-2)] p-3">
+                <p className="whitespace-pre-wrap text-sm text-[var(--fg-2)]">{selectedJournal.ocr_text}</p>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => runOcrOnJournal(selectedJournal.id)}
+                disabled={processingOcr}
+                className="w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] py-3 text-sm text-[var(--fg-2)] transition-colors hover:border-[var(--gbm-cobalt-bright)]"
+              >
+                {processingOcr ? 'Reading…' : 'Read this entry'}
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
