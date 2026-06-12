@@ -48,20 +48,27 @@ export function Starfield({ count = 60, seed = 7 }: { count?: number; seed?: num
   )
 }
 
-/* Four-arc progress ring — one arc per E, lit by progress */
+/*
+ * Four-arc progress ring — one arc per E, lit by progress.
+ * Quadrants follow the journey clockwise from the top-left:
+ * Engage TL → Establish TR → Equip BR → Empower BL.
+ * `emphasis` magnifies one quadrant's arc (hovered state).
+ */
 export function StarRing({
   size = 280,
   stroke,
   progress = [1, 0, 0, 0],
   glow = true,
+  emphasis = null,
 }: {
   size?: number
   stroke?: number
   progress?: number[]
   glow?: boolean
+  emphasis?: number | null
 }) {
   const sw = stroke ?? Math.max(2.5, size * 0.028)
-  const R = size / 2 - sw - 4
+  const R = size / 2 - sw - 6
   const C = 2 * Math.PI * R
   const Q = C / 4
   const GAP = Math.max(6, C * 0.024)
@@ -69,27 +76,31 @@ export function StarRing({
   const c = size / 2
 
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ display: 'block' }}>
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ display: 'block', overflow: 'visible' }}>
       {E_ORDER.map((stage, i) => {
         const col = E_COLORS[stage]
-        const rot = -90 + i * 90
+        const rot = -180 + i * 90
         const p = Math.max(0, Math.min(1, progress[i] ?? 0))
         const fill = ARC * p
+        const hot = emphasis === i
+        const dimmed = emphasis !== null && !hot
+        const w = hot ? sw * 1.7 : sw
         return (
-          <g key={stage} transform={`rotate(${rot} ${c} ${c})`}>
+          <g key={stage} transform={`rotate(${rot} ${c} ${c})`} style={{ opacity: dimmed ? 0.45 : 1, transition: 'opacity .35s ease' }}>
             <circle
               cx={c} cy={c} r={R} fill="none"
-              stroke="rgba(246,241,231,.10)" strokeWidth={sw} strokeLinecap="round"
+              stroke={hot ? `${col}33` : 'rgba(246,241,231,.10)'} strokeWidth={w} strokeLinecap="round"
               strokeDasharray={`${ARC} ${C - ARC}`}
+              style={{ transition: 'stroke-width .35s ease, stroke .35s ease' }}
             />
             {p > 0 && (
               <circle
                 cx={c} cy={c} r={R} fill="none"
-                stroke={col} strokeWidth={sw} strokeLinecap="round"
+                stroke={col} strokeWidth={w} strokeLinecap="round"
                 strokeDasharray={`${fill} ${C - fill}`}
                 style={{
-                  filter: `drop-shadow(0 0 ${glow ? 7 : 3}px ${col})`,
-                  transition: 'stroke-dasharray 1.2s cubic-bezier(.22,.61,.36,1)',
+                  filter: `drop-shadow(0 0 ${hot ? 12 : glow ? 7 : 3}px ${col})`,
+                  transition: 'stroke-dasharray 1.2s cubic-bezier(.22,.61,.36,1), stroke-width .35s ease',
                 }}
               />
             )}
@@ -218,17 +229,19 @@ export function StarBadge({
   progress = [1, 0, 0, 0],
   glow = true,
   color = '#FBF6EC',
+  emphasis = null,
 }: {
   size?: number
   progress?: number[]
   glow?: boolean
   color?: string
+  emphasis?: number | null
 }) {
   const matur = progress.reduce((a, b) => a + b, 0) / progress.length
   return (
     <div style={{ position: 'relative', width: size, height: size, display: 'grid', placeItems: 'center' }}>
       <div style={{ position: 'absolute', inset: 0 }}>
-        <StarRing size={size} progress={progress} glow={glow} />
+        <StarRing size={size} progress={progress} glow={glow} emphasis={emphasis} />
       </div>
       <SpikedStar size={size * 0.66} color={color} maturity={matur} pulse />
     </div>

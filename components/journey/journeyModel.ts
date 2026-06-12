@@ -239,6 +239,53 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
   return levels
 }
 
+// ---------- The guided tour (the story the star tells on first visit) ----------
+export type TourStage = {
+  stage: Stage
+  intro: string
+  steps: { title: string; line: string }[]
+}
+
+export const TOUR: TourStage[] = [
+  {
+    stage: 'Engage',
+    intro: 'It began before you knew it. Someone prayed for you, reached out, and walked you here.',
+    steps: [{ title: 'You were engaged', line: 'Your star already has a name.' }],
+  },
+  {
+    stage: 'Establish',
+    intro: 'First, put down roots — in church, in the Word, in the faith.',
+    steps: [
+      { title: 'Connect with a coach', line: 'A companion for the whole road.' },
+      { title: 'Join a Grace Group', line: 'Faith grows in community.' },
+      { title: 'A rhythm in the Word', line: 'SOAP daily, and let the Word shape you.' },
+      { title: 'Confirm your salvation', line: 'Pray, and mark your spiritual birthday.' },
+      { title: 'Be baptized', line: 'Buried and raised with him, filled with the Spirit.' },
+      { title: 'Complete One2One', line: 'The foundations, walked together.' },
+    ],
+  },
+  {
+    stage: 'Equip',
+    intro: 'Then be sharpened — to serve, to lead, and to tell your story.',
+    steps: [
+      { title: 'Complete Making Disciples', line: 'Learn to pass on what you received.' },
+      { title: 'Tell your story', line: 'Two minutes of light for others to find.' },
+      { title: 'Practice sharing the gospel', line: 'Your story, spoken out loud.' },
+      { title: 'Begin serving', line: 'Step into a ministry or mission.' },
+      { title: 'Assist your Grace Group', line: 'Help carry what once carried you.' },
+    ],
+  },
+  {
+    stage: 'Empower',
+    intro: 'And then — the light you received becomes light you give.',
+    steps: [
+      { title: 'Complete Empowering Leaders', line: 'Entrusted to raise up others.' },
+      { title: 'Identify your circle', line: 'Name who God has placed around you.' },
+      { title: 'Lead a Grace Group', line: 'Shepherd a group of your own.' },
+    ],
+  },
+]
+
 // ---------- Badges ----------
 export type Badge = {
   id: string

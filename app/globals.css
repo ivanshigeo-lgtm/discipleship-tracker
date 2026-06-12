@@ -263,6 +263,15 @@ body {
   to { transform: scale(1.12); }
 }
 
+/* quadrant panel popping out of the star, magnified */
+.jy-quad-pop {
+  animation: jy-quad-pop 0.32s var(--ease-soft) both;
+}
+@keyframes jy-quad-pop {
+  from { transform: scale(0.55); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
 /* gentle rise-in for celebration cards */
 .jy-rise-in {
   animation: jy-rise-in 0.5s var(--ease-soft) both;

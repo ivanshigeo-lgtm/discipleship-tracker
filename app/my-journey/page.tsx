@@ -12,9 +12,10 @@ import {
 } from '../../lib/supabaseQueries'
 import type { SoapJournal, StageChecklistItem, Person, VictoryGroup } from '../../types/database'
 import { computeJourney, computeBadges, type JourneyStep } from '../../components/journey/journeyModel'
-import { Starfield, StarBadge } from '../../components/journey/StarPrimitives'
+import { Starfield } from '../../components/journey/StarPrimitives'
 import JourneyIntro from '../../components/journey/JourneyIntro'
-import LevelPath from '../../components/journey/LevelPath'
+import JourneyTour from '../../components/journey/JourneyTour'
+import StarQuadrants from '../../components/journey/StarQuadrants'
 import BadgeCelebration from '../../components/journey/BadgeCelebration'
 import SoapEntryModal from '../../components/journey/SoapEntryModal'
 import TestimonyModal from '../../components/journey/TestimonyModal'
@@ -106,6 +107,7 @@ export default function MyJourneyPage() {
   const [soapStreak, setSoapStreak] = useState(0)
   const [checklistItems, setChecklistItems] = useState<StageChecklistItem[]>([])
   const [showIntro, setShowIntro] = useState<boolean | null>(null)
+  const [showTour, setShowTour] = useState(false)
   const [dataReady, setDataReady] = useState(false)
   const [activeModal, setActiveModal] = useState<'soap' | 'testimony' | 'coach' | null>(null)
   const [selectedJournal, setSelectedJournal] = useState<SoapJournal | null>(null)
@@ -169,9 +171,15 @@ export default function MyJourneyPage() {
     else if (step.action === 'coach-code') setActiveModal('coach')
   }
 
+  // intro hands off to the tour — same star, focus unbroken
   const dismissIntro = useCallback(() => {
-    localStorage.setItem(INTRO_KEY, '1')
     setShowIntro(false)
+    setShowTour(true)
+  }, [])
+
+  const dismissTour = useCallback(() => {
+    localStorage.setItem(INTRO_KEY, '1')
+    setShowTour(false)
   }, [])
 
   const runOcrOnJournal = async (journalId: string) => {
@@ -249,7 +257,10 @@ export default function MyJourneyPage() {
       </div>
 
       {showIntro && <JourneyIntro personId={profile.id} name={profile.name} onDone={dismissIntro} />}
-      {showIntro === false && <BadgeCelebration badges={badges} ready={dataReady} />}
+      {showTour && (
+        <JourneyTour realProgress={ringProgress} realColor={currentLevel?.color ?? '#FBF6EC'} onDone={dismissTour} />
+      )}
+      {showIntro === false && !showTour && <BadgeCelebration badges={badges} ready={dataReady} />}
 
       <ConstellationRail items={feedItems} />
 
@@ -272,23 +283,32 @@ export default function MyJourneyPage() {
       </header>
 
       <main className="relative z-10 mx-auto max-w-xl px-4 pb-20 sm:px-6">
-        {/* hero — your star */}
+        {/* hero — your star IS the interface */}
         <section className="flex flex-col items-center pt-4 text-center">
           <div className="cn-label">My journey</div>
-          <div className="relative mt-2">
-            <StarBadge size={250} progress={ringProgress} color={currentLevel?.color ?? '#FBF6EC'} />
+          <div className="relative z-20 mt-3 w-full">
+            <StarQuadrants
+              levels={levels}
+              color={currentLevel?.color ?? '#FBF6EC'}
+              onStepAction={handleStepAction}
+            />
+          </div>
+          <p className="mt-2 text-[10px] uppercase tracking-[.14em] text-[var(--fg-3)]">
+            Hover or tap a quadrant of your star
+          </p>
+          <div className="mt-3 flex items-center gap-3">
+            <h1 className="text-3xl sm:text-4xl" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>
+              {profile.name}
+            </h1>
             {soapStreak > 0 && (
-              <div
-                className="absolute -right-2 top-4 rounded-full border px-2.5 py-1 text-[11px] font-bold"
+              <span
+                className="rounded-full border px-2.5 py-1 text-[11px] font-bold"
                 style={{ borderColor: 'rgba(54,214,195,.4)', background: 'rgba(54,214,195,.12)', color: 'var(--establish)' }}
               >
                 ✦ {soapStreak}d
-              </div>
+              </span>
             )}
           </div>
-          <h1 className="mt-1 text-3xl sm:text-4xl" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>
-            {profile.name}
-          </h1>
           <p className="mt-1 text-sm text-[var(--fg-3)]">
             {fullCircle ? (
               <span style={{ color: 'var(--empower)' }}>You&rsquo;ve come full circle — light that gives light.</span>
@@ -331,12 +351,6 @@ export default function MyJourneyPage() {
             </a>
           </section>
         )}
-
-        {/* the path */}
-        <section className="mt-10">
-          <div className="cn-label mb-4">The four E&rsquo;s</div>
-          <LevelPath levels={levels} onStepAction={handleStepAction} />
-        </section>
 
         {/* lights you carry */}
         {earnedBadges.length > 0 && (

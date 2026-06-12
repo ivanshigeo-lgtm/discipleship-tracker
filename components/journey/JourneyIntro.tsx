@@ -96,13 +96,14 @@ export default function JourneyIntro({
   if (phase === 'done' || reducedMotion) return null
 
   // Camera flight: keep the disciple's star fixed under the scale (transform-origin
-  // at the star), then slide the whole sky so that point lands at screen center.
+  // at the star), then slide the whole sky so that point lands where the tour's
+  // star takes over (upper-center) — the handoff stays on the same star.
   const ZOOM = 5
   const mapTransform =
     phase === 'yours' && myNode
       ? {
           transformOrigin: `${myNode.x}% ${myNode.y}%`,
-          transform: `translate(${50 - myNode.x}%, ${50 - myNode.y}%) scale(${ZOOM})`,
+          transform: `translate(${50 - myNode.x}%, ${34 - myNode.y}%) scale(${ZOOM})`,
         }
       : { transformOrigin: '50% 50%', transform: 'translate(0%, 0%) scale(1)' }
 
