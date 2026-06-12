@@ -49,6 +49,9 @@ export default function MyJourneyPage() {
   const [typedScripture, setTypedScripture] = useState('')
   const [typedEntry, setTypedEntry] = useState('')
   const [submittingTyped, setSubmittingTyped] = useState(false)
+  const [coachCode, setCoachCode] = useState('')
+  const [connectingCoach, setConnectingCoach] = useState(false)
+  const [coachError, setCoachError] = useState('')
 
   useEffect(() => {
     if (profile?.id) {
@@ -194,6 +197,31 @@ export default function MyJourneyPage() {
       console.error('Summary error:', err)
     }
     setLoadingSummary(false)
+  }
+
+  const handleConnectCoach = async () => {
+    if (!profile?.id || !coachCode.trim()) return
+    setConnectingCoach(true)
+    setCoachError('')
+
+    try {
+      const res = await fetch('/api/connect-coach', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: coachCode.trim(), discipleId: profile.id }),
+      })
+      const data = await res.json()
+
+      if (!res.ok) {
+        setCoachError(data.error || 'Failed to connect')
+      } else {
+        setCoachCode('')
+        await loadData()
+      }
+    } catch (err) {
+      setCoachError('Something went wrong. Please try again.')
+    }
+    setConnectingCoach(false)
   }
 
   if (loading) {
@@ -366,6 +394,41 @@ export default function MyJourneyPage() {
                           style={{ width: `${step.progress * 100}%` }}
                         />
                       </div>
+                    </div>
+                  )}
+
+                  {step.id === 'connect' && !step.completed && (
+                    <div className="mt-4">
+                      <label className="mb-2 block text-xs font-medium text-[var(--fg-3)]">
+                        Enter your coach's code to connect
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={coachCode}
+                          onChange={(e) => {
+                            setCoachCode(e.target.value.toUpperCase())
+                            setCoachError('')
+                          }}
+                          placeholder="e.g. ABC123"
+                          maxLength={6}
+                          className="flex-1 rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-3 py-2 text-center text-sm font-mono tracking-widest text-[var(--fg-1)] uppercase placeholder:text-[var(--fg-3)] placeholder:tracking-normal focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleConnectCoach}
+                          disabled={connectingCoach || coachCode.length < 4}
+                          className="rounded-lg bg-[var(--gbm-cobalt-bright)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                        >
+                          {connectingCoach ? 'Connecting...' : 'Connect'}
+                        </button>
+                      </div>
+                      {coachError && (
+                        <p className="mt-2 text-xs text-[var(--danger)]">{coachError}</p>
+                      )}
+                      <p className="mt-2 text-xs text-[var(--fg-3)]">
+                        Ask your coach for their 6-character code
+                      </p>
                     </div>
                   )}
 

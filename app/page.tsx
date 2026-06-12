@@ -213,7 +213,21 @@ export default function DiscipleshipTracker() {
                     Sign Out
                   </button>
                 </div>
-                <GoogleCalendarConnect />
+                <div className="flex items-center gap-3">
+                  <GoogleCalendarConnect />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const code = profile.id.slice(-6).toUpperCase()
+                      navigator.clipboard.writeText(code)
+                      alert(`Your coach code is: ${code}\n\nCopied to clipboard!`)
+                    }}
+                    className="flex items-center gap-1.5 text-xs text-[var(--fg-3)] hover:text-[var(--fg-2)]"
+                  >
+                    <span className="font-mono">{profile.id.slice(-6).toUpperCase()}</span>
+                    <span className="text-[10px]">📋</span>
+                  </button>
+                </div>
               </div>
             )}
           </div>
