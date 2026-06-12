@@ -5,6 +5,7 @@ import {
   getPeople,
   getAllEngagements,
   getVictoryGroups,
+  updateEngagement,
 } from '../lib/supabaseQueries'
 import type { Person, Stage, Engagement, VictoryGroup } from '../types/database'
 import VictoryGroupsList from './VictoryGroupsList'
@@ -36,9 +37,13 @@ const STAGE_COLORS: Record<Stage, string> = {
 function MeetingCard({
   item,
   onClick,
+  onComplete,
+  completing,
 }: {
   item: MeetingItem
   onClick: () => void
+  onComplete: () => void
+  completing: boolean
 }) {
   const stageColor = STAGE_COLORS[item.person.current_stage]
 
@@ -92,23 +97,42 @@ function MeetingCard({
                 {item.person.current_stage}
               </div>
             </div>
-            <span
-              className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold"
-              style={{
-                background: item.isOverdue
-                  ? 'rgba(242,114,138,.15)'
-                  : item.isToday
-                  ? 'rgba(54,214,195,.15)'
-                  : 'rgba(91,141,247,.15)',
-                color: item.isOverdue
-                  ? '#F2728A'
-                  : item.isToday
-                  ? 'var(--establish)'
-                  : 'var(--equip)',
-              }}
-            >
-              {dateLabel}
-            </span>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <span
+                className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                style={{
+                  background: item.isOverdue
+                    ? 'rgba(242,114,138,.15)'
+                    : item.isToday
+                    ? 'rgba(54,214,195,.15)'
+                    : 'rgba(91,141,247,.15)',
+                  color: item.isOverdue
+                    ? '#F2728A'
+                    : item.isToday
+                    ? 'var(--establish)'
+                    : 'var(--equip)',
+                }}
+              >
+                {dateLabel}
+              </span>
+              <button
+                type="button"
+                title="Mark meeting as done"
+                disabled={completing}
+                onClick={e => {
+                  e.stopPropagation()
+                  onComplete()
+                }}
+                className="flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-bold transition-all hover:scale-110 disabled:opacity-50"
+                style={{
+                  borderColor: 'var(--establish)',
+                  color: 'var(--establish)',
+                  background: 'rgba(54,214,195,.1)',
+                }}
+              >
+                {completing ? '·' : '✓'}
+              </button>
+            </div>
           </div>
 
           <div className="mt-2 flex items-center gap-2">
@@ -156,10 +180,13 @@ export default function NeedAttentionSection({
   const [victoryGroups, setVictoryGroups] = useState<VictoryGroup[]>([])
   const [groupsKey, setGroupsKey] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
+  const [completingId, setCompletingId] = useState<string | null>(null)
 
   const loadData = async () => {
     setLoading(true)
+    setLoadError(false)
     try {
       const [peopleResult, engagementsResult, groupsResult] = await Promise.race([
         Promise.all([
@@ -170,14 +197,39 @@ export default function NeedAttentionSection({
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000))
       ])
 
+      if (peopleResult.error || engagementsResult.error) setLoadError(true)
       if (peopleResult.data) setPeople(peopleResult.data as Person[])
       if (engagementsResult.data) setEngagements(engagementsResult.data as Engagement[])
       if (groupsResult.data) setVictoryGroups(groupsResult.data as VictoryGroup[])
     } catch (err) {
       console.error('NeedAttentionSection load error:', err)
+      setLoadError(true)
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleComplete = async (item: MeetingItem) => {
+    setCompletingId(item.engagement.id)
+    const completedAt = new Date().toISOString()
+    const { error } = await updateEngagement(item.engagement.id, {
+      status: 'Completed',
+      completed_at: completedAt,
+    })
+
+    if (error) {
+      console.error('Failed to complete engagement:', error.message || JSON.stringify(error))
+      alert(`Failed to mark as done: ${error.message || 'Check Supabase RLS policies'}`)
+    } else {
+      setEngagements(current =>
+        current.map(e =>
+          e.id === item.engagement.id
+            ? { ...e, status: 'Completed' as const, completed_at: completedAt }
+            : e
+        )
+      )
+    }
+    setCompletingId(null)
   }
 
   useEffect(() => {
@@ -366,6 +418,8 @@ export default function NeedAttentionSection({
                     key={item.engagement.id}
                     item={item}
                     onClick={() => onPersonClick?.(item.person, 'engagements')}
+                    onComplete={() => handleComplete(item)}
+                    completing={completingId === item.engagement.id}
                   />
                 ))}
               </div>
@@ -375,6 +429,17 @@ export default function NeedAttentionSection({
                 </p>
               )}
             </>
+          ) : loadError ? (
+            <p className="mt-4 text-sm text-[var(--fg-3)]">
+              Couldn&apos;t load meetings.{' '}
+              <button
+                type="button"
+                onClick={loadData}
+                className="font-semibold text-[var(--equip)] hover:underline"
+              >
+                Retry
+              </button>
+            </p>
           ) : (
             <p className="mt-4 text-sm text-[var(--fg-3)]">
               No one-to-one meetings scheduled. Add a follow-up date in someone's profile.
