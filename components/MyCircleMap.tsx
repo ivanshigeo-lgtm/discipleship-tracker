@@ -6,7 +6,7 @@ import type { DiscipleshipConnection, Person, Stage, VictoryGroup } from '../typ
 import { stageLabels } from '../lib/stageLabels'
 import PersonProfileModal from './PersonProfileModal'
 
-type MapNode = Person & {
+export type MapNode = Person & {
   x: number
   y: number
   radius: number
@@ -190,7 +190,7 @@ const segmentIntersects = (
   return ccw(a, c, d) !== ccw(b, c, d) && ccw(a, b, c) !== ccw(a, b, d)
 }
 
-const buildGraphAwareLayout = (people: Person[], connections: DiscipleshipConnection[]): MapNode[] => {
+export const buildGraphAwareLayout = (people: Person[], connections: DiscipleshipConnection[]): MapNode[] => {
   const edges = visibleGraphEdgesFor(people, connections)
   const peopleById = new Map(people.map(person => [person.id, person]))
   const adjacency = new Map<string, Set<string>>()

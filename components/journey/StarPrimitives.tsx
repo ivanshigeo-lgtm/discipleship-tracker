@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useId, useMemo } from 'react'
 import { E_ORDER, E_COLORS } from './journeyModel'
 
 /* Deterministic PRNG so server and client render identical starfields */
@@ -126,15 +126,103 @@ export function StarCore({
   )
 }
 
-/* The hero: ring + core. Core grows brighter and larger with maturity. */
+/*
+ * The 8-point tapered star from the constellation map (MyCircleMap),
+ * parameterized so the same star renders in the intro, the map, and the hero.
+ * `size` is the full spike span; `maturity` (0..1) scales core and glow.
+ */
+export function SpikedStar({
+  size = 200,
+  color = '#FFB040',
+  maturity = 0.6,
+  pulse = false,
+  className,
+}: {
+  size?: number
+  color?: string
+  maturity?: number
+  pulse?: boolean
+  className?: string
+}) {
+  const uid = useId().replace(/[:]/g, '')
+  const c = size / 2
+  const mainSpike = c * (0.62 + 0.3 * maturity)
+  const diagSpike = mainSpike * 0.55
+  const coreSize = size * (0.07 + 0.06 * maturity)
+  const w = Math.max(1.2, size * 0.012)
+  const dirs = [
+    { id: 'up', points: `${c},${c - mainSpike} ${c - w},${c} ${c + w},${c}`, g: [`50%`, `0%`, `50%`, `100%`] },
+    { id: 'down', points: `${c},${c + mainSpike} ${c - w},${c} ${c + w},${c}`, g: [`50%`, `100%`, `50%`, `0%`] },
+    { id: 'left', points: `${c - mainSpike},${c} ${c},${c - w} ${c},${c + w}`, g: [`0%`, `50%`, `100%`, `50%`] },
+    { id: 'right', points: `${c + mainSpike},${c} ${c},${c - w} ${c},${c + w}`, g: [`100%`, `50%`, `0%`, `50%`] },
+  ]
+  const dw = w * 0.6
+  const diag = [
+    [c - diagSpike * 0.707, c - diagSpike * 0.707, c - dw, c + dw, c + dw, c - dw],
+    [c + diagSpike * 0.707, c - diagSpike * 0.707, c - dw, c - dw, c + dw, c + dw],
+    [c - diagSpike * 0.707, c + diagSpike * 0.707, c + dw, c + dw, c - dw, c - dw],
+    [c + diagSpike * 0.707, c + diagSpike * 0.707, c + dw, c - dw, c - dw, c + dw],
+  ]
+
+  return (
+    <div className={`relative ${pulse ? 'jy-breathe' : ''} ${className ?? ''}`} style={{ width: size, height: size }}>
+      {/* halo */}
+      <div
+        className="pointer-events-none absolute left-1/2 top-1/2"
+        style={{
+          width: coreSize * (4 + 3 * maturity),
+          height: coreSize * (4 + 3 * maturity),
+          transform: 'translate(-50%, -50%)',
+          borderRadius: '50%',
+          background: `radial-gradient(circle, ${color}${maturity > 0.7 ? '60' : '45'} 0%, ${color}1d 45%, transparent 70%)`,
+        }}
+      />
+      <svg className="absolute inset-0" width={size} height={size}>
+        <defs>
+          {dirs.map(d => (
+            <linearGradient key={d.id} id={`${uid}-${d.id}`} x1={d.g[0]} y1={d.g[1]} x2={d.g[2]} y2={d.g[3]}>
+              <stop offset="0%" stopColor={color} stopOpacity="0.1" />
+              <stop offset="70%" stopColor={color} stopOpacity="0.8" />
+              <stop offset="100%" stopColor="#FFFFFF" stopOpacity="1" />
+            </linearGradient>
+          ))}
+        </defs>
+        {dirs.map(d => (
+          <polygon key={d.id} points={d.points} fill={`url(#${uid}-${d.id})`} />
+        ))}
+        {diag.map((p, i) => (
+          <polygon key={i} points={`${p[0]},${p[1]} ${p[2]},${p[3]} ${p[4]},${p[5]}`} fill={color} fillOpacity="0.55" />
+        ))}
+      </svg>
+      {/* bright core */}
+      <div
+        className="absolute left-1/2 top-1/2 rounded-full"
+        style={{
+          width: coreSize,
+          height: coreSize,
+          transform: 'translate(-50%, -50%)',
+          background: `radial-gradient(circle at 40% 40%, #FFFFFF 0%, #FFFFFF 30%, ${color} 100%)`,
+          boxShadow: `0 0 ${coreSize * 0.8}px #FFFFFF, 0 0 ${coreSize * 1.5}px ${color}, 0 0 ${coreSize * (2 + 2 * maturity)}px ${color}80`,
+        }}
+      />
+    </div>
+  )
+}
+
+/*
+ * The hero: ring + the person's spiked star. The star grows, brightens,
+ * and carries the color of the stage they're walking through.
+ */
 export function StarBadge({
   size = 280,
   progress = [1, 0, 0, 0],
   glow = true,
+  color = '#FBF6EC',
 }: {
   size?: number
   progress?: number[]
   glow?: boolean
+  color?: string
 }) {
   const matur = progress.reduce((a, b) => a + b, 0) / progress.length
   return (
@@ -142,7 +230,7 @@ export function StarBadge({
       <div style={{ position: 'absolute', inset: 0 }}>
         <StarRing size={size} progress={progress} glow={glow} />
       </div>
-      <StarCore d={size * (0.2 + 0.32 * matur)} bright={0.55 + 0.45 * matur} />
+      <SpikedStar size={size * 0.66} color={color} maturity={matur} pulse />
     </div>
   )
 }

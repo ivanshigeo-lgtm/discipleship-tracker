@@ -248,7 +248,7 @@ export default function MyJourneyPage() {
         <Starfield count={70} seed={21} />
       </div>
 
-      {showIntro && <JourneyIntro name={profile.name} onDone={dismissIntro} />}
+      {showIntro && <JourneyIntro personId={profile.id} name={profile.name} onDone={dismissIntro} />}
       {showIntro === false && <BadgeCelebration badges={badges} ready={dataReady} />}
 
       <ConstellationRail items={feedItems} />
@@ -276,7 +276,7 @@ export default function MyJourneyPage() {
         <section className="flex flex-col items-center pt-4 text-center">
           <div className="cn-label">My journey</div>
           <div className="relative mt-2">
-            <StarBadge size={250} progress={ringProgress} />
+            <StarBadge size={250} progress={ringProgress} color={currentLevel?.color ?? '#FBF6EC'} />
             {soapStreak > 0 && (
               <div
                 className="absolute -right-2 top-4 rounded-full border px-2.5 py-1 text-[11px] font-bold"

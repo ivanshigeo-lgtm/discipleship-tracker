@@ -254,6 +254,15 @@ body {
   100% { transform: scale(1); opacity: 1; }
 }
 
+/* slow push-in on the opening photograph */
+.jy-kenburns {
+  animation: jy-kenburns 7s var(--ease-soft) both;
+}
+@keyframes jy-kenburns {
+  from { transform: scale(1); }
+  to { transform: scale(1.12); }
+}
+
 /* gentle rise-in for celebration cards */
 .jy-rise-in {
   animation: jy-rise-in 0.5s var(--ease-soft) both;
