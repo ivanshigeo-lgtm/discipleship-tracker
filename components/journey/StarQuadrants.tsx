@@ -55,7 +55,7 @@ function StepRow({
       >
         {step.completed ? '✓' : '·'}
       </span>
-      <span className={`min-w-0 flex-1 truncate text-xs font-medium ${step.completed ? 'text-[var(--fg-3)]' : 'text-[var(--fg-1)]'}`}>
+      <span className={`min-w-0 flex-1 truncate text-[13px] font-medium ${step.completed ? 'text-[var(--fg-3)]' : 'text-[var(--fg-1)]'}`}>
         {step.title}
       </span>
       {step.progress > 0 && step.progress < 1 && (
@@ -183,7 +183,7 @@ export default function StarQuadrants({
   const leanMap = ['translate(-3px,-3px)', 'translate(3px,-3px)', 'translate(3px,3px)', 'translate(-3px,3px)']
 
   return (
-    <div ref={containerRef} className="relative mx-auto" style={{ width: 'min(340px, 88vw)', height: 'min(340px, 88vw)' }}>
+    <div ref={containerRef} className="relative mx-auto" style={{ width: 'min(370px, 92vw)', height: 'min(370px, 92vw)' }}>
       {/* the star itself */}
       <div
         id="journey-hero-star"
@@ -203,10 +203,10 @@ export default function StarQuadrants({
           bl: 'left-0 bottom-0',
         }
         const labelPos: Record<string, string> = {
-          tl: 'left-[6%] top-[10%]',
-          tr: 'right-[6%] top-[10%]',
-          br: 'right-[6%] bottom-[10%]',
-          bl: 'left-[6%] bottom-[10%]',
+          tl: 'left-[1%] top-[5%]',
+          tr: 'right-[1%] top-[5%]',
+          br: 'right-[1%] bottom-[5%]',
+          bl: 'left-[1%] bottom-[5%]',
         }
         const isShown = shown === i
         return (
@@ -222,11 +222,11 @@ export default function StarQuadrants({
               onBlur={() => setActive(null)}
             />
             <span
-              className={`pointer-events-none absolute select-none text-[9px] font-bold uppercase tracking-[.14em] transition-all duration-300 ${labelPos[q.corner]}`}
+              className={`pointer-events-none absolute select-none text-[13px] font-bold uppercase tracking-[.16em] transition-all duration-300 sm:text-sm ${labelPos[q.corner]}`}
               style={{
                 color: level?.unlocked ? level.color : 'var(--fg-3)',
-                opacity: isShown ? 1 : 0.45,
-                textShadow: isShown ? `0 0 12px ${level?.color}` : 'none',
+                opacity: isShown ? 1 : 0.75,
+                textShadow: isShown ? `0 0 14px ${level?.color}` : '0 2px 10px rgba(6,8,20,.9)',
               }}
             >
               {q.stage}

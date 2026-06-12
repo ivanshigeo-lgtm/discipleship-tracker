@@ -17,9 +17,9 @@ import { E_COLORS } from './journeyModel'
 type Phase = 'promise' | 'constellation' | 'yours' | 'done'
 
 const PHASE_MS: Record<Exclude<Phase, 'done'>, number> = {
-  promise: 5600,
-  constellation: 5200,
-  yours: 3600,
+  promise: 8200,
+  constellation: 7800,
+  yours: 6000,
 }
 
 const STAGE_GLOW: Record<Stage, string> = {
@@ -152,7 +152,7 @@ export default function JourneyIntro({
       >
         {/* the sky that flies */}
         <div
-          className="absolute inset-0 transition-transform duration-[3200ms]"
+          className="absolute inset-0 transition-transform duration-[4600ms]"
           style={{ ...mapTransform, transitionTimingFunction: 'cubic-bezier(.45,.05,.25,1)' }}
         >
           {/* deep space + nebulas, as on the coach map */}

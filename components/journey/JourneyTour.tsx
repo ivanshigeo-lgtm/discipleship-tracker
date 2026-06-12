@@ -119,23 +119,38 @@ export default function JourneyTour({
 
       {/* the narration */}
       {!settling && (
-        <div key={beatIdx} className="jy-rise-in absolute inset-x-0 top-[58%] flex flex-col items-center px-6 text-center">
-          <span className="cn-label" style={{ color: stageColor }}>
-            {caption.eyebrow}
-          </span>
-          {caption.title && (
-            <div className="mt-2 flex items-center gap-2.5">
-              <span
-                className="flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold"
-                style={{ background: stageColor, color: 'var(--void)', boxShadow: `0 0 12px -1px ${stageColor}` }}
-              >
-                ✓
+        <div key={beatIdx} className="jy-rise-in absolute inset-x-0 top-[56%] flex flex-col items-center px-6 text-center">
+          {caption.title ? (
+            <>
+              {/* step beat: small stage eyebrow, prominent step title */}
+              <span className="cn-label" style={{ color: stageColor }}>
+                {caption.eyebrow}
               </span>
-              <h2 className="text-xl font-semibold text-[var(--fg-1)]">{caption.title}</h2>
-            </div>
+              <div className="mt-2.5 flex items-center gap-3">
+                <span
+                  className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold"
+                  style={{ background: stageColor, color: 'var(--void)', boxShadow: `0 0 14px -1px ${stageColor}` }}
+                >
+                  ✓
+                </span>
+                <h2 className="text-2xl font-semibold text-[var(--fg-1)]">{caption.title}</h2>
+              </div>
+            </>
+          ) : (
+            /* stage beat: the level's name IS the title — let it command the screen */
+            <h2
+              className="text-5xl font-semibold sm:text-6xl"
+              style={{
+                fontFamily: 'var(--font-display)',
+                color: stageColor,
+                textShadow: `0 0 32px ${stageColor}66, 0 2px 18px rgba(6,8,20,.9)`,
+              }}
+            >
+              {caption.eyebrow}
+            </h2>
           )}
           <p
-            className="mt-2 max-w-md text-lg italic leading-relaxed text-[var(--fg-2)]"
+            className="mt-3 max-w-md text-lg italic leading-relaxed text-[var(--fg-2)]"
             style={{ fontFamily: 'var(--font-display)' }}
           >
             {caption.line}

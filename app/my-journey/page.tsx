@@ -271,20 +271,36 @@ export default function MyJourneyPage() {
       <ConstellationRail items={feedItems} />
 
       {/* header */}
-      <header className="relative z-10 flex items-center justify-between px-4 py-3 sm:px-6">
-        <img src="/gbm-horizontal-lockup-white.png" alt="Grace Bible Maui" className="h-10 w-auto sm:h-14" />
-        <div className="flex items-center gap-3">
-          <span className="hidden text-sm text-[var(--fg-2)] sm:block">{profile.name}</span>
-          <button
-            type="button"
-            onClick={async () => {
-              await signOut()
-              window.location.href = '/'
-            }}
-            className="cn-chip !text-xs"
+      <header className="relative z-10 mx-auto max-w-5xl px-4 pb-2 pt-4 sm:px-6 sm:pt-6">
+        <div className="flex items-center gap-4 sm:gap-6">
+          <img
+            src="/gbm-horizontal-lockup-white.png"
+            alt="Grace Bible Maui"
+            className="h-16 w-auto shrink-0 sm:h-24"
+          />
+          <div className="hidden h-12 w-px bg-[var(--line-2)] sm:block" />
+          <h1
+            className="flex-1 text-center text-3xl font-semibold sm:text-4xl"
+            style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}
           >
-            Sign out
-          </button>
+            My Journey
+          </h1>
+          <div className="hidden h-12 w-px bg-[var(--line-2)] sm:block" />
+          <div className="flex shrink-0 flex-col items-end gap-1.5 sm:flex-row sm:items-center sm:gap-3">
+            <span className="max-w-[120px] truncate text-sm font-medium text-[var(--fg-2)] sm:max-w-none sm:text-base">
+              {profile.name}
+            </span>
+            <button
+              type="button"
+              onClick={async () => {
+                await signOut()
+                window.location.href = '/'
+              }}
+              className="cn-chip !text-xs"
+            >
+              Sign out
+            </button>
+          </div>
         </div>
       </header>
 
@@ -299,7 +315,7 @@ export default function MyJourneyPage() {
               onStepAction={handleStepAction}
             />
           </div>
-          <p className="mt-2 text-[10px] uppercase tracking-[.14em] text-[var(--fg-3)]">
+          <p className="mt-3 text-xs uppercase tracking-[.14em] text-[var(--fg-3)]">
             Hover or tap a quadrant of your star
           </p>
           <div className="mt-3 flex items-center gap-3">

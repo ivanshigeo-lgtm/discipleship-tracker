@@ -256,7 +256,7 @@ body {
 
 /* slow push-in on the opening photograph */
 .jy-kenburns {
-  animation: jy-kenburns 7s var(--ease-soft) both;
+  animation: jy-kenburns 10s var(--ease-soft) both;
 }
 @keyframes jy-kenburns {
   from { transform: scale(1); }
