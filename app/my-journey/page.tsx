@@ -307,8 +307,7 @@ export default function MyJourneyPage() {
       <main className="relative z-10 mx-auto max-w-xl px-4 pb-20 sm:px-6">
         {/* hero — your star IS the interface */}
         <section className="flex flex-col items-center pt-4 text-center">
-          <div className="cn-label">My journey</div>
-          <div className="relative z-20 mt-3 w-full">
+          <div className="relative z-20 w-full">
             <StarQuadrants
               levels={levels}
               color={currentLevel?.color ?? '#FBF6EC'}
