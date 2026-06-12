@@ -68,28 +68,31 @@ export default function JourneyTour({
 
   const beat = beats[beatIdx]
 
-  // simulated progress: every step up to the current beat is "complete"
+  // simulated progress: every step up to the current beat is "complete".
+  // TOUR is journey-ordered (Establish→Equip→Empower→Engage); the ring's
+  // quadrants are fixed (E_ORDER), so map by stage name.
   const simProgress = useMemo(() => {
-    const p = [0, 0, 0, 0]
+    const byStage: Record<string, number> = {}
     for (let i = 0; i <= beatIdx && i < beats.length; i++) {
       const b = beats[i]
-      if (b.kind === 'step') p[b.stageIdx] = (b.stepIdx + 1) / TOUR[b.stageIdx].steps.length
-      if (b.kind === 'finale') for (let s = 0; s < 4; s++) p[s] = 1
+      if (b.kind === 'step') byStage[TOUR[b.stageIdx].stage] = (b.stepIdx + 1) / TOUR[b.stageIdx].steps.length
+      if (b.kind === 'finale') TOUR.forEach(t => (byStage[t.stage] = 1))
     }
-    return p
+    return E_ORDER.map(stage => byStage[stage] ?? 0)
   }, [beatIdx, beats])
 
-  const activeStageIdx = beat?.kind === 'finale' ? 3 : beat?.stageIdx ?? 0
-  const stage = E_ORDER[activeStageIdx]
-  const stageColor = E_COLORS[stage]
+  const activeStageIdx = beat?.kind === 'finale' ? TOUR.length - 1 : beat?.stageIdx ?? 0
   const tourStage = TOUR[activeStageIdx]
+  const stage = tourStage.stage
+  const stageColor = E_COLORS[stage]
+  const ringEmphasis = E_ORDER.indexOf(stage)
 
   const caption =
     beat?.kind === 'stage'
       ? { eyebrow: stage, title: '', line: tourStage.intro }
       : beat?.kind === 'step'
       ? { eyebrow: stage, title: tourStage.steps[beat.stepIdx].title, line: tourStage.steps[beat.stepIdx].line }
-      : { eyebrow: 'The journey', title: '', line: 'From engaged to empowering — your star, grown full. It starts today, one step at a time.' }
+      : { eyebrow: 'The journey', title: '', line: 'Rooted, sharpened, entrusted — until you engage someone new and a star is born. It starts today, one step at a time.' }
 
   return (
     <div className="fixed inset-0 z-[100] overflow-hidden bg-[var(--void)]">
@@ -109,7 +112,7 @@ export default function JourneyTour({
             size={300}
             progress={settling ? realProgress : simProgress}
             color={settling ? realColor : stageColor}
-            emphasis={settling ? null : activeStageIdx}
+            emphasis={settling ? null : ringEmphasis}
           />
         </div>
       </div>

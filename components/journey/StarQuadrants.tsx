@@ -2,8 +2,9 @@
 
 import { useState, useRef, useEffect } from 'react'
 import type { JourneyLevel, JourneyStep } from './journeyModel'
-import { UNLOCK_THRESHOLD } from './journeyModel'
+import { UNLOCK_THRESHOLD, JOURNEY_ORDER, ringProgressFromLevels } from './journeyModel'
 import { StarBadge } from './StarPrimitives'
+import type { Stage } from '../../types/database'
 
 /*
  * The star IS the interface. The four E's live in the four quadrants of the
@@ -13,13 +14,15 @@ import { StarBadge } from './StarPrimitives'
  * Progress is told by light: the ring, and the star's size and color.
  */
 
-// quadrant index → corner placement
-const QUADRANT_META = [
-  { corner: 'tl', label: 'Engage' },
-  { corner: 'tr', label: 'Establish' },
-  { corner: 'br', label: 'Equip' },
-  { corner: 'bl', label: 'Empower' },
-] as const
+// quadrant index (ring E_ORDER) → corner placement; the journey itself runs
+// Establish (TR) → Equip (BR) → Empower (BL) → Engage (TL), ending where a
+// new star begins
+const QUADRANT_META: { corner: 'tl' | 'tr' | 'br' | 'bl'; stage: Stage }[] = [
+  { corner: 'tl', stage: 'Engage' },
+  { corner: 'tr', stage: 'Establish' },
+  { corner: 'br', stage: 'Equip' },
+  { corner: 'bl', stage: 'Empower' },
+]
 
 function StepRow({
   step,
@@ -170,7 +173,12 @@ export default function StarQuadrants({
   }, [pinned])
 
   const shown = pinned ?? active
-  const ringProgress = levels.map(l => l.progress)
+  const ringProgress = ringProgressFromLevels(levels)
+  const byStage = (stage: Stage) => levels.find(l => l.stage === stage)
+  const prevOf = (stage: Stage) => {
+    const i = JOURNEY_ORDER.indexOf(stage)
+    return i > 0 ? byStage(JOURNEY_ORDER[i - 1]) : undefined
+  }
   // the star leans gently toward the quadrant being explored
   const leanMap = ['translate(-3px,-3px)', 'translate(3px,-3px)', 'translate(3px,3px)', 'translate(-3px,3px)']
 
@@ -187,7 +195,7 @@ export default function StarQuadrants({
 
       {/* quadrant hit zones + whisper labels */}
       {QUADRANT_META.map((q, i) => {
-        const level = levels[i]
+        const level = byStage(q.stage)
         const zone: Record<string, string> = {
           tl: 'left-0 top-0',
           tr: 'right-0 top-0',
@@ -202,10 +210,10 @@ export default function StarQuadrants({
         }
         const isShown = shown === i
         return (
-          <div key={q.label} className={`absolute h-1/2 w-1/2 ${zone[q.corner]}`}>
+          <div key={q.stage} className={`absolute h-1/2 w-1/2 ${zone[q.corner]}`}>
             <button
               type="button"
-              aria-label={`${q.label} steps`}
+              aria-label={`${q.stage} steps`}
               className="h-full w-full cursor-pointer rounded-full focus:outline-none"
               onMouseEnter={() => setActive(i)}
               onMouseLeave={() => setActive(null)}
@@ -221,17 +229,17 @@ export default function StarQuadrants({
                 textShadow: isShown ? `0 0 12px ${level?.color}` : 'none',
               }}
             >
-              {q.label}
+              {q.stage}
             </span>
           </div>
         )
       })}
 
       {/* the pop-out panel */}
-      {shown !== null && levels[shown] && (
+      {shown !== null && byStage(QUADRANT_META[shown].stage) && (
         <QuadrantPanel
-          level={levels[shown]}
-          prev={shown > 0 ? levels[shown - 1] : undefined}
+          level={byStage(QUADRANT_META[shown].stage)!}
+          prev={prevOf(QUADRANT_META[shown].stage)}
           corner={QUADRANT_META[shown].corner}
           onStepAction={onStepAction}
         />

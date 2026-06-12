@@ -1,6 +1,14 @@
-import type { Person, StageChecklistItem, VictoryGroup, Stage } from '../../types/database'
+import type { Person, StageChecklistItem, VictoryGroup, Stage, DiscipleshipConnection } from '../../types/database'
 
+/* Ring/quadrant positions (TL, TR, BR, BL) — fixed visual placement */
 export const E_ORDER: Stage[] = ['Engage', 'Establish', 'Equip', 'Empower']
+
+/*
+ * The disciple's path through the stages. Engage comes LAST: it is not
+ * something done to you — it's you going out to engage someone new, as you
+ * were once engaged. The journey circles back to where a new star begins.
+ */
+export const JOURNEY_ORDER: Stage[] = ['Establish', 'Equip', 'Empower', 'Engage']
 
 export const E_COLORS: Record<Stage, string> = {
   Engage: '#F4B650',
@@ -17,7 +25,7 @@ export const E_VERSES: Record<Stage, { text: string; ref: string }> = {
 }
 
 export const E_TAGLINES: Record<Stage, string> = {
-  Engage: 'You were sought, and your star was named.',
+  Engage: 'Go — engage someone new, as you were once engaged.',
   Establish: 'Put down roots — in church, in the Word, in the faith.',
   Equip: 'Be sharpened to serve, lead, and tell your story.',
   Empower: 'The light you received becomes light you give.',
@@ -55,6 +63,8 @@ export type JourneyData = {
   soapCount: number
   hasSoapToday: boolean
   checklist: StageChecklistItem[]
+  /* connections where THIS person is the discipler — their own engaging */
+  disciples: DiscipleshipConnection[]
 }
 
 const SOAP_STREAK_TARGET = 7
@@ -68,13 +78,45 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
   const inGroup = d.groups.length > 0
   const hasTestimony = Boolean(d.profile.testimony_text || d.profile.testimony_video_url)
 
+  /*
+   * Engage — the disciple's own engaging, nothing inherited from being
+   * engaged. The Engage checklist a coach marks on this person's profile
+   * records the COACH's work and deliberately does not light this quadrant.
+   * It stays blank until this disciple engages someone new.
+   */
+  const identified = d.disciples.length
+  const started = d.disciples.filter(c => c.status === 'One2One Started' || c.status === 'Actively Discipling').length
+  const discipling = d.disciples.filter(c => c.status === 'Actively Discipling').length
+
   const engage: JourneyStep[] = [
     {
-      id: 'engaged',
-      title: 'You were engaged',
-      detail: 'Someone reached out, prayed for you, and walked you here. This light is already lit.',
-      completed: true,
-      progress: 1,
+      id: 'identify',
+      title: 'Identify someone to engage',
+      detail:
+        identified > 0
+          ? `You're engaging ${identified} ${identified === 1 ? 'person' : 'people'}`
+          : 'Pray and look around — who has God placed near you?',
+      completed: identified > 0,
+      progress: identified > 0 ? 1 : 0,
+      action: 'celebrate',
+    },
+    {
+      id: 'start-one2one',
+      title: 'Begin a One2One',
+      detail: started > 0 ? 'A new journey has begun' : 'Hear their story. Share yours.',
+      completed: started > 0,
+      progress: started > 0 ? 1 : 0,
+      action: 'celebrate',
+    },
+    {
+      id: 'actively-disciple',
+      title: 'Walk with them',
+      detail:
+        discipling > 0
+          ? 'A new star is being lit through you'
+          : 'Disciple them through their own journey.',
+      completed: discipling > 0,
+      progress: discipling > 0 ? 1 : 0,
       action: 'celebrate',
     },
   ]
@@ -219,8 +261,9 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
     Empower: empower,
   }
 
-  let prevProgress = 1 // Engage is pre-lit, Establish always unlocked
-  for (const stage of E_ORDER) {
+  // Walk the disciple's order: Establish → Equip → Empower → Engage.
+  let prevProgress = 1 // Establish is always open — the journey starts there
+  for (const stage of JOURNEY_ORDER) {
     const steps = stepSets[stage]
     const progress = steps.reduce((a, s) => a + s.progress, 0) / steps.length
     const unlocked = prevProgress >= UNLOCK_THRESHOLD
@@ -239,6 +282,15 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
   return levels
 }
 
+/* Map journey-ordered levels onto the ring's fixed quadrant order */
+export function ringProgressFromLevels(levels: JourneyLevel[]): number[] {
+  return E_ORDER.map(stage => levels.find(l => l.stage === stage)?.progress ?? 0)
+}
+
+export function levelByStage(levels: JourneyLevel[], stage: Stage): JourneyLevel | undefined {
+  return levels.find(l => l.stage === stage)
+}
+
 // ---------- The guided tour (the story the star tells on first visit) ----------
 export type TourStage = {
   stage: Stage
@@ -247,11 +299,6 @@ export type TourStage = {
 }
 
 export const TOUR: TourStage[] = [
-  {
-    stage: 'Engage',
-    intro: 'It began before you knew it. Someone prayed for you, reached out, and walked you here.',
-    steps: [{ title: 'You were engaged', line: 'Your star already has a name.' }],
-  },
   {
     stage: 'Establish',
     intro: 'First, put down roots — in church, in the Word, in the faith.',
@@ -277,11 +324,20 @@ export const TOUR: TourStage[] = [
   },
   {
     stage: 'Empower',
-    intro: 'And then — the light you received becomes light you give.',
+    intro: 'Then — the light you received becomes light you give.',
     steps: [
       { title: 'Complete Empowering Leaders', line: 'Entrusted to raise up others.' },
       { title: 'Identify your circle', line: 'Name who God has placed around you.' },
       { title: 'Lead a Grace Group', line: 'Shepherd a group of your own.' },
+    ],
+  },
+  {
+    stage: 'Engage',
+    intro: 'And at last, you go — to engage someone new, just as you were once engaged.',
+    steps: [
+      { title: 'Identify someone to engage', line: 'Pray, look around: who has God placed near you?' },
+      { title: 'Begin a One2One', line: 'Hear their story. Share yours.' },
+      { title: 'Walk with them', line: 'A new star is lit — your light multiplies.' },
     ],
   },
 ]
@@ -298,6 +354,7 @@ export type Badge = {
 export function computeBadges(d: JourneyData, levels: JourneyLevel[]): Badge[] {
   const find = (stage: Stage, id: string) =>
     levels.find(l => l.stage === stage)?.steps.find(s => s.id === id)?.completed ?? false
+  const stageDone = (stage: Stage) => levels.find(l => l.stage === stage)?.completed ?? false
 
   return [
     { id: 'connected', title: 'Connected', line: 'You no longer walk alone.', color: E_COLORS.Establish, earned: find('Establish', 'coach') },
@@ -309,8 +366,10 @@ export function computeBadges(d: JourneyData, levels: JourneyLevel[]): Badge[] {
     { id: 'new-birth', title: 'Born of the Spirit', line: 'Your spiritual birthday is written.', color: E_COLORS.Establish, earned: find('Establish', 'salvation') },
     { id: 'baptized', title: 'Through the waters', line: 'Buried and raised with him.', color: E_COLORS.Establish, earned: find('Establish', 'baptism') },
     { id: 'storyteller', title: 'Storyteller', line: 'Your testimony now shines for all.', color: E_COLORS.Equip, earned: find('Equip', 'testimony') },
-    { id: 'established', title: 'Established', line: 'Rooted — the Establish ring is full.', color: E_COLORS.Establish, earned: levels[1]?.completed ?? false },
-    { id: 'equipped', title: 'Equipped', line: 'Sharpened for service.', color: E_COLORS.Equip, earned: levels[2]?.completed ?? false },
-    { id: 'empowered', title: 'Empowered', line: 'You’ve come full circle — light that gives light.', color: E_COLORS.Empower, earned: levels[3]?.completed ?? false },
+    { id: 'established', title: 'Established', line: 'Rooted — the Establish ring is full.', color: E_COLORS.Establish, earned: stageDone('Establish') },
+    { id: 'equipped', title: 'Equipped', line: 'Sharpened for service.', color: E_COLORS.Equip, earned: stageDone('Equip') },
+    { id: 'empowered', title: 'Empowered', line: 'Entrusted — light ready to be given.', color: E_COLORS.Empower, earned: stageDone('Empower') },
+    { id: 'engager', title: 'A new star', line: 'You engaged someone — your light multiplies.', color: E_COLORS.Engage, earned: d.disciples.length > 0 },
+    { id: 'full-circle', title: 'Full circle', line: 'Engaged to engaging — the journey gives itself away.', color: '#F2C879', earned: stageDone('Engage') },
   ]
 }

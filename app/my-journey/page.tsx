@@ -9,9 +9,10 @@ import {
   getSoapJournals,
   getSoapStreak,
   getStageChecklistItems,
+  getDiscipleshipConnections,
 } from '../../lib/supabaseQueries'
-import type { SoapJournal, StageChecklistItem, Person, VictoryGroup } from '../../types/database'
-import { computeJourney, computeBadges, type JourneyStep } from '../../components/journey/journeyModel'
+import type { SoapJournal, StageChecklistItem, Person, VictoryGroup, DiscipleshipConnection } from '../../types/database'
+import { computeJourney, computeBadges, ringProgressFromLevels, levelByStage, type JourneyStep } from '../../components/journey/journeyModel'
 import { Starfield } from '../../components/journey/StarPrimitives'
 import JourneyIntro from '../../components/journey/JourneyIntro'
 import JourneyTour from '../../components/journey/JourneyTour'
@@ -106,6 +107,7 @@ export default function MyJourneyPage() {
   const [soapJournals, setSoapJournals] = useState<SoapJournal[]>([])
   const [soapStreak, setSoapStreak] = useState(0)
   const [checklistItems, setChecklistItems] = useState<StageChecklistItem[]>([])
+  const [myDisciples, setMyDisciples] = useState<DiscipleshipConnection[]>([])
   const [showIntro, setShowIntro] = useState<boolean | null>(null)
   const [showTour, setShowTour] = useState(false)
   const [dataReady, setDataReady] = useState(false)
@@ -122,14 +124,16 @@ export default function MyJourneyPage() {
 
   const loadData = useCallback(async () => {
     if (!profile?.id) return
-    const [coachRes, groupsRes, journalsRes, streakRes, checklistRes] = await Promise.all([
+    const [coachRes, groupsRes, journalsRes, streakRes, checklistRes, disciplesRes] = await Promise.all([
       getMyCoach(profile.id),
       getMyGroups(profile.id),
       getSoapJournals(profile.id, 30),
       getSoapStreak(profile.id),
       getStageChecklistItems(profile.id),
+      getDiscipleshipConnections(profile.id),
     ])
     if (coachRes.data?.discipler) setCoach(coachRes.data.discipler as Person)
+    if (disciplesRes.data) setMyDisciples(disciplesRes.data as DiscipleshipConnection[])
     if (groupsRes.data) {
       setGroups(groupsRes.data.map((g: { victory_groups: VictoryGroup }) => g.victory_groups).filter(Boolean))
     }
@@ -154,16 +158,18 @@ export default function MyJourneyPage() {
             soapCount: soapJournals.length,
             hasSoapToday: soapJournals.some(j => j.journal_date === new Date().toISOString().split('T')[0]),
             checklist: checklistItems,
+            disciples: myDisciples,
           }
         : null,
-    [profile, coach, groups, soapStreak, soapJournals, checklistItems]
+    [profile, coach, groups, soapStreak, soapJournals, checklistItems, myDisciples]
   )
 
   const levels = useMemo(() => (journeyData ? computeJourney(journeyData) : []), [journeyData])
   const badges = useMemo(() => (journeyData ? computeBadges(journeyData, levels) : []), [journeyData, levels])
   const earnedBadges = badges.filter(b => b.earned)
-  const ringProgress = levels.map(l => l.progress)
-  const fullCircle = levels[3]?.completed ?? false
+  const ringProgress = ringProgressFromLevels(levels)
+  // full circle = the disciple is engaging someone of their own
+  const fullCircle = levelByStage(levels, 'Engage')?.completed ?? false
 
   const handleStepAction = (step: JourneyStep) => {
     if (step.action === 'soap') setActiveModal('soap')
@@ -332,19 +338,25 @@ export default function MyJourneyPage() {
           )}
         </section>
 
-        {/* full-circle celebration */}
-        {fullCircle && (
+        {/* empowered → the dashboard opens; engaged → full circle */}
+        {(levelByStage(levels, 'Empower')?.completed ?? false) && (
           <section
             className="mt-8 rounded-[var(--r-xl)] border p-6 text-center"
             style={{
-              borderColor: 'rgba(240,114,159,.35)',
-              background: 'linear-gradient(180deg, rgba(240,114,159,.10) 0%, rgba(20,27,61,.6) 100%)',
-              boxShadow: '0 0 48px -16px rgba(240,114,159,.5)',
+              borderColor: fullCircle ? 'rgba(242,200,121,.4)' : 'rgba(240,114,159,.35)',
+              background: fullCircle
+                ? 'linear-gradient(180deg, rgba(242,200,121,.10) 0%, rgba(20,27,61,.6) 100%)'
+                : 'linear-gradient(180deg, rgba(240,114,159,.10) 0%, rgba(20,27,61,.6) 100%)',
+              boxShadow: fullCircle ? '0 0 48px -16px rgba(242,200,121,.55)' : '0 0 48px -16px rgba(240,114,159,.5)',
             }}
           >
-            <p className="cn-label" style={{ color: 'var(--empower)' }}>Empowered</p>
+            <p className="cn-label" style={{ color: fullCircle ? 'var(--gold)' : 'var(--empower)' }}>
+              {fullCircle ? 'Full circle' : 'Empowered'}
+            </p>
             <p className="mt-2 text-xl italic leading-relaxed" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>
-              The light you received is now light you give. New stars are waiting to be lit.
+              {fullCircle
+                ? 'You were engaged — and now a new star is being lit through you.'
+                : 'Your coach dashboard is open. One thing remains: engage someone new.'}
             </p>
             <a href="/" className="cn-btn cn-btn-primary mt-4 inline-flex">
               Open your coach dashboard
