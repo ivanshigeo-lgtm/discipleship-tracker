@@ -21,7 +21,7 @@ type Beat =
   | { kind: 'step'; stageIdx: number; stepIdx: number }
   | { kind: 'finale' }
 
-const BEAT_MS = { stage: 2600, step: 1900, finale: 3400 }
+const BEAT_MS = { stage: 5600, step: 4900, finale: 6400 }
 
 function buildBeats(): Beat[] {
   const beats: Beat[] = []
@@ -122,18 +122,25 @@ export default function JourneyTour({
         <div key={beatIdx} className="jy-rise-in absolute inset-x-0 top-[56%] flex flex-col items-center px-6 text-center">
           {caption.title ? (
             <>
-              {/* step beat: small stage eyebrow, prominent step title */}
-              <span className="cn-label" style={{ color: stageColor }}>
+              {/* step beat: the level's name stays the headline, step beneath it */}
+              <h2
+                className="text-3xl font-semibold sm:text-4xl"
+                style={{
+                  fontFamily: 'var(--font-display)',
+                  color: stageColor,
+                  textShadow: `0 0 26px ${stageColor}55, 0 2px 14px rgba(6,8,20,.9)`,
+                }}
+              >
                 {caption.eyebrow}
-              </span>
-              <div className="mt-2.5 flex items-center gap-3">
+              </h2>
+              <div className="mt-3 flex items-center gap-3">
                 <span
                   className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold"
                   style={{ background: stageColor, color: 'var(--void)', boxShadow: `0 0 14px -1px ${stageColor}` }}
                 >
                   ✓
                 </span>
-                <h2 className="text-2xl font-semibold text-[var(--fg-1)]">{caption.title}</h2>
+                <h3 className="text-2xl font-semibold text-[var(--fg-1)]">{caption.title}</h3>
               </div>
             </>
           ) : (
