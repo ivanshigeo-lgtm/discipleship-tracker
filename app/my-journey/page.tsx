@@ -306,17 +306,17 @@ export default function MyJourneyPage() {
 
       <main className="relative z-10 mx-auto max-w-xl px-4 pb-20 sm:px-6">
         {/* hero — your star IS the interface */}
-        <section className="flex flex-col items-center pt-4 text-center">
-          <div className="relative z-20 w-full">
+        <section className="flex flex-col items-center pt-2 text-center">
+          <p className="text-xs uppercase tracking-[.14em] text-[var(--fg-3)]">
+            Hover or tap a quadrant of your star
+          </p>
+          <div className="relative z-20 mt-2 w-full">
             <StarQuadrants
               levels={levels}
               color={currentLevel?.color ?? '#FBF6EC'}
               onStepAction={handleStepAction}
             />
           </div>
-          <p className="mt-3 text-xs uppercase tracking-[.14em] text-[var(--fg-3)]">
-            Hover or tap a quadrant of your star
-          </p>
           <div className="mt-3 flex items-center gap-3">
             <h1 className="text-3xl sm:text-4xl" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>
               {profile.name}
