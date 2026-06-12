@@ -1,5 +1,3 @@
-'use server'
-
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -8,12 +6,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// Generate a short code from person ID (last 6 chars, uppercase)
-export function generateCoachCode(personId: string): string {
-  return personId.slice(-6).toUpperCase()
-}
-
-// Find coach by code
+// Find coach by code (codes are the last 6 chars of the person ID, uppercase)
 async function findCoachByCode(code: string) {
   const normalizedCode = code.toUpperCase().trim()
 
