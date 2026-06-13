@@ -261,30 +261,45 @@ export default function StarQuadrants({
         )
       })}
 
-      {/* coachmark: arrow glides toward the quadrant, then a click ripple */}
+      {/* coachmark: a mouse pointer glides to the quadrant and clicks it */}
       {(demo === 'arrow' || demo === 'open') && (() => {
         const corner = QUADRANT_META[demoQuadrant].corner
-        const arrowPos: Record<string, React.CSSProperties> = {
-          tl: { left: '4%', top: '4%', ['--nudge-x' as string]: '12px', ['--nudge-y' as string]: '12px', transform: 'rotate(90deg)' },
-          tr: { right: '4%', top: '4%', ['--nudge-x' as string]: '-12px', ['--nudge-y' as string]: '12px', transform: 'rotate(180deg)' },
-          br: { right: '4%', bottom: '4%', ['--nudge-x' as string]: '-12px', ['--nudge-y' as string]: '-12px', transform: 'rotate(-90deg)' },
-          bl: { left: '4%', bottom: '4%', ['--nudge-x' as string]: '12px', ['--nudge-y' as string]: '-12px', transform: 'rotate(0deg)' },
-        }
-        const ripplePos: Record<string, React.CSSProperties> = {
-          tl: { left: '16%', top: '16%' },
-          tr: { right: '16%', top: '16%' },
-          br: { right: '16%', bottom: '16%' },
-          bl: { left: '16%', bottom: '16%' },
+        // where the pointer's tip lands (the spot being "clicked")
+        const tip: Record<string, { left: string; top: string }> = {
+          tl: { left: '19%', top: '19%' },
+          tr: { left: '78%', top: '19%' },
+          br: { left: '78%', top: '78%' },
+          bl: { left: '19%', top: '78%' },
         }
         return (
           <>
-            <span className="jy-demo-arrow absolute z-40" style={arrowPos[corner]} aria-hidden>
-              <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#FBF6EC" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 8px rgba(251,246,236,.7))' }}>
-                <path d="M5 19 L19 5" />
-                <path d="M11 5 H19 V13" />
+            <span
+              className={`jy-demo-cursor absolute z-40 ${demo === 'open' ? 'jy-cursor-press' : ''}`}
+              style={{ ...tip[corner] }}
+              aria-hidden
+            >
+              {/* mouse pointer, tip at the element's top-left corner */}
+              <svg
+                width="30"
+                height="30"
+                viewBox="0 0 24 24"
+                style={{ filter: 'drop-shadow(0 1px 3px rgba(6,8,20,.85)) drop-shadow(0 0 10px rgba(251,246,236,.45))' }}
+              >
+                <path
+                  d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"
+                  fill="#FBF6EC"
+                  stroke="#0B1027"
+                  strokeWidth="1.1"
+                />
               </svg>
             </span>
-            {demo === 'open' && <span className="jy-click-ripple z-40" style={ripplePos[corner]} aria-hidden />}
+            {demo === 'open' && (
+              <span
+                className="jy-click-ripple z-40"
+                style={{ ...tip[corner], marginLeft: -32, marginTop: -32 }}
+                aria-hidden
+              />
+            )}
           </>
         )
       })()}
