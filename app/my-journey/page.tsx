@@ -190,10 +190,14 @@ export default function MyJourneyPage() {
   const dismissTour = useCallback(() => {
     localStorage.setItem(INTRO_KEY, '1')
     setShowTour(false)
+    // The coachmark is the story's closing beat — a meteor lights the
+    // instruction, an arrow presses the quadrant open. Every showing ends
+    // with it, so the handoff into the app is always demonstrated.
+    window.setTimeout(() => setDemo('meteor'), 900)
   }, [])
 
-  // First-visit coachmark: a meteor lights the instruction, an arrow glides
-  // to the disciple's quadrant and presses it open — show, don't tell.
+  // Visitors who land with the story already seen but who've never been
+  // shown the quadrant interaction get the coachmark once on its own.
   useEffect(() => {
     if (showIntro === false && !showTour && dataReady && !localStorage.getItem(DEMO_KEY)) {
       const t = setTimeout(() => setDemo('meteor'), 900)
