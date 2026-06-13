@@ -142,7 +142,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
     },
     {
       id: 'word',
-      title: 'Establish a rhythm in the Word',
+      title: 'Start SOAPing',
       detail:
         d.soapStreak >= SOAP_STREAK_TARGET
           ? `A ${d.soapStreak}-day rhythm — keep it burning`
@@ -153,7 +153,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
     },
     {
       id: 'salvation',
-      title: 'Assurance of Your Salvation',
+      title: 'Accept Christ As Lord',
       detail: d.profile.spiritual_birthday
         ? `Your spiritual birthday: ${d.profile.spiritual_birthday}`
         : 'Pray the prayer of salvation with your coach — mark your spiritual birthday.',
@@ -163,7 +163,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
     },
     {
       id: 'baptism',
-      title: 'Follow Christ Into Baptism',
+      title: 'Get Baptized',
       detail: d.profile.baptism_date
         ? `Baptized ${d.profile.baptism_date}`
         : 'Talk with your coach about water baptism and being filled with the Spirit.',
@@ -173,7 +173,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
     },
     {
       id: 'one2one',
-      title: 'Grow One2One With A Coach',
+      title: 'Go Through One2One',
       detail: 'Walk through the One2One foundations with your coach.',
       completed: checklistDone(d.checklist, 'Establish', 'Completed One2One'),
       progress: checklistDone(d.checklist, 'Establish', 'Completed One2One') ? 1 : 0,
@@ -305,10 +305,10 @@ export const TOUR: TourStage[] = [
     steps: [
       { title: 'Connect with your coach', line: 'A companion for the whole road.' },
       { title: 'Join a Grace Group', line: 'Faith grows in community.' },
-      { title: 'A rhythm in the Word', line: 'SOAP daily, and let the Word shape you.' },
-      { title: 'Assurance of Your Salvation', line: 'Pray, and mark your spiritual birthday.' },
-      { title: 'Follow Christ Into Baptism', line: 'Buried and raised with him, filled with the Spirit.' },
-      { title: 'Grow One2One With A Coach', line: 'The foundations, walked together.' },
+      { title: 'Start SOAPing', line: 'SOAP daily, and let the Word shape you.' },
+      { title: 'Accept Christ As Lord', line: 'Pray, and mark your spiritual birthday.' },
+      { title: 'Get Baptized', line: 'Buried and raised with him, filled with the Spirit.' },
+      { title: 'Go Through One2One', line: 'The foundations, walked together.' },
     ],
   },
   {
