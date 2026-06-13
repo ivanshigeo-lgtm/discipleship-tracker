@@ -91,7 +91,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
   const engage: JourneyStep[] = [
     {
       id: 'identify',
-      title: 'Identify someone to engage',
+      title: 'Engage Your Community Using SALT',
       detail:
         identified > 0
           ? `You're engaging ${identified} ${identified === 1 ? 'person' : 'people'}`
@@ -102,7 +102,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
     },
     {
       id: 'start-one2one',
-      title: 'Begin a One2One',
+      title: 'Coach Someone Through One2One',
       detail: started > 0 ? 'A new journey has begun' : 'Hear their story. Share yours.',
       completed: started > 0,
       progress: started > 0 ? 1 : 0,
@@ -110,7 +110,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
     },
     {
       id: 'actively-disciple',
-      title: 'Walk with them',
+      title: 'Help Establish Them In Faith',
       detail:
         discipling > 0
           ? 'A new star is being lit through you'
@@ -124,7 +124,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
   const establish: JourneyStep[] = [
     {
       id: 'coach',
-      title: 'Connect with a coach',
+      title: 'Connect with your coach',
       detail: d.coach ? `Walking with ${d.coach.name}` : 'Enter your coach’s code to begin the journey together.',
       completed: isConnected,
       progress: isConnected ? 1 : 0,
@@ -153,7 +153,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
     },
     {
       id: 'salvation',
-      title: 'Confirm your salvation',
+      title: 'Assurance of Your Salvation',
       detail: d.profile.spiritual_birthday
         ? `Your spiritual birthday: ${d.profile.spiritual_birthday}`
         : 'Pray the prayer of salvation with your coach — mark your spiritual birthday.',
@@ -163,7 +163,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
     },
     {
       id: 'baptism',
-      title: 'Be baptized',
+      title: 'Follow Christ Into Baptism',
       detail: d.profile.baptism_date
         ? `Baptized ${d.profile.baptism_date}`
         : 'Talk with your coach about water baptism and being filled with the Spirit.',
@@ -173,7 +173,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
     },
     {
       id: 'one2one',
-      title: 'Complete One2One',
+      title: 'Grow One2One With A Coach',
       detail: 'Walk through the One2One foundations with your coach.',
       completed: checklistDone(d.checklist, 'Establish', 'Completed One2One'),
       progress: checklistDone(d.checklist, 'Establish', 'Completed One2One') ? 1 : 0,
@@ -184,7 +184,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
   const equip: JourneyStep[] = [
     {
       id: 'making-disciples',
-      title: 'Complete Making Disciples',
+      title: 'Journey Through Making Disciples',
       detail: 'Learn to pass on what you’ve received.',
       completed: checklistDone(d.checklist, 'Equip', 'Completed Making Disciples'),
       progress: checklistDone(d.checklist, 'Equip', 'Completed Making Disciples') ? 1 : 0,
@@ -192,7 +192,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
     },
     {
       id: 'testimony',
-      title: 'Tell your story',
+      title: 'Share Your Story',
       detail: hasTestimony
         ? 'Your two-minute testimony shines in the constellation.'
         : 'Record or write your two-minute testimony — your story becomes light for others.',
@@ -202,7 +202,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
     },
     {
       id: 'practice-share',
-      title: 'Practice sharing the gospel',
+      title: 'Share Your Hope In Christ',
       detail: 'Share your testimony and the gospel with someone this season.',
       completed: checklistDone(d.checklist, 'Equip', 'Practice Sharing Testimony/Gospel'),
       progress: checklistDone(d.checklist, 'Equip', 'Practice Sharing Testimony/Gospel') ? 1 : 0,
@@ -210,7 +210,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
     },
     {
       id: 'serve',
-      title: 'Begin serving',
+      title: 'Discover and Deploy Your Gifts',
       detail: 'Step into a ministry or mission.',
       completed: checklistDone(d.checklist, 'Equip', 'Begin Serving in a Ministry/Mission'),
       progress: checklistDone(d.checklist, 'Equip', 'Begin Serving in a Ministry/Mission') ? 1 : 0,
@@ -218,7 +218,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
     },
     {
       id: 'assist-gg',
-      title: 'Assist in leading your Grace Group',
+      title: 'Serve Your Grace Group',
       detail: 'Help carry the group you’ve grown in.',
       completed: checklistDone(d.checklist, 'Equip', 'Assist in Leading Small Group'),
       progress: checklistDone(d.checklist, 'Equip', 'Assist in Leading Small Group') ? 1 : 0,
@@ -229,7 +229,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
   const empower: JourneyStep[] = [
     {
       id: 'empowering-leaders',
-      title: 'Complete Empowering Leaders',
+      title: 'Journey Through Empowering Leaders',
       detail: 'Be entrusted to raise up others.',
       completed: checklistDone(d.checklist, 'Empower', 'Completed Empowering Leaders'),
       progress: checklistDone(d.checklist, 'Empower', 'Completed Empowering Leaders') ? 1 : 0,
@@ -245,7 +245,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
     },
     {
       id: 'lead-gg',
-      title: 'Lead a Grace Group',
+      title: 'Launch A New Grace Group',
       detail: 'Shepherd a group of your own.',
       completed: checklistDone(d.checklist, 'Empower', 'Lead a Grace Group'),
       progress: checklistDone(d.checklist, 'Empower', 'Lead a Grace Group') ? 1 : 0,
@@ -303,41 +303,41 @@ export const TOUR: TourStage[] = [
     stage: 'Establish',
     intro: 'First, put down roots — in church, in the Word, in the faith.',
     steps: [
-      { title: 'Connect with a coach', line: 'A companion for the whole road.' },
+      { title: 'Connect with your coach', line: 'A companion for the whole road.' },
       { title: 'Join a Grace Group', line: 'Faith grows in community.' },
       { title: 'A rhythm in the Word', line: 'SOAP daily, and let the Word shape you.' },
-      { title: 'Confirm your salvation', line: 'Pray, and mark your spiritual birthday.' },
-      { title: 'Be baptized', line: 'Buried and raised with him, filled with the Spirit.' },
-      { title: 'Complete One2One', line: 'The foundations, walked together.' },
+      { title: 'Assurance of Your Salvation', line: 'Pray, and mark your spiritual birthday.' },
+      { title: 'Follow Christ Into Baptism', line: 'Buried and raised with him, filled with the Spirit.' },
+      { title: 'Grow One2One With A Coach', line: 'The foundations, walked together.' },
     ],
   },
   {
     stage: 'Equip',
     intro: 'Then be sharpened — to serve, to lead, and to tell your story.',
     steps: [
-      { title: 'Complete Making Disciples', line: 'Learn to pass on what you received.' },
-      { title: 'Tell your story', line: 'Two minutes of light for others to find.' },
-      { title: 'Practice sharing the gospel', line: 'Your story, spoken out loud.' },
-      { title: 'Begin serving', line: 'Step into a ministry or mission.' },
-      { title: 'Assist your Grace Group', line: 'Help carry what once carried you.' },
+      { title: 'Journey Through Making Disciples', line: 'Learn to pass on what you received.' },
+      { title: 'Share Your Story', line: 'Two minutes of light for others to find.' },
+      { title: 'Share Your Hope In Christ', line: 'Your story, spoken out loud.' },
+      { title: 'Discover and Deploy Your Gifts', line: 'Step into a ministry or mission.' },
+      { title: 'Serve Your Grace Group', line: 'Help carry what once carried you.' },
     ],
   },
   {
     stage: 'Empower',
     intro: 'Then — the light you received becomes light you give.',
     steps: [
-      { title: 'Complete Empowering Leaders', line: 'Entrusted to raise up others.' },
+      { title: 'Journey Through Empowering Leaders', line: 'Entrusted to raise up others.' },
       { title: 'Identify your circle', line: 'Name who God has placed around you.' },
-      { title: 'Lead a Grace Group', line: 'Shepherd a group of your own.' },
+      { title: 'Launch A New Grace Group', line: 'Shepherd a group of your own.' },
     ],
   },
   {
     stage: 'Engage',
     intro: 'And at last, you go — to engage someone new, just as you were once engaged.',
     steps: [
-      { title: 'Identify someone to engage', line: 'Pray, look around: who has God placed near you?' },
-      { title: 'Begin a One2One', line: 'Hear their story. Share yours.' },
-      { title: 'Walk with them', line: 'A new star is lit — your light multiplies.' },
+      { title: 'Engage Your Community Using SALT', line: 'Pray, look around: who has God placed near you?' },
+      { title: 'Coach Someone Through One2One', line: 'Hear their story. Share yours.' },
+      { title: 'Help Establish Them In Faith', line: 'A new star is lit — your light multiplies.' },
     ],
   },
 ]
