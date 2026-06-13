@@ -150,14 +150,36 @@ export default function StarQuadrants({
   levels,
   color,
   onStepAction,
+  demo = null,
 }: {
   levels: JourneyLevel[]
   color: string
   onStepAction: (step: JourneyStep) => void
+  /* first-visit coachmark: 'arrow' glides toward the quadrant, 'open' presses it */
+  demo?: 'arrow' | 'open' | null
 }) {
   const [active, setActive] = useState<number | null>(null)
   const [pinned, setPinned] = useState<number | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const demoWasOpen = useRef(false)
+
+  // the demo points at the stage the disciple is currently walking
+  const demoQuadrant = (() => {
+    const current = levels.find(l => l.unlocked && !l.completed)?.stage ?? 'Establish'
+    const i = QUADRANT_META.findIndex(q => q.stage === current)
+    return i === -1 ? 1 : i
+  })()
+
+  useEffect(() => {
+    if (demo === 'open') {
+      demoWasOpen.current = true
+      setPinned(demoQuadrant)
+    } else if (demo === null && demoWasOpen.current) {
+      demoWasOpen.current = false
+      setPinned(null)
+      setActive(null)
+    }
+  }, [demo, demoQuadrant])
 
   // tap outside closes a pinned panel (mobile)
   useEffect(() => {
@@ -234,6 +256,34 @@ export default function StarQuadrants({
           </div>
         )
       })}
+
+      {/* coachmark: arrow glides toward the quadrant, then a click ripple */}
+      {(demo === 'arrow' || demo === 'open') && (() => {
+        const corner = QUADRANT_META[demoQuadrant].corner
+        const arrowPos: Record<string, React.CSSProperties> = {
+          tl: { left: '4%', top: '4%', ['--nudge-x' as string]: '12px', ['--nudge-y' as string]: '12px', transform: 'rotate(90deg)' },
+          tr: { right: '4%', top: '4%', ['--nudge-x' as string]: '-12px', ['--nudge-y' as string]: '12px', transform: 'rotate(180deg)' },
+          br: { right: '4%', bottom: '4%', ['--nudge-x' as string]: '-12px', ['--nudge-y' as string]: '-12px', transform: 'rotate(-90deg)' },
+          bl: { left: '4%', bottom: '4%', ['--nudge-x' as string]: '12px', ['--nudge-y' as string]: '-12px', transform: 'rotate(0deg)' },
+        }
+        const ripplePos: Record<string, React.CSSProperties> = {
+          tl: { left: '16%', top: '16%' },
+          tr: { right: '16%', top: '16%' },
+          br: { right: '16%', bottom: '16%' },
+          bl: { left: '16%', bottom: '16%' },
+        }
+        return (
+          <>
+            <span className="jy-demo-arrow absolute z-40" style={arrowPos[corner]} aria-hidden>
+              <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#FBF6EC" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 8px rgba(251,246,236,.7))' }}>
+                <path d="M5 19 L19 5" />
+                <path d="M11 5 H19 V13" />
+              </svg>
+            </span>
+            {demo === 'open' && <span className="jy-click-ripple z-40" style={ripplePos[corner]} aria-hidden />}
+          </>
+        )
+      })()}
 
       {/* the pop-out panel */}
       {shown !== null && byStage(QUADRANT_META[shown].stage) && (

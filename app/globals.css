@@ -263,6 +263,75 @@ body {
   to { transform: scale(1.12); }
 }
 
+/* ---------- first-visit coachmark: meteor → arrow → click ---------- */
+
+/* a meteor streaks through the instruction line */
+.jy-meteor {
+  position: absolute;
+  top: 50%;
+  left: -12%;
+  width: 84px;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent 0%, rgba(251,246,236,.85) 80%, #ffffff 100%);
+  box-shadow: 0 0 8px 1px rgba(251,246,236,.6);
+  animation: jy-meteor-fly 1.6s cubic-bezier(.3,.1,.4,1) forwards;
+  pointer-events: none;
+}
+.jy-meteor::after {
+  content: '';
+  position: absolute;
+  right: -3px;
+  top: -2.5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffffff 0%, rgba(251,246,236,.9) 40%, transparent 75%);
+}
+@keyframes jy-meteor-fly {
+  0% { left: -12%; opacity: 0; }
+  12% { opacity: 1; }
+  88% { opacity: 1; }
+  100% { left: 106%; opacity: 0; }
+}
+
+/* the instruction brightens as the meteor passes */
+.jy-hint-glow {
+  color: var(--fg-1) !important;
+  text-shadow: 0 0 18px rgba(251,246,236,.55);
+  transition: color .4s ease, text-shadow .4s ease;
+}
+
+/* the arrow that glides toward the quadrant and "presses" it */
+.jy-demo-arrow {
+  animation: jy-arrow-in .5s var(--ease-soft) both, jy-arrow-nudge 1s var(--ease-soft) .5s 2;
+  pointer-events: none;
+}
+@keyframes jy-arrow-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes jy-arrow-nudge {
+  0%, 100% { translate: 0 0; }
+  50% { translate: var(--nudge-x, -10px) var(--nudge-y, 10px); }
+}
+
+/* the click ripple where the arrow lands */
+.jy-click-ripple {
+  position: absolute;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 2px solid rgba(251,246,236,.8);
+  box-shadow: 0 0 18px rgba(251,246,236,.5);
+  animation: jy-click-ripple .8s ease-out both;
+  pointer-events: none;
+}
+@keyframes jy-click-ripple {
+  from { transform: scale(.25); opacity: .9; }
+  to { transform: scale(1.7); opacity: 0; }
+}
+
 /* quadrant panel popping out of the star, magnified */
 .jy-quad-pop {
   animation: jy-quad-pop 0.32s var(--ease-soft) both;
@@ -303,7 +372,10 @@ body {
   }
   .jy-line-draw,
   .jy-star-arrive,
-  .jy-rise-in {
+  .jy-rise-in,
+  .jy-meteor,
+  .jy-demo-arrow,
+  .jy-click-ripple {
     animation-duration: 0.01s;
   }
 }

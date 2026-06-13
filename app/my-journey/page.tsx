@@ -25,6 +25,8 @@ import ConstellationRail, { ConstellationFeedInline, useConstellationFeed } from
 import StoryMusic from '../../components/journey/StoryMusic'
 
 const INTRO_KEY = 'journey_intro_seen'
+const DEMO_KEY = 'journey_quadrant_demo_seen'
+type DemoPhase = 'meteor' | 'arrow' | 'open' | null
 
 function CoachConnectModal({
   personId,
@@ -112,6 +114,7 @@ export default function MyJourneyPage() {
   const [showIntro, setShowIntro] = useState<boolean | null>(null)
   const [showTour, setShowTour] = useState(false)
   const [dataReady, setDataReady] = useState(false)
+  const [demo, setDemo] = useState<DemoPhase>(null)
   const [activeModal, setActiveModal] = useState<'soap' | 'testimony' | 'coach' | null>(null)
   const [selectedJournal, setSelectedJournal] = useState<SoapJournal | null>(null)
   const [processingOcr, setProcessingOcr] = useState(false)
@@ -188,6 +191,29 @@ export default function MyJourneyPage() {
     localStorage.setItem(INTRO_KEY, '1')
     setShowTour(false)
   }, [])
+
+  // First-visit coachmark: a meteor lights the instruction, an arrow glides
+  // to the disciple's quadrant and presses it open — show, don't tell.
+  useEffect(() => {
+    if (showIntro === false && !showTour && dataReady && !localStorage.getItem(DEMO_KEY)) {
+      const t = setTimeout(() => setDemo('meteor'), 900)
+      return () => clearTimeout(t)
+    }
+  }, [showIntro, showTour, dataReady])
+
+  useEffect(() => {
+    if (!demo) return
+    const hold = demo === 'meteor' ? 1700 : demo === 'arrow' ? 1600 : 3600
+    const t = setTimeout(() => {
+      if (demo === 'meteor') setDemo('arrow')
+      else if (demo === 'arrow') setDemo('open')
+      else {
+        setDemo(null)
+        localStorage.setItem(DEMO_KEY, '1')
+      }
+    }, hold)
+    return () => clearTimeout(t)
+  }, [demo])
 
   const runOcrOnJournal = async (journalId: string) => {
     setProcessingOcr(true)
@@ -309,14 +335,18 @@ export default function MyJourneyPage() {
       <main className="relative z-10 mx-auto max-w-xl px-4 pb-20 sm:px-6">
         {/* hero — your star IS the interface */}
         <section className="flex flex-col items-center pt-2 text-center">
-          <p className="text-xs uppercase tracking-[.14em] text-[var(--fg-3)]">
-            Hover or tap a quadrant of your star
-          </p>
+          <div className="relative">
+            <p className={`text-xs uppercase tracking-[.14em] text-[var(--fg-3)] ${demo === 'meteor' ? 'jy-hint-glow' : ''}`}>
+              Hover or tap a quadrant of your star
+            </p>
+            {demo === 'meteor' && <span className="jy-meteor" aria-hidden />}
+          </div>
           <div className="relative z-20 mt-2 w-full">
             <StarQuadrants
               levels={levels}
               color={currentLevel?.color ?? '#FBF6EC'}
               onStepAction={handleStepAction}
+              demo={demo === 'arrow' || demo === 'open' ? demo : null}
             />
           </div>
           <div className="mt-3 flex items-center gap-3">
