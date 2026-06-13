@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Person, Stage, DiscipleshipConnection } from '../../types/database'
 import { getPeople, getAllDiscipleshipConnections } from '../../lib/supabaseQueries'
 import { buildGraphAwareLayout, type MapNode } from '../MyCircleMap'
@@ -43,6 +43,8 @@ function JesusStar({ size = 170 }: { size?: number }) {
   )
 }
 
+const CONSTELLATION_CACHE = 'journey_constellation_cache'
+
 export default function JourneyIntro({
   personId,
   name,
@@ -53,41 +55,89 @@ export default function JourneyIntro({
   onDone: () => void
 }) {
   const [phase, setPhase] = useState<Phase>('promise')
-  const [nodes, setNodes] = useState<MapNode[]>([])
+  // start from the last constellation we saw — instant on every replay,
+  // and a safety net if tonight's fetch is slow or fails
+  const [nodes, setNodes] = useState<MapNode[]>(() => {
+    if (typeof window === 'undefined') return []
+    try {
+      return JSON.parse(localStorage.getItem(CONSTELLATION_CACHE) || '[]') as MapNode[]
+    } catch {
+      return []
+    }
+  })
   const [photoOk, setPhotoOk] = useState(true)
+  const [holdTick, setHoldTick] = useState(0)
+  const holdsRef = useRef(0)
 
   const reducedMotion = useMemo(
     () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
     []
   )
 
-  // Load the real constellation while the promise movement plays
+  // Load the real constellation while the promise movement plays —
+  // retried, time-boxed, and cached for next time.
   useEffect(() => {
     if (reducedMotion) return
-    Promise.all([getPeople(), getAllDiscipleshipConnections()]).then(([peopleRes, connRes]) => {
-      const people = (peopleRes.data ?? []) as Person[]
-      const connections = (connRes.data ?? []) as DiscipleshipConnection[]
-      if (people.length > 0) setNodes(buildGraphAwareLayout(people, connections))
-    })
+    let alive = true
+    let attempt = 0
+    const load = async () => {
+      attempt++
+      try {
+        const [peopleRes, connRes] = await Promise.race([
+          Promise.all([getPeople(), getAllDiscipleshipConnections()]),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 6000)),
+        ])
+        const people = (peopleRes.data ?? []) as Person[]
+        const connections = (connRes.data ?? []) as DiscipleshipConnection[]
+        if (people.length === 0) throw new Error('empty')
+        const built = buildGraphAwareLayout(people, connections)
+        if (alive) {
+          setNodes(built)
+          try {
+            localStorage.setItem(CONSTELLATION_CACHE, JSON.stringify(built))
+          } catch {}
+        }
+      } catch {
+        if (alive && attempt < 4) setTimeout(load, 1500)
+      }
+    }
+    load()
+    return () => {
+      alive = false
+    }
   }, [reducedMotion])
+
+  // The promise movement holds a few extra beats if the sky isn't ready yet
+  useEffect(() => {
+    if (reducedMotion || phase !== 'promise') return
+    const wait = holdsRef.current === 0 ? PHASE_MS.promise : 1800
+    const t = setTimeout(() => {
+      if (nodes.length === 0 && holdsRef.current < 5) {
+        holdsRef.current++
+        setHoldTick(x => x + 1)
+      } else {
+        setPhase('constellation')
+      }
+    }, wait)
+    return () => clearTimeout(t)
+  }, [phase, holdTick, nodes.length, reducedMotion])
 
   useEffect(() => {
     if (reducedMotion) {
       onDone()
       return
     }
-    const order: Exclude<Phase, 'done'>[] = ['promise', 'constellation', 'yours']
-    const idx = order.indexOf(phase as Exclude<Phase, 'done'>)
-    if (idx === -1) return
-    const t = setTimeout(() => {
-      const next = order[idx + 1]
-      if (next) setPhase(next)
-      else {
+    if (phase === 'constellation') {
+      const t = setTimeout(() => setPhase('yours'), PHASE_MS.constellation)
+      return () => clearTimeout(t)
+    }
+    if (phase === 'yours') {
+      const t = setTimeout(() => {
         setPhase('done')
         onDone()
-      }
-    }, PHASE_MS[order[idx] as Exclude<Phase, 'done'>])
-    return () => clearTimeout(t)
+      }, PHASE_MS.yours)
+      return () => clearTimeout(t)
+    }
   }, [phase, onDone, reducedMotion])
 
   const myNode = nodes.find(n => n.id === personId)
