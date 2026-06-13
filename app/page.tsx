@@ -12,6 +12,7 @@ import CoachingPipeline from '../components/CoachingPipeline'
 import NeedAttentionSection from '../components/NeedAttentionSection'
 import PointsOfActionSection from '../components/PointsOfActionSection'
 import PrayerWallSection from '../components/PrayerWallSection'
+import MessagesSection from '../components/MessagesSection'
 import CurriculumBadgesSection from '../components/CurriculumBadgesSection'
 import EmergingTeamSection from '../components/EmergingTeamSection'
 import PersonProfileModal from '../components/PersonProfileModal'
@@ -365,6 +366,13 @@ export default function DiscipleshipTracker() {
                 setInitialProfileTab(openTab ?? 'profile')
               }}
             />
+          </ErrorBoundary>
+        </div>
+
+        {/* Messages from disciples - only on home tab */}
+        <div className={`${mobileTab !== 'home' ? 'hidden md:block' : ''}`}>
+          <ErrorBoundary name="MessagesSection">
+            <MessagesSection refreshKey={refreshKey} />
           </ErrorBoundary>
         </div>
 

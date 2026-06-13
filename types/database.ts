@@ -123,6 +123,16 @@ export type SoapJournal = {
   updated_at: string
 }
 
+export type Message = {
+  id: string
+  from_person_id: string
+  to_person_id: string
+  kind: 'greeting' | 'prayer' | 'note'
+  body: string
+  read_at: string | null
+  created_at: string
+}
+
 export type InviteToken = {
   id: string
   person_id: string

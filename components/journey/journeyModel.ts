@@ -33,7 +33,14 @@ export const E_TAGLINES: Record<Stage, string> = {
 
 export const UNLOCK_THRESHOLD = 0.75
 
-export type StepAction = 'coach-code' | 'group-info' | 'soap' | 'testimony' | 'coach-verified' | 'celebrate'
+export type StepAction =
+  | 'coach-code'
+  | 'message-coach'
+  | 'join-group'
+  | 'soap'
+  | 'testimony'
+  | 'coach-verified'
+  | 'celebrate'
 
 export type JourneyStep = {
   id: string
@@ -125,20 +132,22 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
     {
       id: 'coach',
       title: 'Connect with your coach',
-      detail: d.coach ? `Walking with ${d.coach.name}` : 'Enter your coach’s code to begin the journey together.',
+      detail: d.coach
+        ? `Walking with ${d.coach.name} — send a greeting or a prayer request`
+        : 'Enter your coach’s code to begin the journey together.',
       completed: isConnected,
       progress: isConnected ? 1 : 0,
-      action: 'coach-code',
+      action: isConnected ? 'message-coach' : 'coach-code',
     },
     {
       id: 'group',
       title: 'Join a Grace Group',
       detail: inGroup
         ? `You belong to ${d.groups.map(g => g.name).join(', ')}`
-        : 'Find your people — ask your coach which group fits your week.',
+        : 'Find your people — pick a group and join.',
       completed: inGroup,
       progress: inGroup ? 1 : 0,
-      action: 'group-info',
+      action: 'join-group',
     },
     {
       id: 'word',

@@ -23,6 +23,8 @@ import TestimonyModal from '../../components/journey/TestimonyModal'
 import CommunityLights from '../../components/journey/CommunityLights'
 import ConstellationRail, { ConstellationFeedInline, useConstellationFeed } from '../../components/journey/ConstellationRail'
 import StoryMusic from '../../components/journey/StoryMusic'
+import MessageCoachModal from '../../components/journey/MessageCoachModal'
+import JoinGroupModal from '../../components/journey/JoinGroupModal'
 
 const INTRO_KEY = 'journey_intro_seen'
 const DEMO_KEY = 'journey_quadrant_demo_seen'
@@ -115,7 +117,7 @@ export default function MyJourneyPage() {
   const [showTour, setShowTour] = useState(false)
   const [dataReady, setDataReady] = useState(false)
   const [demo, setDemo] = useState<DemoPhase>(null)
-  const [activeModal, setActiveModal] = useState<'soap' | 'testimony' | 'coach' | null>(null)
+  const [activeModal, setActiveModal] = useState<'soap' | 'testimony' | 'coach' | 'message' | 'join-group' | null>(null)
   const [selectedJournal, setSelectedJournal] = useState<SoapJournal | null>(null)
   const [processingOcr, setProcessingOcr] = useState(false)
   const [weeklySummary, setWeeklySummary] = useState<{ summary: string; journalCount: number } | null>(null)
@@ -179,6 +181,8 @@ export default function MyJourneyPage() {
     if (step.action === 'soap') setActiveModal('soap')
     else if (step.action === 'testimony') setActiveModal('testimony')
     else if (step.action === 'coach-code') setActiveModal('coach')
+    else if (step.action === 'message-coach') setActiveModal('message')
+    else if (step.action === 'join-group') setActiveModal('join-group')
   }
 
   // intro hands off to the tour — same star, focus unbroken
@@ -513,6 +517,18 @@ export default function MyJourneyPage() {
       )}
       {activeModal === 'coach' && profile && (
         <CoachConnectModal personId={profile.id} onClose={() => setActiveModal(null)} onConnected={loadData} />
+      )}
+      {activeModal === 'message' && profile && coach && (
+        <MessageCoachModal personId={profile.id} coach={coach} onClose={() => setActiveModal(null)} />
+      )}
+      {activeModal === 'join-group' && profile && (
+        <JoinGroupModal
+          personId={profile.id}
+          coach={coach}
+          myGroupIds={groups.map(g => g.id)}
+          onClose={() => setActiveModal(null)}
+          onJoined={loadData}
+        />
       )}
 
       {/* journal viewer */}

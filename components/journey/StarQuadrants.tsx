@@ -35,8 +35,12 @@ function StepRow({
   locked: boolean
   onAction?: (step: JourneyStep) => void
 }) {
+  // message-coach stays alive after completion — you can always reach out
   const actionable =
-    !locked && !step.completed && (step.action === 'coach-code' || step.action === 'soap' || step.action === 'testimony')
+    !locked &&
+    (step.action === 'message-coach' ||
+      (!step.completed &&
+        (step.action === 'coach-code' || step.action === 'join-group' || step.action === 'soap' || step.action === 'testimony')))
 
   return (
     <div
@@ -65,7 +69,7 @@ function StepRow({
       )}
       {actionable && (
         <span className="shrink-0 text-[10px] font-bold" style={{ color }}>
-          →
+          {step.action === 'message-coach' ? 'Message →' : step.action === 'join-group' ? 'Join →' : '→'}
         </span>
       )}
     </div>

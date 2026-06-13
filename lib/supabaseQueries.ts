@@ -758,3 +758,37 @@ export const saveTestimony = async (
     .maybeSingle()
   return { data, error }
 }
+
+// ==================== MESSAGES ====================
+export const sendMessage = async (
+  fromPersonId: string,
+  toPersonId: string,
+  kind: 'greeting' | 'prayer' | 'note',
+  body: string
+) => {
+  const { data, error } = await supabase
+    .from('messages')
+    .insert({ from_person_id: fromPersonId, to_person_id: toPersonId, kind, body })
+    .select()
+    .single()
+  return { data, error }
+}
+
+export const getMyMessages = async (personId: string, limit = 30) => {
+  const { data, error } = await supabase
+    .from('messages')
+    .select('*, from:people!messages_from_person_id_fkey(id, name, current_stage)')
+    .eq('to_person_id', personId)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  return { data, error }
+}
+
+export const markMessageRead = async (id: string) => {
+  const { data, error } = await supabase
+    .from('messages')
+    .update({ read_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+  return { data: data?.[0] ?? null, error }
+}
