@@ -141,7 +141,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
     },
     {
       id: 'group',
-      title: 'Join a Grace Group',
+      title: 'I joined a Grace Group',
       detail: inGroup
         ? `You belong to ${d.groups.map(g => g.name).join(', ')}`
         : 'Find your people — pick a group and join.',
@@ -151,7 +151,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
     },
     {
       id: 'word',
-      title: 'Start SOAPing',
+      title: 'I Started SOAPing',
       detail:
         d.soapStreak >= SOAP_STREAK_TARGET
           ? `A ${d.soapStreak}-day rhythm — keep it burning`
@@ -162,7 +162,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
     },
     {
       id: 'salvation',
-      title: 'Accept Christ As Lord',
+      title: 'I Accepted Jesus as Lord',
       detail: d.profile.spiritual_birthday
         ? `Your spiritual birthday: ${d.profile.spiritual_birthday}`
         : 'Pray the prayer of salvation with your coach — mark your spiritual birthday.',
@@ -172,7 +172,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
     },
     {
       id: 'baptism',
-      title: 'Get Baptized',
+      title: 'I got Baptized',
       detail: d.profile.baptism_date
         ? `Baptized ${d.profile.baptism_date}`
         : 'Talk with your coach about water baptism and being filled with the Spirit.',
@@ -182,7 +182,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
     },
     {
       id: 'one2one',
-      title: 'Go Through One2One',
+      title: 'I’m Going Through One2One',
       detail: 'Walk through the One2One foundations with your coach.',
       completed: checklistDone(d.checklist, 'Establish', 'Completed One2One'),
       progress: checklistDone(d.checklist, 'Establish', 'Completed One2One') ? 1 : 0,
