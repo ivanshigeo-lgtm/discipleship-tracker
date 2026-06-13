@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import {
   getStageChecklistItems,
   updateStageChecklistItem,
   upsertStageChecklistItem,
 } from '../lib/supabaseQueries'
+import { supabase } from '../lib/supabaseClient'
 import { stageChecklistTemplates, stages } from '../lib/stageChecklistTemplates'
 import type { ChecklistCategory, Stage, StageChecklistItem } from '../types/database'
 import { stageLabels } from '../lib/stageLabels'
@@ -36,7 +37,7 @@ export default function StageChecklist({
   const [savingId, setSavingId] = useState<string | null>(null)
   const [error, setError] = useState('')
 
-  const loadItems = async () => {
+  const loadItems = useCallback(async () => {
     setError('')
     try {
       const result = await Promise.race([
@@ -52,11 +53,30 @@ export default function StageChecklist({
       console.error('StageChecklist load error:', err)
       setError('Failed to load checklist')
     }
-  }
+  }, [personId])
 
   useEffect(() => {
     loadItems()
-  }, [personId])
+
+    // Live-sync: disciple self-confirms → coach sees it immediately (and vice versa)
+    const channel = supabase
+      .channel(`stage-checklist-${personId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'stage_checklist_items', filter: `person_id=eq.${personId}` },
+        () => { loadItems() }
+      )
+      .subscribe()
+
+    // Fallback: refresh when the coach switches back to this tab
+    const onVisible = () => { if (document.visibilityState === 'visible') loadItems() }
+    document.addEventListener('visibilitychange', onVisible)
+
+    return () => {
+      supabase.removeChannel(channel)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [personId, loadItems])
 
   const toggleStageOpen = (stage: Stage) => {
     setOpenStages(current => ({

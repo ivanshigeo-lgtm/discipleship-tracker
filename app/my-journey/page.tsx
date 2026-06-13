@@ -11,6 +11,7 @@ import {
   getStageChecklistItems,
   getDiscipleshipConnections,
 } from '../../lib/supabaseQueries'
+import { supabase } from '../../lib/supabaseClient'
 import type { SoapJournal, StageChecklistItem, Person, VictoryGroup, DiscipleshipConnection } from '../../types/database'
 import { computeJourney, computeBadges, ringProgressFromLevels, levelByStage, type JourneyStep } from '../../components/journey/journeyModel'
 import { Starfield } from '../../components/journey/StarPrimitives'
@@ -154,6 +155,36 @@ export default function MyJourneyPage() {
   useEffect(() => {
     loadData()
   }, [loadData])
+
+  // Re-fetch only checklist items when the coach updates them on their side
+  const refreshChecklist = useCallback(async () => {
+    if (!profile?.id) return
+    const { data } = await getStageChecklistItems(profile.id)
+    if (data) setChecklistItems(data as StageChecklistItem[])
+  }, [profile?.id])
+
+  useEffect(() => {
+    if (!profile?.id) return
+
+    // Live-sync: coach checks something → disciple sees it immediately
+    const channel = supabase
+      .channel(`journey-checklist-${profile.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'stage_checklist_items', filter: `person_id=eq.${profile.id}` },
+        () => { refreshChecklist() }
+      )
+      .subscribe()
+
+    // Fallback: refresh when the disciple switches back to this tab
+    const onVisible = () => { if (document.visibilityState === 'visible') refreshChecklist() }
+    document.addEventListener('visibilitychange', onVisible)
+
+    return () => {
+      supabase.removeChannel(channel)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [profile?.id, refreshChecklist])
 
   const journeyData = useMemo(
     () =>
