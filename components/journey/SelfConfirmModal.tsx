@@ -2,9 +2,17 @@
 
 import { useState } from 'react'
 import { upsertStageChecklistItem, updatePerson, sendMessage } from '../../lib/supabaseQueries'
-import type { Person, ChecklistCategory } from '../../types/database'
+import type { Person, ChecklistCategory, Stage } from '../../types/database'
 
-export type SelfConfirmKind = 'salvation' | 'baptism' | 'one2one'
+export type SelfConfirmKind =
+  | 'salvation'
+  | 'baptism'
+  | 'one2one'
+  | 'biblical-foundation'
+  | 'church-community'
+  | 'leadership-113'
+  | 'next-steps'
+  | 'leadership-215'
 
 /*
  * The disciple marks their own milestone. Writes the same checklist row
@@ -17,6 +25,7 @@ const CONTENT: Record<
     title: string
     question: string
     dateLabel: string | null
+    stage: Stage
     checklistLabel: string
     category: ChecklistCategory
     personField: 'spiritual_birthday' | 'baptism_date' | null
@@ -28,6 +37,7 @@ const CONTENT: Record<
     title: 'I Accepted Jesus as Lord',
     question: 'Have you prayed and given your life to Jesus? This day becomes your spiritual birthday.',
     dateLabel: 'My spiritual birthday',
+    stage: 'Establish',
     checklistLabel: 'Confirm salvation / spiritual birthday',
     category: 'Action Step',
     personField: 'spiritual_birthday',
@@ -38,6 +48,7 @@ const CONTENT: Record<
     title: 'I got Baptized',
     question: 'Buried and raised with Christ — when did you go through the waters?',
     dateLabel: 'My baptism day',
+    stage: 'Establish',
     checklistLabel: 'Water baptism conversation',
     category: 'Action Step',
     personField: 'baptism_date',
@@ -45,14 +56,70 @@ const CONTENT: Record<
     coachNote: 'I got baptized ✦',
   },
   one2one: {
-    title: 'I’m Going Through One2One',
+    title: "I'm Going Through One2One",
     question: 'Have you finished walking through the One2One foundations with your coach?',
     dateLabel: null,
+    stage: 'Establish',
     checklistLabel: 'Completed One2One',
     category: 'Tool',
     personField: null,
     celebration: 'The foundations are laid.',
     coachNote: 'I completed One2One ✦',
+  },
+  'biblical-foundation': {
+    title: 'I Completed Biblical Foundation',
+    question: 'Have you finished the Biblical Foundation curriculum with your coach?',
+    dateLabel: null,
+    stage: 'Establish',
+    checklistLabel: 'Completed Biblical Foundation',
+    category: 'Tool',
+    personField: null,
+    celebration: 'Rooted in the Word.',
+    coachNote: 'I completed Biblical Foundation ✦',
+  },
+  'church-community': {
+    title: 'I Completed Church Community',
+    question: 'Have you finished the Church Community curriculum with your coach?',
+    dateLabel: null,
+    stage: 'Establish',
+    checklistLabel: 'Completed Church Community',
+    category: 'Tool',
+    personField: null,
+    celebration: 'Planted in the body of Christ.',
+    coachNote: 'I completed Church Community ✦',
+  },
+  'leadership-113': {
+    title: 'I Completed Leadership 113',
+    question: 'Have you finished the Leadership 113 curriculum?',
+    dateLabel: null,
+    stage: 'Equip',
+    checklistLabel: 'Completed Leadership 113',
+    category: 'Tool',
+    personField: null,
+    celebration: 'Equipped to lead.',
+    coachNote: 'I completed Leadership 113 ✦',
+  },
+  'next-steps': {
+    title: 'I Completed Next Steps',
+    question: 'Have you finished the Next Steps curriculum?',
+    dateLabel: null,
+    stage: 'Equip',
+    checklistLabel: 'Completed Next Steps',
+    category: 'Tool',
+    personField: null,
+    celebration: 'Every step forward is a step of faith.',
+    coachNote: 'I completed Next Steps ✦',
+  },
+  'leadership-215': {
+    title: 'I Completed Leadership 215',
+    question: 'Have you finished the Leadership 215 curriculum?',
+    dateLabel: null,
+    stage: 'Empower',
+    checklistLabel: 'Completed Leadership 215',
+    category: 'Tool',
+    personField: null,
+    celebration: 'Deepened to multiply leaders.',
+    coachNote: 'I completed Leadership 215 ✦',
   },
 }
 
@@ -80,7 +147,7 @@ export default function SelfConfirmModal({
     setError('')
     const { error: err } = await upsertStageChecklistItem({
       person_id: personId,
-      stage: 'Establish',
+      stage: c.stage,
       category: c.category,
       label: c.checklistLabel,
       completed: true,
@@ -116,7 +183,7 @@ export default function SelfConfirmModal({
           </div>
         ) : (
           <>
-            <div className="cn-label" style={{ color: 'var(--establish)' }}>Establish · milestone</div>
+            <div className="cn-label" style={{ color: `var(--${c.stage.toLowerCase()})` }}>{c.stage} · milestone</div>
             <h2 className="mt-1 text-2xl" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>
               {c.title}
             </h2>

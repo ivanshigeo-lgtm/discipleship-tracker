@@ -135,7 +135,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
       title: 'Connect with your coach',
       detail: d.coach
         ? `Walking with ${d.coach.name} — send a greeting or a prayer request`
-        : 'Enter your coach’s code to begin the journey together.',
+        : "Enter your coach's code to begin the journey together.",
       completed: isConnected,
       progress: isConnected ? 1 : 0,
       action: isConnected ? 'message-coach' : 'coach-code',
@@ -183,10 +183,26 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
     },
     {
       id: 'one2one',
-      title: 'I’m Going Through One2One',
+      title: "I'm Going Through One2One",
       detail: 'Walk through the One2One foundations with your coach.',
       completed: checklistDone(d.checklist, 'Establish', 'Completed One2One'),
       progress: checklistDone(d.checklist, 'Establish', 'Completed One2One') ? 1 : 0,
+      action: 'self-confirm',
+    },
+    {
+      id: 'biblical-foundation',
+      title: 'I Completed Biblical Foundation',
+      detail: 'Walk through the Biblical Foundation curriculum with your coach.',
+      completed: checklistDone(d.checklist, 'Establish', 'Completed Biblical Foundation'),
+      progress: checklistDone(d.checklist, 'Establish', 'Completed Biblical Foundation') ? 1 : 0,
+      action: 'self-confirm',
+    },
+    {
+      id: 'church-community',
+      title: 'I Completed Church Community',
+      detail: 'Walk through the Church Community curriculum with your coach.',
+      completed: checklistDone(d.checklist, 'Establish', 'Completed Church Community'),
+      progress: checklistDone(d.checklist, 'Establish', 'Completed Church Community') ? 1 : 0,
       action: 'self-confirm',
     },
   ]
@@ -195,10 +211,26 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
     {
       id: 'making-disciples',
       title: 'Journey Through Making Disciples',
-      detail: 'Learn to pass on what you’ve received.',
+      detail: "Learn to pass on what you've received.",
       completed: checklistDone(d.checklist, 'Equip', 'Completed Making Disciples'),
       progress: checklistDone(d.checklist, 'Equip', 'Completed Making Disciples') ? 1 : 0,
       action: 'coach-verified',
+    },
+    {
+      id: 'leadership-113',
+      title: 'I Completed Leadership 113',
+      detail: 'Complete the Leadership 113 curriculum.',
+      completed: checklistDone(d.checklist, 'Equip', 'Completed Leadership 113'),
+      progress: checklistDone(d.checklist, 'Equip', 'Completed Leadership 113') ? 1 : 0,
+      action: 'self-confirm',
+    },
+    {
+      id: 'next-steps',
+      title: 'I Completed Next Steps',
+      detail: 'Complete the Next Steps curriculum.',
+      completed: checklistDone(d.checklist, 'Equip', 'Completed Next Steps'),
+      progress: checklistDone(d.checklist, 'Equip', 'Completed Next Steps') ? 1 : 0,
+      action: 'self-confirm',
     },
     {
       id: 'testimony',
@@ -229,7 +261,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
     {
       id: 'assist-gg',
       title: 'Serve Your Grace Group',
-      detail: 'Help carry the group you’ve grown in.',
+      detail: "Help carry the group you've grown in.",
       completed: checklistDone(d.checklist, 'Equip', 'Assist in Leading Small Group'),
       progress: checklistDone(d.checklist, 'Equip', 'Assist in Leading Small Group') ? 1 : 0,
       action: 'coach-verified',
@@ -244,6 +276,14 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
       completed: checklistDone(d.checklist, 'Empower', 'Completed Empowering Leaders'),
       progress: checklistDone(d.checklist, 'Empower', 'Completed Empowering Leaders') ? 1 : 0,
       action: 'coach-verified',
+    },
+    {
+      id: 'leadership-215',
+      title: 'I Completed Leadership 215',
+      detail: 'Complete the Leadership 215 curriculum.',
+      completed: checklistDone(d.checklist, 'Empower', 'Completed Leadership 215'),
+      progress: checklistDone(d.checklist, 'Empower', 'Completed Leadership 215') ? 1 : 0,
+      action: 'self-confirm',
     },
     {
       id: 'circle',
@@ -319,6 +359,8 @@ export const TOUR: TourStage[] = [
       { title: 'Accept Christ As Lord', line: 'Pray, and mark your spiritual birthday.' },
       { title: 'Get Baptized', line: 'Buried and raised with him, filled with the Spirit.' },
       { title: 'Go Through One2One', line: 'The foundations, walked together.' },
+      { title: 'Complete Biblical Foundation', line: 'Rooted in scripture with your coach.' },
+      { title: 'Complete Church Community', line: 'Planted in the body of Christ.' },
     ],
   },
   {
@@ -326,6 +368,8 @@ export const TOUR: TourStage[] = [
     intro: 'Then be sharpened — to serve, to lead, and to tell your story.',
     steps: [
       { title: 'Journey Through Making Disciples', line: 'Learn to pass on what you received.' },
+      { title: 'Complete Leadership 113', line: 'Equipped to lead with character and skill.' },
+      { title: 'Complete Next Steps', line: 'Every step forward is a step of faith.' },
       { title: 'Share Your Story', line: 'Two minutes of light for others to find.' },
       { title: 'Share Your Hope In Christ', line: 'Your story, spoken out loud.' },
       { title: 'Discover and Deploy Your Gifts', line: 'Step into a ministry or mission.' },
@@ -337,6 +381,7 @@ export const TOUR: TourStage[] = [
     intro: 'Then — the light you received becomes light you give.',
     steps: [
       { title: 'Journey Through Empowering Leaders', line: 'Entrusted to raise up others.' },
+      { title: 'Complete Leadership 215', line: 'Deepened to multiply leaders.' },
       { title: 'Identify your circle', line: 'Name who God has placed around you.' },
       { title: 'Launch A New Grace Group', line: 'Shepherd a group of your own.' },
     ],
