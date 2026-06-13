@@ -211,21 +211,15 @@ export default function NeedAttentionSection({
 
   const handleComplete = async (item: MeetingItem) => {
     setCompletingId(item.engagement.id)
-    const completedAt = new Date().toISOString()
-    const { error } = await updateEngagement(item.engagement.id, {
-      status: 'Completed',
-      completed_at: completedAt,
-    })
+    const { error } = await updateEngagement(item.engagement.id, { status: 'Completed' })
 
     if (error) {
       console.error('Failed to complete engagement:', error.message || JSON.stringify(error))
-      alert(`Failed to mark as done: ${error.message || 'Check Supabase RLS policies'}`)
+      alert(`Failed to mark as done: ${error.message || 'Unknown error'}`)
     } else {
       setEngagements(current =>
         current.map(e =>
-          e.id === item.engagement.id
-            ? { ...e, status: 'Completed' as const, completed_at: completedAt }
-            : e
+          e.id === item.engagement.id ? { ...e, status: 'Completed' as const } : e
         )
       )
     }

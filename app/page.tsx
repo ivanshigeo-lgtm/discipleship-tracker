@@ -20,6 +20,7 @@ import MobileNav from '../components/MobileNav'
 import LoginPage from '../components/LoginPage'
 import GoogleCalendarConnect from '../components/GoogleCalendarConnect'
 import FocusDashboard from '../components/FocusDashboard'
+import MessagesDropdown from '../components/MessagesDropdown'
 import type { Person, Stage } from '../types/database'
 
 type CircleFilter = {
@@ -203,6 +204,7 @@ export default function DiscipleshipTracker() {
               <div className="flex flex-col items-end gap-1">
                 <div className="flex items-center gap-3">
                   <span className="text-sm text-[var(--fg-2)]">{profile.name}</span>
+                  <MessagesDropdown personId={profile.id} refreshKey={refreshKey} />
                   <button
                     type="button"
                     onClick={async () => {
@@ -249,6 +251,7 @@ export default function DiscipleshipTracker() {
             </h1>
             <span className="text-[10px] text-[var(--fg-3)]">{profile?.name || 'Coach'}</span>
           </div>
+          {profile && <MessagesDropdown personId={profile.id} refreshKey={refreshKey} />}
           <button
             type="button"
             onClick={async () => {
