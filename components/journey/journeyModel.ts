@@ -39,6 +39,7 @@ export type StepAction =
   | 'join-group'
   | 'soap'
   | 'testimony'
+  | 'self-confirm'
   | 'coach-verified'
   | 'celebrate'
 
@@ -168,7 +169,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
         : 'Pray the prayer of salvation with your coach — mark your spiritual birthday.',
       completed: Boolean(d.profile.spiritual_birthday) || checklistDone(d.checklist, 'Establish', 'Confirm salvation / spiritual birthday'),
       progress: Boolean(d.profile.spiritual_birthday) || checklistDone(d.checklist, 'Establish', 'Confirm salvation / spiritual birthday') ? 1 : 0,
-      action: 'coach-verified',
+      action: 'self-confirm',
     },
     {
       id: 'baptism',
@@ -178,7 +179,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
         : 'Talk with your coach about water baptism and being filled with the Spirit.',
       completed: Boolean(d.profile.baptism_date) || checklistDone(d.checklist, 'Establish', 'Water baptism conversation'),
       progress: Boolean(d.profile.baptism_date) || checklistDone(d.checklist, 'Establish', 'Water baptism conversation') ? 1 : 0,
-      action: 'coach-verified',
+      action: 'self-confirm',
     },
     {
       id: 'one2one',
@@ -186,7 +187,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
       detail: 'Walk through the One2One foundations with your coach.',
       completed: checklistDone(d.checklist, 'Establish', 'Completed One2One'),
       progress: checklistDone(d.checklist, 'Establish', 'Completed One2One') ? 1 : 0,
-      action: 'coach-verified',
+      action: 'self-confirm',
     },
   ]
 

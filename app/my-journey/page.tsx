@@ -25,6 +25,7 @@ import ConstellationRail, { ConstellationFeedInline, useConstellationFeed } from
 import StoryMusic from '../../components/journey/StoryMusic'
 import MessageCoachModal from '../../components/journey/MessageCoachModal'
 import JoinGroupModal from '../../components/journey/JoinGroupModal'
+import SelfConfirmModal, { type SelfConfirmKind } from '../../components/journey/SelfConfirmModal'
 
 const INTRO_KEY = 'journey_intro_seen'
 const DEMO_KEY = 'journey_quadrant_demo_seen'
@@ -118,6 +119,7 @@ export default function MyJourneyPage() {
   const [dataReady, setDataReady] = useState(false)
   const [demo, setDemo] = useState<DemoPhase>(null)
   const [activeModal, setActiveModal] = useState<'soap' | 'testimony' | 'coach' | 'message' | 'join-group' | null>(null)
+  const [selfConfirm, setSelfConfirm] = useState<SelfConfirmKind | null>(null)
   const [selectedJournal, setSelectedJournal] = useState<SoapJournal | null>(null)
   const [processingOcr, setProcessingOcr] = useState(false)
   const [weeklySummary, setWeeklySummary] = useState<{ summary: string; journalCount: number } | null>(null)
@@ -183,6 +185,7 @@ export default function MyJourneyPage() {
     else if (step.action === 'coach-code') setActiveModal('coach')
     else if (step.action === 'message-coach') setActiveModal('message')
     else if (step.action === 'join-group') setActiveModal('join-group')
+    else if (step.action === 'self-confirm') setSelfConfirm(step.id as SelfConfirmKind)
   }
 
   // intro hands off to the tour — same star, focus unbroken
@@ -520,6 +523,15 @@ export default function MyJourneyPage() {
       )}
       {activeModal === 'message' && profile && coach && (
         <MessageCoachModal personId={profile.id} coach={coach} onClose={() => setActiveModal(null)} />
+      )}
+      {selfConfirm && profile && (
+        <SelfConfirmModal
+          kind={selfConfirm}
+          personId={profile.id}
+          coach={coach}
+          onClose={() => setSelfConfirm(null)}
+          onSaved={loadData}
+        />
       )}
       {activeModal === 'join-group' && profile && (
         <JoinGroupModal

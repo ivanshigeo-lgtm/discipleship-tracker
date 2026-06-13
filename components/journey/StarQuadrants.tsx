@@ -40,7 +40,11 @@ function StepRow({
     !locked &&
     (step.action === 'message-coach' ||
       (!step.completed &&
-        (step.action === 'coach-code' || step.action === 'join-group' || step.action === 'soap' || step.action === 'testimony')))
+        (step.action === 'coach-code' ||
+          step.action === 'join-group' ||
+          step.action === 'soap' ||
+          step.action === 'testimony' ||
+          step.action === 'self-confirm')))
 
   return (
     <div
@@ -69,7 +73,13 @@ function StepRow({
       )}
       {actionable && (
         <span className="shrink-0 text-[10px] font-bold" style={{ color }}>
-          {step.action === 'message-coach' ? 'Message →' : step.action === 'join-group' ? 'Join →' : '→'}
+          {step.action === 'message-coach'
+            ? 'Message →'
+            : step.action === 'join-group'
+            ? 'Join →'
+            : step.action === 'self-confirm'
+            ? 'Mark it →'
+            : '→'}
         </span>
       )}
     </div>
