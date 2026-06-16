@@ -235,10 +235,23 @@ export default function NeedAttentionSection({
     const today = new Date()
     today.setHours(0, 0, 0, 0)
 
+    // Current week: Monday → Sunday
+    const dayOfWeek = today.getDay() // 0=Sun, 1=Mon…
+    const monday = new Date(today)
+    monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1))
+    const sunday = new Date(monday)
+    sunday.setDate(monday.getDate() + 6)
+    const mondayStr = monday.toISOString().split('T')[0]
+    const sundayStr = sunday.toISOString().split('T')[0]
+
     const items: MeetingItem[] = []
 
     engagements
-      .filter(e => e.status === 'Pending' && e.follow_up_date)
+      .filter(e => {
+        if (e.status !== 'Pending' || !e.follow_up_date) return false
+        // Show this week's meetings + overdue
+        return e.follow_up_date <= sundayStr
+      })
       .forEach(engagement => {
         const person = peopleById.get(engagement.person_id)
         if (!person) return
@@ -395,7 +408,7 @@ export default function NeedAttentionSection({
       </div>
 
       <p className="mt-1 text-sm text-[var(--fg-2)]">
-        Scheduled meetings from Next Engagements
+        This week&apos;s meetings — Monday through Sunday
       </p>
 
       {isExpanded && (

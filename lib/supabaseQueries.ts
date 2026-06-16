@@ -792,3 +792,95 @@ export const markMessageRead = async (id: string) => {
     .select()
   return { data: data?.[0] ?? null, error }
 }
+
+// ── Conversation messaging ─────────────────────────────────────
+
+export const getMyConversations = async (personId: string) => {
+  const { data: memberships, error } = await supabase
+    .from('conversation_members')
+    .select('conversation_id, last_read_at')
+    .eq('person_id', personId)
+
+  if (error || !memberships?.length) return { data: [], error }
+
+  const convIds = memberships.map((m: any) => m.conversation_id)
+
+  const [{ data: convData }, { data: memberData }, { data: msgData }] = await Promise.all([
+    supabase.from('conversations').select('id, name, updated_at').in('id', convIds).order('updated_at', { ascending: false }),
+    supabase.from('conversation_members').select('conversation_id, person_id, people!person_id(id, name)').in('conversation_id', convIds),
+    supabase.from('conversation_messages').select('id, conversation_id, body, sender_id, created_at').in('conversation_id', convIds).order('created_at', { ascending: false }),
+  ])
+
+  const result = (convData ?? []).map((conv: any) => {
+    const myMembership = memberships.find((m: any) => m.conversation_id === conv.id)
+    const members = (memberData ?? [])
+      .filter((m: any) => m.conversation_id === conv.id)
+      .map((m: any) => m.people)
+      .filter(Boolean) as { id: string; name: string }[]
+    const lastMessage = (msgData ?? []).find((m: any) => m.conversation_id === conv.id) ?? null
+    const unreadCount = (msgData ?? [])
+      .filter((m: any) => m.conversation_id === conv.id && m.sender_id !== personId)
+      .filter((m: any) => !myMembership?.last_read_at || m.created_at > myMembership.last_read_at)
+      .length
+    return {
+      id: conv.id as string,
+      name: conv.name as string | null,
+      updatedAt: conv.updated_at as string,
+      members,
+      lastMessage: lastMessage ? { body: lastMessage.body, sender_id: lastMessage.sender_id, created_at: lastMessage.created_at } : null,
+      lastReadAt: myMembership?.last_read_at ?? null,
+      unreadCount,
+    }
+  })
+
+  return { data: result, error: null }
+}
+
+export const getOrCreateDM = async (personAId: string, personBId: string) => {
+  const { data, error } = await supabase.rpc('get_or_create_dm', { person_a: personAId, person_b: personBId })
+  return { conversationId: data as string | null, error }
+}
+
+export const createGroupConversation = async (name: string, memberIds: string[]) => {
+  const { data: conv, error } = await supabase.from('conversations').insert({ name }).select().single()
+  if (error || !conv) return { data: null, error }
+  await supabase.from('conversation_members').insert(memberIds.map(id => ({ conversation_id: conv.id, person_id: id })))
+  return { data: conv as { id: string; name: string }, error: null }
+}
+
+export const getConversationMessages = async (conversationId: string) => {
+  const { data, error } = await supabase
+    .from('conversation_messages')
+    .select('*, sender:people!sender_id(id, name)')
+    .eq('conversation_id', conversationId)
+    .order('created_at', { ascending: true })
+  return { data, error }
+}
+
+export const sendConversationMessage = async (conversationId: string, senderId: string, body: string) => {
+  const { data, error } = await supabase
+    .from('conversation_messages')
+    .insert({ conversation_id: conversationId, sender_id: senderId, body })
+    .select()
+    .single()
+  return { data, error }
+}
+
+export const markConversationRead = async (conversationId: string, personId: string) => {
+  const { error } = await supabase
+    .from('conversation_members')
+    .update({ last_read_at: new Date().toISOString() })
+    .eq('conversation_id', conversationId)
+    .eq('person_id', personId)
+  return { error }
+}
+
+export const searchPeople = async (query: string, limit = 12) => {
+  const { data, error } = await supabase
+    .from('people')
+    .select('id, name, current_stage')
+    .ilike('name', `%${query}%`)
+    .order('name')
+    .limit(limit)
+  return { data, error }
+}

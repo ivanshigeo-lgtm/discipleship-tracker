@@ -25,6 +25,7 @@ import CommunityLights from '../../components/journey/CommunityLights'
 import ConstellationRail, { ConstellationFeedInline, useConstellationFeed } from '../../components/journey/ConstellationRail'
 import StoryMusic from '../../components/journey/StoryMusic'
 import MessageCoachModal from '../../components/journey/MessageCoachModal'
+import MessageCenter from '../../components/MessageCenter'
 import JoinGroupModal from '../../components/journey/JoinGroupModal'
 import SelfConfirmModal, { type SelfConfirmKind } from '../../components/journey/SelfConfirmModal'
 
@@ -120,6 +121,7 @@ export default function MyJourneyPage() {
   const [dataReady, setDataReady] = useState(false)
   const [demo, setDemo] = useState<DemoPhase>(null)
   const [activeModal, setActiveModal] = useState<'soap' | 'testimony' | 'coach' | 'message' | 'join-group' | null>(null)
+  const [msgCenterOpen, setMsgCenterOpen] = useState(false)
   const [selfConfirm, setSelfConfirm] = useState<SelfConfirmKind | null>(null)
   const [selectedJournal, setSelectedJournal] = useState<SoapJournal | null>(null)
   const [processingOcr, setProcessingOcr] = useState(false)
@@ -362,6 +364,16 @@ export default function MyJourneyPage() {
             </span>
             <button
               type="button"
+              onClick={() => setMsgCenterOpen(true)}
+              className="flex items-center gap-1.5 rounded-full border border-[var(--line-2)] px-3 py-1 text-xs font-medium text-[var(--fg-2)] hover:border-[var(--gbm-cobalt-bright)] hover:text-[var(--fg-1)]"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              Messages
+            </button>
+            <button
+              type="button"
               onClick={async () => {
                 await signOut()
                 window.location.href = '/'
@@ -573,6 +585,16 @@ export default function MyJourneyPage() {
           onJoined={loadData}
         />
       )}
+
+      {/* Message Center */}
+      <MessageCenter
+        myPersonId={profile.id}
+        myName={profile.name}
+        isOpen={msgCenterOpen}
+        onClose={() => setMsgCenterOpen(false)}
+        initialTargetPersonId={coach?.id ?? null}
+        onConsumedTarget={() => {}}
+      />
 
       {/* journal viewer */}
       {selectedJournal && (

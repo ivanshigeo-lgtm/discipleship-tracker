@@ -21,6 +21,7 @@ import LoginPage from '../components/LoginPage'
 import GoogleCalendarConnect from '../components/GoogleCalendarConnect'
 import FocusDashboard from '../components/FocusDashboard'
 import MessagesDropdown from '../components/MessagesDropdown'
+import MessageCenter from '../components/MessageCenter'
 import type { Person, Stage } from '../types/database'
 
 type CircleFilter = {
@@ -68,6 +69,13 @@ export default function DiscipleshipTracker() {
   const [journeyExpanded, setJourneyExpanded] = useState(false)
   const [dashboardMode, setDashboardMode] = useState<DashboardMode>('focus')
   const [profileLoading, setProfileLoading] = useState(true)
+  const [msgCenterOpen, setMsgCenterOpen] = useState(false)
+  const [msgCenterTarget, setMsgCenterTarget] = useState<string | null>(null)
+
+  const openMessageCenter = (targetPersonId?: string) => {
+    setMsgCenterTarget(targetPersonId ?? null)
+    setMsgCenterOpen(true)
+  }
 
   // Handle return from Google Calendar OAuth
   useEffect(() => {
@@ -204,7 +212,7 @@ export default function DiscipleshipTracker() {
               <div className="flex flex-col items-end gap-1">
                 <div className="flex items-center gap-3">
                   <span className="text-sm text-[var(--fg-2)]">{profile.name}</span>
-                  <MessagesDropdown personId={profile.id} refreshKey={refreshKey} />
+                  <MessagesDropdown personId={profile.id} refreshKey={refreshKey} onOpenMessageCenter={openMessageCenter} />
                   <button
                     type="button"
                     onClick={async () => {
@@ -251,7 +259,7 @@ export default function DiscipleshipTracker() {
             </h1>
             <span className="text-[10px] text-[var(--fg-3)]">{profile?.name || 'Coach'}</span>
           </div>
-          {profile && <MessagesDropdown personId={profile.id} refreshKey={refreshKey} />}
+          {profile && <MessagesDropdown personId={profile.id} refreshKey={refreshKey} onOpenMessageCenter={openMessageCenter} />}
           <button
             type="button"
             onClick={async () => {
@@ -375,7 +383,7 @@ export default function DiscipleshipTracker() {
         {/* Messages from disciples - only on home tab */}
         <div className={`${mobileTab !== 'home' ? 'hidden md:block' : ''}`}>
           <ErrorBoundary name="MessagesSection">
-            <MessagesSection refreshKey={refreshKey} />
+            <MessagesSection refreshKey={refreshKey} onOpenMessageCenter={openMessageCenter} />
           </ErrorBoundary>
         </div>
 
@@ -540,6 +548,18 @@ export default function DiscipleshipTracker() {
 
       {/* Mobile Navigation */}
       <MobileNav activeTab={mobileTab} onTabChange={handleMobileTabChange} />
+
+      {/* Message Center */}
+      {profile && (
+        <MessageCenter
+          myPersonId={profile.id}
+          myName={profile.name}
+          isOpen={msgCenterOpen}
+          onClose={() => setMsgCenterOpen(false)}
+          initialTargetPersonId={msgCenterTarget}
+          onConsumedTarget={() => setMsgCenterTarget(null)}
+        />
+      )}
     </div>
   )
 }

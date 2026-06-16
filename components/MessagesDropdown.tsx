@@ -15,9 +15,11 @@ const KIND_STYLE: Record<Message['kind'], { label: string; color: string }> = {
 export default function MessagesDropdown({
   personId,
   refreshKey = 0,
+  onOpenMessageCenter,
 }: {
   personId: string
   refreshKey?: number
+  onOpenMessageCenter?: (targetPersonId: string) => void
 }) {
   const [messages, setMessages] = useState<MessageWithSender[]>([])
   const [open, setOpen] = useState(false)
@@ -120,15 +122,26 @@ export default function MessagesDropdown({
                       </div>
                       <p className="mt-0.5 text-xs leading-relaxed text-[var(--fg-2)]">{m.body}</p>
                     </div>
-                    {!m.read_at && (
-                      <button
-                        type="button"
-                        onClick={() => handleMarkRead(m.id)}
-                        className="shrink-0 text-[9px] text-[var(--fg-3)] hover:text-[var(--fg-1)]"
-                      >
-                        ✓
-                      </button>
-                    )}
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      {onOpenMessageCenter && m.from && (
+                        <button
+                          type="button"
+                          onClick={() => { onOpenMessageCenter(m.from!.id); setOpen(false) }}
+                          className="rounded-full border border-[var(--line-2)] px-1.5 py-0.5 text-[9px] font-medium text-[var(--fg-2)] hover:border-[var(--gbm-cobalt-bright)] hover:text-[var(--fg-1)]"
+                        >
+                          Reply
+                        </button>
+                      )}
+                      {!m.read_at && (
+                        <button
+                          type="button"
+                          onClick={() => handleMarkRead(m.id)}
+                          className="text-[9px] text-[var(--fg-3)] hover:text-[var(--fg-1)]"
+                        >
+                          ✓
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )
               })}

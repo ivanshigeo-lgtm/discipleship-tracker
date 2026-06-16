@@ -133,6 +133,39 @@ export type Message = {
   created_at: string
 }
 
+export type Conversation = {
+  id: string
+  name: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type ConversationMember = {
+  id: string
+  conversation_id: string
+  person_id: string
+  last_read_at: string | null
+  joined_at: string
+}
+
+export type ConversationMessage = {
+  id: string
+  conversation_id: string
+  sender_id: string
+  body: string
+  created_at: string
+}
+
+export type ConversationSummary = {
+  id: string
+  name: string | null
+  updatedAt: string
+  members: { id: string; name: string }[]
+  lastMessage: { body: string; sender_id: string; created_at: string } | null
+  lastReadAt: string | null
+  unreadCount: number
+}
+
 export type InviteToken = {
   id: string
   person_id: string

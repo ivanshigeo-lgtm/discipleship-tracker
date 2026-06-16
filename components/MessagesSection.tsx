@@ -7,7 +7,13 @@ import type { Message, Person } from '../types/database'
 
 type MessageWithSender = Message & { from: Pick<Person, 'id' | 'name' | 'current_stage'> | null }
 
-export default function MessagesSection({ refreshKey = 0 }: { refreshKey?: number }) {
+export default function MessagesSection({
+  refreshKey = 0,
+  onOpenMessageCenter,
+}: {
+  refreshKey?: number
+  onOpenMessageCenter?: (targetPersonId: string) => void
+}) {
   const { profile } = useAuth()
   const [messages, setMessages] = useState<MessageWithSender[]>([])
   const [showAll, setShowAll] = useState(false)
@@ -73,15 +79,29 @@ export default function MessagesSection({ refreshKey = 0 }: { refreshKey?: numbe
               </div>
               <p className="mt-0.5 text-sm leading-relaxed text-[var(--fg-2)]">{m.body}</p>
             </div>
-            {!m.read_at && (
-              <button
-                type="button"
-                onClick={() => handleMarkRead(m.id)}
-                className="shrink-0 text-[10px] font-semibold text-[var(--fg-3)] hover:text-[var(--fg-1)]"
-              >
-                Mark read
-              </button>
-            )}
+            <div className="flex shrink-0 flex-col items-end gap-1.5">
+              {onOpenMessageCenter && m.from && (
+                <button
+                  type="button"
+                  onClick={() => onOpenMessageCenter(m.from!.id)}
+                  className="flex items-center gap-1 rounded-full border border-[var(--line-2)] px-2 py-0.5 text-[10px] font-medium text-[var(--fg-2)] hover:border-[var(--establish)] hover:text-[var(--establish)]"
+                >
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  </svg>
+                  Message
+                </button>
+              )}
+              {!m.read_at && (
+                <button
+                  type="button"
+                  onClick={() => handleMarkRead(m.id)}
+                  className="text-[10px] font-semibold text-[var(--fg-3)] hover:text-[var(--fg-1)]"
+                >
+                  Mark read
+                </button>
+              )}
+            </div>
           </div>
         ))}
       </div>
