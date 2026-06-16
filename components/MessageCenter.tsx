@@ -85,7 +85,7 @@ export default function MessageCenter({
     }
     const { data } = await getConversationMessages(convId)
     if (data) {
-      const msgs = data as ChatMsg[]
+      const msgs = data as unknown as ChatMsg[]
       msgCacheRef.current[convId] = msgs
       setMessages(msgs)
     }
