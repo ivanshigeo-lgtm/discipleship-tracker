@@ -45,71 +45,63 @@ function Panel({ title, color, onClose, children }: {
 
 // ─── Stage checklist panel ────────────────────────────────────────────────────
 function StagePanel({ stage, personId, onClose }: { stage: Stage; personId: string; onClose: () => void }) {
-  const [items, setItems] = useState<StageChecklistItem[]>([])
-  const [loading, setLoading] = useState(true)
+  const [completedKeys, setCompletedKeys] = useState<Set<string>>(new Set())
   const glow = STAGE_GLOW[stage] ?? '#FBF6EC'
 
+  // Fetch completion status in background — template renders immediately
   useEffect(() => {
     getStageChecklistItems(personId).then(({ data }) => {
-      if (data) setItems(data as StageChecklistItem[])
-      setLoading(false)
+      if (data) {
+        setCompletedKeys(new Set(
+          (data as StageChecklistItem[]).filter(i => i.completed && i.stage === stage).map(i => i.label)
+        ))
+      }
     })
-  }, [personId])
+  }, [personId, stage])
 
   const template = stageChecklistTemplates[stage] ?? []
-  const completedKeys = new Set(
-    items.filter(i => i.completed && i.stage === stage).map(i => i.label)
-  )
   const done = template.filter(t => completedKeys.has(t.label)).length
 
   return (
     <Panel title={stage} color={glow} onClose={onClose}>
-      {loading ? (
-        <div className="flex justify-center py-8">
-          <span className="h-5 w-5 animate-spin rounded-full border-2 border-t-transparent" style={{ borderColor: glow }} />
-        </div>
-      ) : (
-        <>
-          <div className="mb-1 h-1 overflow-hidden rounded-full bg-[var(--indigo-2)]">
+      <div className="mb-1 h-1 overflow-hidden rounded-full bg-[var(--indigo-2)]">
+        <div
+          className="h-full rounded-full transition-all duration-500"
+          style={{ width: template.length ? `${Math.round((done / template.length) * 100)}%` : '0%', background: glow }}
+        />
+      </div>
+      <p className="mb-4 text-xs text-[var(--fg-3)]">{done} of {template.length} completed</p>
+      <div className="space-y-2">
+        {template.map(t => {
+          const checked = completedKeys.has(t.label)
+          return (
             <div
-              className="h-full rounded-full transition-all duration-500"
-              style={{ width: template.length ? `${Math.round((done / template.length) * 100)}%` : '0%', background: glow }}
-            />
-          </div>
-          <p className="mb-4 text-xs text-[var(--fg-3)]">{done} of {template.length} completed</p>
-          <div className="space-y-2">
-            {template.map(t => {
-              const checked = completedKeys.has(t.label)
-              return (
-                <div
-                  key={t.label}
-                  className="flex items-start gap-3 rounded-xl px-3 py-2.5"
-                  style={{ background: checked ? `${glow}10` : 'var(--indigo-2)' }}
-                >
-                  <span
-                    className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border text-[9px] font-bold"
-                    style={{
-                      borderColor: checked ? glow : 'var(--line-2)',
-                      background: checked ? glow : 'transparent',
-                      color: checked ? 'var(--void)' : 'transparent',
-                    }}
-                  >
-                    ✓
-                  </span>
-                  <div>
-                    <p className="text-sm leading-snug" style={{ color: checked ? 'var(--fg-1)' : 'var(--fg-2)' }}>
-                      {t.label}
-                    </p>
-                    {'description' in t && (t as { description?: string }).description && (
-                      <p className="mt-0.5 text-[11px] leading-relaxed text-[var(--fg-3)]">{(t as { description?: string }).description}</p>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </>
-      )}
+              key={t.label}
+              className="flex items-start gap-3 rounded-xl px-3 py-2.5"
+              style={{ background: checked ? `${glow}10` : 'var(--indigo-2)' }}
+            >
+              <span
+                className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border text-[9px] font-bold"
+                style={{
+                  borderColor: checked ? glow : 'var(--line-2)',
+                  background: checked ? glow : 'transparent',
+                  color: checked ? 'var(--void)' : 'transparent',
+                }}
+              >
+                ✓
+              </span>
+              <div>
+                <p className="text-sm leading-snug" style={{ color: checked ? 'var(--fg-1)' : 'var(--fg-2)' }}>
+                  {t.label}
+                </p>
+                {'description' in t && (t as { description?: string }).description && (
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-[var(--fg-3)]">{(t as { description?: string }).description}</p>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
     </Panel>
   )
 }
