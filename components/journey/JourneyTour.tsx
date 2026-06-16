@@ -21,7 +21,7 @@ type Beat =
   | { kind: 'step'; stageIdx: number; stepIdx: number }
   | { kind: 'finale' }
 
-const BEAT_MS = { stage: 5600, step: 4900, finale: 6400 }
+const BEAT_MS = { stage: 4600, step: 3900, finale: 5400 }
 
 function buildBeats(): Beat[] {
   const beats: Beat[] = []
