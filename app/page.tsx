@@ -330,12 +330,12 @@ export default function DiscipleshipTracker() {
       <div className="flex min-h-screen flex-1 flex-col">
 
         {/* Top bar */}
-        <div className="sticky top-0 z-30 flex items-center gap-4 border-b border-[var(--line-2)] px-5 py-3" style={{ background: 'rgba(9,12,26,.96)', backdropFilter: 'blur(12px)' }}>
+        <div className="sticky top-0 z-30 flex items-center gap-5 border-b border-[var(--line-2)] px-6 py-5" style={{ background: 'rgba(9,12,26,.96)', backdropFilter: 'blur(12px)' }}>
           {/* Hamburger */}
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
-            className="flex h-9 w-9 shrink-0 flex-col items-center justify-center gap-[5px] rounded-lg border border-[var(--line-2)]"
+            className="flex h-10 w-10 shrink-0 flex-col items-center justify-center gap-[6px] rounded-lg border border-[var(--line-2)]"
           >
             <span className="h-px w-5 rounded-full bg-[var(--fg-2)]" />
             <span className="h-px w-5 rounded-full bg-[var(--fg-2)]" />
@@ -343,11 +343,11 @@ export default function DiscipleshipTracker() {
           </button>
 
           {/* Logo + title */}
-          <div className="flex flex-1 items-center gap-4">
-            <img src="/gbm-horizontal-lockup-white.png" alt="Grace Bible Maui" className="h-11 w-auto" />
-            <div className="hidden border-l border-[var(--line-2)] pl-4 sm:block">
-              <p className="text-xl font-semibold leading-tight" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>Constellations</p>
-              <p className="mt-0.5 text-sm leading-tight text-[var(--fg-3)]">Coaching Legacies of Disciples</p>
+          <div className="flex flex-1 items-center gap-5">
+            <img src="/gbm-horizontal-lockup-white.png" alt="Grace Bible Maui" className="h-16 w-auto" />
+            <div className="hidden border-l-2 border-[var(--line-2)] pl-5 sm:block">
+              <p className="text-3xl font-semibold leading-tight" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>Constellations</p>
+              <p className="mt-1 text-base leading-tight text-[var(--fg-3)]">Coaching Legacies of Disciples</p>
             </div>
           </div>
 
