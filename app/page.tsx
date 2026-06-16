@@ -330,7 +330,7 @@ export default function DiscipleshipTracker() {
       <div className="flex min-h-screen flex-1 flex-col">
 
         {/* Top bar */}
-        <div className="sticky top-0 z-30 flex items-center gap-5 border-b border-[var(--line-2)] px-6 py-5" style={{ background: 'rgba(9,12,26,.96)', backdropFilter: 'blur(12px)' }}>
+        <div className="sticky top-0 z-30 flex items-center gap-6 border-b border-[var(--line-2)] px-6 py-4" style={{ background: 'rgba(9,12,26,.96)', backdropFilter: 'blur(12px)' }}>
           {/* Hamburger */}
           <button
             type="button"
@@ -343,11 +343,12 @@ export default function DiscipleshipTracker() {
           </button>
 
           {/* Logo + title */}
-          <div className="flex flex-1 items-center gap-5">
-            <img src="/gbm-horizontal-lockup-white.png" alt="Grace Bible Maui" className="h-16 w-auto" />
-            <div className="hidden border-l-2 border-[var(--line-2)] pl-5 sm:block">
-              <p className="text-3xl font-semibold leading-tight" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>Constellations</p>
-              <p className="mt-1 text-base leading-tight text-[var(--fg-3)]">Coaching Legacies of Disciples</p>
+          <div className="flex flex-1 items-center gap-6">
+            <img src="/gbm-horizontal-lockup-white.png" alt="Grace Bible Maui" className="h-[126px] w-auto shrink-0" />
+            <div className="hidden h-14 w-px bg-[var(--line-2)] sm:block" />
+            <div className="hidden sm:block">
+              <h1 className="text-3xl font-semibold" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>Constellations</h1>
+              <span className="whitespace-nowrap text-sm text-[var(--fg-3)]">Coaching Legacies of Disciples</span>
             </div>
           </div>
 
