@@ -315,6 +315,52 @@ export default function ConstellationMap({
         )
       })}
 
+      {/* Testimony popup on star hover */}
+      {hoveredPerson && (() => {
+        const person = people.find(p => p.id === hoveredPerson)
+        const pos = starPositions[hoveredPerson]
+        if (!person || !pos || (!person.testimony_text && !person.testimony_video_url)) return null
+        const config = STAGE_CONFIG[person.current_stage]
+        const cardWidth = 220
+        const left = Math.max(8, Math.min(pos.x - cardWidth / 2, dimensions.width - cardWidth - 8))
+        return (
+          <div
+            className="pointer-events-none absolute z-30"
+            style={{
+              left,
+              top: pos.y,
+              transform: 'translateY(calc(-100% - 18px))',
+              width: cardWidth,
+              background: 'rgba(6,8,20,.94)',
+              backdropFilter: 'blur(14px)',
+              border: `1px solid ${config.color}40`,
+              borderRadius: 14,
+              padding: '10px 12px',
+              boxShadow: `0 0 24px -4px ${config.glowColor}60`,
+            }}
+          >
+            <div className="mb-1.5 flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full" style={{ background: config.color }} />
+              <span className="text-[10px] font-semibold" style={{ color: config.color }}>
+                {person.name.split(' ')[0]}&rsquo;s story
+              </span>
+            </div>
+            {person.testimony_video_url ? (
+              <video
+                src={person.testimony_video_url}
+                className="w-full rounded-lg"
+                style={{ maxHeight: 110 }}
+                playsInline
+              />
+            ) : (
+              <p className="text-[11px] italic leading-relaxed text-[var(--fg-2)]">
+                &ldquo;{(person.testimony_text ?? '').slice(0, 180)}{(person.testimony_text ?? '').length > 180 ? '…' : ''}&rdquo;
+              </p>
+            )}
+          </div>
+        )
+      })()}
+
       {/* Legend */}
       <div className="absolute bottom-4 left-4 z-20 flex flex-wrap gap-3">
         {STAGE_ORDER.map(stage => {

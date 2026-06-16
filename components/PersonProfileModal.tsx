@@ -307,6 +307,19 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
         <div className="space-y-3 p-4">
           <DiscipleStarCard person={savedPerson} currentStage={currentStage} refreshKey={starRefreshKey} />
 
+          {activeSection === 'profile' && (savedPerson.testimony_text || savedPerson.testimony_video_url) && (
+            <ModalSectionCard title="Their Story" subtitle="Testimony shared with the constellation" defaultOpen>
+              {savedPerson.testimony_video_url ? (
+                <video src={savedPerson.testimony_video_url} controls className="w-full rounded-lg" />
+              ) : null}
+              {savedPerson.testimony_text ? (
+                <p className="mt-2 text-sm italic leading-relaxed text-[var(--fg-2)]">
+                  &ldquo;{savedPerson.testimony_text}&rdquo;
+                </p>
+              ) : null}
+            </ModalSectionCard>
+          )}
+
           {activeSection === 'profile' && (
             <ModalSectionCard
               title="Profile Details"

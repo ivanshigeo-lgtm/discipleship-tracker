@@ -570,6 +570,54 @@ function StarNode({ node, isSelected, onClick, onMouseEnter, onMouseLeave }: { n
         {node.name.split(' ')[0]}
         {node.degree > 0 && <span style={{ opacity: 0.7 }}> · {node.degree}</span>}
       </div>
+
+      {/* Testimony popup — appears above the star on hover */}
+      {(node.testimony_text || node.testimony_video_url) && (
+        <div
+          className="pointer-events-none absolute left-1/2 z-50 w-52 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+          style={{
+            top: -8,
+            transform: 'translateX(-50%) translateY(-100%)',
+            background: 'rgba(6,8,20,.94)',
+            backdropFilter: 'blur(14px)',
+            border: `1px solid ${starColor.glow}40`,
+            borderRadius: 14,
+            padding: '10px 12px',
+            boxShadow: `0 0 24px -4px ${starColor.glow}50`,
+          }}
+        >
+          <div className="mb-1.5 flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full" style={{ background: starColor.glow }} />
+            <span className="text-[10px] font-semibold" style={{ color: starColor.glow }}>
+              {node.name.split(' ')[0]}&rsquo;s story
+            </span>
+          </div>
+          {node.testimony_video_url ? (
+            <video
+              src={node.testimony_video_url}
+              className="w-full rounded-lg"
+              style={{ maxHeight: 110 }}
+              playsInline
+            />
+          ) : (
+            <p className="text-[11px] italic leading-relaxed text-[var(--fg-2)]">
+              &ldquo;{(node.testimony_text ?? '').slice(0, 180)}{(node.testimony_text ?? '').length > 180 ? '…' : ''}&rdquo;
+            </p>
+          )}
+          {/* caret */}
+          <div
+            className="absolute left-1/2 -translate-x-1/2"
+            style={{
+              bottom: -6,
+              width: 0,
+              height: 0,
+              borderLeft: '6px solid transparent',
+              borderRight: '6px solid transparent',
+              borderTop: `6px solid ${starColor.glow}40`,
+            }}
+          />
+        </div>
+      )}
     </button>
   )
 }
