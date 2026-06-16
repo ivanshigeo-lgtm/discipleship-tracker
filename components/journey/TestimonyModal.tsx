@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { supabase } from '../../lib/supabaseClient'
 import { saveTestimony } from '../../lib/supabaseQueries'
 import type { Person } from '../../types/database'
 
@@ -125,24 +124,31 @@ export default function TestimonyModal({
     setRecordState('idle')
   }
 
+  const uploadToServer = async (blob: Blob, fileName: string): Promise<string | null> => {
+    const form = new FormData()
+    form.append('file', blob, fileName)
+    form.append('personId', profile.id)
+    const res = await fetch('/api/testimony/upload', { method: 'POST', body: form })
+    const json = await res.json()
+    if (!res.ok) {
+      setError(json.error || 'Upload failed. Please try again.')
+      return null
+    }
+    return json.url as string
+  }
+
   const useRecording = async () => {
     if (!recordedBlob) return
-    if (recordedBlob.size > 50 * 1024 * 1024) {
-      setError('Recording is over 50MB — please try a shorter clip.')
+    if (recordedBlob.size > 100 * 1024 * 1024) {
+      setError('Recording is over 100MB — please try a shorter clip.')
       return
     }
     setUploading(true)
     setError('')
     const ext = recordedBlob.type.includes('mp4') ? 'mp4' : 'webm'
-    const path = `${profile.id}/${Date.now()}.${ext}`
-    const { error: upErr } = await supabase.storage.from('testimonies').upload(path, recordedBlob)
-    if (upErr) {
-      setError('Upload failed. Please try again.')
-      setUploading(false)
-      return
-    }
-    const { data } = supabase.storage.from('testimonies').getPublicUrl(path)
-    setVideoUrl(data.publicUrl)
+    const url = await uploadToServer(recordedBlob, `testimony.${ext}`)
+    if (!url) { setUploading(false); return }
+    setVideoUrl(url)
     URL.revokeObjectURL(recordedObjectUrl)
     setRecordedObjectUrl('')
     setRecordedBlob(null)
@@ -153,22 +159,15 @@ export default function TestimonyModal({
   const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    if (file.size > 50 * 1024 * 1024) {
-      setError('Video must be under 50MB — a two-minute clip at standard quality fits comfortably.')
+    if (file.size > 100 * 1024 * 1024) {
+      setError('Video must be under 100MB — a two-minute clip at standard quality fits comfortably.')
       return
     }
     setUploading(true)
     setError('')
-    const ext = file.name.split('.').pop()
-    const path = `${profile.id}/${Date.now()}.${ext}`
-    const { error: upErr } = await supabase.storage.from('testimonies').upload(path, file)
-    if (upErr) {
-      setError('Upload failed. Please try again.')
-      setUploading(false)
-      return
-    }
-    const { data } = supabase.storage.from('testimonies').getPublicUrl(path)
-    setVideoUrl(data.publicUrl)
+    const url = await uploadToServer(file, file.name)
+    if (!url) { setUploading(false); return }
+    setVideoUrl(url)
     setUploading(false)
   }
 
