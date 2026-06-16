@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getEngagementsByPerson, updateEngagement, deleteEngagement } from '../lib/supabaseQueries'
+import { getEngagementsByPerson, updateEngagement, deleteEngagement, addEngagement } from '../lib/supabaseQueries'
 import type { Engagement, MeetingType } from '../types/database'
 
 const MEETING_TYPES: MeetingType[] = ['One2One', 'Making Disciples', 'Coffee', 'Church Community', 'Empowering Leaders']
@@ -13,6 +13,26 @@ type EditingEngagement = {
   follow_up_time: string
   location: string
   notes: string
+  repeatWeekly: boolean
+  repeatUntil: string
+}
+
+function addWeeks(dateStr: string, weeks: number): string {
+  const d = new Date(dateStr + 'T00:00:00')
+  d.setDate(d.getDate() + weeks * 7)
+  return d.toISOString().split('T')[0]
+}
+
+function weeklyRepeatDates(start: string, until: string): string[] {
+  const dates: string[] = []
+  let current = start
+  while (true) {
+    const next = addWeeks(current, 1)
+    if (next > until) break
+    dates.push(next)
+    current = next
+  }
+  return dates
 }
 
 export default function NextStepsList({
@@ -103,7 +123,7 @@ export default function NextStepsList({
       setEditingData(null)
       onUpdate?.()
 
-      // Sync with Google Calendar
+      // Sync this engagement with Google Calendar
       if (coachPersonId && updates.follow_up_date) {
         try {
           await fetch('/api/calendar/sync', {
@@ -123,6 +143,40 @@ export default function NextStepsList({
         } catch (err) {
           console.error('Calendar sync error:', err)
         }
+      }
+
+      // Create weekly repeat copies
+      if (editingData.repeatWeekly && updates.follow_up_date && editingData.repeatUntil) {
+        const repeatDates = weeklyRepeatDates(updates.follow_up_date, editingData.repeatUntil)
+        for (const date of repeatDates) {
+          const { data: newEng } = await addEngagement({
+            person_id: eng.person_id,
+            description: updates.description,
+            follow_up_date: date,
+            follow_up_time: updates.follow_up_time || null,
+            location: updates.location || null,
+            meeting_type: updates.meeting_type || null,
+            status: 'Pending',
+          })
+          if (newEng && coachPersonId) {
+            try {
+              await fetch('/api/calendar/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  action: 'create',
+                  coachPersonId,
+                  engagementId: newEng.id,
+                  personName,
+                  engagement: { ...updates, follow_up_date: date },
+                }),
+              })
+            } catch (err) {
+              console.error('Calendar sync error for repeat:', err)
+            }
+          }
+        }
+        await loadEngagements()
       }
     }
     setSavingId(null)
@@ -152,6 +206,8 @@ export default function NextStepsList({
         follow_up_time: eng.follow_up_time || '',
         location: eng.location || '',
         notes: eng.notes || '',
+        repeatWeekly: false,
+        repeatUntil: '',
       })
     }
   }
@@ -443,6 +499,42 @@ function EngagementCard({
                 className="w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-2.5 py-2 text-xs text-[var(--fg-1)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
               />
             </div>
+          </div>
+
+          {/* Repeat weekly */}
+          <div className="flex flex-wrap items-center gap-2">
+            <label className={`flex items-center gap-1.5 ${editingData.follow_up_date ? 'cursor-pointer' : 'cursor-not-allowed opacity-40'}`}>
+              <input
+                type="checkbox"
+                checked={editingData.repeatWeekly}
+                disabled={!editingData.follow_up_date}
+                onChange={(e) => {
+                  onEditingChange({ ...editingData, repeatWeekly: e.target.checked, repeatUntil: '' })
+                }}
+                className="h-3.5 w-3.5 rounded border-[var(--line-2)] accent-[var(--equip)]"
+              />
+              <span className="text-xs text-[var(--fg-2)]">Repeat weekly</span>
+            </label>
+            {editingData.repeatWeekly && editingData.follow_up_date && (
+              <>
+                <span className="text-xs text-[var(--fg-3)]">until</span>
+                <input
+                  type="date"
+                  value={editingData.repeatUntil}
+                  min={addWeeks(editingData.follow_up_date, 1)}
+                  onChange={(e) => onEditingChange({ ...editingData, repeatUntil: e.target.value })}
+                  className="rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-2.5 py-1.5 text-xs text-[var(--fg-1)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
+                />
+                {editingData.repeatUntil && (
+                  <span className="text-[10px] text-[var(--fg-3)]">
+                    {weeklyRepeatDates(editingData.follow_up_date, editingData.repeatUntil).length} more
+                  </span>
+                )}
+              </>
+            )}
+            {!editingData.follow_up_date && (
+              <span className="text-[10px] text-[var(--fg-3)]">set a date first</span>
+            )}
           </div>
 
           <div>
