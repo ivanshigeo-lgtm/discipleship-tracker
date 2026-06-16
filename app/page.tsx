@@ -344,11 +344,11 @@ export default function DiscipleshipTracker() {
 
           {/* Logo + title */}
           <div className="flex flex-1 items-center gap-6">
-            <img src="/gbm-horizontal-lockup-white.png" alt="Grace Bible Maui" className="h-[126px] w-auto shrink-0" />
-            <div className="hidden h-14 w-px bg-[var(--line-2)] sm:block" />
-            <div className="hidden sm:block">
-              <h1 className="text-3xl font-semibold" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>Constellations</h1>
-              <span className="whitespace-nowrap text-sm text-[var(--fg-3)]">Coaching Legacies of Disciples</span>
+            <img src="/gbm-horizontal-lockup-white.png" alt="Grace Bible Maui" className="h-[180px] w-auto shrink-0" />
+            <div className="hidden h-16 w-px bg-[var(--line-2)] sm:block" />
+            <div className="hidden items-baseline gap-3 sm:flex">
+              <h1 className="text-4xl font-semibold" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>Constellations</h1>
+              <span className="whitespace-nowrap text-base text-[var(--fg-3)]">Coaching Legacies of Disciples</span>
             </div>
           </div>
 
