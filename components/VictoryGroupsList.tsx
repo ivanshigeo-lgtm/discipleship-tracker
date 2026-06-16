@@ -52,11 +52,12 @@ export default function VictoryGroupsList({
   const [meetingTime, setMeetingTime] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [syncingGroupId, setSyncingGroupId] = useState<string | null>(null)
 
   const syncGroupToCalendar = async (action: 'create' | 'update' | 'delete', groupId: string, group: Partial<VictoryGroup>) => {
     if (!profile) return
     try {
-      await fetch('/api/calendar/sync', {
+      const res = await fetch('/api/calendar/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -67,9 +68,27 @@ export default function VictoryGroupsList({
           group,
         }),
       })
+      return await res.json()
     } catch (err) {
       console.error('Calendar sync error:', err)
+      return null
     }
+  }
+
+  const handleSyncGroupToCalendar = async (group: VictoryGroup) => {
+    if (!group.meeting_day || syncingGroupId) return
+    setSyncingGroupId(group.id)
+    const result = await syncGroupToCalendar(
+      group.google_calendar_event_id ? 'update' : 'create',
+      group.id,
+      group
+    )
+    if (result?.synced && result?.eventId) {
+      setGroups(current =>
+        current.map(g => g.id === group.id ? { ...g, google_calendar_event_id: result.eventId } : g)
+      )
+    }
+    setSyncingGroupId(null)
   }
 
   // Attendance state
@@ -365,16 +384,30 @@ export default function VictoryGroupsList({
                   background: 'var(--indigo)',
                 }}
               >
-                <button
-                  type="button"
-                  onClick={() => toggleGroup(group.id)}
-                  className="flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left"
-                >
-                  <span className="truncate text-sm font-semibold text-[var(--fg-1)]">{group.name}</span>
-                  <span className="shrink-0 text-[10px] text-[var(--fg-3)]">
-                    {group.meeting_day ?? ''}{group.meeting_time ? ` @ ${group.meeting_time}` : ''} · {memberships.length}
-                  </span>
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(group.id)}
+                    className="flex flex-1 items-center justify-between gap-2 px-2.5 py-1.5 text-left"
+                  >
+                    <span className="truncate text-sm font-semibold text-[var(--fg-1)]">{group.name}</span>
+                    <span className="shrink-0 text-[10px] text-[var(--fg-3)]">
+                      {group.google_calendar_event_id && <span title="Synced to Google Calendar">📅 </span>}
+                      {group.meeting_day ?? ''}{group.meeting_time ? ` @ ${group.meeting_time}` : ''} · {memberships.length}
+                    </span>
+                  </button>
+                  {group.meeting_day && !group.google_calendar_event_id && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); handleSyncGroupToCalendar(group) }}
+                      disabled={syncingGroupId === group.id}
+                      className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium text-[var(--gbm-cobalt-bright)] hover:bg-[rgba(91,141,247,.1)] disabled:opacity-50"
+                      title="Add to Google Calendar"
+                    >
+                      {syncingGroupId === group.id ? '…' : '📅 Sync'}
+                    </button>
+                  )}
+                </div>
 
                 {isOpen && (
                   <div className="space-y-3 border-t border-[var(--line-1)] p-2.5">

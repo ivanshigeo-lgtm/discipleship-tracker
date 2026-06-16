@@ -13,11 +13,15 @@ export async function POST(request: NextRequest) {
   const body = await request.json()
   const { action, type, coachPersonId } = body
 
+  console.log('[calendar-sync] hit', { action, type, coachPersonId })
+
   if (!coachPersonId) {
+    console.log('[calendar-sync] missing coachPersonId')
     return NextResponse.json({ error: 'Missing coachPersonId' }, { status: 400 })
   }
 
   const tokens = await getGoogleTokens(coachPersonId)
+  console.log('[calendar-sync] tokens:', tokens ? 'found' : 'none', 'for', coachPersonId)
   if (!tokens) {
     return NextResponse.json({ synced: false, reason: 'not_connected' })
   }
@@ -42,7 +46,9 @@ export async function POST(request: NextRequest) {
         }
 
         if (action === 'create') {
+          console.log('[calendar-sync] creating recurring group event', eventData)
           const eventId = await createRecurringCalendarEvent(coachPersonId, eventData)
+          console.log('[calendar-sync] createRecurringCalendarEvent result:', eventId)
           if (eventId) {
             await supabase
               .from('victory_groups')
@@ -50,6 +56,7 @@ export async function POST(request: NextRequest) {
               .eq('id', groupId)
             return NextResponse.json({ synced: true, eventId })
           }
+          return NextResponse.json({ synced: false, reason: 'group_event_create_failed' })
         } else if (action === 'update' && group.google_calendar_event_id) {
           const success = await updateRecurringCalendarEvent(
             coachPersonId,
@@ -84,7 +91,9 @@ export async function POST(request: NextRequest) {
       }
 
       if (action === 'create') {
+        console.log('[calendar-sync] creating event', eventData)
         const eventId = await createCalendarEvent(coachPersonId, eventData)
+        console.log('[calendar-sync] createCalendarEvent result:', eventId)
         if (eventId) {
           await supabase
             .from('engagements')
@@ -92,6 +101,7 @@ export async function POST(request: NextRequest) {
             .eq('id', engagementId)
           return NextResponse.json({ synced: true, eventId })
         }
+        return NextResponse.json({ synced: false, reason: 'event_create_failed' })
       } else if (action === 'update' && engagement.google_calendar_event_id) {
         const success = await updateCalendarEvent(coachPersonId, engagement.google_calendar_event_id, eventData)
         return NextResponse.json({ synced: success })

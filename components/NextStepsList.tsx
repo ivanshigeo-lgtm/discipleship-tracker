@@ -240,9 +240,13 @@ export default function NextStepsList({
         setEngagements(current =>
           current.map(e => e.id === eng.id ? { ...e, google_calendar_event_id: data.eventId } : e)
         )
+      } else {
+        console.error('Calendar sync failed:', data)
+        alert(`Calendar sync failed: ${data.reason || 'unknown error'}. Check that Google Calendar is connected.`)
       }
     } catch (err) {
       console.error('Calendar sync error:', err)
+      alert('Calendar sync failed. Please try again.')
     }
     setSavingId(null)
   }
