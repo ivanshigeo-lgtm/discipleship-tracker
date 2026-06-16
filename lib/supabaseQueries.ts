@@ -848,13 +848,14 @@ export const createGroupConversation = async (name: string, memberIds: string[])
   return { data: conv as { id: string; name: string }, error: null }
 }
 
-export const getConversationMessages = async (conversationId: string) => {
+export const getConversationMessages = async (conversationId: string, limit = 100) => {
   const { data, error } = await supabase
     .from('conversation_messages')
-    .select('*, sender:people!sender_id(id, name)')
+    .select('id, conversation_id, sender_id, body, created_at, sender:people!sender_id(id, name)')
     .eq('conversation_id', conversationId)
-    .order('created_at', { ascending: true })
-  return { data, error }
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  return { data: data ? [...data].reverse() : data, error }
 }
 
 export const sendConversationMessage = async (conversationId: string, senderId: string, body: string) => {
@@ -872,6 +873,18 @@ export const markConversationRead = async (conversationId: string, personId: str
     .update({ last_read_at: new Date().toISOString() })
     .eq('conversation_id', conversationId)
     .eq('person_id', personId)
+  return { error }
+}
+
+export const deleteConversationMessage = async (messageId: string) => {
+  const { error } = await supabase.from('conversation_messages').delete().eq('id', messageId)
+  return { error }
+}
+
+export const deleteConversation = async (conversationId: string) => {
+  await supabase.from('conversation_messages').delete().eq('conversation_id', conversationId)
+  await supabase.from('conversation_members').delete().eq('conversation_id', conversationId)
+  const { error } = await supabase.from('conversations').delete().eq('id', conversationId)
   return { error }
 }
 

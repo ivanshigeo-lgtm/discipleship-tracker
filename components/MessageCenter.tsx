@@ -10,6 +10,8 @@ import {
   sendConversationMessage,
   markConversationRead,
   searchPeople,
+  deleteConversationMessage,
+  deleteConversation,
 } from '../lib/supabaseQueries'
 import type { ConversationSummary } from '../types/database'
 
@@ -52,6 +54,8 @@ export default function MessageCenter({
   const [loadingMsgs, setLoadingMsgs] = useState(false)
   const [mobileView, setMobileView] = useState<'list' | 'thread'>('list')
   const [showNew, setShowNew] = useState(false)
+  const [hoveredConvId, setHoveredConvId] = useState<string | null>(null)
+  const [hoveredMsgId, setHoveredMsgId] = useState<string | null>(null)
   const [groupMode, setGroupMode] = useState(false)
   const [groupName, setGroupName] = useState('')
   const [groupMembers, setGroupMembers] = useState<{ id: string; name: string }[]>([])
@@ -59,6 +63,7 @@ export default function MessageCenter({
   const [searchResults, setSearchResults] = useState<{ id: string; name: string }[]>([])
   const bottomRef = useRef<HTMLDivElement>(null)
   const composeRef = useRef<HTMLTextAreaElement>(null)
+  const msgCacheRef = useRef<Record<string, ChatMsg[]>>({})
 
   const activeConv = convs.find(c => c.id === activeId)
 
@@ -70,9 +75,20 @@ export default function MessageCenter({
   }, [myPersonId])
 
   const loadMessages = useCallback(async (convId: string) => {
-    setLoadingMsgs(true)
+    // Show cache immediately — no spinner if we have prior data
+    const cached = msgCacheRef.current[convId]
+    if (cached) {
+      setMessages(cached)
+      setLoadingMsgs(false)
+    } else {
+      setLoadingMsgs(true)
+    }
     const { data } = await getConversationMessages(convId)
-    if (data) setMessages(data as ChatMsg[])
+    if (data) {
+      const msgs = data as ChatMsg[]
+      msgCacheRef.current[convId] = msgs
+      setMessages(msgs)
+    }
     setLoadingMsgs(false)
   }, [])
 
@@ -122,7 +138,12 @@ export default function MessageCenter({
         filter: `conversation_id=eq.${activeId}`,
       }, (payload) => {
         const msg = payload.new as ChatMsg
-        setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg])
+        setMessages(prev => {
+          if (prev.some(m => m.id === msg.id)) return prev
+          const next = [...prev, msg]
+          msgCacheRef.current[activeId] = next
+          return next
+        })
         markConversationRead(activeId, myPersonId)
       })
       .subscribe()
@@ -209,6 +230,18 @@ export default function MessageCenter({
     setGroupName('')
     setGroupMembers([])
     setSearchQ('')
+  }
+
+  const handleDeleteMessage = async (msgId: string) => {
+    setMessages(prev => prev.filter(m => m.id !== msgId))
+    await deleteConversationMessage(msgId)
+  }
+
+  const handleDeleteConversation = async (convId: string) => {
+    if (!confirm('Delete this conversation? This cannot be undone.')) return
+    setConvs(prev => prev.filter(c => c.id !== convId))
+    if (activeId === convId) { setActiveId(null); setMessages([]) }
+    await deleteConversation(convId)
   }
 
   if (!isOpen) return null
@@ -350,33 +383,51 @@ export default function MessageCenter({
                 <p className="py-8 text-center text-xs italic text-[var(--fg-3)]">No conversations yet.<br />Tap + New chat to start one.</p>
               )}
               {convs.map(conv => (
-                <button
+                <div
                   key={conv.id}
-                  type="button"
-                  onClick={() => openConv(conv.id)}
-                  className={`w-full rounded-xl border p-2.5 text-left transition-colors ${
+                  className={`relative rounded-xl border transition-colors ${
                     activeId === conv.id
                       ? 'border-[var(--gbm-cobalt-bright)] bg-[rgba(91,141,247,.12)]'
                       : 'border-[var(--line-1)] hover:border-[var(--line-2)] hover:bg-[var(--indigo-3)]'
                   }`}
+                  onMouseEnter={() => setHoveredConvId(conv.id)}
+                  onMouseLeave={() => setHoveredConvId(null)}
                 >
-                  <div className="flex items-start justify-between gap-1">
-                    <span className={`truncate text-xs font-semibold leading-tight ${conv.unreadCount > 0 ? 'text-[var(--fg-1)]' : 'text-[var(--fg-2)]'}`}>
-                      {convDisplayName(conv, myPersonId)}
-                    </span>
-                    {conv.unreadCount > 0 && (
-                      <span className="flex h-4 min-w-[1rem] shrink-0 items-center justify-center rounded-full px-1 text-[9px] font-bold"
-                        style={{ background: 'var(--establish)', color: 'var(--void)' }}>
-                        {conv.unreadCount}
+                  <button
+                    type="button"
+                    onClick={() => openConv(conv.id)}
+                    className="w-full p-2.5 text-left"
+                  >
+                    <div className="flex items-start justify-between gap-1 pr-4">
+                      <span className={`truncate text-xs font-semibold leading-tight ${conv.unreadCount > 0 ? 'text-[var(--fg-1)]' : 'text-[var(--fg-2)]'}`}>
+                        {convDisplayName(conv, myPersonId)}
                       </span>
+                      {conv.unreadCount > 0 && (
+                        <span className="flex h-4 min-w-[1rem] shrink-0 items-center justify-center rounded-full px-1 text-[9px] font-bold"
+                          style={{ background: 'var(--establish)', color: 'var(--void)' }}>
+                          {conv.unreadCount}
+                        </span>
+                      )}
+                    </div>
+                    {conv.lastMessage && (
+                      <p className="mt-0.5 truncate text-[10px] text-[var(--fg-3)]">
+                        {conv.lastMessage.sender_id === myPersonId ? 'You: ' : ''}{conv.lastMessage.body}
+                      </p>
                     )}
-                  </div>
-                  {conv.lastMessage && (
-                    <p className="mt-0.5 truncate text-[10px] text-[var(--fg-3)]">
-                      {conv.lastMessage.sender_id === myPersonId ? 'You: ' : ''}{conv.lastMessage.body}
-                    </p>
+                  </button>
+                  {hoveredConvId === conv.id && (
+                    <button
+                      type="button"
+                      onClick={e => { e.stopPropagation(); handleDeleteConversation(conv.id) }}
+                      className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded text-[var(--fg-3)] hover:bg-red-500/20 hover:text-red-400"
+                      title="Delete conversation"
+                    >
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                      </svg>
+                    </button>
                   )}
-                </button>
+                </div>
               ))}
             </div>
           </div>
@@ -400,7 +451,25 @@ export default function MessageCenter({
                   {messages.map(msg => {
                     const isMe = msg.sender_id === myPersonId
                     return (
-                      <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                      <div
+                        key={msg.id}
+                        className={`flex items-end gap-1.5 ${isMe ? 'justify-end' : 'justify-start'}`}
+                        onMouseEnter={() => setHoveredMsgId(msg.id)}
+                        onMouseLeave={() => setHoveredMsgId(null)}
+                      >
+                        {/* Delete button — left of own messages */}
+                        {isMe && hoveredMsgId === msg.id && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteMessage(msg.id)}
+                            className="mb-4 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[var(--fg-3)] hover:bg-red-500/20 hover:text-red-400"
+                            title="Delete message"
+                          >
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                            </svg>
+                          </button>
+                        )}
                         <div className="max-w-[76%]">
                           {!isMe && (
                             <p className="mb-1 text-[10px] text-[var(--fg-3)]">{msg.sender?.name ?? 'Someone'}</p>
