@@ -626,11 +626,13 @@ export default function MyCircleMap({
   refreshKey = 0,
   filterStages,
   sortMode = '4e',
+  searchQuery = '',
   onChanged,
 }: {
   refreshKey?: number
   filterStages?: Stage[]
   sortMode?: 'az' | '4e'
+  searchQuery?: string
   onChanged?: () => void
 }) {
   const [people, setPeople] = useState<Person[]>([])
@@ -697,6 +699,12 @@ export default function MyCircleMap({
   const visiblePeopleForMap = useMemo(() => {
     let filtered = people
 
+    // Filter by search query
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase()
+      filtered = filtered.filter(person => person.name.toLowerCase().includes(q))
+    }
+
     // Filter by active stages
     if (activeStages.size < 4) {
       filtered = filtered.filter(person => activeStages.has(person.current_stage))
@@ -737,7 +745,7 @@ export default function MyCircleMap({
     }
 
     return filtered
-  }, [people, connections, focusedPersonId, filterStages, activeStages, selectedGroupIds, groupMemberships])
+  }, [people, connections, focusedPersonId, filterStages, activeStages, selectedGroupIds, groupMemberships, searchQuery])
 
   const focusedPerson = focusedPersonId ? people.find(person => person.id === focusedPersonId) : undefined
 

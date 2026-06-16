@@ -18,6 +18,7 @@ import { stageLabels, stageOrder } from '../lib/stageLabels'
 interface PeopleListProps {
   filterStages?: Stage[]
   sortMode?: 'az' | '4e'
+  searchQuery?: string
   onChanged?: () => void
 }
 
@@ -71,7 +72,7 @@ function SectionCard({
   )
 }
 
-export default function PeopleList({ filterStages, sortMode = '4e', onChanged }: PeopleListProps) {
+export default function PeopleList({ filterStages, sortMode = '4e', searchQuery = '', onChanged }: PeopleListProps) {
   const { profile } = useAuth()
   const [people, setPeople] = useState<Person[]>([])
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -95,6 +96,10 @@ export default function PeopleList({ filterStages, sortMode = '4e', onChanged }:
   useEffect(() => {
     loadPeople()
   }, [refreshKey, filterKey, sortMode])
+
+  const visiblePeople = searchQuery
+    ? people.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    : people
 
   const toggle = (id: string) => {
     setExpandedId(expandedId === id ? null : id)
@@ -142,7 +147,7 @@ export default function PeopleList({ filterStages, sortMode = '4e', onChanged }:
 
   return (
     <div className="space-y-3">
-      {people.map((person) => {
+      {visiblePeople.map((person) => {
         const openSections = openSectionsByPerson[person.id] ?? defaultOpenSections
 
         return (

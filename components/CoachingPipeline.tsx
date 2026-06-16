@@ -14,6 +14,7 @@ import type { Person, Stage, Engagement, PrayerRequest } from '../types/database
 interface CoachingPipelineProps {
   refreshKey?: number
   collapsed?: boolean
+  searchQuery?: string
   onPersonClick?: (person: Person, openTab?: 'engagements') => void
   onChanged?: () => void
 }
@@ -232,6 +233,7 @@ function PersonCard({
 export default function CoachingPipeline({
   refreshKey = 0,
   collapsed = false,
+  searchQuery = '',
   onPersonClick,
   onChanged,
 }: CoachingPipelineProps) {
@@ -284,20 +286,22 @@ export default function CoachingPipeline({
   }, [prayerRequests])
 
   const peopleByStage = useMemo(() => {
+    const q = searchQuery.toLowerCase()
+    const filtered = q ? people.filter(p => p.name.toLowerCase().includes(q)) : people
     const map: Record<Stage, Person[]> = {
       Engage: [],
       Establish: [],
       Equip: [],
       Empower: [],
     }
-    people.forEach(person => {
+    filtered.forEach(person => {
       map[person.current_stage].push(person)
     })
     Object.values(map).forEach(list => {
       list.sort((a, b) => a.name.localeCompare(b.name))
     })
     return map
-  }, [people])
+  }, [people, searchQuery])
 
   const handleAdvanceStage = async (personId: string, newStage: Stage) => {
     await updatePersonStage(personId, newStage)

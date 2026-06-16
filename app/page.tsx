@@ -217,6 +217,7 @@ export default function DiscipleshipTracker() {
   const [circleView, setCircleView] = useState<CircleView>('pipeline')
   const [circleSort, setCircleSort] = useState<CircleSort>('4e')
   const [journeyExpanded, setJourneyExpanded] = useState(true)
+  const [journeySearch, setJourneySearch] = useState('')
 
   // Person modal
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null)
@@ -329,24 +330,24 @@ export default function DiscipleshipTracker() {
       <div className="flex min-h-screen flex-1 flex-col">
 
         {/* Top bar */}
-        <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-[var(--line-2)] px-4 py-2.5" style={{ background: 'rgba(9,12,26,.96)', backdropFilter: 'blur(12px)' }}>
+        <div className="sticky top-0 z-30 flex items-center gap-4 border-b border-[var(--line-2)] px-5 py-3" style={{ background: 'rgba(9,12,26,.96)', backdropFilter: 'blur(12px)' }}>
           {/* Hamburger */}
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
-            className="flex h-8 w-8 shrink-0 flex-col items-center justify-center gap-[5px] rounded-lg border border-[var(--line-2)]"
+            className="flex h-9 w-9 shrink-0 flex-col items-center justify-center gap-[5px] rounded-lg border border-[var(--line-2)]"
           >
-            <span className="h-px w-4 rounded-full bg-[var(--fg-2)]" />
-            <span className="h-px w-4 rounded-full bg-[var(--fg-2)]" />
-            <span className="h-px w-4 rounded-full bg-[var(--fg-2)]" />
+            <span className="h-px w-5 rounded-full bg-[var(--fg-2)]" />
+            <span className="h-px w-5 rounded-full bg-[var(--fg-2)]" />
+            <span className="h-px w-5 rounded-full bg-[var(--fg-2)]" />
           </button>
 
           {/* Logo + title */}
-          <div className="flex flex-1 items-center gap-3">
-            <img src="/gbm-horizontal-lockup-white.png" alt="Grace Bible Maui" className="h-7 w-auto" />
-            <div className="hidden border-l border-[var(--line-2)] pl-3 sm:block">
-              <p className="text-sm font-semibold leading-none" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>Constellations</p>
-              <p className="mt-0.5 text-[10px] leading-none text-[var(--fg-3)]">Coaching Legacies of Disciples</p>
+          <div className="flex flex-1 items-center gap-4">
+            <img src="/gbm-horizontal-lockup-white.png" alt="Grace Bible Maui" className="h-11 w-auto" />
+            <div className="hidden border-l border-[var(--line-2)] pl-4 sm:block">
+              <p className="text-xl font-semibold leading-tight" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>Constellations</p>
+              <p className="mt-0.5 text-sm leading-tight text-[var(--fg-3)]">Coaching Legacies of Disciples</p>
             </div>
           </div>
 
@@ -379,7 +380,8 @@ export default function DiscipleshipTracker() {
           {activeSection === 'journey' && (
             <div>
               <div className="cn-card mb-6 p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                {/* Header row */}
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <div className="flex flex-wrap items-center gap-3">
                       <h2 className="cn-h3">Our Journey</h2>
@@ -389,7 +391,25 @@ export default function DiscipleshipTracker() {
                       {circleView === 'pipeline' ? 'Move people through stages with the coaching pipeline.' : 'Visualize people moving toward Christ together.'}
                     </p>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Search */}
+                    <input
+                      type="text"
+                      value={journeySearch}
+                      onChange={e => setJourneySearch(e.target.value)}
+                      placeholder="Find person..."
+                      className="h-8 rounded-full border border-[var(--line-2)] bg-[var(--indigo)] px-3 text-xs text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:outline-none focus:ring-1 focus:ring-[var(--gbm-cobalt-bright)]"
+                      style={{ minWidth: 140 }}
+                    />
+                    {/* Add person */}
+                    <button
+                      type="button"
+                      onClick={() => setShowAddPerson(true)}
+                      className="h-8 rounded-full bg-[var(--gbm-cobalt-bright)] px-3 text-xs font-semibold text-white hover:opacity-90"
+                    >
+                      + Add Person
+                    </button>
+                    {/* View toggle */}
                     <div className="flex rounded-full border border-[var(--line-2)] bg-[var(--indigo)] p-1">
                       {(['pipeline', 'visual', 'list'] as CircleView[]).map(v => (
                         <button
@@ -428,6 +448,7 @@ export default function DiscipleshipTracker() {
                       <CoachingPipeline
                         refreshKey={refreshKey}
                         collapsed={!journeyExpanded}
+                        searchQuery={journeySearch}
                         onPersonClick={(p, tab) => openPerson(p, tab)}
                         onChanged={() => setRefreshKey(p => p + 1)}
                       />
@@ -437,14 +458,14 @@ export default function DiscipleshipTracker() {
                 {journeyExpanded && circleView === 'visual' && (
                   <div className="mt-4">
                     <ErrorBoundary name="MyCircleMap">
-                      <MyCircleMap refreshKey={refreshKey} filterStages={selectedStageFilters.length ? selectedStageFilters : undefined} sortMode={circleSort} onChanged={() => setRefreshKey(p => p + 1)} />
+                      <MyCircleMap refreshKey={refreshKey} filterStages={selectedStageFilters.length ? selectedStageFilters : undefined} sortMode={circleSort} searchQuery={journeySearch} onChanged={() => setRefreshKey(p => p + 1)} />
                     </ErrorBoundary>
                   </div>
                 )}
                 {journeyExpanded && circleView === 'list' && (
                   <div className="mt-4">
                     <ErrorBoundary name="PeopleList">
-                      <PeopleList key={refreshKey} filterStages={selectedStageFilters.length ? selectedStageFilters : undefined} sortMode={circleSort} onChanged={() => setRefreshKey(p => p + 1)} />
+                      <PeopleList key={refreshKey} filterStages={selectedStageFilters.length ? selectedStageFilters : undefined} sortMode={circleSort} searchQuery={journeySearch} onChanged={() => setRefreshKey(p => p + 1)} />
                     </ErrorBoundary>
                   </div>
                 )}
