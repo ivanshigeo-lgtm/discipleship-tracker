@@ -89,21 +89,21 @@ function CoachSidebar({
 
   return (
     <>
-      {/* Mobile backdrop */}
+      {/* Backdrop */}
       {open && (
         <div
-          className="fixed inset-0 z-40 bg-[rgba(6,8,20,.5)] backdrop-blur-sm md:hidden"
+          className="fixed inset-0 z-40 bg-[rgba(6,8,20,.5)] backdrop-blur-sm"
           onClick={onClose}
         />
       )}
 
-      {/* Sidebar */}
+      {/* Drawer */}
       <aside
-        className="fixed left-0 top-0 z-50 flex h-full w-56 flex-col border-r border-[var(--line-2)] transition-transform duration-300 ease-in-out md:translate-x-0"
+        className="fixed left-0 top-0 z-50 flex h-full w-64 flex-col border-r border-[var(--line-2)] transition-transform duration-300 ease-in-out"
         style={{
           background: 'rgba(9,12,26,.98)',
           backdropFilter: 'blur(20px)',
-          transform: open ? 'translateX(0)' : undefined,
+          transform: open ? 'translateX(0)' : 'translateX(-100%)',
         }}
       >
         {/* Logo + close */}
@@ -112,7 +112,7 @@ function CoachSidebar({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-6 w-6 items-center justify-center rounded text-[10px] text-[var(--fg-3)] hover:text-[var(--fg-1)] md:hidden"
+            className="flex h-6 w-6 items-center justify-center rounded text-[10px] text-[var(--fg-3)] hover:text-[var(--fg-1)]"
           >
             ✕
           </button>
@@ -332,16 +332,16 @@ export default function DiscipleshipTracker() {
         onAddPerson={() => setShowAddPerson(true)}
       />
 
-      {/* Main content — offset for sidebar on desktop */}
-      <div className="flex min-h-screen flex-1 flex-col md:ml-56">
+      {/* Main content */}
+      <div className="flex min-h-screen flex-1 flex-col">
 
         {/* Top bar */}
         <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-[var(--line-2)] px-4 py-2.5" style={{ background: 'rgba(9,12,26,.96)', backdropFilter: 'blur(12px)' }}>
-          {/* Hamburger (mobile) */}
+          {/* Hamburger */}
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
-            className="flex h-8 w-8 shrink-0 flex-col items-center justify-center gap-[5px] rounded-lg border border-[var(--line-2)] md:hidden"
+            className="flex h-8 w-8 shrink-0 flex-col items-center justify-center gap-[5px] rounded-lg border border-[var(--line-2)]"
           >
             <span className="h-px w-4 rounded-full bg-[var(--fg-2)]" />
             <span className="h-px w-4 rounded-full bg-[var(--fg-2)]" />
