@@ -106,9 +106,8 @@ function CoachSidebar({
           transform: open ? 'translateX(0)' : 'translateX(-100%)',
         }}
       >
-        {/* Logo + close */}
-        <div className="flex shrink-0 items-center justify-between border-b border-[var(--line-2)] px-4 py-3">
-          <img src="/gbm-horizontal-lockup-white.png" alt="Grace Bible Maui" className="h-8 w-auto" />
+        {/* Drawer header — close only */}
+        <div className="flex shrink-0 items-center justify-end border-b border-[var(--line-2)] px-4 py-3">
           <button
             type="button"
             onClick={onClose}
@@ -116,12 +115,6 @@ function CoachSidebar({
           >
             ✕
           </button>
-        </div>
-
-        {/* App name */}
-        <div className="border-b border-[var(--line-2)] px-4 py-2.5">
-          <p className="text-sm font-semibold" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>Constellations</p>
-          <p className="text-[10px] text-[var(--fg-3)]">Coaching Legacies of Disciples</p>
         </div>
 
         {/* Nav */}
@@ -348,13 +341,13 @@ export default function DiscipleshipTracker() {
             <span className="h-px w-4 rounded-full bg-[var(--fg-2)]" />
           </button>
 
-          {/* Breadcrumb */}
-          <div className="flex-1 text-sm text-[var(--fg-3)]">
-            <span className="text-[var(--fg-3)]">Constellations</span>
-            <span className="mx-1.5 text-[var(--fg-3)]">/</span>
-            <span className="font-medium text-[var(--fg-1)]">
-              {NAV.flatMap(s => s.items).find(i => i.id === activeSection)?.label ?? 'Our Journey'}
-            </span>
+          {/* Logo + title */}
+          <div className="flex flex-1 items-center gap-3">
+            <img src="/gbm-horizontal-lockup-white.png" alt="Grace Bible Maui" className="h-7 w-auto" />
+            <div className="hidden border-l border-[var(--line-2)] pl-3 sm:block">
+              <p className="text-sm font-semibold leading-none" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>Constellations</p>
+              <p className="mt-0.5 text-[10px] leading-none text-[var(--fg-3)]">Coaching Legacies of Disciples</p>
+            </div>
           </div>
 
           {/* Actions */}
