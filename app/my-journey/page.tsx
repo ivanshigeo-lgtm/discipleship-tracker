@@ -137,9 +137,11 @@ export default function MyJourneyPage() {
 
   const loadUnreadCount = useCallback(async () => {
     if (!profile?.id) return
-    const convs = await getMyConversations(profile.id)
-    const total = convs.reduce((sum, c) => sum + c.unreadCount, 0)
-    setUnreadMsgCount(total)
+    const { data: convs } = await getMyConversations(profile.id)
+    if (convs) {
+      const total = convs.reduce((sum: number, c: { unreadCount: number }) => sum + c.unreadCount, 0)
+      setUnreadMsgCount(total)
+    }
   }, [profile?.id])
 
   useEffect(() => {
