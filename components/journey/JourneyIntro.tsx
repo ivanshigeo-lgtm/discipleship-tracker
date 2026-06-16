@@ -269,6 +269,12 @@ export default function JourneyIntro({
           })}
         </div>
 
+        {/* bottom scrim — darkens the lower third so captions are always readable */}
+        <div
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-[45%]"
+          style={{ background: 'linear-gradient(to top, rgba(3,5,16,.92) 0%, rgba(3,5,16,.65) 35%, transparent 100%)' }}
+        />
+
         {/* captions (don't fly with the sky) */}
         <div
           className="absolute inset-x-0 bottom-[10%] flex flex-col items-center px-8 text-center transition-opacity duration-1000"
@@ -276,11 +282,11 @@ export default function JourneyIntro({
         >
           <p
             className="max-w-xl text-xl leading-relaxed italic sm:text-2xl"
-            style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)', textShadow: '0 0 40px rgba(6,8,20,1), 0 2px 8px rgba(6,8,20,1), 0 0 80px rgba(6,8,20,.9)' }}
+            style={{ fontFamily: 'var(--font-display)', color: '#f6f1e7' }}
           >
             &ldquo;He determines the number of the stars and calls them each by name.&rdquo;
           </p>
-          <p className="cn-label mt-4" style={{ textShadow: '0 0 20px rgba(6,8,20,1), 0 2px 6px rgba(6,8,20,1), 0 0 40px rgba(6,8,20,.9)' }}>Psalm 147:4 · This is your church&rsquo;s constellation</p>
+          <p className="cn-label mt-4" style={{ color: 'rgba(246,241,231,.7)' }}>Psalm 147:4 · This is your church&rsquo;s constellation</p>
         </div>
 
         <div
@@ -289,7 +295,7 @@ export default function JourneyIntro({
         >
           <p
             className="text-2xl italic sm:text-3xl"
-            style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)', textShadow: '0 2px 24px rgba(6,8,20,.95)' }}
+            style={{ fontFamily: 'var(--font-display)', color: '#f6f1e7' }}
           >
             And this one, {firstName}, is yours.
           </p>
