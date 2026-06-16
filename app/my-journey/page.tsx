@@ -10,6 +10,7 @@ import {
   getSoapStreak,
   getStageChecklistItems,
   getDiscipleshipConnections,
+  getMyConversations,
 } from '../../lib/supabaseQueries'
 import { supabase } from '../../lib/supabaseClient'
 import type { SoapJournal, StageChecklistItem, Person, VictoryGroup, DiscipleshipConnection } from '../../types/database'
@@ -122,6 +123,7 @@ export default function MyJourneyPage() {
   const [demo, setDemo] = useState<DemoPhase>(null)
   const [activeModal, setActiveModal] = useState<'soap' | 'testimony' | 'coach' | 'message' | 'join-group' | null>(null)
   const [msgCenterOpen, setMsgCenterOpen] = useState(false)
+  const [unreadMsgCount, setUnreadMsgCount] = useState(0)
   const [selfConfirm, setSelfConfirm] = useState<SelfConfirmKind | null>(null)
   const [selectedJournal, setSelectedJournal] = useState<SoapJournal | null>(null)
   const [processingOcr, setProcessingOcr] = useState(false)
@@ -132,6 +134,29 @@ export default function MyJourneyPage() {
   useEffect(() => {
     setShowIntro(!localStorage.getItem(INTRO_KEY))
   }, [])
+
+  const loadUnreadCount = useCallback(async () => {
+    if (!profile?.id) return
+    const convs = await getMyConversations(profile.id)
+    const total = convs.reduce((sum, c) => sum + c.unreadCount, 0)
+    setUnreadMsgCount(total)
+  }, [profile?.id])
+
+  useEffect(() => {
+    loadUnreadCount()
+  }, [loadUnreadCount])
+
+  // Refresh unread count when new messages arrive
+  useEffect(() => {
+    if (!profile?.id) return
+    const channel = supabase
+      .channel(`msg-unread-${profile.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'conversation_messages' }, () => {
+        if (!msgCenterOpen) loadUnreadCount()
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [profile?.id, msgCenterOpen, loadUnreadCount])
 
   const loadData = useCallback(async () => {
     if (!profile?.id) return
@@ -364,13 +389,21 @@ export default function MyJourneyPage() {
             </span>
             <button
               type="button"
-              onClick={() => setMsgCenterOpen(true)}
-              className="flex items-center gap-1.5 rounded-full border border-[var(--line-2)] px-3 py-1 text-xs font-medium text-[var(--fg-2)] hover:border-[var(--gbm-cobalt-bright)] hover:text-[var(--fg-1)]"
+              onClick={() => { setMsgCenterOpen(true); setUnreadMsgCount(0) }}
+              className="relative flex items-center gap-1.5 rounded-full border border-[var(--line-2)] px-3 py-1 text-xs font-medium text-[var(--fg-2)] hover:border-[var(--gbm-cobalt-bright)] hover:text-[var(--fg-1)]"
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
               </svg>
               Messages
+              {unreadMsgCount > 0 && (
+                <span
+                  className="flex h-4 min-w-[1rem] items-center justify-center rounded-full px-1 text-[9px] font-bold"
+                  style={{ background: 'var(--establish)', color: 'var(--void)' }}
+                >
+                  {unreadMsgCount}
+                </span>
+              )}
             </button>
             <button
               type="button"
