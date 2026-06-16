@@ -81,7 +81,7 @@ export default function MultiplicationSnapshot({
 }: MultiplicationSnapshotProps) {
   const [people, setPeople] = useState<Person[]>([])
   const [connections, setConnections] = useState<DiscipleshipConnection[]>([])
-  const [isExpanded, setIsExpanded] = useState(false)
+  const [isExpanded, setIsExpanded] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [showSearchResults, setShowSearchResults] = useState(false)
 

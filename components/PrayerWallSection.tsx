@@ -158,7 +158,7 @@ export default function PrayerWallSection({
   const [requests, setRequests] = useState<PrayerRequest[]>([])
   const [people, setPeople] = useState<Person[]>([])
   const [loading, setLoading] = useState(true)
-  const [isExpanded, setIsExpanded] = useState(false)
+  const [isExpanded, setIsExpanded] = useState(true)
   const [showPraiseForm, setShowPraiseForm] = useState(false)
   const [praisePersonId, setPraisePersonId] = useState('')
   const [praiseText, setPraiseText] = useState('')

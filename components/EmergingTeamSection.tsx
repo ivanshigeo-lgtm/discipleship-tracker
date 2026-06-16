@@ -216,7 +216,7 @@ export default function EmergingTeamSection({
   const [checklistItems, setChecklistItems] = useState<StageChecklistItem[]>([])
   const [connections, setConnections] = useState<DiscipleshipConnection[]>([])
   const [loading, setLoading] = useState(true)
-  const [isExpanded, setIsExpanded] = useState(false)
+  const [isExpanded, setIsExpanded] = useState(true)
   const [empowering, setEmpowering] = useState<string | null>(null)
 
   const loadData = async (retry = true) => {

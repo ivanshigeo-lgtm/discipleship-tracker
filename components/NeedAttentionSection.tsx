@@ -181,7 +181,7 @@ export default function NeedAttentionSection({
   const [groupsKey, setGroupsKey] = useState(0)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
-  const [isExpanded, setIsExpanded] = useState(false)
+  const [isExpanded, setIsExpanded] = useState(true)
   const [completingId, setCompletingId] = useState<string | null>(null)
 
   const loadData = async () => {

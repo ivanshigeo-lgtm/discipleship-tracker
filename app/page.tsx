@@ -223,7 +223,7 @@ export default function DiscipleshipTracker() {
   const [circleFilters, setCircleFilters] = useState<CircleFilter[]>([])
   const [circleView, setCircleView] = useState<CircleView>('pipeline')
   const [circleSort, setCircleSort] = useState<CircleSort>('4e')
-  const [journeyExpanded, setJourneyExpanded] = useState(false)
+  const [journeyExpanded, setJourneyExpanded] = useState(true)
 
   // Person modal
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null)
