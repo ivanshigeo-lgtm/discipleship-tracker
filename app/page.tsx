@@ -67,6 +67,7 @@ function CoachSidebar({
   profileId,
   onSignOut,
   onAddPerson,
+  soapStreak = 0,
 }: {
   active: SectionId
   open: boolean
@@ -76,6 +77,7 @@ function CoachSidebar({
   profileId: string
   onSignOut: () => void
   onAddPerson: () => void
+  soapStreak?: number
 }) {
   // close on Escape
   useEffect(() => {
@@ -147,7 +149,13 @@ function CoachSidebar({
                         boxShadow: isActive ? `0 0 6px 1px ${item.dot ?? '#5B8DF7'}` : 'none',
                       }}
                     />
-                    {item.label}
+                    <span className="flex-1">{item.label}</span>
+                    {item.id === 'soaps' && soapStreak > 0 && (
+                      <span className="flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold"
+                        style={{ background: 'rgba(251,191,36,.15)', color: '#FBBF24' }}>
+                        ⚡{soapStreak}
+                      </span>
+                    )}
                   </button>
                 )
               })}
@@ -265,14 +273,35 @@ export default function DiscipleshipTracker() {
   // Load coach SOAPs when that section becomes active
   const loadSoaps = useCallback(async () => {
     if (!profile?.id) return
-    const { data } = await getSoapJournals(profile.id, 30)
+    const { data } = await getSoapJournals(profile.id)
     if (data) setCoachSoaps(data as SoapJournal[])
     setSoapsLoaded(true)
   }, [profile?.id])
 
+  const soapStreak = (() => {
+    if (!coachSoaps.length) return 0
+    const dates = new Set(coachSoaps.map(j => j.journal_date.slice(0, 10)))
+    const today = new Date()
+    let streak = 0
+    for (let i = 0; i < 365; i++) {
+      const d = new Date(today)
+      d.setDate(today.getDate() - i)
+      const key = d.toISOString().slice(0, 10)
+      if (dates.has(key)) {
+        streak++
+      } else if (i === 0) {
+        // missing today is OK — check yesterday before breaking
+        continue
+      } else {
+        break
+      }
+    }
+    return streak
+  })()
+
   useEffect(() => {
-    if (activeSection === 'soaps' && !soapsLoaded) loadSoaps()
-  }, [activeSection, soapsLoaded, loadSoaps])
+    if (!soapsLoaded) loadSoaps()
+  }, [soapsLoaded, loadSoaps])
 
   // ── Guard renders ──────────────────────────────────────────────────────────
   if (loading) {
@@ -324,6 +353,7 @@ export default function DiscipleshipTracker() {
         profileId={profile.id}
         onSignOut={handleSignOut}
         onAddPerson={() => setShowAddPerson(true)}
+        soapStreak={soapStreak}
       />
 
       {/* Main content */}
@@ -588,7 +618,21 @@ export default function DiscipleshipTracker() {
           {activeSection === 'soaps' && (
             <div>
               <div className="mb-6 flex items-center justify-between">
-                <SectionHeader title="My SOAPs" subtitle="Your personal scripture journal" />
+                <div>
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-2xl font-semibold text-[var(--fg-1)]" style={{ fontFamily: 'var(--font-display)' }}>My SOAPs</h2>
+                    {soapStreak > 0 && (
+                      <span
+                        className="flex items-center gap-1 rounded-full px-3 py-1 text-sm font-bold"
+                        style={{ background: 'rgba(251,191,36,.15)', color: '#FBBF24', border: '1px solid rgba(251,191,36,.3)' }}
+                        title={`${soapStreak}-day streak!`}
+                      >
+                        ⚡ {soapStreak} day{soapStreak !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 text-sm text-[var(--fg-3)]">Your personal scripture journal</p>
+                </div>
                 <button
                   type="button"
                   onClick={() => setShowSoapEntry(true)}
