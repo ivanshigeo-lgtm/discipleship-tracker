@@ -276,11 +276,11 @@ export default function JourneyIntro({
         >
           <p
             className="max-w-xl text-xl leading-relaxed italic sm:text-2xl"
-            style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)', textShadow: '0 2px 24px rgba(6,8,20,.95)' }}
+            style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)', textShadow: '0 0 40px rgba(6,8,20,1), 0 2px 8px rgba(6,8,20,1), 0 0 80px rgba(6,8,20,.9)' }}
           >
             &ldquo;He determines the number of the stars and calls them each by name.&rdquo;
           </p>
-          <p className="cn-label mt-4">Psalm 147:4 · This is your church&rsquo;s constellation</p>
+          <p className="cn-label mt-4" style={{ textShadow: '0 0 20px rgba(6,8,20,1), 0 2px 6px rgba(6,8,20,1), 0 0 40px rgba(6,8,20,.9)' }}>Psalm 147:4 · This is your church&rsquo;s constellation</p>
         </div>
 
         <div
