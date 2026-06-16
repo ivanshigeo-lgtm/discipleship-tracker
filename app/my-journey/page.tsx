@@ -29,6 +29,7 @@ import MessageCoachModal from '../../components/journey/MessageCoachModal'
 import MessageCenter from '../../components/MessageCenter'
 import JoinGroupModal from '../../components/journey/JoinGroupModal'
 import SelfConfirmModal, { type SelfConfirmKind } from '../../components/journey/SelfConfirmModal'
+import JourneyMenu from '../../components/journey/JourneyMenu'
 
 const INTRO_KEY = 'journey_intro_seen'
 const DEMO_KEY = 'journey_quadrant_demo_seen'
@@ -620,6 +621,13 @@ export default function MyJourneyPage() {
           onJoined={loadData}
         />
       )}
+
+      {/* Left nav menu */}
+      <JourneyMenu
+        personId={profile.id}
+        onSoaps={() => setActiveModal('soap')}
+        onMessage={() => { setMsgCenterOpen(true); setUnreadMsgCount(0) }}
+      />
 
       {/* Message Center */}
       <MessageCenter
