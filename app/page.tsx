@@ -330,7 +330,7 @@ export default function DiscipleshipTracker() {
       <div className="flex min-h-screen flex-1 flex-col">
 
         {/* Top bar */}
-        <div className="sticky top-0 z-30 flex items-center gap-6 border-b border-[var(--line-2)] px-6 py-4" style={{ background: 'rgba(9,12,26,.96)', backdropFilter: 'blur(12px)' }}>
+        <div className="sticky top-0 z-30 flex items-center gap-6 border-b border-[var(--line-2)] px-6 py-2" style={{ background: 'rgba(9,12,26,.96)', backdropFilter: 'blur(12px)' }}>
           {/* Hamburger */}
           <button
             type="button"
