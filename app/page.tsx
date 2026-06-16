@@ -330,25 +330,25 @@ export default function DiscipleshipTracker() {
       <div className="flex min-h-screen flex-1 flex-col">
 
         {/* Top bar */}
-        <div className="sticky top-0 z-30 flex items-center gap-6 border-b border-[var(--line-2)] px-6 py-2" style={{ background: 'rgba(9,12,26,.96)', backdropFilter: 'blur(12px)' }}>
+        <div className="sticky top-0 z-30 flex items-center gap-4 border-b border-[var(--line-2)] px-4 py-0" style={{ background: 'rgba(9,12,26,.96)', backdropFilter: 'blur(12px)' }}>
           {/* Hamburger */}
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
-            className="flex h-10 w-10 shrink-0 flex-col items-center justify-center gap-[6px] rounded-lg border border-[var(--line-2)]"
+            className="flex h-8 w-8 shrink-0 flex-col items-center justify-center gap-[5px] rounded-lg border border-[var(--line-2)]"
           >
-            <span className="h-px w-5 rounded-full bg-[var(--fg-2)]" />
-            <span className="h-px w-5 rounded-full bg-[var(--fg-2)]" />
-            <span className="h-px w-5 rounded-full bg-[var(--fg-2)]" />
+            <span className="h-px w-4 rounded-full bg-[var(--fg-2)]" />
+            <span className="h-px w-4 rounded-full bg-[var(--fg-2)]" />
+            <span className="h-px w-4 rounded-full bg-[var(--fg-2)]" />
           </button>
 
           {/* Logo + title */}
-          <div className="flex flex-1 items-center gap-6">
-            <img src="/gbm-horizontal-lockup-white.png" alt="Grace Bible Maui" className="h-[180px] w-auto shrink-0" />
-            <div className="hidden h-16 w-px bg-[var(--line-2)] sm:block" />
-            <div className="hidden items-baseline gap-3 sm:flex">
-              <h1 className="text-4xl font-semibold" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>Constellations</h1>
-              <span className="whitespace-nowrap text-base text-[var(--fg-3)]">Coaching Legacies of Disciples</span>
+          <div className="flex flex-1 items-center gap-4">
+            <img src="/gbm-horizontal-lockup-white.png" alt="Grace Bible Maui" className="h-[88px] w-auto shrink-0" />
+            <div className="hidden h-10 w-px bg-[var(--line-2)] sm:block" />
+            <div className="hidden items-baseline gap-2 sm:flex">
+              <h1 className="text-2xl font-semibold" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>Constellations</h1>
+              <span className="whitespace-nowrap text-xs text-[var(--fg-3)]">Coaching Legacies of Disciples</span>
             </div>
           </div>
 
@@ -375,7 +375,7 @@ export default function DiscipleshipTracker() {
         </div>
 
         {/* Section content */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 p-3 sm:p-4">
 
           {/* ── Our Journey (default) ── */}
           {activeSection === 'journey' && (
