@@ -376,9 +376,22 @@ export default function DiscipleshipTracker() {
           <div className="flex flex-1 items-center gap-4">
             <img src="/gbm-horizontal-lockup-white.png" alt="Grace Bible Maui" className="h-[88px] w-auto shrink-0" />
             <div className="hidden h-10 w-px bg-[var(--line-2)] sm:block" />
-            <div className="hidden items-baseline gap-2 sm:flex">
-              <h1 className="text-2xl font-semibold" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>Constellations</h1>
-              <span className="whitespace-nowrap text-xs text-[var(--fg-3)]">Coaching Legacies of Disciples</span>
+            <div className="hidden flex-col gap-1.5 sm:flex">
+              <div className="flex items-baseline gap-2">
+                <h1 className="text-2xl font-semibold" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>Constellations</h1>
+                <span className="whitespace-nowrap text-xs text-[var(--fg-3)]">Coaching Legacies of Disciples</span>
+              </div>
+              <div className="flex rounded-full border border-[var(--line-2)] bg-[rgba(9,12,26,.6)] p-0.5 text-xs font-semibold w-fit">
+                <span className="rounded-full px-3 py-0.5" style={{ background: 'var(--gbm-cobalt-bright)', color: '#fff' }}>
+                  My Constellations
+                </span>
+                <a
+                  href="/my-journey"
+                  className="rounded-full px-3 py-0.5 text-[var(--fg-3)] transition-colors hover:text-[var(--fg-1)]"
+                >
+                  My Journey
+                </a>
+              </div>
             </div>
           </div>
 

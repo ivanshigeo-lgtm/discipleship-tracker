@@ -379,12 +379,27 @@ export default function MyJourneyPage() {
             className="h-16 w-auto shrink-0 sm:h-24"
           />
           <div className="hidden h-12 w-px bg-[var(--line-2)] sm:block" />
-          <h1
-            className="flex-1 text-center text-3xl font-semibold sm:text-4xl"
-            style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}
-          >
-            My Journey
-          </h1>
+          <div className="flex flex-1 flex-col items-center gap-2">
+            <h1
+              className="text-3xl font-semibold sm:text-4xl"
+              style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}
+            >
+              My Journey
+            </h1>
+            {myDisciples.length > 0 && (
+              <div className="flex rounded-full border border-[var(--line-2)] bg-[rgba(9,12,26,.6)] p-0.5 text-xs font-semibold">
+                <span className="rounded-full px-3 py-1" style={{ background: 'var(--gbm-cobalt-bright)', color: '#fff' }}>
+                  My Journey
+                </span>
+                <a
+                  href="/"
+                  className="rounded-full px-3 py-1 text-[var(--fg-3)] transition-colors hover:text-[var(--fg-1)]"
+                >
+                  My Constellations
+                </a>
+              </div>
+            )}
+          </div>
           <div className="hidden h-12 w-px bg-[var(--line-2)] sm:block" />
           <div className="flex shrink-0 flex-col items-end gap-1.5 sm:flex-row sm:items-center sm:gap-3">
             <span className="max-w-[120px] truncate text-sm font-medium text-[var(--fg-2)] sm:max-w-none sm:text-base">
