@@ -572,6 +572,7 @@ export default function MyJourneyPage() {
             soaps={soapJournals}
             onNewEntry={() => setActiveModal('soap')}
             soapStreak={soapStreak}
+            onRefresh={loadData}
           />
         </section>
 

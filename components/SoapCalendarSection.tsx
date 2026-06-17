@@ -7,6 +7,7 @@ interface Props {
   soaps: SoapJournal[]
   onNewEntry: () => void
   soapStreak: number
+  onRefresh?: () => void
 }
 
 const DAY_HEADERS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -40,7 +41,7 @@ function toLocalIso(date: Date): string {
   return `${y}-${m}-${d}`
 }
 
-export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak }: Props) {
+export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onRefresh }: Props) {
   const today = new Date()
   const todayIso = toLocalIso(today)
 
@@ -48,6 +49,8 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak }: P
   const [currentMonth, setCurrentMonth] = useState(() => today.getMonth()) // 0-indexed
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [ocrLoading, setOcrLoading] = useState(false)
+  const [ocrResult, setOcrResult] = useState<string | null>(null)
 
   // Map journal_date → SoapJournal
   const soapMap = useMemo(() => {
@@ -120,6 +123,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak }: P
   }
 
   const selectedEntry = selectedDate ? soapMap.get(selectedDate) ?? null : null
+  const displayOcrText = ocrResult ?? selectedEntry?.ocr_text ?? null
   const isSearching = searchQuery.trim().length > 0
 
   return (
@@ -188,6 +192,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak }: P
         onChange={e => {
           setSearchQuery(e.target.value)
           setSelectedDate(null)
+          setOcrResult(null)
         }}
         style={{
           width: '100%',
@@ -309,6 +314,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak }: P
                   onClick={() => {
                     if (hasSoap) {
                       setSelectedDate(prev => prev === dateIso ? null : dateIso)
+                      setOcrResult(null)
                     }
                   }}
                   style={{
@@ -520,17 +526,42 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak }: P
                     objectFit: 'cover',
                   }}
                 />
-                {selectedEntry.ocr_text === null && (
-                  <p style={{
-                    margin: 0,
-                    color: 'var(--fg-3)',
-                    fontSize: '13px',
-                    fontStyle: 'italic',
-                  }}>
-                    OCR not processed yet
-                  </p>
+                {!displayOcrText && (
+                  <button
+                    onClick={async () => {
+                      if (!selectedEntry) return
+                      setOcrLoading(true)
+                      try {
+                        const res = await fetch('/api/soap/ocr', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ journalId: selectedEntry.id }),
+                        })
+                        const json = await res.json()
+                        if (json.ocr_text) {
+                          setOcrResult(json.ocr_text)
+                          onRefresh?.()
+                        }
+                      } catch {}
+                      setOcrLoading(false)
+                    }}
+                    disabled={ocrLoading}
+                    style={{
+                      padding: '10px 16px',
+                      borderRadius: '10px',
+                      border: '1px solid var(--line-2)',
+                      background: 'var(--indigo-2)',
+                      color: 'var(--fg-2)',
+                      fontSize: '13px',
+                      cursor: ocrLoading ? 'default' : 'pointer',
+                      opacity: ocrLoading ? 0.6 : 1,
+                      width: '100%',
+                    }}
+                  >
+                    {ocrLoading ? 'Reading…' : 'Read this entry'}
+                  </button>
                 )}
-                {selectedEntry.ocr_text && (
+                {displayOcrText && (
                   <pre style={{
                     margin: 0,
                     color: 'var(--fg-2)',
@@ -540,7 +571,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak }: P
                     wordBreak: 'break-word',
                     fontFamily: 'inherit',
                   }}>
-                    {selectedEntry.ocr_text}
+                    {displayOcrText}
                   </pre>
                 )}
               </div>

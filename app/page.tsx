@@ -639,6 +639,7 @@ export default function DiscipleshipTracker() {
                 soaps={coachSoaps}
                 onNewEntry={() => setShowSoapEntry(true)}
                 soapStreak={soapStreak}
+                onRefresh={loadSoaps}
               />
             )
           )}
