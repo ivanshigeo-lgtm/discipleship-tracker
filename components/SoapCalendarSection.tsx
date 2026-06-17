@@ -132,6 +132,9 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
   const [searchQuery, setSearchQuery] = useState('')
   const [ocrLoading, setOcrLoading] = useState(false)
   const [ocrResult, setOcrResult] = useState<string | null>(null)
+  const [modalEntry, setModalEntry] = useState<SoapJournal | null>(null)
+  const [modalOcrLoading, setModalOcrLoading] = useState(false)
+  const [modalOcrText, setModalOcrText] = useState<string | null>(null)
 
   // AI Insights — range selection
   const [insightMode, setInsightMode] = useState(false)
@@ -272,6 +275,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
       : `${MONTH_SHORT[baseMonth]} ${baseYear} – ${MONTH_SHORT[lastMonth.month]} ${lastMonth.year}`
 
   return (
+    <>
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '680px', width: '100%', marginLeft: 'auto', marginRight: 'auto' }}>
 
       {/* ── Top bar ── */}
@@ -705,70 +709,66 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
               No entries match your search.
             </p>
           ) : (
-            searchResults.map(entry => {
-              const isSelected = selectedDate === entry.journal_date
-              return (
-                <button
-                  key={entry.id}
-                  onClick={() => {
-                    setSelectedDate(isSelected ? null : entry.journal_date)
-                    setOcrResult(null)
-                  }}
-                  style={{
-                    display: 'flex', flexDirection: 'row', alignItems: 'flex-start',
-                    gap: '12px', padding: '12px', borderRadius: '14px',
-                    border: `1px solid ${isSelected ? 'rgba(54,214,195,.40)' : 'var(--line-2)'}`,
-                    background: isSelected ? 'rgba(54,214,195,.08)' : 'var(--indigo, #141B3D)',
-                    cursor: 'pointer', textAlign: 'left',
-                    transition: 'background 150ms ease, border-color 150ms ease',
-                    outline: 'none', width: '100%', boxSizing: 'border-box',
-                  }}
-                  onMouseOver={e => {
-                    if (!isSelected) e.currentTarget.style.background = 'rgba(246,241,231,.04)'
-                  }}
-                  onMouseOut={e => {
-                    if (!isSelected) e.currentTarget.style.background = 'var(--indigo, #141B3D)'
-                  }}
-                >
-                  {/* Photo thumbnail */}
-                  {entry.photo_url && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={entry.photo_url}
-                      alt="Journal page"
-                      style={{
-                        width: '72px', height: '72px', flexShrink: 0,
-                        borderRadius: '10px', objectFit: 'cover',
-                        border: '1px solid var(--line-2)',
-                      }}
-                    />
-                  )}
-
-                  {/* Text content */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                      <span style={{ color: 'var(--fg-1)', fontSize: '13px', fontWeight: 600 }}>
-                        {formatNiceDate(entry.journal_date)}
+            searchResults.map(entry => (
+              <button
+                key={entry.id}
+                onClick={() => {
+                  setModalEntry(entry)
+                  setModalOcrText(null)
+                }}
+                style={{
+                  display: 'flex', flexDirection: 'row', alignItems: 'flex-start',
+                  gap: '12px', padding: '12px', borderRadius: '14px',
+                  border: '1px solid var(--line-2)',
+                  background: 'var(--indigo, #141B3D)',
+                  cursor: 'pointer', textAlign: 'left',
+                  transition: 'background 150ms ease, border-color 150ms ease',
+                  outline: 'none', width: '100%', boxSizing: 'border-box',
+                }}
+                onMouseOver={e => {
+                  e.currentTarget.style.background = 'rgba(246,241,231,.04)'
+                  e.currentTarget.style.borderColor = 'rgba(54,214,195,.30)'
+                }}
+                onMouseOut={e => {
+                  e.currentTarget.style.background = 'var(--indigo, #141B3D)'
+                  e.currentTarget.style.borderColor = 'var(--line-2)'
+                }}
+              >
+                {entry.photo_url && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={entry.photo_url}
+                    alt="Journal page"
+                    style={{
+                      width: '72px', height: '72px', flexShrink: 0,
+                      borderRadius: '10px', objectFit: 'cover',
+                      border: '1px solid var(--line-2)',
+                    }}
+                  />
+                )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span style={{ color: 'var(--fg-1)', fontSize: '13px', fontWeight: 600 }}>
+                      {formatNiceDate(entry.journal_date)}
+                    </span>
+                    {entry.scripture_reference && (
+                      <span style={{ color: 'var(--establish, #36D6C3)', fontSize: '12px' }}>
+                        {entry.scripture_reference}
                       </span>
-                      {entry.scripture_reference && (
-                        <span style={{ color: 'var(--establish, #36D6C3)', fontSize: '12px' }}>
-                          {entry.scripture_reference}
-                        </span>
-                      )}
-                    </div>
-                    {entry.ocr_text ? (
-                      <span style={{ color: 'var(--fg-3)', fontSize: '13px', lineHeight: 1.55 }}>
-                        {highlightExcerpt(entry.ocr_text, searchQuery.trim())}
-                      </span>
-                    ) : entry.photo_url ? (
-                      <span style={{ color: 'var(--fg-3)', fontSize: '12px', fontStyle: 'italic' }}>
-                        Photo entry — tap to view
-                      </span>
-                    ) : null}
+                    )}
                   </div>
-                </button>
-              )
-            })
+                  {entry.ocr_text ? (
+                    <span style={{ color: 'var(--fg-3)', fontSize: '13px', lineHeight: 1.55 }}>
+                      {highlightExcerpt(entry.ocr_text, searchQuery.trim())}
+                    </span>
+                  ) : entry.photo_url ? (
+                    <span style={{ color: 'var(--fg-3)', fontSize: '12px', fontStyle: 'italic' }}>
+                      Photo entry — tap to read
+                    </span>
+                  ) : null}
+                </div>
+              </button>
+            ))
           )}
         </div>
       )}
@@ -884,5 +884,123 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
         </div>
       )}
     </div>
+
+      {/* ── Search result entry modal ── */}
+      {modalEntry && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 60,
+            background: 'rgba(6,8,20,.85)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '16px',
+          }}
+          onClick={e => { if (e.target === e.currentTarget) { setModalEntry(null); setModalOcrText(null) } }}
+        >
+          <div style={{
+            width: '100%', maxWidth: '540px', maxHeight: '88vh',
+            overflowY: 'auto',
+            borderRadius: '20px',
+            border: '1px solid rgba(54,214,195,.25)',
+            background: 'var(--indigo, #141B3D)',
+            boxShadow: '0 0 60px rgba(54,214,195,.10)',
+          }}>
+            {/* Modal header */}
+            <div style={{
+              display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+              gap: '12px', padding: '18px 18px 14px',
+              borderBottom: '1px solid var(--line-2)',
+              position: 'sticky', top: 0,
+              background: 'var(--indigo, #141B3D)',
+              zIndex: 1,
+            }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <span style={{ color: 'var(--fg-1)', fontSize: '16px', fontWeight: 700 }}>
+                  {formatNiceDate(modalEntry.journal_date)}
+                </span>
+                {modalEntry.scripture_reference && (
+                  <span style={{ color: 'var(--establish, #36D6C3)', fontSize: '13px', fontWeight: 500 }}>
+                    {modalEntry.scripture_reference}
+                  </span>
+                )}
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', marginTop: '2px',
+                  padding: '2px 8px', borderRadius: '999px',
+                  background: 'rgba(246,241,231,.06)', border: '1px solid var(--line-2)',
+                  color: 'var(--fg-3)', fontSize: '11px', letterSpacing: '0.08em',
+                  width: 'fit-content',
+                }}>
+                  {visibilityLabel(modalEntry.visibility)}
+                </span>
+              </div>
+              <button
+                onClick={() => { setModalEntry(null); setModalOcrText(null) }}
+                aria-label="Close"
+                style={{
+                  flexShrink: 0, width: '32px', height: '32px', borderRadius: '10px',
+                  border: '1px solid var(--line-2)', background: 'transparent',
+                  color: 'var(--fg-3)', cursor: 'pointer', fontSize: '16px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+                onMouseOver={e => { e.currentTarget.style.background = 'rgba(246,241,231,.08)'; e.currentTarget.style.color = 'var(--fg-1)' }}
+                onMouseOut={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--fg-3)' }}
+              >✕</button>
+            </div>
+
+            {/* Modal body */}
+            <div style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {modalEntry.photo_url && (
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={modalEntry.photo_url}
+                    alt="SOAP journal entry"
+                    style={{ width: '100%', borderRadius: '12px', display: 'block' }}
+                  />
+                  {!(modalOcrText ?? modalEntry.ocr_text) && (
+                    <button
+                      onClick={async () => {
+                        setModalOcrLoading(true)
+                        try {
+                          const res = await fetch('/api/soap/ocr', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ journalId: modalEntry.id }),
+                          })
+                          const json = await res.json()
+                          if (json.ocr_text) { setModalOcrText(json.ocr_text); onRefresh?.() }
+                        } catch {}
+                        setModalOcrLoading(false)
+                      }}
+                      disabled={modalOcrLoading}
+                      style={{
+                        padding: '11px 16px', borderRadius: '10px',
+                        border: '1px solid var(--line-2)', background: 'rgba(54,214,195,.06)',
+                        color: 'var(--fg-2)', fontSize: '13px', cursor: modalOcrLoading ? 'default' : 'pointer',
+                        opacity: modalOcrLoading ? 0.6 : 1, width: '100%',
+                      }}
+                    >
+                      {modalOcrLoading ? 'Reading…' : 'Read this entry'}
+                    </button>
+                  )}
+                </>
+              )}
+              {(modalOcrText ?? modalEntry.ocr_text) ? (
+                <pre style={{
+                  margin: 0, color: 'var(--fg-1)', fontSize: '15px', lineHeight: 1.75,
+                  whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit',
+                }}>
+                  {modalOcrText ?? modalEntry.ocr_text}
+                </pre>
+              ) : !modalEntry.photo_url ? (
+                <p style={{ margin: 0, color: 'var(--fg-3)', fontSize: '14px', fontStyle: 'italic' }}>
+                  No content recorded
+                </p>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
