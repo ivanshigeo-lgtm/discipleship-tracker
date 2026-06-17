@@ -570,54 +570,6 @@ function StarNode({ node, isSelected, onClick, onMouseEnter, onMouseLeave }: { n
         {node.name.split(' ')[0]}
         {node.degree > 0 && <span style={{ opacity: 0.7 }}> · {node.degree}</span>}
       </div>
-
-      {/* Testimony popup — appears above the star on hover */}
-      {(node.testimony_text || node.testimony_video_url) && (
-        <div
-          className="pointer-events-none absolute left-1/2 z-50 w-52 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
-          style={{
-            top: -8,
-            transform: 'translateX(-50%) translateY(-100%)',
-            background: 'rgba(6,8,20,.94)',
-            backdropFilter: 'blur(14px)',
-            border: `1px solid ${starColor.glow}40`,
-            borderRadius: 14,
-            padding: '10px 12px',
-            boxShadow: `0 0 24px -4px ${starColor.glow}50`,
-          }}
-        >
-          <div className="mb-1.5 flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full" style={{ background: starColor.glow }} />
-            <span className="text-[10px] font-semibold" style={{ color: starColor.glow }}>
-              {node.name.split(' ')[0]}&rsquo;s story
-            </span>
-          </div>
-          {node.testimony_video_url ? (
-            <video
-              src={node.testimony_video_url}
-              className="w-full rounded-lg"
-              style={{ maxHeight: 110 }}
-              playsInline
-            />
-          ) : (
-            <p className="text-[11px] italic leading-relaxed text-[var(--fg-2)]">
-              &ldquo;{(node.testimony_text ?? '').slice(0, 180)}{(node.testimony_text ?? '').length > 180 ? '…' : ''}&rdquo;
-            </p>
-          )}
-          {/* caret */}
-          <div
-            className="absolute left-1/2 -translate-x-1/2"
-            style={{
-              bottom: -6,
-              width: 0,
-              height: 0,
-              borderLeft: '6px solid transparent',
-              borderRight: '6px solid transparent',
-              borderTop: `6px solid ${starColor.glow}40`,
-            }}
-          />
-        </div>
-      )}
     </button>
   )
 }
@@ -646,6 +598,23 @@ export default function MyCircleMap({
   const [hoveredPersonId, setHoveredPersonId] = useState<string | null>(null)
   const [showAllConnections, setShowAllConnections] = useState(false)
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Testimony popup hover lifecycle. The popup is a single container-level
+  // element overlapping the hovered star (not a child of the star button), so
+  // the mouse can travel star → popup with no dead zone. Every "leave"
+  // schedules a delayed hide; every "enter" cancels it, so crossing the
+  // star/popup boundary never tears the popup down mid-travel.
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const cancelHidePopup = () => {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current)
+  }
+  const scheduleHidePopup = () => {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current)
+    hoverTimerRef.current = setTimeout(() => setHoveredPersonId(null), 300)
+  }
+  const enterNode = (id: string) => {
+    cancelHidePopup()
+    setHoveredPersonId(id)
+  }
   const [editingPerson, setEditingPerson] = useState<Person | null>(null)
   const [mapRefreshKey, setMapRefreshKey] = useState(0)
   const [error, setError] = useState('')
@@ -658,6 +627,7 @@ export default function MyCircleMap({
   useEffect(() => {
     return () => {
       if (clickTimerRef.current) clearTimeout(clickTimerRef.current)
+      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current)
     }
   }, [])
 
@@ -1168,10 +1138,70 @@ export default function MyCircleMap({
               node={node}
               isSelected={selectedNode?.id === node.id}
               onClick={(e) => handleNodeClick(node, e)}
-              onMouseEnter={() => setHoveredPersonId(node.id)}
-              onMouseLeave={() => setHoveredPersonId(null)}
+              onMouseEnter={() => enterNode(node.id)}
+              onMouseLeave={scheduleHidePopup}
             />
           ))}
+
+          {/* Testimony popup — single container-level element overlapping the
+              hovered star so it's reachable and playable. Positioned at the
+              star's x%/y% and pulled up so its bottom overlaps the star core. */}
+          {(() => {
+            if (!hoveredPersonId) return null
+            const node = nodeById.get(hoveredPersonId)
+            if (!node || (!node.testimony_text && !node.testimony_video_url)) return null
+            const starColor = STAR_COLORS[node.current_stage]
+            // Flip below the star when it sits near the top edge (the map
+            // container clips overflow, so an above-popup would be cut off).
+            const below = node.y < 26
+            return (
+              <div
+                className="absolute z-50 w-52"
+                style={{
+                  left: `${node.x}%`,
+                  top: `${node.y}%`,
+                  // Bottom/top edge sits 6px shy of the star center so the
+                  // card overlaps the star's upper (or lower) spikes for a
+                  // connected look, yet never covers the core/label where the
+                  // cursor rests — which would otherwise drop hover and flicker.
+                  // 6px < star half-height, so there is still no dead gap.
+                  transform: below
+                    ? 'translate(-50%, 0%) translateY(6px)'
+                    : 'translate(-50%, -100%) translateY(-6px)',
+                  background: 'rgba(6,8,20,.94)',
+                  backdropFilter: 'blur(14px)',
+                  border: `1px solid ${starColor.glow}40`,
+                  borderRadius: 14,
+                  padding: '10px 12px',
+                  boxShadow: `0 0 24px -4px ${starColor.glow}50`,
+                }}
+                onMouseEnter={cancelHidePopup}
+                onMouseLeave={scheduleHidePopup}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="mb-1.5 flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: starColor.glow }} />
+                  <span className="text-[10px] font-semibold" style={{ color: starColor.glow }}>
+                    {node.name.split(' ')[0]}&rsquo;s story
+                  </span>
+                </div>
+                {node.testimony_video_url ? (
+                  <video
+                    src={node.testimony_video_url}
+                    className="w-full rounded-lg"
+                    style={{ maxHeight: 140 }}
+                    playsInline
+                    controls
+                    preload="metadata"
+                  />
+                ) : (
+                  <p className="text-[11px] italic leading-relaxed text-[var(--fg-2)]">
+                    &ldquo;{(node.testimony_text ?? '').slice(0, 180)}{(node.testimony_text ?? '').length > 180 ? '…' : ''}&rdquo;
+                  </p>
+                )}
+              </div>
+            )
+          })()}
         </div>
       </div>
 
