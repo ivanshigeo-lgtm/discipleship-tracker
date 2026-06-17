@@ -62,7 +62,9 @@ Only respond with the JSON, no other text.`,
 
   let parsed: { ocr_text: string; scripture_reference: string | null }
   try {
-    parsed = JSON.parse(text)
+    // Strip markdown code fences if the model wrapped its response
+    const clean = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
+    parsed = JSON.parse(clean)
   } catch {
     parsed = { ocr_text: text, scripture_reference: null }
   }
