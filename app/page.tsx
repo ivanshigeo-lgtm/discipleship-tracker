@@ -592,14 +592,6 @@ export default function DiscipleshipTracker() {
                   </div>
                 )}
               </div>
-
-              {/* Prayer Wall below Our Journey */}
-              <ErrorBoundary name="PrayerWallSection">
-                <PrayerWallSection
-                  refreshKey={refreshKey}
-                  onPersonClick={p => openPerson(p, 'prayer')}
-                />
-              </ErrorBoundary>
             </div>
           )}
 
