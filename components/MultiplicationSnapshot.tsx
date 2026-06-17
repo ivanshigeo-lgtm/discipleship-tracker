@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { getPeople, getAllDiscipleshipConnections } from '../lib/supabaseQueries'
 import { stageLabels } from '../lib/stageLabels'
 import type { Person, Stage, DiscipleshipConnection } from '../types/database'
@@ -14,6 +14,7 @@ type SnapshotFilter = {
 interface MultiplicationSnapshotProps {
   refreshKey?: number
   selectedFilterKeys?: string[]
+  myPersonId?: string
   onToggleFilter?: (filter: SnapshotFilter) => void
   onAddPerson?: () => void
   onPersonClick?: (person: Person) => void
@@ -75,6 +76,7 @@ function MultiplicationRatioVisual({ ratio, label, color }: { ratio: number; lab
 export default function MultiplicationSnapshot({
   refreshKey = 0,
   selectedFilterKeys = [],
+  myPersonId,
   onToggleFilter,
   onAddPerson,
   onPersonClick,
@@ -84,9 +86,33 @@ export default function MultiplicationSnapshot({
   const [isExpanded, setIsExpanded] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [showSearchResults, setShowSearchResults] = useState(false)
+  const [scope, setScope] = useState<'gbc' | 'mine'>('gbc')
+
+  // "My Constellation" = me + my downstream coaching tree + people coaching me.
+  const myCircleIds = useMemo(() => {
+    if (!myPersonId) return null
+    const ids = new Set<string>([myPersonId])
+    let changed = true
+    while (changed) {
+      changed = false
+      for (const c of connections) {
+        if (c.disciple_person_id && ids.has(c.discipler_person_id) && !ids.has(c.disciple_person_id)) {
+          ids.add(c.disciple_person_id)
+          changed = true
+        }
+      }
+    }
+    for (const c of connections) {
+      if (c.disciple_person_id === myPersonId) ids.add(c.discipler_person_id)
+    }
+    return ids
+  }, [connections, myPersonId])
+
+  const scopedIds = scope === 'mine' && myCircleIds ? myCircleIds : null
+  const scopedPeople = scopedIds ? people.filter(p => scopedIds.has(p.id)) : people
 
   const searchResults = searchQuery.trim()
-    ? people
+    ? scopedPeople
         .filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
         .slice(0, 5)
     : []
@@ -111,11 +137,11 @@ export default function MultiplicationSnapshot({
     loadData()
   }, [refreshKey])
 
-  const engageCount = people.filter(person => person.current_stage === 'Engage').length
-  const establishCount = people.filter(person => person.current_stage === 'Establish').length
-  const equipCount = people.filter(person => person.current_stage === 'Equip').length
-  const empowerCount = people.filter(person => person.current_stage === 'Empower').length
-  const totalPeople = people.length
+  const engageCount = scopedPeople.filter(person => person.current_stage === 'Engage').length
+  const establishCount = scopedPeople.filter(person => person.current_stage === 'Establish').length
+  const equipCount = scopedPeople.filter(person => person.current_stage === 'Equip').length
+  const empowerCount = scopedPeople.filter(person => person.current_stage === 'Empower').length
+  const totalPeople = scopedPeople.length
 
   const peopleBeingReachedAndBuilt = engageCount + establishCount
   const leadersBeingFormed = equipCount + empowerCount
@@ -123,7 +149,12 @@ export default function MultiplicationSnapshot({
     ? Math.round((leadersBeingFormed / peopleBeingReachedAndBuilt) * 100)
     : 100
 
-  const activeDisciplers = new Set(connections.map(c => c.discipler_person_id))
+  // Disciplers counted only if they're within the current scope.
+  const activeDisciplers = new Set(
+    connections
+      .map(c => c.discipler_person_id)
+      .filter(id => !scopedIds || scopedIds.has(id))
+  )
   const multiplicationRatio = totalPeople > 0
     ? Math.round((activeDisciplers.size / totalPeople) * 100)
     : 0
@@ -203,6 +234,21 @@ export default function MultiplicationSnapshot({
             <p className="text-sm text-[var(--fg-2)]">Are you building a team that disciples people?</p>
           </div>
           <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
+            {/* Scope: whole church vs my coaching circle */}
+            {myPersonId && (
+              <div className="flex rounded-full border border-[var(--line-2)] bg-[var(--indigo)] p-1">
+                {([['gbc', 'GBC Constellation'], ['mine', 'My Constellation']] as const).map(([val, label]) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setScope(val)}
+                    className={`rounded-full px-2 py-1 text-[10px] font-semibold transition-all sm:px-3 sm:text-xs ${scope === val ? 'bg-[var(--gbm-cobalt-bright)] text-[var(--fg-1)]' : 'text-[var(--fg-2)] hover:text-[var(--fg-1)]'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
             {/* Search */}
             {onPersonClick && (
               <div className="relative">

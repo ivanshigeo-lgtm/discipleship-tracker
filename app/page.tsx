@@ -609,6 +609,7 @@ export default function DiscipleshipTracker() {
                 <MultiplicationSnapshot
                   refreshKey={refreshKey}
                   selectedFilterKeys={circleFilters.map(f => f.key)}
+                  myPersonId={profile.id}
                   onToggleFilter={f => {
                     if (f.key === allFilter.key) { setCircleFilters([]); return }
                     setCircleFilters(cur => cur.some(x => x.key === f.key) ? cur.filter(x => x.key !== f.key) : [...cur, f])
