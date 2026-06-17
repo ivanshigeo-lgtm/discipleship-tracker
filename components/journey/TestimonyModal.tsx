@@ -125,16 +125,32 @@ export default function TestimonyModal({
   }
 
   const uploadToServer = async (blob: Blob, fileName: string): Promise<string | null> => {
-    const form = new FormData()
-    form.append('file', blob, fileName)
-    form.append('personId', profile.id)
-    const res = await fetch('/api/testimony/upload', { method: 'POST', body: form })
-    const json = await res.json()
-    if (!res.ok) {
-      setError(json.error || 'Upload failed. Please try again.')
+    const ext = fileName.split('.').pop() || 'webm'
+
+    // Step 1: get a signed upload URL (tiny request, no Vercel body-size issue)
+    const urlRes = await fetch('/api/testimony/signed-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ personId: profile.id, ext }),
+    })
+    const urlJson = await urlRes.json()
+    if (!urlRes.ok) {
+      setError(urlJson.error || 'Upload failed. Please try again.')
       return null
     }
-    return json.url as string
+
+    // Step 2: upload the video directly to Supabase (bypasses Vercel entirely)
+    const uploadRes = await fetch(urlJson.signedUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': blob.type || 'video/webm' },
+      body: blob,
+    })
+    if (!uploadRes.ok) {
+      setError('Upload failed. Please try again.')
+      return null
+    }
+
+    return urlJson.publicUrl as string
   }
 
   const useRecording = async () => {
