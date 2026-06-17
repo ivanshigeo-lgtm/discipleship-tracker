@@ -259,21 +259,24 @@ export default function SoapEntryModal({
               </button>
             </div>
           ) : (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col items-center gap-2">
+              {/* Camera shutter–style button: white inner disc inside a thin
+                  ring, the way a phone camera capture button looks. */}
               <button
                 type="button"
                 onClick={openCamera}
                 disabled={busy}
-                className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold bg-red-600 hover:bg-red-500 text-white transition-colors disabled:opacity-50"
+                aria-label="Open camera"
+                className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-[var(--fg-2)] transition-transform hover:scale-105 active:scale-95 disabled:opacity-50"
               >
-                <span>📷</span>
-                <span>Open Camera</span>
+                <span className="h-12 w-12 rounded-full bg-white shadow-inner" />
               </button>
+              <span className="text-xs text-[var(--fg-3)]">Open camera</span>
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={busy}
-                className="text-left text-xs text-[var(--fg-3)] underline underline-offset-2 hover:text-[var(--fg-2)] disabled:opacity-50"
+                className="text-xs text-[var(--fg-3)] underline underline-offset-2 hover:text-[var(--fg-2)] disabled:opacity-50"
               >
                 or choose from library
               </button>
