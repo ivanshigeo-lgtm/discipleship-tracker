@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { addSoapJournal, addJourneyPrayerRequest } from '../../lib/supabaseQueries'
+import { addSoapJournal } from '../../lib/supabaseQueries'
 import type { ShareVisibility } from '../../types/database'
 
 const SCOPES: { value: ShareVisibility; label: string; hint: string }[] = [
@@ -29,10 +29,6 @@ export default function SoapEntryModal({
   const [entryDate, setEntryDate] = useState(initialDate ?? todayIso)
   const [entry, setEntry] = useState('')
   const [visibility, setVisibility] = useState<ShareVisibility>('private')
-  const [includePrayer, setIncludePrayer] = useState(false)
-  const [prayerText, setPrayerText] = useState('')
-  const [prayerKind, setPrayerKind] = useState<'prayer' | 'praise'>('prayer')
-  const [prayerVisibility, setPrayerVisibility] = useState<ShareVisibility>('coach')
   const [photo, setPhoto] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -97,12 +93,6 @@ export default function SoapEntryModal({
     setCameraError('')
   }
 
-  const savePrayerIfAny = async () => {
-    if (includePrayer && prayerText.trim()) {
-      await addJourneyPrayerRequest(personId, prayerText.trim(), prayerVisibility, prayerKind === 'praise')
-    }
-  }
-
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -162,7 +152,6 @@ export default function SoapEntryModal({
       }).catch(() => {}) // silent — OCR is best-effort
     }
 
-    await savePrayerIfAny()
     setBusy(false)
     onSaved()
     onClose()
@@ -224,54 +213,6 @@ export default function SoapEntryModal({
               </button>
             ))}
           </div>
-        </div>
-
-        {/* Optional prayer / praise */}
-        <div className="mt-4 rounded-lg border border-[var(--line-1)] bg-[var(--indigo-2)] p-3">
-          <button
-            type="button"
-            onClick={() => setIncludePrayer(!includePrayer)}
-            className="flex w-full items-center justify-between text-left"
-          >
-            <span className="text-sm font-semibold text-[var(--fg-1)]">Add a prayer or praise</span>
-            <span className="text-xs text-[var(--fg-3)]">{includePrayer ? '−' : '+'}</span>
-          </button>
-          {includePrayer && (
-            <div className="mt-3 space-y-2">
-              <div className="flex rounded-lg bg-[var(--indigo)] p-0.5">
-                {(['prayer', 'praise'] as const).map(k => (
-                  <button
-                    key={k}
-                    type="button"
-                    onClick={() => setPrayerKind(k)}
-                    className={`flex-1 rounded-md py-1.5 text-xs font-medium transition-colors ${
-                      prayerKind === k ? 'bg-[var(--indigo-3)] text-[var(--fg-1)]' : 'text-[var(--fg-3)]'
-                    }`}
-                  >
-                    {k === 'prayer' ? 'Prayer request' : 'Praise report'}
-                  </button>
-                ))}
-              </div>
-              <textarea
-                value={prayerText}
-                onChange={e => setPrayerText(e.target.value)}
-                placeholder={prayerKind === 'prayer' ? 'What can we pray with you for?' : 'What has God done?'}
-                rows={2}
-                className="w-full resize-none rounded-lg border border-[var(--line-2)] bg-[var(--indigo)] px-3 py-2 text-sm text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
-              />
-              <select
-                value={prayerVisibility}
-                onChange={e => setPrayerVisibility(e.target.value as ShareVisibility)}
-                className="w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo)] px-3 py-2 text-xs text-[var(--fg-2)] focus:outline-none"
-              >
-                {SCOPES.map(s => (
-                  <option key={s.value} value={s.value}>
-                    Share with: {s.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
         </div>
 
         {/* Take a Photo Instead */}
