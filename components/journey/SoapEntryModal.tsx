@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { supabase } from '../../lib/supabaseClient'
 import { addSoapJournal, addJourneyPrayerRequest } from '../../lib/supabaseQueries'
 import type { ShareVisibility } from '../../types/database'
 
@@ -44,21 +43,22 @@ export default function SoapEntryModal({
     setBusy(true)
     setError('')
 
-    const ext = file.name.split('.').pop()
-    const path = `${personId}/${Date.now()}.${ext}`
-    const { error: upErr } = await supabase.storage.from('soap-photos').upload(path, file)
-    if (upErr) {
-      setError('Upload failed. Please try again.')
+    const form = new FormData()
+    form.append('file', file)
+    form.append('personId', personId)
+    const res = await fetch('/api/soap/upload', { method: 'POST', body: form })
+    const json = await res.json()
+    if (!res.ok) {
+      setError(json.error || 'Upload failed. Please try again.')
       setBusy(false)
       return
     }
-    const { data } = supabase.storage.from('soap-photos').getPublicUrl(path)
 
     const today = new Date().toISOString().split('T')[0]
     const { error: insErr } = await addSoapJournal({
       person_id: personId,
       journal_date: today,
-      photo_url: data.publicUrl,
+      photo_url: json.url,
       ocr_text: null,
       scripture_reference: null,
       summary: null,
