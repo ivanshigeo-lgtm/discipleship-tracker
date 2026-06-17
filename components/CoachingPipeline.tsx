@@ -15,6 +15,7 @@ interface CoachingPipelineProps {
   refreshKey?: number
   collapsed?: boolean
   searchQuery?: string
+  allowedPersonIds?: string[]
   onPersonClick?: (person: Person, openTab?: 'engagements') => void
   onChanged?: () => void
 }
@@ -234,6 +235,7 @@ export default function CoachingPipeline({
   refreshKey = 0,
   collapsed = false,
   searchQuery = '',
+  allowedPersonIds,
   onPersonClick,
   onChanged,
 }: CoachingPipelineProps) {
@@ -287,7 +289,9 @@ export default function CoachingPipeline({
 
   const peopleByStage = useMemo(() => {
     const q = searchQuery.toLowerCase()
-    const filtered = q ? people.filter(p => p.name.toLowerCase().includes(q)) : people
+    const allow = allowedPersonIds ? new Set(allowedPersonIds) : null
+    let filtered = allow ? people.filter(p => allow.has(p.id)) : people
+    if (q) filtered = filtered.filter(p => p.name.toLowerCase().includes(q))
     const map: Record<Stage, Person[]> = {
       Engage: [],
       Establish: [],
@@ -301,7 +305,7 @@ export default function CoachingPipeline({
       list.sort((a, b) => a.name.localeCompare(b.name))
     })
     return map
-  }, [people, searchQuery])
+  }, [people, searchQuery, allowedPersonIds])
 
   const handleAdvanceStage = async (personId: string, newStage: Stage) => {
     await updatePersonStage(personId, newStage)

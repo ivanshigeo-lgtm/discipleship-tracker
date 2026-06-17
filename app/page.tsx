@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../contexts/AuthContext'
 import ErrorBoundary from '../components/ErrorBoundary'
@@ -20,8 +20,8 @@ import GoogleCalendarConnect from '../components/GoogleCalendarConnect'
 import MessageCenter from '../components/MessageCenter'
 import SoapEntryModal from '../components/journey/SoapEntryModal'
 import SoapCalendarSection from '../components/SoapCalendarSection'
-import { getSoapJournals } from '../lib/supabaseQueries'
-import type { Person, SoapJournal, Stage } from '../types/database'
+import { getSoapJournals, getAllDiscipleshipConnections, getPeople } from '../lib/supabaseQueries'
+import type { Person, SoapJournal, Stage, DiscipleshipConnection } from '../types/database'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type SectionId = 'journey' | 'snapshot' | 'emerging' | 'engagements' | 'points' | 'prayer' | 'messages' | 'soaps'
@@ -225,8 +225,11 @@ export default function DiscipleshipTracker() {
   const [circleFilters, setCircleFilters] = useState<CircleFilter[]>([])
   const [circleView, setCircleView] = useState<CircleView>('pipeline')
   const [circleSort, setCircleSort] = useState<CircleSort>('4e')
+  const [circleScope, setCircleScope] = useState<'gbc' | 'mine'>('gbc')
+  const [connections, setConnections] = useState<DiscipleshipConnection[]>([])
   const [journeyExpanded, setJourneyExpanded] = useState(true)
   const [journeySearch, setJourneySearch] = useState('')
+  const [searchFocused, setSearchFocused] = useState(false)
 
   // Person modal
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null)
@@ -279,6 +282,60 @@ export default function DiscipleshipTracker() {
     if (data) setCoachSoaps(data as SoapJournal[])
     setSoapsLoaded(true)
   }, [profile?.id])
+
+  // Discipleship connections — used to scope the journey to "My Constellation"
+  useEffect(() => {
+    getAllDiscipleshipConnections().then(({ data }) => {
+      if (data) setConnections(data as DiscipleshipConnection[])
+    })
+  }, [refreshKey])
+
+  // All people — used for the search dropdown under "Find person…"
+  const [allPeople, setAllPeople] = useState<Person[]>([])
+  useEffect(() => {
+    getPeople().then(({ data }) => {
+      if (data) setAllPeople(data as Person[])
+    })
+  }, [refreshKey])
+
+  // "My Constellation" = me + everyone in my downstream coaching tree
+  // (people I coach, people they coach, …) + people who directly coach me.
+  const myCircleIds = useMemo(() => {
+    if (!profile?.id) return undefined
+    const ids = new Set<string>([profile.id])
+    // Downstream: expand from me following discipler → disciple edges.
+    let changed = true
+    while (changed) {
+      changed = false
+      for (const c of connections) {
+        if (c.disciple_person_id && ids.has(c.discipler_person_id) && !ids.has(c.disciple_person_id)) {
+          ids.add(c.disciple_person_id)
+          changed = true
+        }
+      }
+    }
+    // Upstream (direct only): whoever coaches me.
+    for (const c of connections) {
+      if (c.disciple_person_id === profile.id) ids.add(c.discipler_person_id)
+    }
+    return ids
+  }, [connections, profile?.id])
+
+  // Allowed person ids to display, or undefined for the whole church (GBC).
+  const allowedPersonIds = circleScope === 'mine' && myCircleIds
+    ? Array.from(myCircleIds)
+    : undefined
+
+  // Matches for the search dropdown (respects the current scope).
+  const searchMatches = useMemo(() => {
+    const q = journeySearch.trim().toLowerCase()
+    if (!q) return []
+    const allow = allowedPersonIds ? new Set(allowedPersonIds) : null
+    return allPeople
+      .filter(p => (!allow || allow.has(p.id)) && p.name.toLowerCase().includes(q))
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .slice(0, 8)
+  }, [journeySearch, allPeople, allowedPersonIds])
 
   const soapStreak = (() => {
     if (!coachSoaps.length) return 0
@@ -418,15 +475,51 @@ export default function DiscipleshipTracker() {
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    {/* Search */}
-                    <input
-                      type="text"
-                      value={journeySearch}
-                      onChange={e => setJourneySearch(e.target.value)}
-                      placeholder="Find person..."
-                      className="h-8 rounded-full border border-[var(--line-2)] bg-[var(--indigo)] px-3 text-xs text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:outline-none focus:ring-1 focus:ring-[var(--gbm-cobalt-bright)]"
-                      style={{ minWidth: 140 }}
-                    />
+                    {/* Scope: whole church vs my coaching circle */}
+                    <div className="flex rounded-full border border-[var(--line-2)] bg-[var(--indigo)] p-1">
+                      {([['gbc', 'GBC Constellation'], ['mine', 'My Constellation']] as const).map(([val, label]) => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => setCircleScope(val)}
+                          className={`rounded-full px-2 py-1 text-[10px] font-semibold transition-all sm:px-3 sm:text-xs ${circleScope === val ? 'bg-[var(--gbm-cobalt-bright)] text-[var(--fg-1)]' : 'text-[var(--fg-2)] hover:text-[var(--fg-1)]'}`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    {/* Search + live results dropdown */}
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={journeySearch}
+                        onChange={e => setJourneySearch(e.target.value)}
+                        onFocus={() => setSearchFocused(true)}
+                        onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
+                        placeholder="Find person..."
+                        className="h-8 w-full rounded-full border border-[var(--line-2)] bg-[var(--indigo)] px-3 text-xs text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:outline-none focus:ring-1 focus:ring-[var(--gbm-cobalt-bright)]"
+                        style={{ minWidth: 140 }}
+                      />
+                      {searchFocused && searchMatches.length > 0 && (
+                        <div className="absolute left-0 right-0 top-full z-40 mt-1 overflow-hidden rounded-xl border border-[var(--line-2)] bg-[var(--indigo)] shadow-lg">
+                          {searchMatches.map(p => (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onMouseDown={() => {
+                                openPerson(p)
+                                setJourneySearch('')
+                                setSearchFocused(false)
+                              }}
+                              className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-[var(--fg-1)] transition-colors hover:bg-[var(--indigo-2)]"
+                            >
+                              <span className="truncate font-medium">{p.name}</span>
+                              <span className="ml-auto shrink-0 text-[10px] text-[var(--fg-3)]">{p.current_stage}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                     {/* Add person */}
                     <button
                       type="button"
@@ -475,6 +568,7 @@ export default function DiscipleshipTracker() {
                         refreshKey={refreshKey}
                         collapsed={!journeyExpanded}
                         searchQuery={journeySearch}
+                        allowedPersonIds={allowedPersonIds}
                         onPersonClick={(p, tab) => openPerson(p, tab)}
                         onChanged={() => setRefreshKey(p => p + 1)}
                       />
@@ -484,14 +578,14 @@ export default function DiscipleshipTracker() {
                 {journeyExpanded && circleView === 'visual' && (
                   <div className="mt-4">
                     <ErrorBoundary name="MyCircleMap">
-                      <MyCircleMap refreshKey={refreshKey} filterStages={selectedStageFilters.length ? selectedStageFilters : undefined} sortMode={circleSort} searchQuery={journeySearch} onChanged={() => setRefreshKey(p => p + 1)} />
+                      <MyCircleMap refreshKey={refreshKey} filterStages={selectedStageFilters.length ? selectedStageFilters : undefined} sortMode={circleSort} searchQuery={journeySearch} allowedPersonIds={allowedPersonIds} onChanged={() => setRefreshKey(p => p + 1)} />
                     </ErrorBoundary>
                   </div>
                 )}
                 {journeyExpanded && circleView === 'list' && (
                   <div className="mt-4">
                     <ErrorBoundary name="PeopleList">
-                      <PeopleList key={refreshKey} filterStages={selectedStageFilters.length ? selectedStageFilters : undefined} sortMode={circleSort} searchQuery={journeySearch} onChanged={() => setRefreshKey(p => p + 1)} />
+                      <PeopleList key={refreshKey} filterStages={selectedStageFilters.length ? selectedStageFilters : undefined} sortMode={circleSort} searchQuery={journeySearch} allowedPersonIds={allowedPersonIds} onChanged={() => setRefreshKey(p => p + 1)} />
                     </ErrorBoundary>
                   </div>
                 )}

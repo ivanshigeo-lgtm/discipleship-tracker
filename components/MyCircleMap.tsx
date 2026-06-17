@@ -579,12 +579,14 @@ export default function MyCircleMap({
   filterStages,
   sortMode = '4e',
   searchQuery = '',
+  allowedPersonIds,
   onChanged,
 }: {
   refreshKey?: number
   filterStages?: Stage[]
   sortMode?: 'az' | '4e'
   searchQuery?: string
+  allowedPersonIds?: string[]
   onChanged?: () => void
 }) {
   const [people, setPeople] = useState<Person[]>([])
@@ -662,6 +664,12 @@ export default function MyCircleMap({
   const visiblePeopleForMap = useMemo(() => {
     let filtered = people
 
+    // Scope to "My Constellation" when an allowlist is provided
+    if (allowedPersonIds) {
+      const allow = new Set(allowedPersonIds)
+      filtered = filtered.filter(person => allow.has(person.id))
+    }
+
     // Filter by search query
     if (searchQuery) {
       const q = searchQuery.toLowerCase()
@@ -708,7 +716,7 @@ export default function MyCircleMap({
     }
 
     return filtered
-  }, [people, connections, focusedPersonId, filterStages, activeStages, selectedGroupIds, groupMemberships, searchQuery])
+  }, [people, connections, focusedPersonId, filterStages, activeStages, selectedGroupIds, groupMemberships, searchQuery, allowedPersonIds])
 
   const focusedPerson = focusedPersonId ? people.find(person => person.id === focusedPersonId) : undefined
 

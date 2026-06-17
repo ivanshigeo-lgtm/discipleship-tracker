@@ -19,6 +19,7 @@ interface PeopleListProps {
   filterStages?: Stage[]
   sortMode?: 'az' | '4e'
   searchQuery?: string
+  allowedPersonIds?: string[]
   onChanged?: () => void
 }
 
@@ -72,7 +73,7 @@ function SectionCard({
   )
 }
 
-export default function PeopleList({ filterStages, sortMode = '4e', searchQuery = '', onChanged }: PeopleListProps) {
+export default function PeopleList({ filterStages, sortMode = '4e', searchQuery = '', allowedPersonIds, onChanged }: PeopleListProps) {
   const { profile } = useAuth()
   const [people, setPeople] = useState<Person[]>([])
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -97,9 +98,12 @@ export default function PeopleList({ filterStages, sortMode = '4e', searchQuery 
     loadPeople()
   }, [refreshKey, filterKey, sortMode])
 
-  const visiblePeople = searchQuery
-    ? people.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
+  const scopedPeople = allowedPersonIds
+    ? people.filter(p => allowedPersonIds.includes(p.id))
     : people
+  const visiblePeople = searchQuery
+    ? scopedPeople.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    : scopedPeople
 
   const toggle = (id: string) => {
     setExpandedId(expandedId === id ? null : id)
