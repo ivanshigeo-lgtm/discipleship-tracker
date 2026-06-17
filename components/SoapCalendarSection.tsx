@@ -42,7 +42,8 @@ function formatNiceDate(dateStr: string): string {
 
 /** Extract a ~150-char window centred on the first match, with the match highlighted. */
 function highlightExcerpt(text: string, query: string): ReactNode {
-  const idx = text.toLowerCase().indexOf(query.toLowerCase())
+  const q = query.toLowerCase()
+  const idx = text.toLowerCase().indexOf(q)
   if (idx === -1) {
     const clip = text.slice(0, 150)
     return clip.length < text.length ? clip + '…' : clip
@@ -58,15 +59,15 @@ function highlightExcerpt(text: string, query: string): ReactNode {
     <>
       {start > 0 && '…'}
       {before}
-      <mark style={{
-        background: 'rgba(54,214,195,.28)',
-        color: 'var(--establish, #36D6C3)',
+      <span style={{
+        backgroundColor: 'rgba(54,214,195,.35)',
+        color: '#fff',
         borderRadius: '3px',
-        padding: '0 2px',
-        fontWeight: 600,
+        padding: '1px 3px',
+        fontWeight: 700,
       }}>
         {match}
-      </mark>
+      </span>
       {after}
       {end < text.length && '…'}
     </>
