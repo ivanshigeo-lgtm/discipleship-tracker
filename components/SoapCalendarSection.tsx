@@ -74,6 +74,35 @@ function highlightExcerpt(text: string, query: string): ReactNode {
   )
 }
 
+/** Highlight every occurrence of query in the full text (for the modal view). */
+function highlightAll(text: string, query: string): ReactNode {
+  if (!query) return text
+  const q = query.toLowerCase()
+  const parts: ReactNode[] = []
+  let last = 0
+  let key = 0
+  let idx = text.toLowerCase().indexOf(q, 0)
+  if (idx === -1) return text
+  while (idx !== -1) {
+    if (idx > last) parts.push(text.slice(last, idx))
+    parts.push(
+      <span key={key++} style={{
+        backgroundColor: 'rgba(54,214,195,.40)',
+        color: '#fff',
+        borderRadius: '3px',
+        padding: '1px 3px',
+        fontWeight: 700,
+      }}>
+        {text.slice(idx, idx + query.length)}
+      </span>
+    )
+    last = idx + query.length
+    idx = text.toLowerCase().indexOf(q, last)
+  }
+  if (last < text.length) parts.push(text.slice(last))
+  return <>{parts}</>
+}
+
 function toLocalIso(date: Date): string {
   const y = date.getFullYear()
   const m = String(date.getMonth() + 1).padStart(2, '0')
@@ -986,12 +1015,12 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
                 </>
               )}
               {(modalOcrText ?? modalEntry.ocr_text) ? (
-                <pre style={{
+                <div style={{
                   margin: 0, color: 'var(--fg-1)', fontSize: '15px', lineHeight: 1.75,
                   whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit',
                 }}>
-                  {modalOcrText ?? modalEntry.ocr_text}
-                </pre>
+                  {highlightAll(modalOcrText ?? modalEntry.ocr_text ?? '', searchQuery.trim())}
+                </div>
               ) : !modalEntry.photo_url ? (
                 <p style={{ margin: 0, color: 'var(--fg-3)', fontSize: '14px', fontStyle: 'italic' }}>
                   No content recorded
