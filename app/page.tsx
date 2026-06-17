@@ -397,27 +397,6 @@ export default function DiscipleshipTracker() {
               </div>
             </div>
           </div>
-
-          {/* Actions */}
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setMsgCenterOpen(true)}
-              className="hidden items-center gap-1.5 rounded-full border border-[var(--line-2)] px-3 py-1 text-xs font-medium text-[var(--fg-2)] hover:text-[var(--fg-1)] sm:flex"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-              </svg>
-              Messages
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowAddPerson(true)}
-              className="rounded-full bg-[var(--gbm-cobalt-bright)] px-3 py-1 text-xs font-semibold text-white hover:opacity-90"
-            >
-              + Add
-            </button>
-          </div>
         </div>
 
         {/* Section content */}
