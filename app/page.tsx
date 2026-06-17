@@ -19,6 +19,7 @@ import LoginPage from '../components/LoginPage'
 import GoogleCalendarConnect from '../components/GoogleCalendarConnect'
 import MessageCenter from '../components/MessageCenter'
 import SoapEntryModal from '../components/journey/SoapEntryModal'
+import SoapCalendarSection from '../components/SoapCalendarSection'
 import { getSoapJournals } from '../lib/supabaseQueries'
 import type { Person, SoapJournal, Stage } from '../types/database'
 
@@ -629,60 +630,17 @@ export default function DiscipleshipTracker() {
 
           {/* ── My SOAPs ── */}
           {activeSection === 'soaps' && (
-            <div>
-              <div className="mb-6 flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-3">
-                    <h2 className="text-2xl font-semibold text-[var(--fg-1)]" style={{ fontFamily: 'var(--font-display)' }}>My SOAPs</h2>
-                    {soapStreak > 0 && (
-                      <span
-                        className="flex items-center gap-1 rounded-full px-3 py-1 text-sm font-bold"
-                        style={{ background: 'rgba(251,191,36,.15)', color: '#FBBF24', border: '1px solid rgba(251,191,36,.3)' }}
-                        title={`${soapStreak}-day streak!`}
-                      >
-                        ⚡ {soapStreak} day{soapStreak !== 1 ? 's' : ''}
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-0.5 text-sm text-[var(--fg-3)]">Your personal scripture journal</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowSoapEntry(true)}
-                  className="cn-btn cn-btn-primary shrink-0"
-                >
-                  ✦ New entry
-                </button>
+            !soapsLoaded ? (
+              <div className="flex justify-center py-12">
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--establish)] border-t-transparent" />
               </div>
-              {!soapsLoaded ? (
-                <div className="flex justify-center py-12">
-                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--establish)] border-t-transparent" />
-                </div>
-              ) : coachSoaps.length === 0 ? (
-                <div className="flex flex-col items-center gap-3 py-12 text-center">
-                  <p className="text-sm text-[var(--fg-3)]">No entries yet — start your first SOAP journal.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-8">
-                  {coachSoaps.map(j => (
-                    <button
-                      key={j.id}
-                      type="button"
-                      onClick={() => setSelectedSoap(j)}
-                      className="aspect-square overflow-hidden rounded-lg border border-[var(--line-1)] bg-[var(--indigo)] transition-transform hover:scale-105"
-                    >
-                      {j.photo_url ? (
-                        <img src={j.photo_url} alt={j.journal_date} className="h-full w-full object-cover" />
-                      ) : (
-                        <span className="flex h-full items-center justify-center p-1 text-center text-[9px] text-[var(--fg-3)]">
-                          {j.journal_date}
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            ) : (
+              <SoapCalendarSection
+                soaps={coachSoaps}
+                onNewEntry={() => setShowSoapEntry(true)}
+                soapStreak={soapStreak}
+              />
+            )
           )}
 
         </main>

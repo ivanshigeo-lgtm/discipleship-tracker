@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { addSoapJournal, addJourneyPrayerRequest } from '../../lib/supabaseQueries'
 import type { ShareVisibility } from '../../types/database'
 
@@ -11,6 +11,9 @@ const SCOPES: { value: ShareVisibility; label: string; hint: string }[] = [
   { value: 'constellation', label: 'The constellation', hint: 'Shines for the whole church' },
 ]
 
+const SOAP_PLACEHOLDER =
+  'S — Scripture: What verse stood out to me?\n\nO — Observation: What did the scripture say?\n\nA — Application: How can I apply this to my life?\n\nP — Prayer: My conversation with Jesus.'
+
 export default function SoapEntryModal({
   personId,
   onClose,
@@ -20,16 +23,17 @@ export default function SoapEntryModal({
   onClose: () => void
   onSaved: () => void
 }) {
-  const [entryMode, setEntryMode] = useState<'photo' | 'type'>('photo')
-  const [scripture, setScripture] = useState('')
   const [entry, setEntry] = useState('')
   const [visibility, setVisibility] = useState<ShareVisibility>('private')
   const [includePrayer, setIncludePrayer] = useState(false)
   const [prayerText, setPrayerText] = useState('')
   const [prayerKind, setPrayerKind] = useState<'prayer' | 'praise'>('prayer')
   const [prayerVisibility, setPrayerVisibility] = useState<ShareVisibility>('coach')
+  const [photo, setPhoto] = useState<File | null>(null)
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const savePrayerIfAny = async () => {
     if (includePrayer && prayerText.trim()) {
@@ -37,68 +41,64 @@ export default function SoapEntryModal({
     }
   }
 
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    setPhoto(file)
+    setPhotoPreview(URL.createObjectURL(file))
+  }
+
+  const removePhoto = () => {
+    setPhoto(null)
+    setPhotoPreview(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const handleSave = async () => {
+    if (!entry.trim() && !photo) return
     setBusy(true)
     setError('')
 
-    const form = new FormData()
-    form.append('file', file)
-    form.append('personId', personId)
-    const res = await fetch('/api/soap/upload', { method: 'POST', body: form })
-    const json = await res.json()
-    if (!res.ok) {
-      setError(json.error || 'Upload failed. Please try again.')
-      setBusy(false)
-      return
+    let uploadedUrl: string | null = null
+
+    if (photo) {
+      const form = new FormData()
+      form.append('file', photo)
+      form.append('personId', personId)
+      const res = await fetch('/api/soap/upload', { method: 'POST', body: form })
+      const json = await res.json()
+      if (!res.ok) {
+        setError(json.error || 'Upload failed. Please try again.')
+        setBusy(false)
+        return
+      }
+      uploadedUrl = json.url
     }
 
     const today = new Date().toISOString().split('T')[0]
     const { error: insErr } = await addSoapJournal({
       person_id: personId,
       journal_date: today,
-      photo_url: json.url,
-      ocr_text: null,
+      photo_url: uploadedUrl,
+      ocr_text: entry.trim() || null,
       scripture_reference: null,
       summary: null,
       visibility,
     })
+
     if (insErr) {
       setError(insErr.message?.includes('duplicate') ? 'You already have an entry for today.' : 'Could not save. Please try again.')
       setBusy(false)
       return
     }
+
     await savePrayerIfAny()
     setBusy(false)
     onSaved()
     onClose()
   }
 
-  const handleTypedSubmit = async () => {
-    if (!entry.trim()) return
-    setBusy(true)
-    setError('')
-    const today = new Date().toISOString().split('T')[0]
-    const { error: insErr } = await addSoapJournal({
-      person_id: personId,
-      journal_date: today,
-      photo_url: null,
-      ocr_text: entry.trim(),
-      scripture_reference: scripture.trim() || null,
-      summary: null,
-      visibility,
-    })
-    if (insErr) {
-      setError(insErr.message?.includes('duplicate') ? 'You already have an entry for today.' : 'Could not save. Please try again.')
-      setBusy(false)
-      return
-    }
-    await savePrayerIfAny()
-    setBusy(false)
-    onSaved()
-    onClose()
-  }
+  const canSave = entry.trim().length > 0 || photo !== null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(6,8,20,.8)] p-4 backdrop-blur-sm">
@@ -108,41 +108,18 @@ export default function SoapEntryModal({
           Today&rsquo;s SOAP
         </h2>
 
-        <div className="mt-4 flex rounded-lg bg-[var(--indigo-2)] p-1">
-          {(['photo', 'type'] as const).map(m => (
-            <button
-              key={m}
-              type="button"
-              onClick={() => setEntryMode(m)}
-              className={`flex-1 rounded-md py-2 text-sm font-medium transition-colors ${
-                entryMode === m ? 'bg-[var(--gbm-cobalt-bright)] text-white' : 'text-[var(--fg-2)]'
-              }`}
-            >
-              {m === 'photo' ? 'Photo' : 'Type'}
-            </button>
-          ))}
+        {/* Main textarea */}
+        <div className="mt-4">
+          <textarea
+            value={entry}
+            onChange={e => setEntry(e.target.value)}
+            placeholder={SOAP_PLACEHOLDER}
+            rows={10}
+            className="w-full resize-none rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-3 py-2 text-sm text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
+          />
         </div>
 
-        {entryMode === 'type' && (
-          <div className="mt-4 space-y-3">
-            <input
-              type="text"
-              value={scripture}
-              onChange={e => setScripture(e.target.value)}
-              placeholder="Scripture reference — e.g. John 3:16"
-              className="w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-3 py-2 text-sm text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
-            />
-            <textarea
-              value={entry}
-              onChange={e => setEntry(e.target.value)}
-              placeholder="Scripture: What does it say?&#10;Observation: What does it mean?&#10;Application: How does it apply?&#10;Prayer: Your response to God"
-              rows={6}
-              className="w-full resize-none rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-3 py-2 text-sm text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
-            />
-          </div>
-        )}
-
-        {/* sharing scope */}
+        {/* Sharing scope */}
         <div className="mt-4">
           <div className="cn-label mb-2">Who sees this?</div>
           <div className="grid grid-cols-2 gap-2">
@@ -167,7 +144,7 @@ export default function SoapEntryModal({
           </div>
         </div>
 
-        {/* optional prayer / praise */}
+        {/* Optional prayer / praise */}
         <div className="mt-4 rounded-lg border border-[var(--line-1)] bg-[var(--indigo-2)] p-3">
           <button
             type="button"
@@ -215,30 +192,57 @@ export default function SoapEntryModal({
           )}
         </div>
 
-        {error && <p className="mt-2 text-xs text-[var(--danger)]">{error}</p>}
-
-        {entryMode === 'photo' ? (
-          <label className="mt-4 block">
-            <input type="file" accept="image/*" capture="environment" onChange={handlePhotoUpload} disabled={busy} className="hidden" />
-            <div className="flex cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-[var(--line-2)] p-6 text-center transition-colors hover:border-[var(--gbm-cobalt-bright)]">
-              {busy ? (
-                <span className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--gbm-cobalt-bright)] border-t-transparent" />
-              ) : (
-                <span className="text-sm text-[var(--fg-2)]">Tap to photograph your journal</span>
-              )}
+        {/* Take a Photo Instead */}
+        <div className="mt-4">
+          <div className="cn-label mb-2">Take a Photo Instead</div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handlePhotoSelect}
+            className="hidden"
+          />
+          {photoPreview ? (
+            <div className="relative inline-block">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={photoPreview}
+                alt="Selected journal photo"
+                className="h-24 w-24 rounded-lg object-cover border border-[var(--line-2)]"
+              />
+              <button
+                type="button"
+                onClick={removePhoto}
+                className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--danger)] text-[10px] font-bold text-white leading-none"
+              >
+                ✕
+              </button>
             </div>
-          </label>
-        ) : (
-          <button
-            type="button"
-            onClick={handleTypedSubmit}
-            disabled={busy || !entry.trim()}
-            className="cn-btn cn-btn-primary mt-4 w-full disabled:opacity-50"
-          >
-            {busy ? 'Saving…' : 'Save today’s entry'}
-          </button>
-        )}
+          ) : (
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={busy}
+              className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold bg-red-600 hover:bg-red-500 text-white transition-colors disabled:opacity-50"
+            >
+              <span>📷</span>
+              <span>Open Camera</span>
+            </button>
+          )}
+        </div>
 
+        {error && <p className="mt-3 text-xs text-[var(--danger)]">{error}</p>}
+
+        {/* Save / Cancel */}
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={busy || !canSave}
+          className="cn-btn cn-btn-primary mt-4 w-full disabled:opacity-50"
+        >
+          {busy ? 'Saving…' : 'Save today\'s entry'}
+        </button>
         <button type="button" onClick={onClose} className="cn-btn cn-btn-ghost mt-2 w-full">
           Cancel
         </button>

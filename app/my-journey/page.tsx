@@ -30,6 +30,7 @@ import MessageCenter from '../../components/MessageCenter'
 import JoinGroupModal from '../../components/journey/JoinGroupModal'
 import SelfConfirmModal, { type SelfConfirmKind } from '../../components/journey/SelfConfirmModal'
 import JourneyMenu from '../../components/journey/JourneyMenu'
+import SoapCalendarSection from '../../components/SoapCalendarSection'
 
 const INTRO_KEY = 'journey_intro_seen'
 const DEMO_KEY = 'journey_quadrant_demo_seen'
@@ -166,7 +167,7 @@ export default function MyJourneyPage() {
     const [coachRes, groupsRes, journalsRes, streakRes, checklistRes, disciplesRes] = await Promise.all([
       getMyCoach(profile.id),
       getMyGroups(profile.id),
-      getSoapJournals(profile.id, 30),
+      getSoapJournals(profile.id, 365),
       getSoapStreak(profile.id),
       getStageChecklistItems(profile.id),
       getDiscipleshipConnections(profile.id),
@@ -565,30 +566,14 @@ export default function MyJourneyPage() {
           </section>
         )}
 
-        {/* recent entries */}
-        {soapJournals.length > 0 && (
-          <section className="mt-10">
-            <div className="cn-label mb-3">Recent pages</div>
-            <div className="grid grid-cols-4 gap-2">
-              {soapJournals.slice(0, 8).map(journal => (
-                <button
-                  type="button"
-                  key={journal.id}
-                  onClick={() => setSelectedJournal(journal)}
-                  className="aspect-square overflow-hidden rounded-lg border border-[var(--line-1)] bg-[var(--indigo)] transition-transform hover:scale-105"
-                >
-                  {journal.photo_url ? (
-                    <img src={journal.photo_url} alt={journal.journal_date} className="h-full w-full object-cover" />
-                  ) : (
-                    <span className="flex h-full items-center justify-center p-1 text-center text-[10px] text-[var(--fg-3)]">
-                      {journal.journal_date}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-          </section>
-        )}
+        {/* SOAP journal calendar */}
+        <section className="mt-10">
+          <SoapCalendarSection
+            soaps={soapJournals}
+            onNewEntry={() => setActiveModal('soap')}
+            soapStreak={soapStreak}
+          />
+        </section>
 
         {/* footer */}
         <footer className="mt-14 flex flex-col items-center gap-2 text-center">
