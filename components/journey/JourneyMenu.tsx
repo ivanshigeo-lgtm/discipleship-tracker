@@ -284,10 +284,12 @@ export default function JourneyMenu({
   personId,
   onSoaps,
   onMessage,
+  soapStreak = 0,
 }: {
   personId: string
   onSoaps: () => void
   onMessage: () => void
+  soapStreak?: number
 }) {
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState<PanelKind | null>(null)
@@ -384,7 +386,15 @@ export default function JourneyMenu({
                         boxShadow: isActive ? `0 0 6px 1px ${item.dot}` : 'none',
                       }}
                     />
-                    <span className={isActive ? 'font-medium' : ''}>{item.label}</span>
+                    <span className={`flex-1 ${isActive ? 'font-medium' : ''}`}>{item.label}</span>
+                    {item.id === 'soaps' && soapStreak > 0 && (
+                      <span
+                        className="ml-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold"
+                        style={{ background: 'rgba(244,182,80,.18)', color: '#F4B650', border: '1px solid rgba(244,182,80,.30)' }}
+                      >
+                        ⚡ {soapStreak}d
+                      </span>
+                    )}
                   </button>
                 )
               })}

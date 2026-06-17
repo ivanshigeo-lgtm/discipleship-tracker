@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Person, Stage, DiscipleshipConnection } from '../types/database'
 
 interface ConstellationMapProps {
@@ -65,6 +65,24 @@ export default function ConstellationMap({
 }: ConstellationMapProps) {
   const [dimensions, setDimensions] = useState({ width: 800, height: 500 })
   const [hoveredPerson, setHoveredPerson] = useState<string | null>(null)
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleStarEnter = (personId: string) => {
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
+    setHoveredPerson(personId)
+  }
+  const handleStarLeave = () => {
+    hideTimerRef.current = setTimeout(() => setHoveredPerson(null), 350)
+  }
+  const handlePopupEnter = () => {
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
+  }
+  const handlePopupLeave = () => {
+    setHoveredPerson(null)
+  }
+
+  // Cleanup timer on unmount
+  useEffect(() => () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current) }, [])
 
   useEffect(() => {
     const updateDimensions = () => {
@@ -272,8 +290,8 @@ export default function ConstellationMap({
               zIndex: isHovered ? 20 : 5,
             }}
             onClick={() => onPersonClick?.(person)}
-            onMouseEnter={() => setHoveredPerson(person.id)}
-            onMouseLeave={() => setHoveredPerson(null)}
+            onMouseEnter={() => handleStarEnter(person.id)}
+            onMouseLeave={handleStarLeave}
           >
             {/* Star glow */}
             <div
@@ -325,7 +343,7 @@ export default function ConstellationMap({
         const left = Math.max(8, Math.min(pos.x - cardWidth / 2, dimensions.width - cardWidth - 8))
         return (
           <div
-            className="pointer-events-none absolute z-30"
+            className="absolute z-30"
             style={{
               left,
               top: pos.y,
@@ -338,6 +356,8 @@ export default function ConstellationMap({
               padding: '10px 12px',
               boxShadow: `0 0 24px -4px ${config.glowColor}60`,
             }}
+            onMouseEnter={handlePopupEnter}
+            onMouseLeave={handlePopupLeave}
           >
             <div className="mb-1.5 flex items-center gap-1.5">
               <span className="h-1.5 w-1.5 rounded-full" style={{ background: config.color }} />
@@ -349,8 +369,9 @@ export default function ConstellationMap({
               <video
                 src={person.testimony_video_url}
                 className="w-full rounded-lg"
-                style={{ maxHeight: 110 }}
+                style={{ maxHeight: 130 }}
                 playsInline
+                controls
               />
             ) : (
               <p className="text-[11px] italic leading-relaxed text-[var(--fg-2)]">

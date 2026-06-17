@@ -635,6 +635,7 @@ export default function MyJourneyPage() {
         personId={profile.id}
         onSoaps={() => setActiveModal('soap')}
         onMessage={() => { setMsgCenterOpen(true); setUnreadMsgCount(0) }}
+        soapStreak={soapStreak}
       />
 
       {/* Message Center */}

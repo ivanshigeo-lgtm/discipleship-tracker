@@ -41,23 +41,41 @@ export default function TestimonyModal({
     }
   }, [recordState])
 
-  // Fix MediaRecorder blobs: they have no duration metadata, causing a black playback
-  // screen. Seeking to 1e100 forces the browser to scan the blob and determine the
-  // real duration; then we snap back to 0 so the video is ready to play from the start.
+  // MediaRecorder WebM blobs have no duration metadata, so browsers render black frames.
+  // Fix: seek to 1e100 to force the browser to scan the full blob and determine the real
+  // duration (fires seeked at the actual end), then snap back to 0 and autoplay.
+  // We check duration immediately after attaching listeners because the browser may
+  // have already loaded metadata (and fired durationchange) before this effect ran.
   useEffect(() => {
     const video = reviewVideoRef.current
     if (!video || !recordedObjectUrl) return
-    let fixed = false
-    const onDurationChange = () => {
-      if (!isFinite(video.duration) && !fixed) video.currentTime = 1e100
+
+    // phase 0 = waiting, 1 = big seek in progress, 2 = done
+    let phase = 0
+
+    const tryFix = () => {
+      if (phase !== 0) return
+      if (isFinite(video.duration)) { phase = 2; return }
+      phase = 1
+      video.currentTime = 1e100
     }
+
     const onSeeked = () => {
-      if (!fixed) { fixed = true; video.currentTime = 0 }
+      if (phase === 1) {
+        phase = 2
+        video.currentTime = 0
+        video.play().catch(() => {})
+      }
     }
-    video.addEventListener('durationchange', onDurationChange)
+
+    video.addEventListener('durationchange', tryFix)
     video.addEventListener('seeked', onSeeked)
+
+    // Metadata may already be loaded — check immediately
+    if (video.readyState >= 1) tryFix()
+
     return () => {
-      video.removeEventListener('durationchange', onDurationChange)
+      video.removeEventListener('durationchange', tryFix)
       video.removeEventListener('seeked', onSeeked)
     }
   }, [recordedObjectUrl])
@@ -162,14 +180,23 @@ export default function TestimonyModal({
       return null
     }
 
-    // Step 2: upload directly to Supabase using the SDK so auth headers are handled correctly
+    // Step 2: PUT directly to Supabase signed URL with explicit auth headers
     const contentType = blob.type.split(';')[0] || 'video/webm'
-    const { error: uploadError } = await supabase.storage
-      .from('testimonies')
-      .uploadToSignedUrl(urlJson.path, urlJson.token, blob, { contentType })
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+    const uploadRes = await fetch(urlJson.signedUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': contentType,
+        'apikey': anonKey,
+        'Authorization': `Bearer ${anonKey}`,
+      },
+      body: blob,
+    })
 
-    if (uploadError) {
-      setError('Upload failed. Please try again.')
+    if (!uploadRes.ok) {
+      const detail = await uploadRes.text().catch(() => '')
+      console.error('Supabase upload failed:', uploadRes.status, detail)
+      setError(`Upload failed (${uploadRes.status}). Please try again.`)
       return null
     }
 
