@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { saveTestimony } from '../../lib/supabaseQueries'
+import { supabase } from '../../lib/supabaseClient'
 import type { Person } from '../../types/database'
 
 type RecordState = 'idle' | 'preview' | 'recording' | 'review'
@@ -27,6 +28,7 @@ export default function TestimonyModal({
   const [recordSecs, setRecordSecs] = useState(0)
 
   const liveVideoRef = useRef<HTMLVideoElement>(null)
+  const reviewVideoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const recorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
@@ -38,6 +40,27 @@ export default function TestimonyModal({
       liveVideoRef.current.srcObject = streamRef.current
     }
   }, [recordState])
+
+  // Fix MediaRecorder blobs: they have no duration metadata, causing a black playback
+  // screen. Seeking to 1e100 forces the browser to scan the blob and determine the
+  // real duration; then we snap back to 0 so the video is ready to play from the start.
+  useEffect(() => {
+    const video = reviewVideoRef.current
+    if (!video || !recordedObjectUrl) return
+    let fixed = false
+    const onDurationChange = () => {
+      if (!isFinite(video.duration) && !fixed) video.currentTime = 1e100
+    }
+    const onSeeked = () => {
+      if (!fixed) { fixed = true; video.currentTime = 0 }
+    }
+    video.addEventListener('durationchange', onDurationChange)
+    video.addEventListener('seeked', onSeeked)
+    return () => {
+      video.removeEventListener('durationchange', onDurationChange)
+      video.removeEventListener('seeked', onSeeked)
+    }
+  }, [recordedObjectUrl])
 
   const stopStream = useCallback(() => {
     streamRef.current?.getTracks().forEach(t => t.stop())
@@ -127,7 +150,7 @@ export default function TestimonyModal({
   const uploadToServer = async (blob: Blob, fileName: string): Promise<string | null> => {
     const ext = fileName.split('.').pop() || 'webm'
 
-    // Step 1: get a signed upload URL (tiny request, no Vercel body-size issue)
+    // Step 1: get a signed upload token (tiny JSON request — no Vercel body-size issue)
     const urlRes = await fetch('/api/testimony/signed-url', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -139,13 +162,13 @@ export default function TestimonyModal({
       return null
     }
 
-    // Step 2: upload the video directly to Supabase (bypasses Vercel entirely)
-    const uploadRes = await fetch(urlJson.signedUrl, {
-      method: 'PUT',
-      headers: { 'Content-Type': blob.type || 'video/webm' },
-      body: blob,
-    })
-    if (!uploadRes.ok) {
+    // Step 2: upload directly to Supabase using the SDK so auth headers are handled correctly
+    const contentType = blob.type.split(';')[0] || 'video/webm'
+    const { error: uploadError } = await supabase.storage
+      .from('testimonies')
+      .uploadToSignedUrl(urlJson.path, urlJson.token, blob, { contentType })
+
+    if (uploadError) {
       setError('Upload failed. Please try again.')
       return null
     }
@@ -315,7 +338,14 @@ export default function TestimonyModal({
             ) : recordState === 'review' ? (
               /* Review the clip before uploading */
               <div>
-                <video src={recordedObjectUrl} controls className="w-full rounded-lg" />
+                <video
+                  ref={reviewVideoRef}
+                  src={recordedObjectUrl}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  className="w-full rounded-lg"
+                />
                 <div className="mt-2 flex gap-2">
                   <button
                     type="button"

@@ -26,6 +26,8 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     signedUrl: data.signedUrl,
+    path: data.path,
+    token: data.token,
     publicUrl: pubData.publicUrl,
   })
 }
