@@ -12,6 +12,7 @@ import CoachingPipeline from '../components/CoachingPipeline'
 import NeedAttentionSection from '../components/NeedAttentionSection'
 import PointsOfActionSection from '../components/PointsOfActionSection'
 import PrayerWallSection from '../components/PrayerWallSection'
+import VictoryGroupsList from '../components/VictoryGroupsList'
 import CurriculumBadgesSection from '../components/CurriculumBadgesSection'
 import EmergingTeamSection from '../components/EmergingTeamSection'
 import PersonProfileModal from '../components/PersonProfileModal'
@@ -24,7 +25,7 @@ import { getSoapJournals, getAllDiscipleshipConnections, getPeople } from '../li
 import type { Person, SoapJournal, Stage, DiscipleshipConnection } from '../types/database'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-type SectionId = 'journey' | 'snapshot' | 'emerging' | 'engagements' | 'points' | 'prayer' | 'messages' | 'soaps'
+type SectionId = 'journey' | 'snapshot' | 'emerging' | 'engagements' | 'points' | 'groups' | 'prayer' | 'messages' | 'soaps'
 type CircleView = 'pipeline' | 'visual' | 'list'
 type CircleSort = 'az' | '4e'
 type CircleFilter = { key: string; label: string; stages?: Stage[] }
@@ -51,6 +52,7 @@ const NAV: Array<{ heading: string; items: Array<{ id: SectionId; label: string;
   {
     heading: 'Community',
     items: [
+      { id: 'groups',   label: 'Groups',       dot: '#F4B650' },
       { id: 'prayer',   label: 'Prayer Wall',  dot: '#9B80FF' },
       { id: 'messages', label: 'My Messages',  dot: '#7EB3FF' },
       { id: 'soaps',    label: 'My SOAPs',     dot: '#36D6C3' },
@@ -672,6 +674,19 @@ export default function DiscipleshipTracker() {
           )}
 
           {/* ── Prayer Wall ── */}
+          {activeSection === 'groups' && (
+            <div>
+              <SectionHeader title="Groups" subtitle="Your Grace Groups and who's in them" />
+              <ErrorBoundary name="VictoryGroupsList">
+                <VictoryGroupsList
+                  onChanged={() => setRefreshKey(p => p + 1)}
+                  onPersonClick={p => openPerson(p)}
+                  onAddNewPerson={() => setShowAddPerson(true)}
+                />
+              </ErrorBoundary>
+            </div>
+          )}
+
           {activeSection === 'prayer' && (
             <div>
               <SectionHeader title="Prayer Wall" subtitle="Requests and praises from across your constellation" />
