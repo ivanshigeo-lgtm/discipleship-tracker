@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import type { ReactNode } from 'react'
 import { SoapJournal } from '../types/database'
 
 interface Props {
@@ -37,6 +38,39 @@ function formatNiceDate(dateStr: string): string {
   return new Date(y, m - 1, d).toLocaleDateString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric',
   })
+}
+
+/** Extract a ~150-char window centred on the first match, with the match highlighted. */
+function highlightExcerpt(text: string, query: string): ReactNode {
+  const idx = text.toLowerCase().indexOf(query.toLowerCase())
+  if (idx === -1) {
+    const clip = text.slice(0, 150)
+    return clip.length < text.length ? clip + '…' : clip
+  }
+  const WINDOW = 150
+  const half = Math.floor((WINDOW - query.length) / 2)
+  const start = Math.max(0, idx - half)
+  const end = Math.min(text.length, idx + query.length + half)
+  const before = text.slice(start, idx)
+  const match = text.slice(idx, idx + query.length)
+  const after = text.slice(idx + query.length, end)
+  return (
+    <>
+      {start > 0 && '…'}
+      {before}
+      <mark style={{
+        background: 'rgba(54,214,195,.28)',
+        color: 'var(--establish, #36D6C3)',
+        borderRadius: '3px',
+        padding: '0 2px',
+        fontWeight: 600,
+      }}>
+        {match}
+      </mark>
+      {after}
+      {end < text.length && '…'}
+    </>
+  )
 }
 
 function toLocalIso(date: Date): string {
@@ -376,45 +410,70 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
               No entries match your search.
             </p>
           ) : (
-            searchResults.map(entry => (
-              <button
-                key={entry.id}
-                onClick={() => setSelectedDate(selectedDate === entry.journal_date ? null : entry.journal_date)}
-                style={{
-                  display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
-                  gap: '4px', padding: '12px 14px', borderRadius: '12px',
-                  border: `1px solid ${selectedDate === entry.journal_date ? 'rgba(54,214,195,.40)' : 'var(--line-2)'}`,
-                  background: selectedDate === entry.journal_date ? 'rgba(54,214,195,.08)' : 'var(--indigo, #141B3D)',
-                  cursor: 'pointer', textAlign: 'left',
-                  transition: 'background 150ms ease, border-color 150ms ease',
-                  outline: 'none', width: '100%', boxSizing: 'border-box',
-                }}
-                onMouseOver={e => {
-                  if (selectedDate !== entry.journal_date)
-                    e.currentTarget.style.background = 'rgba(246,241,231,.04)'
-                }}
-                onMouseOut={e => {
-                  if (selectedDate !== entry.journal_date)
-                    e.currentTarget.style.background = 'var(--indigo, #141B3D)'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                  <span style={{ color: 'var(--fg-1)', fontSize: '13px', fontWeight: 600 }}>
-                    {formatNiceDate(entry.journal_date)}
-                  </span>
-                  {entry.scripture_reference && (
-                    <span style={{ color: 'var(--establish, #36D6C3)', fontSize: '12px' }}>
-                      {entry.scripture_reference}
-                    </span>
+            searchResults.map(entry => {
+              const isSelected = selectedDate === entry.journal_date
+              return (
+                <button
+                  key={entry.id}
+                  onClick={() => {
+                    setSelectedDate(isSelected ? null : entry.journal_date)
+                    setOcrResult(null)
+                  }}
+                  style={{
+                    display: 'flex', flexDirection: 'row', alignItems: 'flex-start',
+                    gap: '12px', padding: '12px', borderRadius: '14px',
+                    border: `1px solid ${isSelected ? 'rgba(54,214,195,.40)' : 'var(--line-2)'}`,
+                    background: isSelected ? 'rgba(54,214,195,.08)' : 'var(--indigo, #141B3D)',
+                    cursor: 'pointer', textAlign: 'left',
+                    transition: 'background 150ms ease, border-color 150ms ease',
+                    outline: 'none', width: '100%', boxSizing: 'border-box',
+                  }}
+                  onMouseOver={e => {
+                    if (!isSelected) e.currentTarget.style.background = 'rgba(246,241,231,.04)'
+                  }}
+                  onMouseOut={e => {
+                    if (!isSelected) e.currentTarget.style.background = 'var(--indigo, #141B3D)'
+                  }}
+                >
+                  {/* Photo thumbnail */}
+                  {entry.photo_url && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={entry.photo_url}
+                      alt="Journal page"
+                      style={{
+                        width: '72px', height: '72px', flexShrink: 0,
+                        borderRadius: '10px', objectFit: 'cover',
+                        border: '1px solid var(--line-2)',
+                      }}
+                    />
                   )}
-                </div>
-                {entry.ocr_text && (
-                  <span style={{ color: 'var(--fg-3)', fontSize: '13px', lineHeight: 1.5 }}>
-                    {entry.ocr_text.slice(0, 120)}{entry.ocr_text.length > 120 ? '…' : ''}
-                  </span>
-                )}
-              </button>
-            ))
+
+                  {/* Text content */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <span style={{ color: 'var(--fg-1)', fontSize: '13px', fontWeight: 600 }}>
+                        {formatNiceDate(entry.journal_date)}
+                      </span>
+                      {entry.scripture_reference && (
+                        <span style={{ color: 'var(--establish, #36D6C3)', fontSize: '12px' }}>
+                          {entry.scripture_reference}
+                        </span>
+                      )}
+                    </div>
+                    {entry.ocr_text ? (
+                      <span style={{ color: 'var(--fg-3)', fontSize: '13px', lineHeight: 1.55 }}>
+                        {highlightExcerpt(entry.ocr_text, searchQuery.trim())}
+                      </span>
+                    ) : entry.photo_url ? (
+                      <span style={{ color: 'var(--fg-3)', fontSize: '12px', fontStyle: 'italic' }}>
+                        Photo entry — tap to view
+                      </span>
+                    ) : null}
+                  </div>
+                </button>
+              )
+            })
           )}
         </div>
       )}
