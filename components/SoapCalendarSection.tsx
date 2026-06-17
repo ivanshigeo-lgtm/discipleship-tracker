@@ -132,6 +132,14 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
   const [ocrLoading, setOcrLoading] = useState(false)
   const [ocrResult, setOcrResult] = useState<string | null>(null)
 
+  // AI Insights
+  const [insightMode, setInsightMode] = useState(false)
+  const [insightDates, setInsightDates] = useState<Set<string>>(new Set())
+  const [insightQuestion, setInsightQuestion] = useState('')
+  const [insightLoading, setInsightLoading] = useState(false)
+  const [insightResponse, setInsightResponse] = useState<string | null>(null)
+  const [insightError, setInsightError] = useState('')
+
   const soapMap = useMemo(() => {
     const map = new Map<string, SoapJournal>()
     for (const s of soaps) map.set(s.journal_date, s)
@@ -172,14 +180,54 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
 
   function handleDayClick(dateIso: string, hasSoap: boolean, inMonth: boolean) {
     if (!inMonth) return
-    if (dateIso > todayIso) return // future — ignore
+    if (dateIso > todayIso) return
+    if (insightMode) {
+      if (!hasSoap) return
+      setInsightDates(prev => {
+        const next = new Set(prev)
+        next.has(dateIso) ? next.delete(dateIso) : next.add(dateIso)
+        return next
+      })
+      setInsightResponse(null)
+      setInsightError('')
+      return
+    }
     if (hasSoap) {
       setSelectedDate(prev => prev === dateIso ? null : dateIso)
       setOcrResult(null)
     } else {
-      // Empty past/today day — open entry modal with date prefilled
       onNewEntryForDate?.(dateIso)
     }
+  }
+
+  function exitInsightMode() {
+    setInsightMode(false)
+    setInsightDates(new Set())
+    setInsightResponse(null)
+    setInsightError('')
+    setInsightQuestion('')
+  }
+
+  async function runInsight(question?: string) {
+    const dates = Array.from(insightDates)
+    const ids = dates.map(d => soapMap.get(d)?.id).filter(Boolean) as string[]
+    if (!ids.length) return
+    setInsightLoading(true)
+    setInsightResponse(null)
+    setInsightError('')
+    try {
+      const res = await fetch('/api/soap/insights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ journalIds: ids, question: question?.trim() || undefined }),
+      })
+      const json = await res.json()
+      if (!res.ok) setInsightError(json.error || 'Something went wrong.')
+      else setInsightResponse(json.response)
+    } catch {
+      setInsightError('Network error. Please try again.')
+    }
+    setInsightLoading(false)
   }
 
   const selectedEntry = selectedDate ? soapMap.get(selectedDate) ?? null : null
@@ -213,20 +261,43 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
             </span>
           )}
         </div>
-        <button
-          onClick={onNewEntry}
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: '6px',
-            padding: '8px 16px', borderRadius: '10px', border: 'none',
-            background: 'var(--establish, #36D6C3)', color: '#0B1027',
-            fontSize: '13px', fontWeight: 700, cursor: 'pointer',
-            letterSpacing: '0.01em', flexShrink: 0, transition: 'opacity 150ms ease',
-          }}
-          onMouseOver={e => (e.currentTarget.style.opacity = '0.85')}
-          onMouseOut={e => (e.currentTarget.style.opacity = '1')}
-        >
-          + New entry
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            onClick={() => {
+              if (insightMode) { exitInsightMode(); return }
+              setInsightMode(true)
+              setSelectedDate(null)
+              setSearchQuery('')
+            }}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '5px',
+              padding: '7px 13px', borderRadius: '10px',
+              border: `1px solid ${insightMode ? 'rgba(54,214,195,.50)' : 'var(--line-2)'}`,
+              background: insightMode ? 'rgba(54,214,195,.12)' : 'transparent',
+              color: insightMode ? 'var(--establish, #36D6C3)' : 'var(--fg-2)',
+              fontSize: '12px', fontWeight: 600, cursor: 'pointer',
+              letterSpacing: '0.01em', flexShrink: 0, transition: 'all 150ms ease',
+            }}
+          >
+            ✦ {insightMode ? 'Exit AI' : 'AI Insights'}
+          </button>
+          {!insightMode && (
+            <button
+              onClick={onNewEntry}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '6px',
+                padding: '8px 16px', borderRadius: '10px', border: 'none',
+                background: 'var(--establish, #36D6C3)', color: '#0B1027',
+                fontSize: '13px', fontWeight: 700, cursor: 'pointer',
+                letterSpacing: '0.01em', flexShrink: 0, transition: 'opacity 150ms ease',
+              }}
+              onMouseOver={e => (e.currentTarget.style.opacity = '0.85')}
+              onMouseOut={e => (e.currentTarget.style.opacity = '1')}
+            >
+              + New entry
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ── Search bar ── */}
@@ -329,9 +400,14 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
                   {days.map(({ dateIso, dayNum, inMonth }) => {
                     const hasSoap = soapMap.has(dateIso)
                     const isSelected = selectedDate === dateIso
+                    const isInsightSel = insightDates.has(dateIso)
                     const isToday = dateIso === todayIso
                     const isFuture = dateIso > todayIso
-                    const isClickable = inMonth && !isFuture
+                    const isClickable = inMonth && !isFuture && (insightMode ? hasSoap : true)
+
+                    const bg = insightMode
+                      ? isInsightSel ? 'rgba(54,214,195,.22)' : hasSoap && inMonth ? 'rgba(54,214,195,.06)' : 'transparent'
+                      : isSelected ? 'rgba(54,214,195,.18)' : hasSoap && inMonth ? 'rgba(54,214,195,.06)' : 'transparent'
 
                     return (
                       <button
@@ -339,6 +415,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
                         onClick={() => handleDayClick(dateIso, hasSoap, inMonth)}
                         title={
                           !inMonth || isFuture ? undefined
+                          : insightMode && hasSoap ? (isInsightSel ? 'Deselect' : 'Select for AI')
                           : hasSoap ? 'View entry'
                           : 'Add entry for this day'
                         }
@@ -347,16 +424,14 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
                           alignItems: 'center', justifyContent: 'center',
                           gap: '2px', padding: '3px 1px',
                           borderRadius: '6px',
-                          border: isToday
-                            ? '1.5px solid rgba(246,241,231,.30)'
-                            : '1.5px solid transparent',
-                          background: isSelected
-                            ? 'rgba(54,214,195,.18)'
-                            : hasSoap && inMonth
-                              ? 'rgba(54,214,195,.06)'
-                              : 'transparent',
+                          border: isInsightSel
+                            ? '1.5px solid rgba(54,214,195,.60)'
+                            : isToday
+                              ? '1.5px solid rgba(246,241,231,.30)'
+                              : '1.5px solid transparent',
+                          background: bg,
                           color: inMonth ? (isFuture ? 'var(--fg-3)' : 'var(--fg-1)') : 'var(--fg-3)',
-                          opacity: inMonth ? 1 : 0.20,
+                          opacity: inMonth ? (insightMode && !hasSoap ? 0.25 : 1) : 0.20,
                           cursor: isClickable ? 'pointer' : 'default',
                           fontSize: '11px',
                           fontWeight: isToday ? 700 : 400,
@@ -365,25 +440,23 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
                           outline: 'none',
                         }}
                         onMouseOver={e => {
-                          if (isClickable && hasSoap)
-                            e.currentTarget.style.background = 'rgba(54,214,195,.14)'
-                          else if (isClickable && !hasSoap)
-                            e.currentTarget.style.background = 'rgba(246,241,231,.06)'
+                          if (isClickable) e.currentTarget.style.background = 'rgba(54,214,195,.14)'
                         }}
                         onMouseOut={e => {
-                          e.currentTarget.style.background = isSelected
-                            ? 'rgba(54,214,195,.18)'
-                            : hasSoap && inMonth ? 'rgba(54,214,195,.06)' : 'transparent'
+                          e.currentTarget.style.background = bg
                         }}
                       >
                         <span>{dayNum}</span>
-                        {hasSoap && inMonth && (
+                        {hasSoap && inMonth && !isInsightSel && (
                           <span style={{
                             width: '4px', height: '4px', borderRadius: '50%',
                             background: 'var(--establish, #36D6C3)',
                             boxShadow: '0 0 4px var(--establish, #36D6C3)',
                             flexShrink: 0,
                           }} />
+                        )}
+                        {isInsightSel && (
+                          <span style={{ fontSize: '9px', color: 'var(--establish, #36D6C3)', lineHeight: 1, fontWeight: 700 }}>✓</span>
                         )}
                       </button>
                     )
@@ -397,8 +470,163 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
             margin: '0 8px 10px', fontSize: '11px', color: 'var(--fg-3)',
             textAlign: 'center',
           }}>
-            Tap a past date to view or add an entry
+            {insightMode ? 'Tap teal dots to select entries for AI analysis' : 'Tap a past date to view or add an entry'}
           </p>
+        </div>
+      )}
+
+      {/* ── AI Insights panel ── */}
+      {insightMode && (
+        <div style={{
+          borderRadius: '16px',
+          border: '1px solid rgba(54,214,195,.30)',
+          background: 'linear-gradient(145deg, rgba(54,214,195,.06) 0%, var(--indigo, #141B3D) 100%)',
+          overflow: 'hidden',
+          boxShadow: '0 0 32px rgba(54,214,195,.07)',
+        }}>
+          {/* Panel header */}
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '14px 16px', borderBottom: '1px solid rgba(54,214,195,.15)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '15px' }}>✦</span>
+              <span style={{ color: 'var(--fg-1)', fontWeight: 700, fontSize: '14px' }}>
+                AI Insights
+              </span>
+              {insightDates.size > 0 && (
+                <span style={{
+                  padding: '2px 8px', borderRadius: '999px',
+                  background: 'rgba(54,214,195,.18)', border: '1px solid rgba(54,214,195,.35)',
+                  color: 'var(--establish, #36D6C3)', fontSize: '11px', fontWeight: 600,
+                }}>
+                  {insightDates.size} {insightDates.size === 1 ? 'entry' : 'entries'} selected
+                </span>
+              )}
+            </div>
+            {insightDates.size > 0 && (
+              <button
+                onClick={() => setInsightDates(new Set())}
+                style={{
+                  fontSize: '11px', color: 'var(--fg-3)', background: 'none',
+                  border: 'none', cursor: 'pointer', padding: '2px 4px',
+                }}
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
+          <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {insightDates.size === 0 ? (
+              <p style={{ margin: 0, color: 'var(--fg-3)', fontSize: '13px', textAlign: 'center', padding: '8px 0' }}>
+                Select dates from the calendar above to analyze them.
+              </p>
+            ) : (
+              <>
+                {/* Action buttons */}
+                {!insightLoading && !insightResponse && (
+                  <button
+                    onClick={() => runInsight()}
+                    style={{
+                      padding: '11px 16px', borderRadius: '10px', border: 'none',
+                      background: 'var(--establish, #36D6C3)', color: '#0B1027',
+                      fontSize: '13px', fontWeight: 700, cursor: 'pointer',
+                      width: '100%', transition: 'opacity 150ms ease',
+                    }}
+                    onMouseOver={e => (e.currentTarget.style.opacity = '0.85')}
+                    onMouseOut={e => (e.currentTarget.style.opacity = '1')}
+                  >
+                    Generate Summary
+                  </button>
+                )}
+
+                {/* Question input */}
+                {!insightLoading && (
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      type="text"
+                      placeholder="Ask a question about these entries…"
+                      value={insightQuestion}
+                      onChange={e => setInsightQuestion(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && insightQuestion.trim()) runInsight(insightQuestion)
+                      }}
+                      style={{
+                        flex: 1, padding: '10px 12px', borderRadius: '10px',
+                        border: '1px solid var(--line-2)', background: 'var(--indigo, #141B3D)',
+                        color: 'var(--fg-1)', fontSize: '13px', outline: 'none',
+                        transition: 'border-color 150ms ease',
+                      }}
+                      onFocus={e => (e.currentTarget.style.borderColor = 'rgba(54,214,195,.60)')}
+                      onBlur={e => (e.currentTarget.style.borderColor = 'var(--line-2)')}
+                    />
+                    <button
+                      onClick={() => { if (insightQuestion.trim()) runInsight(insightQuestion) }}
+                      disabled={!insightQuestion.trim()}
+                      style={{
+                        padding: '10px 14px', borderRadius: '10px',
+                        border: '1px solid rgba(54,214,195,.40)',
+                        background: insightQuestion.trim() ? 'rgba(54,214,195,.15)' : 'transparent',
+                        color: 'var(--establish, #36D6C3)', fontSize: '13px',
+                        fontWeight: 600, cursor: insightQuestion.trim() ? 'pointer' : 'default',
+                        opacity: insightQuestion.trim() ? 1 : 0.40, transition: 'all 150ms ease',
+                        flexShrink: 0,
+                      }}
+                    >
+                      Ask
+                    </button>
+                  </div>
+                )}
+
+                {/* Loading */}
+                {insightLoading && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0' }}>
+                    <span style={{
+                      display: 'inline-block', width: '16px', height: '16px',
+                      borderRadius: '50%', border: '2px solid rgba(54,214,195,.30)',
+                      borderTopColor: 'var(--establish, #36D6C3)',
+                      animation: 'spin 0.7s linear infinite',
+                    }} />
+                    <span style={{ color: 'var(--fg-3)', fontSize: '13px' }}>Thinking…</span>
+                  </div>
+                )}
+
+                {/* Error */}
+                {insightError && (
+                  <p style={{ margin: 0, color: 'var(--danger, #E05252)', fontSize: '13px' }}>
+                    {insightError}
+                  </p>
+                )}
+
+                {/* Response */}
+                {insightResponse && (
+                  <div style={{
+                    borderRadius: '12px', border: '1px solid rgba(54,214,195,.15)',
+                    background: 'rgba(54,214,195,.04)', padding: '16px',
+                    display: 'flex', flexDirection: 'column', gap: '10px',
+                  }}>
+                    <pre style={{
+                      margin: 0, color: 'var(--fg-1)', fontSize: '14px', lineHeight: 1.70,
+                      whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit',
+                    }}>
+                      {insightResponse}
+                    </pre>
+                    <button
+                      onClick={() => { setInsightResponse(null); setInsightQuestion('') }}
+                      style={{
+                        alignSelf: 'flex-start', fontSize: '12px', color: 'var(--fg-3)',
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        padding: '0', textDecoration: 'underline',
+                      }}
+                    >
+                      Ask another question
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </div>
       )}
 
