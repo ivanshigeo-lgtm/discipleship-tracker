@@ -76,7 +76,7 @@ export default function SoapEntryModal({
     }
 
     const today = new Date().toISOString().split('T')[0]
-    const { error: insErr } = await addSoapJournal({
+    const { data: saved, error: insErr } = await addSoapJournal({
       person_id: personId,
       journal_date: today,
       photo_url: uploadedUrl,
@@ -90,6 +90,15 @@ export default function SoapEntryModal({
       setError(insErr.message?.includes('duplicate') ? 'You already have an entry for today.' : 'Could not save. Please try again.')
       setBusy(false)
       return
+    }
+
+    // Auto-OCR photo in background so it becomes searchable
+    if (uploadedUrl && saved?.id) {
+      fetch('/api/soap/ocr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ journalId: saved.id }),
+      }).catch(() => {}) // silent — OCR is best-effort
     }
 
     await savePrayerIfAny()
