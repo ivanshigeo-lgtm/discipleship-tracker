@@ -68,22 +68,29 @@ export default function ConstellationMap({
   const [starRect, setStarRect] = useState<DOMRect | null>(null)
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Hover lifecycle for the testimony popup.
+  // CRITICAL: every "leave" must schedule a DELAYED hide and every "enter"
+  // must cancel it. The star, the bridge strip and the card are three
+  // separate fixed elements; the mouse crossing the boundary between any
+  // two of them fires mouseleave on one at the same instant it fires
+  // mouseenter on the next. If leave hid the popup immediately it would win
+  // that race and the card would vanish the moment you reach it. With a
+  // shared timer, the incoming enter cancels the outgoing leave's timer
+  // before it fires, so travel star → bridge → card is seamless.
+  const scheduleHide = () => {
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
+    hideTimerRef.current = setTimeout(() => setHoveredPerson(null), 300)
+  }
+  const cancelHide = () => {
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
+  }
   // Capture the star's actual screen position so the popup can be placed
   // with position:fixed at exactly the right coordinates, regardless of
   // CSS transforms on the star wrapper.
   const handleStarEnter = (personId: string, e: React.MouseEvent<HTMLDivElement>) => {
-    if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
+    cancelHide()
     setStarRect(e.currentTarget.getBoundingClientRect())
     setHoveredPerson(personId)
-  }
-  const handleStarLeave = () => {
-    hideTimerRef.current = setTimeout(() => setHoveredPerson(null), 400)
-  }
-  const handlePopupEnter = () => {
-    if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
-  }
-  const handlePopupLeave = () => {
-    setHoveredPerson(null)
   }
   // Cleanup timer on unmount
   useEffect(() => () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current) }, [])
@@ -295,7 +302,7 @@ export default function ConstellationMap({
             }}
             onClick={() => onPersonClick?.(person)}
             onMouseEnter={(e) => handleStarEnter(person.id, e)}
-            onMouseLeave={handleStarLeave}
+            onMouseLeave={scheduleHide}
           >
             <div
               className="mx-auto rounded-full"
@@ -351,18 +358,20 @@ export default function ConstellationMap({
         const popupBottom = window.innerHeight - starRect.top
         return (
           <>
-            {/* Transparent bridge covers the gap between popup and star */}
+            {/* Transparent bridge covers the gap between popup and star.
+                Extends 4px into the star below and 4px into the card above so
+                sub-pixel rounding can never leave a 1px dead line at either seam. */}
             <div
               style={{
                 position: 'fixed',
                 left,
-                bottom: popupBottom,
+                bottom: popupBottom - 4,
                 width: cardWidth,
-                height: 16,
+                height: 24,
                 zIndex: 9998,
               }}
-              onMouseEnter={handlePopupEnter}
-              onMouseLeave={handlePopupLeave}
+              onMouseEnter={cancelHide}
+              onMouseLeave={scheduleHide}
             />
             {/* Actual card */}
             <div
@@ -380,8 +389,8 @@ export default function ConstellationMap({
                 zIndex: 9999,
                 cursor: 'default',
               }}
-              onMouseEnter={handlePopupEnter}
-              onMouseLeave={handlePopupLeave}
+              onMouseEnter={cancelHide}
+              onMouseLeave={scheduleHide}
               onClick={e => e.stopPropagation()}
             >
               <div className="mb-1.5 flex items-center gap-1.5">
