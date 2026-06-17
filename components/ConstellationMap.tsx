@@ -74,13 +74,6 @@ export default function ConstellationMap({
   const handleStarLeave = () => {
     hideTimerRef.current = setTimeout(() => setHoveredPerson(null), 350)
   }
-  const handlePopupEnter = () => {
-    if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
-  }
-  const handlePopupLeave = () => {
-    setHoveredPerson(null)
-  }
-
   // Cleanup timer on unmount
   useEffect(() => () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current) }, [])
 
@@ -277,110 +270,110 @@ export default function ConstellationMap({
 
         const config = STAGE_CONFIG[person.current_stage]
         const isHovered = hoveredPerson === person.id
+        const hasStory = !!(person.testimony_text || person.testimony_video_url)
 
         return (
+          // Outer wrapper handles hover — popup lives INSIDE this div so moving
+          // from star to popup never fires onMouseLeave (descendants don't trigger it).
           <div
             key={person.id}
-            className="absolute cursor-pointer text-center"
+            className="absolute"
             style={{
               left: pos.x,
               top: pos.y,
-              transform: `translate(-50%, -50%) scale(${isHovered ? 1.15 : 1})`,
-              transition: 'transform 0.3s ease',
+              transform: 'translate(-50%, -50%)',
               zIndex: isHovered ? 20 : 5,
             }}
-            onClick={() => onPersonClick?.(person)}
             onMouseEnter={() => handleStarEnter(person.id)}
             onMouseLeave={handleStarLeave}
           >
-            {/* Star glow */}
+            {/* Story popup — positioned above the star, inside hover zone */}
+            {isHovered && hasStory && (
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: 'calc(100% + 10px)',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  width: 220,
+                  background: 'rgba(6,8,20,.94)',
+                  backdropFilter: 'blur(14px)',
+                  border: `1px solid ${config.color}40`,
+                  borderRadius: 14,
+                  padding: '10px 12px',
+                  boxShadow: `0 0 24px -4px ${config.glowColor}60`,
+                  cursor: 'default',
+                }}
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="mb-1.5 flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: config.color }} />
+                  <span className="text-[10px] font-semibold" style={{ color: config.color }}>
+                    {person.name.split(' ')[0]}&rsquo;s story
+                  </span>
+                </div>
+                {person.testimony_video_url ? (
+                  <video
+                    src={person.testimony_video_url}
+                    className="w-full rounded-lg"
+                    style={{ maxHeight: 130 }}
+                    playsInline
+                    controls
+                  />
+                ) : (
+                  <p className="text-[11px] italic leading-relaxed text-[var(--fg-2)]">
+                    &ldquo;{(person.testimony_text ?? '').slice(0, 180)}{(person.testimony_text ?? '').length > 180 ? '…' : ''}&rdquo;
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Inner star — scaled independently so the popup doesn't scale */}
             <div
-              className="mx-auto rounded-full"
-              style={{
-                width: pos.size,
-                height: pos.size,
-                background: `radial-gradient(circle at 50% 40%, #ffffff, var(--fg-1) 60%, rgba(246,241,231,.5) 100%)`,
-                boxShadow: `0 0 ${pos.size * 1.2}px ${pos.size * 0.4}px ${config.glowColor}`,
-                animation: 'star-breath 3s cubic-bezier(.22,.61,.36,1) infinite alternate',
-              }}
-            />
-            {/* Name label */}
-            <div
-              className="mt-2 whitespace-nowrap text-center"
-              style={{
-                fontSize: Math.max(10, 11 * scaleFactor),
-                fontWeight: 600,
-                color: isHovered ? 'var(--fg-1)' : 'var(--fg-2)',
-                textShadow: '0 2px 8px var(--void)',
-              }}
+              className="cursor-pointer text-center"
+              style={{ transform: `scale(${isHovered ? 1.15 : 1})`, transition: 'transform 0.3s ease' }}
+              onClick={() => onPersonClick?.(person)}
             >
-              {person.name}
-            </div>
-            {/* Stage label */}
-            <div
-              style={{
-                fontSize: Math.max(8, 9 * scaleFactor),
-                fontWeight: 700,
-                letterSpacing: '.1em',
-                textTransform: 'uppercase',
-                color: config.color,
-                marginTop: 2,
-              }}
-            >
-              {person.current_stage}
+              {/* Star glow */}
+              <div
+                className="mx-auto rounded-full"
+                style={{
+                  width: pos.size,
+                  height: pos.size,
+                  background: `radial-gradient(circle at 50% 40%, #ffffff, var(--fg-1) 60%, rgba(246,241,231,.5) 100%)`,
+                  boxShadow: `0 0 ${pos.size * 1.2}px ${pos.size * 0.4}px ${config.glowColor}`,
+                  animation: 'star-breath 3s cubic-bezier(.22,.61,.36,1) infinite alternate',
+                }}
+              />
+              {/* Name label */}
+              <div
+                className="mt-2 whitespace-nowrap text-center"
+                style={{
+                  fontSize: Math.max(10, 11 * scaleFactor),
+                  fontWeight: 600,
+                  color: isHovered ? 'var(--fg-1)' : 'var(--fg-2)',
+                  textShadow: '0 2px 8px var(--void)',
+                }}
+              >
+                {person.name}
+              </div>
+              {/* Stage label */}
+              <div
+                style={{
+                  fontSize: Math.max(8, 9 * scaleFactor),
+                  fontWeight: 700,
+                  letterSpacing: '.1em',
+                  textTransform: 'uppercase',
+                  color: config.color,
+                  marginTop: 2,
+                }}
+              >
+                {person.current_stage}
+              </div>
             </div>
           </div>
         )
       })}
-
-      {/* Testimony popup on star hover */}
-      {hoveredPerson && (() => {
-        const person = people.find(p => p.id === hoveredPerson)
-        const pos = starPositions[hoveredPerson]
-        if (!person || !pos || (!person.testimony_text && !person.testimony_video_url)) return null
-        const config = STAGE_CONFIG[person.current_stage]
-        const cardWidth = 220
-        const left = Math.max(8, Math.min(pos.x - cardWidth / 2, dimensions.width - cardWidth - 8))
-        return (
-          <div
-            className="absolute z-30"
-            style={{
-              left,
-              top: pos.y,
-              transform: 'translateY(calc(-100% - 18px))',
-              width: cardWidth,
-              background: 'rgba(6,8,20,.94)',
-              backdropFilter: 'blur(14px)',
-              border: `1px solid ${config.color}40`,
-              borderRadius: 14,
-              padding: '10px 12px',
-              boxShadow: `0 0 24px -4px ${config.glowColor}60`,
-            }}
-            onMouseEnter={handlePopupEnter}
-            onMouseLeave={handlePopupLeave}
-          >
-            <div className="mb-1.5 flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full" style={{ background: config.color }} />
-              <span className="text-[10px] font-semibold" style={{ color: config.color }}>
-                {person.name.split(' ')[0]}&rsquo;s story
-              </span>
-            </div>
-            {person.testimony_video_url ? (
-              <video
-                src={person.testimony_video_url}
-                className="w-full rounded-lg"
-                style={{ maxHeight: 130 }}
-                playsInline
-                controls
-              />
-            ) : (
-              <p className="text-[11px] italic leading-relaxed text-[var(--fg-2)]">
-                &ldquo;{(person.testimony_text ?? '').slice(0, 180)}{(person.testimony_text ?? '').length > 180 ? '…' : ''}&rdquo;
-              </p>
-            )}
-          </div>
-        )
-      })()}
 
       {/* Legend */}
       <div className="absolute bottom-4 left-4 z-20 flex flex-wrap gap-3">
