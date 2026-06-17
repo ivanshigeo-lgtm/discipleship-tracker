@@ -190,31 +190,6 @@ export default function SoapEntryModal({
           />
         </div>
 
-        {/* Sharing scope */}
-        <div className="mt-4">
-          <div className="cn-label mb-2">Who sees this?</div>
-          <div className="grid grid-cols-2 gap-2">
-            {SCOPES.map(s => (
-              <button
-                key={s.value}
-                type="button"
-                onClick={() => setVisibility(s.value)}
-                className="rounded-lg border p-2 text-left transition-all"
-                style={
-                  visibility === s.value
-                    ? { borderColor: 'var(--establish)', background: 'rgba(54,214,195,.08)' }
-                    : { borderColor: 'var(--line-1)', background: 'var(--indigo-2)' }
-                }
-              >
-                <span className={`block text-xs font-semibold ${visibility === s.value ? 'text-[var(--establish)]' : 'text-[var(--fg-1)]'}`}>
-                  {s.label}
-                </span>
-                <span className="block text-[10px] text-[var(--fg-3)]">{s.hint}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
         {/* Take a Photo Instead */}
         <div className="mt-4">
           <div className="cn-label mb-2">Take a Photo Instead</div>
@@ -305,6 +280,31 @@ export default function SoapEntryModal({
             </div>
           )}
           {cameraError && <p className="mt-2 text-xs text-[var(--danger)]">{cameraError}</p>}
+        </div>
+
+        {/* Sharing scope */}
+        <div className="mt-4">
+          <div className="cn-label mb-2">Who sees this?</div>
+          <div className="grid grid-cols-2 gap-2">
+            {SCOPES.map(s => (
+              <button
+                key={s.value}
+                type="button"
+                onClick={() => setVisibility(s.value)}
+                className="rounded-lg border p-2 text-left transition-all"
+                style={
+                  visibility === s.value
+                    ? { borderColor: 'var(--establish)', background: 'rgba(54,214,195,.08)' }
+                    : { borderColor: 'var(--line-1)', background: 'var(--indigo-2)' }
+                }
+              >
+                <span className={`block text-xs font-semibold ${visibility === s.value ? 'text-[var(--establish)]' : 'text-[var(--fg-1)]'}`}>
+                  {s.label}
+                </span>
+                <span className="block text-[10px] text-[var(--fg-3)]">{s.hint}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
         {error && <p className="mt-3 text-xs text-[var(--danger)]">{error}</p>}
