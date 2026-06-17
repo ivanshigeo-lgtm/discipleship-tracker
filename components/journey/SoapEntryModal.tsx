@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { addSoapJournal, addJourneyPrayerRequest } from '../../lib/supabaseQueries'
 import type { ShareVisibility } from '../../types/database'
 
@@ -37,7 +37,65 @@ export default function SoapEntryModal({
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [cameraOpen, setCameraOpen] = useState(false)
+  const [cameraError, setCameraError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  const stopCamera = useCallback(() => {
+    streamRef.current?.getTracks().forEach(t => t.stop())
+    streamRef.current = null
+  }, [])
+
+  // Attach stream to video element when camera opens
+  useEffect(() => {
+    if (cameraOpen && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current
+    }
+  }, [cameraOpen])
+
+  useEffect(() => {
+    return () => stopCamera()
+  }, [stopCamera])
+
+  const openCamera = async () => {
+    setCameraError('')
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 960 } },
+        audio: false,
+      })
+      streamRef.current = stream
+      setCameraOpen(true)
+    } catch {
+      setCameraError('Camera access denied. Please allow camera permission and try again.')
+    }
+  }
+
+  const takePhoto = () => {
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    if (!video || !canvas) return
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    canvas.getContext('2d')?.drawImage(video, 0, 0)
+    canvas.toBlob(blob => {
+      if (!blob) return
+      const file = new File([blob], `soap-photo-${Date.now()}.jpg`, { type: 'image/jpeg' })
+      setPhoto(file)
+      setPhotoPreview(URL.createObjectURL(blob))
+      stopCamera()
+      setCameraOpen(false)
+    }, 'image/jpeg', 0.90)
+  }
+
+  const cancelCamera = () => {
+    stopCamera()
+    setCameraOpen(false)
+    setCameraError('')
+  }
 
   const savePrayerIfAny = async () => {
     if (includePrayer && prayerText.trim()) {
@@ -219,15 +277,56 @@ export default function SoapEntryModal({
         {/* Take a Photo Instead */}
         <div className="mt-4">
           <div className="cn-label mb-2">Take a Photo Instead</div>
+
+          {/* Hidden canvas for snapshot */}
+          <canvas ref={canvasRef} className="hidden" />
+
+          {/* Hidden file input for "choose from library" fallback */}
           <input
             ref={fileInputRef}
             type="file"
             accept="image/*"
-            capture="environment"
             onChange={handlePhotoSelect}
             className="hidden"
           />
-          {photoPreview ? (
+
+          {cameraOpen ? (
+            /* Live camera preview */
+            <div className="overflow-hidden rounded-xl border border-[var(--line-2)] bg-black">
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className="w-full"
+                style={{ minHeight: 200, display: 'block' }}
+              />
+              <div className="flex items-center justify-between gap-3 p-3">
+                <button
+                  type="button"
+                  onClick={cancelCamera}
+                  className="rounded-lg border border-[var(--line-2)] px-4 py-2 text-xs text-[var(--fg-2)] transition-colors hover:border-[var(--fg-3)]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={takePhoto}
+                  className="flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-lg"
+                  aria-label="Take photo"
+                >
+                  <span className="h-9 w-9 rounded-full border-4 border-[var(--establish)]" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { cancelCamera(); fileInputRef.current?.click() }}
+                  className="rounded-lg border border-[var(--line-2)] px-4 py-2 text-xs text-[var(--fg-2)] transition-colors hover:border-[var(--fg-3)]"
+                >
+                  Library
+                </button>
+              </div>
+            </div>
+          ) : photoPreview ? (
             <div className="relative inline-block">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -244,16 +343,27 @@ export default function SoapEntryModal({
               </button>
             </div>
           ) : (
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={busy}
-              className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold bg-red-600 hover:bg-red-500 text-white transition-colors disabled:opacity-50"
-            >
-              <span>📷</span>
-              <span>Open Camera</span>
-            </button>
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={openCamera}
+                disabled={busy}
+                className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold bg-red-600 hover:bg-red-500 text-white transition-colors disabled:opacity-50"
+              >
+                <span>📷</span>
+                <span>Open Camera</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={busy}
+                className="text-left text-xs text-[var(--fg-3)] underline underline-offset-2 hover:text-[var(--fg-2)] disabled:opacity-50"
+              >
+                or choose from library
+              </button>
+            </div>
           )}
+          {cameraError && <p className="mt-2 text-xs text-[var(--danger)]">{cameraError}</p>}
         </div>
 
         {error && <p className="mt-3 text-xs text-[var(--danger)]">{error}</p>}
