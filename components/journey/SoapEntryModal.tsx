@@ -18,11 +18,15 @@ export default function SoapEntryModal({
   personId,
   onClose,
   onSaved,
+  initialDate,
 }: {
   personId: string
   onClose: () => void
   onSaved: () => void
+  initialDate?: string
 }) {
+  const todayIso = new Date().toISOString().split('T')[0]
+  const [entryDate, setEntryDate] = useState(initialDate ?? todayIso)
   const [entry, setEntry] = useState('')
   const [visibility, setVisibility] = useState<ShareVisibility>('private')
   const [includePrayer, setIncludePrayer] = useState(false)
@@ -75,10 +79,9 @@ export default function SoapEntryModal({
       uploadedUrl = json.url
     }
 
-    const today = new Date().toISOString().split('T')[0]
     const { data: saved, error: insErr } = await addSoapJournal({
       person_id: personId,
-      journal_date: today,
+      journal_date: entryDate,
       photo_url: uploadedUrl,
       ocr_text: entry.trim() || null,
       scripture_reference: null,
@@ -87,7 +90,7 @@ export default function SoapEntryModal({
     })
 
     if (insErr) {
-      setError(insErr.message?.includes('duplicate') ? 'You already have an entry for today.' : 'Could not save. Please try again.')
+      setError(insErr.message?.includes('duplicate') ? 'You already have an entry for that date.' : 'Could not save. Please try again.')
       setBusy(false)
       return
     }
@@ -114,8 +117,20 @@ export default function SoapEntryModal({
       <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-[var(--r-xl)] border border-[var(--line-2)] bg-[var(--indigo)] p-6" style={{ boxShadow: 'var(--elev-2)' }}>
         <div className="cn-label" style={{ color: 'var(--establish)' }}>Establish · in the Word</div>
         <h2 className="mt-1 text-2xl" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>
-          Today&rsquo;s SOAP
+          {entryDate === todayIso ? "Today’s SOAP" : 'SOAP Entry'}
         </h2>
+
+        {/* Date selector (for backdating) */}
+        <div className="mt-3">
+          <label className="cn-label mb-1 block">Date</label>
+          <input
+            type="date"
+            value={entryDate}
+            max={todayIso}
+            onChange={e => setEntryDate(e.target.value)}
+            className="w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-3 py-2 text-sm text-[var(--fg-1)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
+          />
+        </div>
 
         {/* Main textarea */}
         <div className="mt-4">
@@ -250,7 +265,7 @@ export default function SoapEntryModal({
           disabled={busy || !canSave}
           className="cn-btn cn-btn-primary mt-4 w-full disabled:opacity-50"
         >
-          {busy ? 'Saving…' : 'Save today\'s entry'}
+          {busy ? 'Saving…' : entryDate === todayIso ? "Save today's entry" : 'Save entry'}
         </button>
         <button type="button" onClick={onClose} className="cn-btn cn-btn-ghost mt-2 w-full">
           Cancel

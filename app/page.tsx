@@ -244,6 +244,7 @@ export default function DiscipleshipTracker() {
   const [soapsLoaded, setSoapsLoaded] = useState(false)
   const [selectedSoap, setSelectedSoap] = useState<SoapJournal | null>(null)
   const [showSoapEntry, setShowSoapEntry] = useState(false)
+  const [soapEntryDate, setSoapEntryDate] = useState<string | null>(null)
   const [profileLoading, setProfileLoading] = useState(true)
 
   // Disciple redirect
@@ -637,9 +638,10 @@ export default function DiscipleshipTracker() {
             ) : (
               <SoapCalendarSection
                 soaps={coachSoaps}
-                onNewEntry={() => setShowSoapEntry(true)}
+                onNewEntry={() => { setSoapEntryDate(null); setShowSoapEntry(true) }}
                 soapStreak={soapStreak}
                 onRefresh={loadSoaps}
+                onNewEntryForDate={date => { setSoapEntryDate(date); setShowSoapEntry(true) }}
               />
             )
           )}
@@ -686,7 +688,8 @@ export default function DiscipleshipTracker() {
       {showSoapEntry && profile && (
         <SoapEntryModal
           personId={profile.id}
-          onClose={() => setShowSoapEntry(false)}
+          initialDate={soapEntryDate ?? undefined}
+          onClose={() => { setShowSoapEntry(false); setSoapEntryDate(null) }}
           onSaved={() => { setSoapsLoaded(false); loadSoaps() }}
         />
       )}

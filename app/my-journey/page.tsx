@@ -124,6 +124,7 @@ export default function MyJourneyPage() {
   const [dataReady, setDataReady] = useState(false)
   const [demo, setDemo] = useState<DemoPhase>(null)
   const [activeModal, setActiveModal] = useState<'soap' | 'testimony' | 'coach' | 'message' | 'join-group' | null>(null)
+  const [soapEntryDate, setSoapEntryDate] = useState<string | null>(null)
   const [msgCenterOpen, setMsgCenterOpen] = useState(false)
   const [unreadMsgCount, setUnreadMsgCount] = useState(0)
   const [selfConfirm, setSelfConfirm] = useState<SelfConfirmKind | null>(null)
@@ -570,9 +571,10 @@ export default function MyJourneyPage() {
         <section className="mt-10">
           <SoapCalendarSection
             soaps={soapJournals}
-            onNewEntry={() => setActiveModal('soap')}
+            onNewEntry={() => { setSoapEntryDate(null); setActiveModal('soap') }}
             soapStreak={soapStreak}
             onRefresh={loadData}
+            onNewEntryForDate={date => { setSoapEntryDate(date); setActiveModal('soap') }}
           />
         </section>
 
@@ -593,7 +595,12 @@ export default function MyJourneyPage() {
 
       {/* modals */}
       {activeModal === 'soap' && profile && (
-        <SoapEntryModal personId={profile.id} onClose={() => setActiveModal(null)} onSaved={loadData} />
+        <SoapEntryModal
+          personId={profile.id}
+          initialDate={soapEntryDate ?? undefined}
+          onClose={() => { setActiveModal(null); setSoapEntryDate(null) }}
+          onSaved={loadData}
+        />
       )}
       {activeModal === 'testimony' && profile && (
         <TestimonyModal profile={profile} onClose={() => setActiveModal(null)} onSaved={loadData} />

@@ -8,30 +8,35 @@ interface Props {
   onNewEntry: () => void
   soapStreak: number
   onRefresh?: () => void
+  onNewEntryForDate?: (date: string) => void
 }
 
-const DAY_HEADERS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const DAY_HEADERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
 ]
+const MONTH_SHORT = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+]
 
 function visibilityLabel(v: SoapJournal['visibility']): string {
   switch (v) {
-    case 'private':      return 'Just me'
-    case 'coach':        return 'My coach'
-    case 'group':        return 'My Grace Group'
+    case 'private':       return 'Just me'
+    case 'coach':         return 'My coach'
+    case 'group':         return 'My Grace Group'
     case 'constellation': return 'The constellation'
-    default:             return v
+    default:              return v
   }
 }
 
 function formatNiceDate(dateStr: string): string {
-  // dateStr is YYYY-MM-DD; parse as local date
   const [y, m, d] = dateStr.split('-').map(Number)
-  const date = new Date(y, m - 1, d)
-  return date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric',
+  })
 }
 
 function toLocalIso(date: Date): string {
@@ -41,84 +46,105 @@ function toLocalIso(date: Date): string {
   return `${y}-${m}-${d}`
 }
 
-export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onRefresh }: Props) {
+/** Returns the calendar grid days for a given year/month (0-indexed month). */
+function buildMonthDays(year: number, month: number) {
+  const firstOfMonth = new Date(year, month, 1)
+  const startWeekday = firstOfMonth.getDay()
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const prevMonthDays = new Date(year, month, 0).getDate()
+
+  const days: Array<{ dateIso: string; dayNum: number; inMonth: boolean }> = []
+
+  for (let i = startWeekday - 1; i >= 0; i--) {
+    const d = prevMonthDays - i
+    days.push({ dateIso: toLocalIso(new Date(year, month - 1, d)), dayNum: d, inMonth: false })
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    days.push({ dateIso: toLocalIso(new Date(year, month, d)), dayNum: d, inMonth: true })
+  }
+  const remaining = (7 - (days.length % 7)) % 7
+  for (let d = 1; d <= remaining; d++) {
+    days.push({ dateIso: toLocalIso(new Date(year, month + 1, d)), dayNum: d, inMonth: false })
+  }
+
+  return days
+}
+
+/** Advance a {year, month} by delta months. */
+function shiftMonth(year: number, month: number, delta: number) {
+  const total = month + delta
+  const y = year + Math.floor(total / 12)
+  const m = ((total % 12) + 12) % 12
+  return { year: y, month: m }
+}
+
+export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onRefresh, onNewEntryForDate }: Props) {
   const today = new Date()
   const todayIso = toLocalIso(today)
 
-  const [currentYear, setCurrentYear] = useState(() => today.getFullYear())
-  const [currentMonth, setCurrentMonth] = useState(() => today.getMonth()) // 0-indexed
+  // baseYear/baseMonth is the FIRST of the three visible months
+  const [baseYear, setBaseYear] = useState(() => {
+    // Start 2 months back so today's month is always rightmost
+    const { year, month } = shiftMonth(today.getFullYear(), today.getMonth(), -2)
+    return year
+  })
+  const [baseMonth, setBaseMonth] = useState(() => {
+    const { year: _y, month } = shiftMonth(today.getFullYear(), today.getMonth(), -2)
+    return month
+  })
+
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [ocrLoading, setOcrLoading] = useState(false)
   const [ocrResult, setOcrResult] = useState<string | null>(null)
 
-  // Map journal_date → SoapJournal
   const soapMap = useMemo(() => {
     const map = new Map<string, SoapJournal>()
-    for (const s of soaps) {
-      map.set(s.journal_date, s)
-    }
+    for (const s of soaps) map.set(s.journal_date, s)
     return map
   }, [soaps])
 
-  // Calendar grid: array of { dateIso, dayNum, inMonth }
-  const calendarDays = useMemo(() => {
-    const firstOfMonth = new Date(currentYear, currentMonth, 1)
-    const startWeekday = firstOfMonth.getDay() // 0 = Sun
-    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate()
+  // Three calendar months: base, base+1, base+2
+  const calendarMonths = useMemo(() => {
+    return [0, 1, 2].map(offset => {
+      const { year, month } = shiftMonth(baseYear, baseMonth, offset)
+      return { year, month, days: buildMonthDays(year, month) }
+    })
+  }, [baseYear, baseMonth])
 
-    // Days from previous month to fill the first row
-    const prevMonthDays = new Date(currentYear, currentMonth, 0).getDate()
-
-    const days: Array<{ dateIso: string; dayNum: number; inMonth: boolean }> = []
-
-    for (let i = startWeekday - 1; i >= 0; i--) {
-      const d = prevMonthDays - i
-      const iso = toLocalIso(new Date(currentYear, currentMonth - 1, d))
-      days.push({ dateIso: iso, dayNum: d, inMonth: false })
-    }
-
-    for (let d = 1; d <= daysInMonth; d++) {
-      const iso = toLocalIso(new Date(currentYear, currentMonth, d))
-      days.push({ dateIso: iso, dayNum: d, inMonth: true })
-    }
-
-    // Fill remaining cells to complete last row
-    const remaining = (7 - (days.length % 7)) % 7
-    for (let d = 1; d <= remaining; d++) {
-      const iso = toLocalIso(new Date(currentYear, currentMonth + 1, d))
-      days.push({ dateIso: iso, dayNum: d, inMonth: false })
-    }
-
-    return days
-  }, [currentYear, currentMonth])
-
-  // Filtered search results
   const searchResults = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
     if (!q) return []
-    return soaps.filter(s =>
-      (s.ocr_text?.toLowerCase().includes(q)) ||
-      (s.scripture_reference?.toLowerCase().includes(q)) ||
-      (s.summary?.toLowerCase().includes(q))
-    ).sort((a, b) => b.journal_date.localeCompare(a.journal_date))
+    return soaps
+      .filter(s =>
+        (s.ocr_text?.toLowerCase().includes(q)) ||
+        (s.scripture_reference?.toLowerCase().includes(q)) ||
+        (s.summary?.toLowerCase().includes(q))
+      )
+      .sort((a, b) => b.journal_date.localeCompare(a.journal_date))
   }, [soaps, searchQuery])
 
-  function prevMonth() {
-    if (currentMonth === 0) {
-      setCurrentMonth(11)
-      setCurrentYear(y => y - 1)
-    } else {
-      setCurrentMonth(m => m - 1)
-    }
+  function prevWindow() {
+    const { year, month } = shiftMonth(baseYear, baseMonth, -1)
+    setBaseYear(year)
+    setBaseMonth(month)
   }
 
-  function nextMonth() {
-    if (currentMonth === 11) {
-      setCurrentMonth(0)
-      setCurrentYear(y => y + 1)
+  function nextWindow() {
+    const { year, month } = shiftMonth(baseYear, baseMonth, 1)
+    setBaseYear(year)
+    setBaseMonth(month)
+  }
+
+  function handleDayClick(dateIso: string, hasSoap: boolean, inMonth: boolean) {
+    if (!inMonth) return
+    if (dateIso > todayIso) return // future — ignore
+    if (hasSoap) {
+      setSelectedDate(prev => prev === dateIso ? null : dateIso)
+      setOcrResult(null)
     } else {
-      setCurrentMonth(m => m + 1)
+      // Empty past/today day — open entry modal with date prefilled
+      onNewEntryForDate?.(dateIso)
     }
   }
 
@@ -126,34 +152,28 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
   const displayOcrText = ocrResult ?? selectedEntry?.ocr_text ?? null
   const isSearching = searchQuery.trim().length > 0
 
+  // Header label: "Apr – Jun 2026" or across year boundary "Dec 2025 – Feb 2026"
+  const lastMonth = shiftMonth(baseYear, baseMonth, 2)
+  const rangeLabel =
+    baseYear === lastMonth.year
+      ? `${MONTH_SHORT[baseMonth]} – ${MONTH_SHORT[lastMonth.month]} ${baseYear}`
+      : `${MONTH_SHORT[baseMonth]} ${baseYear} – ${MONTH_SHORT[lastMonth.month]} ${lastMonth.year}`
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
       {/* ── Top bar ── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <h2 style={{
-            margin: 0,
-            color: 'var(--fg-1)',
-            fontSize: '19px',
-            fontWeight: 600,
-            letterSpacing: '-0.01em',
-          }}>
+          <h2 style={{ margin: 0, color: 'var(--fg-1)', fontSize: '19px', fontWeight: 600, letterSpacing: '-0.01em' }}>
             My SOAPs
           </h2>
           {soapStreak > 0 && (
             <span style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px',
-              padding: '3px 10px',
-              borderRadius: '999px',
-              background: 'rgba(244,182,80,.15)',
-              border: '1px solid rgba(244,182,80,.30)',
-              color: '#F4B650',
-              fontSize: '12px',
-              fontWeight: 600,
-              letterSpacing: '0.01em',
+              display: 'inline-flex', alignItems: 'center', gap: '4px',
+              padding: '3px 10px', borderRadius: '999px',
+              background: 'rgba(244,182,80,.15)', border: '1px solid rgba(244,182,80,.30)',
+              color: '#F4B650', fontSize: '12px', fontWeight: 600, letterSpacing: '0.01em',
             }}>
               ⚡ {soapStreak} {soapStreak === 1 ? 'day' : 'days'}
             </span>
@@ -162,20 +182,11 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
         <button
           onClick={onNewEntry}
           style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '8px 16px',
-            borderRadius: '10px',
-            border: 'none',
-            background: 'var(--establish, #36D6C3)',
-            color: '#0B1027',
-            fontSize: '13px',
-            fontWeight: 700,
-            cursor: 'pointer',
-            letterSpacing: '0.01em',
-            flexShrink: 0,
-            transition: 'opacity 150ms ease',
+            display: 'inline-flex', alignItems: 'center', gap: '6px',
+            padding: '8px 16px', borderRadius: '10px', border: 'none',
+            background: 'var(--establish, #36D6C3)', color: '#0B1027',
+            fontSize: '13px', fontWeight: 700, cursor: 'pointer',
+            letterSpacing: '0.01em', flexShrink: 0, transition: 'opacity 150ms ease',
           }}
           onMouseOver={e => (e.currentTarget.style.opacity = '0.85')}
           onMouseOut={e => (e.currentTarget.style.opacity = '1')}
@@ -189,185 +200,171 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
         type="text"
         placeholder="Search entries…"
         value={searchQuery}
-        onChange={e => {
-          setSearchQuery(e.target.value)
-          setSelectedDate(null)
-          setOcrResult(null)
-        }}
+        onChange={e => { setSearchQuery(e.target.value); setSelectedDate(null); setOcrResult(null) }}
         style={{
-          width: '100%',
-          boxSizing: 'border-box',
-          padding: '10px 14px',
-          borderRadius: '10px',
-          border: '1px solid var(--line-2)',
-          background: 'var(--indigo, #141B3D)',
-          color: 'var(--fg-1)',
-          fontSize: '14px',
-          outline: 'none',
+          width: '100%', boxSizing: 'border-box',
+          padding: '10px 14px', borderRadius: '10px',
+          border: '1px solid var(--line-2)', background: 'var(--indigo, #141B3D)',
+          color: 'var(--fg-1)', fontSize: '14px', outline: 'none',
           transition: 'border-color 150ms ease',
         }}
         onFocus={e => (e.currentTarget.style.borderColor = 'var(--establish, #36D6C3)')}
         onBlur={e => (e.currentTarget.style.borderColor = 'var(--line-2)')}
       />
 
-      {/* ── Calendar (only when not searching) ── */}
+      {/* ── 3-month calendar (only when not searching) ── */}
       {!isSearching && (
         <div style={{
-          borderRadius: '16px',
-          border: '1px solid var(--line-2)',
-          background: 'var(--indigo, #141B3D)',
-          overflow: 'hidden',
+          borderRadius: '16px', border: '1px solid var(--line-2)',
+          background: 'var(--indigo, #141B3D)', overflow: 'hidden',
         }}>
-          {/* Month navigation */}
+          {/* Nav header */}
           <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '14px 16px',
-            borderBottom: '1px solid var(--line-2)',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '12px 16px', borderBottom: '1px solid var(--line-2)',
           }}>
             <button
-              onClick={prevMonth}
-              aria-label="Previous month"
+              onClick={prevWindow}
+              aria-label="Previous months"
               style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '8px',
-                border: '1px solid var(--line-2)',
-                background: 'transparent',
-                color: 'var(--fg-2)',
-                cursor: 'pointer',
-                fontSize: '16px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'background 150ms ease',
+                width: '30px', height: '30px', borderRadius: '7px',
+                border: '1px solid var(--line-2)', background: 'transparent',
+                color: 'var(--fg-2)', cursor: 'pointer', fontSize: '16px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}
               onMouseOver={e => (e.currentTarget.style.background = 'rgba(246,241,231,.06)')}
               onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
-            >
-              ‹
-            </button>
-            <span style={{ color: 'var(--fg-1)', fontWeight: 600, fontSize: '15px' }}>
-              {MONTH_NAMES[currentMonth]} {currentYear}
+            >‹</button>
+            <span style={{ color: 'var(--fg-1)', fontWeight: 600, fontSize: '14px' }}>
+              {rangeLabel}
             </span>
             <button
-              onClick={nextMonth}
-              aria-label="Next month"
+              onClick={nextWindow}
+              aria-label="Next months"
               style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '8px',
-                border: '1px solid var(--line-2)',
-                background: 'transparent',
-                color: 'var(--fg-2)',
-                cursor: 'pointer',
-                fontSize: '16px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'background 150ms ease',
+                width: '30px', height: '30px', borderRadius: '7px',
+                border: '1px solid var(--line-2)', background: 'transparent',
+                color: 'var(--fg-2)', cursor: 'pointer', fontSize: '16px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}
               onMouseOver={e => (e.currentTarget.style.background = 'rgba(246,241,231,.06)')}
               onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
-            >
-              ›
-            </button>
+            >›</button>
           </div>
 
-          {/* Day-of-week header */}
+          {/* Three month grids side by side */}
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(7, 1fr)',
-            padding: '8px 8px 0',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: '0',
+            padding: '12px 8px 10px',
           }}>
-            {DAY_HEADERS.map(d => (
-              <div key={d} style={{
-                textAlign: 'center',
-                fontSize: '11px',
-                fontWeight: 700,
-                color: 'var(--fg-3)',
-                letterSpacing: '0.10em',
-                textTransform: 'uppercase',
-                paddingBottom: '6px',
-              }}>
-                {d}
+            {calendarMonths.map(({ year, month, days }, colIdx) => (
+              <div
+                key={`${year}-${month}`}
+                style={{
+                  borderRight: colIdx < 2 ? '1px solid var(--line-2)' : 'none',
+                  paddingLeft: colIdx === 0 ? '0' : '6px',
+                  paddingRight: colIdx === 2 ? '0' : '6px',
+                }}
+              >
+                {/* Month label */}
+                <div style={{
+                  textAlign: 'center', fontSize: '11px', fontWeight: 700,
+                  color: 'var(--fg-2)', letterSpacing: '0.06em',
+                  textTransform: 'uppercase', marginBottom: '6px',
+                }}>
+                  {MONTH_NAMES[month]}
+                </div>
+
+                {/* Day-of-week header */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', marginBottom: '2px' }}>
+                  {DAY_HEADERS.map((d, i) => (
+                    <div key={i} style={{
+                      textAlign: 'center', fontSize: '9px', fontWeight: 700,
+                      color: 'var(--fg-3)', letterSpacing: '0.08em',
+                      textTransform: 'uppercase', paddingBottom: '4px',
+                    }}>
+                      {d}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Day cells */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '1px' }}>
+                  {days.map(({ dateIso, dayNum, inMonth }) => {
+                    const hasSoap = soapMap.has(dateIso)
+                    const isSelected = selectedDate === dateIso
+                    const isToday = dateIso === todayIso
+                    const isFuture = dateIso > todayIso
+                    const isClickable = inMonth && !isFuture
+
+                    return (
+                      <button
+                        key={dateIso}
+                        onClick={() => handleDayClick(dateIso, hasSoap, inMonth)}
+                        title={
+                          !inMonth || isFuture ? undefined
+                          : hasSoap ? 'View entry'
+                          : 'Add entry for this day'
+                        }
+                        style={{
+                          display: 'flex', flexDirection: 'column',
+                          alignItems: 'center', justifyContent: 'center',
+                          gap: '2px', padding: '3px 1px',
+                          borderRadius: '6px',
+                          border: isToday
+                            ? '1.5px solid rgba(246,241,231,.30)'
+                            : '1.5px solid transparent',
+                          background: isSelected
+                            ? 'rgba(54,214,195,.18)'
+                            : hasSoap && inMonth
+                              ? 'rgba(54,214,195,.06)'
+                              : 'transparent',
+                          color: inMonth ? (isFuture ? 'var(--fg-3)' : 'var(--fg-1)') : 'var(--fg-3)',
+                          opacity: inMonth ? 1 : 0.20,
+                          cursor: isClickable ? 'pointer' : 'default',
+                          fontSize: '11px',
+                          fontWeight: isToday ? 700 : 400,
+                          minHeight: '34px',
+                          transition: 'background 120ms ease',
+                          outline: 'none',
+                        }}
+                        onMouseOver={e => {
+                          if (isClickable && hasSoap)
+                            e.currentTarget.style.background = 'rgba(54,214,195,.14)'
+                          else if (isClickable && !hasSoap)
+                            e.currentTarget.style.background = 'rgba(246,241,231,.06)'
+                        }}
+                        onMouseOut={e => {
+                          e.currentTarget.style.background = isSelected
+                            ? 'rgba(54,214,195,.18)'
+                            : hasSoap && inMonth ? 'rgba(54,214,195,.06)' : 'transparent'
+                        }}
+                      >
+                        <span>{dayNum}</span>
+                        {hasSoap && inMonth && (
+                          <span style={{
+                            width: '4px', height: '4px', borderRadius: '50%',
+                            background: 'var(--establish, #36D6C3)',
+                            boxShadow: '0 0 4px var(--establish, #36D6C3)',
+                            flexShrink: 0,
+                          }} />
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
             ))}
           </div>
 
-          {/* Day cells */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(7, 1fr)',
-            gap: '2px',
-            padding: '0 8px 10px',
+          <p style={{
+            margin: '0 8px 10px', fontSize: '11px', color: 'var(--fg-3)',
+            textAlign: 'center',
           }}>
-            {calendarDays.map(({ dateIso, dayNum, inMonth }) => {
-              const hasSoap = soapMap.has(dateIso)
-              const isSelected = selectedDate === dateIso
-              const isToday = dateIso === todayIso
-
-              return (
-                <button
-                  key={dateIso}
-                  onClick={() => {
-                    if (hasSoap) {
-                      setSelectedDate(prev => prev === dateIso ? null : dateIso)
-                      setOcrResult(null)
-                    }
-                  }}
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '4px',
-                    padding: '6px 2px',
-                    borderRadius: '8px',
-                    border: isToday
-                      ? '1.5px solid rgba(246,241,231,.30)'
-                      : '1.5px solid transparent',
-                    background: isSelected
-                      ? 'rgba(54,214,195,.15)'
-                      : hasSoap && inMonth
-                        ? 'rgba(54,214,195,.05)'
-                        : 'transparent',
-                    color: inMonth ? 'var(--fg-1)' : 'var(--fg-3)',
-                    opacity: inMonth ? 1 : 0.30,
-                    cursor: hasSoap ? 'pointer' : 'default',
-                    fontSize: '13px',
-                    fontWeight: isToday ? 700 : 400,
-                    minHeight: '44px',
-                    transition: 'background 150ms ease',
-                    outline: 'none',
-                  }}
-                  onMouseOver={e => {
-                    if (hasSoap) e.currentTarget.style.background = 'rgba(54,214,195,.12)'
-                  }}
-                  onMouseOut={e => {
-                    e.currentTarget.style.background = isSelected
-                      ? 'rgba(54,214,195,.15)'
-                      : hasSoap && inMonth
-                        ? 'rgba(54,214,195,.05)'
-                        : 'transparent'
-                  }}
-                >
-                  <span>{dayNum}</span>
-                  {hasSoap && inMonth && (
-                    <span style={{
-                      width: '5px',
-                      height: '5px',
-                      borderRadius: '50%',
-                      background: 'var(--establish, #36D6C3)',
-                      boxShadow: '0 0 5px var(--establish, #36D6C3)',
-                      flexShrink: 0,
-                    }} />
-                  )}
-                </button>
-              )
-            })}
-          </div>
+            Tap a past date to view or add an entry
+          </p>
         </div>
       )}
 
@@ -382,26 +379,15 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
             searchResults.map(entry => (
               <button
                 key={entry.id}
-                onClick={() => setSelectedDate(
-                  selectedDate === entry.journal_date ? null : entry.journal_date
-                )}
+                onClick={() => setSelectedDate(selectedDate === entry.journal_date ? null : entry.journal_date)}
                 style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'flex-start',
-                  gap: '4px',
-                  padding: '12px 14px',
-                  borderRadius: '12px',
+                  display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
+                  gap: '4px', padding: '12px 14px', borderRadius: '12px',
                   border: `1px solid ${selectedDate === entry.journal_date ? 'rgba(54,214,195,.40)' : 'var(--line-2)'}`,
-                  background: selectedDate === entry.journal_date
-                    ? 'rgba(54,214,195,.08)'
-                    : 'var(--indigo, #141B3D)',
-                  cursor: 'pointer',
-                  textAlign: 'left',
+                  background: selectedDate === entry.journal_date ? 'rgba(54,214,195,.08)' : 'var(--indigo, #141B3D)',
+                  cursor: 'pointer', textAlign: 'left',
                   transition: 'background 150ms ease, border-color 150ms ease',
-                  outline: 'none',
-                  width: '100%',
-                  boxSizing: 'border-box',
+                  outline: 'none', width: '100%', boxSizing: 'border-box',
                 }}
                 onMouseOver={e => {
                   if (selectedDate !== entry.journal_date)
@@ -436,46 +422,28 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
       {/* ── Selected entry viewer ── */}
       {selectedEntry && (
         <div style={{
-          borderRadius: '16px',
-          border: '1px solid rgba(54,214,195,.25)',
-          background: 'var(--indigo, #141B3D)',
-          overflow: 'hidden',
+          borderRadius: '16px', border: '1px solid rgba(54,214,195,.25)',
+          background: 'var(--indigo, #141B3D)', overflow: 'hidden',
           boxShadow: '0 0 24px rgba(54,214,195,.08)',
         }}>
-          {/* Card header */}
           <div style={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'space-between',
-            gap: '12px',
-            padding: '16px 16px 12px',
-            borderBottom: '1px solid var(--line-2)',
+            display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+            gap: '12px', padding: '16px 16px 12px', borderBottom: '1px solid var(--line-2)',
           }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               <span style={{ color: 'var(--fg-1)', fontSize: '15px', fontWeight: 700 }}>
                 {formatNiceDate(selectedEntry.journal_date)}
               </span>
               {selectedEntry.scripture_reference && (
-                <span style={{
-                  color: 'var(--establish, #36D6C3)',
-                  fontSize: '13px',
-                  fontWeight: 500,
-                }}>
+                <span style={{ color: 'var(--establish, #36D6C3)', fontSize: '13px', fontWeight: 500 }}>
                   {selectedEntry.scripture_reference}
                 </span>
               )}
               <span style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                marginTop: '2px',
-                padding: '2px 8px',
-                borderRadius: '999px',
-                background: 'rgba(246,241,231,.06)',
-                border: '1px solid var(--line-2)',
-                color: 'var(--fg-3)',
-                fontSize: '11px',
-                letterSpacing: '0.08em',
-                width: 'fit-content',
+                display: 'inline-flex', alignItems: 'center', marginTop: '2px',
+                padding: '2px 8px', borderRadius: '999px',
+                background: 'rgba(246,241,231,.06)', border: '1px solid var(--line-2)',
+                color: 'var(--fg-3)', fontSize: '11px', letterSpacing: '0.08em', width: 'fit-content',
               }}>
                 {visibilityLabel(selectedEntry.visibility)}
               </span>
@@ -484,19 +452,10 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
               onClick={() => setSelectedDate(null)}
               aria-label="Close entry"
               style={{
-                flexShrink: 0,
-                width: '28px',
-                height: '28px',
-                borderRadius: '8px',
-                border: '1px solid var(--line-2)',
-                background: 'transparent',
-                color: 'var(--fg-3)',
-                cursor: 'pointer',
-                fontSize: '14px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'background 150ms ease, color 150ms ease',
+                flexShrink: 0, width: '28px', height: '28px', borderRadius: '8px',
+                border: '1px solid var(--line-2)', background: 'transparent',
+                color: 'var(--fg-3)', cursor: 'pointer', fontSize: '14px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}
               onMouseOver={e => {
                 e.currentTarget.style.background = 'rgba(246,241,231,.08)'
@@ -506,12 +465,9 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
                 e.currentTarget.style.background = 'transparent'
                 e.currentTarget.style.color = 'var(--fg-3)'
               }}
-            >
-              ✕
-            </button>
+            >✕</button>
           </div>
 
-          {/* Card body */}
           <div style={{ padding: '16px' }}>
             {selectedEntry.photo_url ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -519,12 +475,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
                 <img
                   src={selectedEntry.photo_url}
                   alt="SOAP journal entry"
-                  style={{
-                    width: '100%',
-                    borderRadius: '10px',
-                    display: 'block',
-                    objectFit: 'cover',
-                  }}
+                  style={{ width: '100%', borderRadius: '10px', display: 'block', objectFit: 'cover' }}
                 />
                 {!displayOcrText && (
                   <button
@@ -538,24 +489,17 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
                           body: JSON.stringify({ journalId: selectedEntry.id }),
                         })
                         const json = await res.json()
-                        if (json.ocr_text) {
-                          setOcrResult(json.ocr_text)
-                          onRefresh?.()
-                        }
+                        if (json.ocr_text) { setOcrResult(json.ocr_text); onRefresh?.() }
                       } catch {}
                       setOcrLoading(false)
                     }}
                     disabled={ocrLoading}
                     style={{
-                      padding: '10px 16px',
-                      borderRadius: '10px',
-                      border: '1px solid var(--line-2)',
-                      background: 'var(--indigo-2)',
-                      color: 'var(--fg-2)',
-                      fontSize: '13px',
+                      padding: '10px 16px', borderRadius: '10px',
+                      border: '1px solid var(--line-2)', background: 'var(--indigo-2)',
+                      color: 'var(--fg-2)', fontSize: '13px',
                       cursor: ocrLoading ? 'default' : 'pointer',
-                      opacity: ocrLoading ? 0.6 : 1,
-                      width: '100%',
+                      opacity: ocrLoading ? 0.6 : 1, width: '100%',
                     }}
                   >
                     {ocrLoading ? 'Reading…' : 'Read this entry'}
@@ -563,13 +507,8 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
                 )}
                 {displayOcrText && (
                   <pre style={{
-                    margin: 0,
-                    color: 'var(--fg-2)',
-                    fontSize: '14px',
-                    lineHeight: 1.65,
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word',
-                    fontFamily: 'inherit',
+                    margin: 0, color: 'var(--fg-2)', fontSize: '14px', lineHeight: 1.65,
+                    whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit',
                   }}>
                     {displayOcrText}
                   </pre>
@@ -577,13 +516,8 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
               </div>
             ) : selectedEntry.ocr_text ? (
               <pre style={{
-                margin: 0,
-                color: 'var(--fg-2)',
-                fontSize: '14px',
-                lineHeight: 1.65,
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word',
-                fontFamily: 'inherit',
+                margin: 0, color: 'var(--fg-2)', fontSize: '14px', lineHeight: 1.65,
+                whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit',
               }}>
                 {selectedEntry.ocr_text}
               </pre>
