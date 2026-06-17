@@ -133,9 +133,11 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
   const [ocrLoading, setOcrLoading] = useState(false)
   const [ocrResult, setOcrResult] = useState<string | null>(null)
 
-  // AI Insights
+  // AI Insights — range selection
   const [insightMode, setInsightMode] = useState(false)
-  const [insightDates, setInsightDates] = useState<Set<string>>(new Set())
+  const [rangeStart, setRangeStart] = useState<string | null>(null)
+  const [rangeEnd, setRangeEnd] = useState<string | null>(null)
+  const [hoverDate, setHoverDate] = useState<string | null>(null)
   const [insightQuestion, setInsightQuestion] = useState('')
   const [insightLoading, setInsightLoading] = useState(false)
   const [insightResponse, setInsightResponse] = useState<string | null>(null)
@@ -154,6 +156,27 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
       return { year, month, days: buildMonthDays(year, month) }
     })
   }, [baseYear, baseMonth])
+
+  // The visual range to highlight (follows hover before range is committed)
+  const previewRange = useMemo(() => {
+    if (!rangeStart) return null
+    const end = rangeEnd ?? hoverDate ?? rangeStart
+    const lo = rangeStart <= end ? rangeStart : end
+    const hi = rangeStart <= end ? end : rangeStart
+    return { lo, hi }
+  }, [rangeStart, rangeEnd, hoverDate])
+
+  // SOAP entries actually selected (only when both endpoints are committed)
+  const selectedInsightDates = useMemo(() => {
+    if (!rangeStart || !rangeEnd) return new Set<string>()
+    const lo = rangeStart <= rangeEnd ? rangeStart : rangeEnd
+    const hi = rangeStart <= rangeEnd ? rangeEnd : rangeStart
+    const set = new Set<string>()
+    for (const [date] of soapMap) {
+      if (date >= lo && date <= hi) set.add(date)
+    }
+    return set
+  }, [rangeStart, rangeEnd, soapMap])
 
   const searchResults = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
@@ -183,12 +206,15 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
     if (!inMonth) return
     if (dateIso > todayIso) return
     if (insightMode) {
-      if (!hasSoap) return
-      setInsightDates(prev => {
-        const next = new Set(prev)
-        next.has(dateIso) ? next.delete(dateIso) : next.add(dateIso)
-        return next
-      })
+      // Range selection: first click = start, second click = end, third = new start
+      if (!rangeStart || rangeEnd) {
+        setRangeStart(dateIso)
+        setRangeEnd(null)
+        setHoverDate(null)
+      } else {
+        setRangeEnd(dateIso)
+        setHoverDate(null)
+      }
       setInsightResponse(null)
       setInsightError('')
       return
@@ -203,15 +229,18 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
 
   function exitInsightMode() {
     setInsightMode(false)
-    setInsightDates(new Set())
+    setRangeStart(null)
+    setRangeEnd(null)
+    setHoverDate(null)
     setInsightResponse(null)
     setInsightError('')
     setInsightQuestion('')
   }
 
   async function runInsight(question?: string) {
-    const dates = Array.from(insightDates)
-    const ids = dates.map(d => soapMap.get(d)?.id).filter(Boolean) as string[]
+    const ids = Array.from(selectedInsightDates)
+      .map(d => soapMap.get(d)?.id)
+      .filter(Boolean) as string[]
     if (!ids.length) return
     setInsightLoading(true)
     setInsightResponse(null)
@@ -401,22 +430,41 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
                   {days.map(({ dateIso, dayNum, inMonth }) => {
                     const hasSoap = soapMap.has(dateIso)
                     const isSelected = selectedDate === dateIso
-                    const isInsightSel = insightDates.has(dateIso)
                     const isToday = dateIso === todayIso
                     const isFuture = dateIso > todayIso
-                    const isClickable = inMonth && !isFuture && (insightMode ? hasSoap : true)
+                    const isClickable = inMonth && !isFuture
+
+                    // Range visual state
+                    const inPreview = insightMode && previewRange && dateIso >= previewRange.lo && dateIso <= previewRange.hi
+                    const isEndpoint = insightMode && (dateIso === rangeStart || dateIso === rangeEnd)
+                    const isInsightSelected = insightMode && selectedInsightDates.has(dateIso)
 
                     const bg = insightMode
-                      ? isInsightSel ? 'rgba(54,214,195,.22)' : hasSoap && inMonth ? 'rgba(54,214,195,.06)' : 'transparent'
-                      : isSelected ? 'rgba(54,214,195,.18)' : hasSoap && inMonth ? 'rgba(54,214,195,.06)' : 'transparent'
+                      ? isEndpoint ? 'rgba(54,214,195,.30)'
+                        : inPreview ? 'rgba(54,214,195,.12)'
+                        : hasSoap && inMonth ? 'rgba(54,214,195,.05)'
+                        : 'transparent'
+                      : isSelected ? 'rgba(54,214,195,.18)'
+                        : hasSoap && inMonth ? 'rgba(54,214,195,.06)'
+                        : 'transparent'
 
                     return (
                       <button
                         key={dateIso}
                         onClick={() => handleDayClick(dateIso, hasSoap, inMonth)}
+                        onMouseEnter={() => {
+                          if (insightMode && rangeStart && !rangeEnd && inMonth && !isFuture)
+                            setHoverDate(dateIso)
+                        }}
+                        onMouseLeave={() => {
+                          if (insightMode) setHoverDate(null)
+                        }}
                         title={
                           !inMonth || isFuture ? undefined
-                          : insightMode && hasSoap ? (isInsightSel ? 'Deselect' : 'Select for AI')
+                          : insightMode
+                            ? !rangeStart ? 'Click to set range start'
+                            : !rangeEnd ? 'Click to set range end'
+                            : 'Click to start new range'
                           : hasSoap ? 'View entry'
                           : 'Add entry for this day'
                         }
@@ -425,30 +473,31 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
                           alignItems: 'center', justifyContent: 'center',
                           gap: '2px', padding: '3px 1px',
                           borderRadius: '6px',
-                          border: isInsightSel
-                            ? '1.5px solid rgba(54,214,195,.60)'
+                          border: isEndpoint
+                            ? '1.5px solid rgba(54,214,195,.70)'
                             : isToday
                               ? '1.5px solid rgba(246,241,231,.30)'
                               : '1.5px solid transparent',
                           background: bg,
                           color: inMonth ? (isFuture ? 'var(--fg-3)' : 'var(--fg-1)') : 'var(--fg-3)',
-                          opacity: inMonth ? (insightMode && !hasSoap ? 0.25 : 1) : 0.20,
+                          opacity: inMonth ? 1 : 0.20,
                           cursor: isClickable ? 'pointer' : 'default',
                           fontSize: '11px',
-                          fontWeight: isToday ? 700 : 400,
+                          fontWeight: isEndpoint ? 700 : isToday ? 700 : 400,
                           minHeight: '34px',
-                          transition: 'background 120ms ease',
+                          transition: 'background 80ms ease',
                           outline: 'none',
                         }}
                         onMouseOver={e => {
-                          if (isClickable) e.currentTarget.style.background = 'rgba(54,214,195,.14)'
+                          if (isClickable && (!insightMode || !rangeStart || rangeEnd))
+                            e.currentTarget.style.background = 'rgba(54,214,195,.14)'
                         }}
                         onMouseOut={e => {
                           e.currentTarget.style.background = bg
                         }}
                       >
                         <span>{dayNum}</span>
-                        {hasSoap && inMonth && !isInsightSel && (
+                        {hasSoap && inMonth && !isInsightSelected && !isEndpoint && (
                           <span style={{
                             width: '4px', height: '4px', borderRadius: '50%',
                             background: 'var(--establish, #36D6C3)',
@@ -456,7 +505,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
                             flexShrink: 0,
                           }} />
                         )}
-                        {isInsightSel && (
+                        {(isInsightSelected || isEndpoint) && (
                           <span style={{ fontSize: '9px', color: 'var(--establish, #36D6C3)', lineHeight: 1, fontWeight: 700 }}>✓</span>
                         )}
                       </button>
@@ -471,7 +520,11 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
             margin: '0 8px 10px', fontSize: '11px', color: 'var(--fg-3)',
             textAlign: 'center',
           }}>
-            {insightMode ? 'Tap teal dots to select entries for AI analysis' : 'Tap a past date to view or add an entry'}
+            {insightMode
+              ? !rangeStart ? 'Click any date to set range start'
+              : !rangeEnd ? 'Now click another date to set range end'
+              : `${selectedInsightDates.size} ${selectedInsightDates.size === 1 ? 'entry' : 'entries'} selected — click a date to start a new range`
+              : 'Tap a past date to view or add an entry'}
           </p>
         </div>
       )}
@@ -495,19 +548,24 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
               <span style={{ color: 'var(--fg-1)', fontWeight: 700, fontSize: '14px' }}>
                 AI Insights
               </span>
-              {insightDates.size > 0 && (
+              {rangeStart && rangeEnd && selectedInsightDates.size > 0 && (
                 <span style={{
                   padding: '2px 8px', borderRadius: '999px',
                   background: 'rgba(54,214,195,.18)', border: '1px solid rgba(54,214,195,.35)',
                   color: 'var(--establish, #36D6C3)', fontSize: '11px', fontWeight: 600,
                 }}>
-                  {insightDates.size} {insightDates.size === 1 ? 'entry' : 'entries'} selected
+                  {selectedInsightDates.size} {selectedInsightDates.size === 1 ? 'entry' : 'entries'}
+                </span>
+              )}
+              {rangeStart && rangeEnd && (
+                <span style={{ color: 'var(--fg-3)', fontSize: '11px' }}>
+                  {rangeStart} → {rangeEnd}
                 </span>
               )}
             </div>
-            {insightDates.size > 0 && (
+            {(rangeStart || rangeEnd) && (
               <button
-                onClick={() => setInsightDates(new Set())}
+                onClick={() => { setRangeStart(null); setRangeEnd(null); setHoverDate(null); setInsightResponse(null); setInsightError('') }}
                 style={{
                   fontSize: '11px', color: 'var(--fg-3)', background: 'none',
                   border: 'none', cursor: 'pointer', padding: '2px 4px',
@@ -519,9 +577,17 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
           </div>
 
           <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {insightDates.size === 0 ? (
+            {!rangeStart ? (
               <p style={{ margin: 0, color: 'var(--fg-3)', fontSize: '13px', textAlign: 'center', padding: '8px 0' }}>
-                Select dates from the calendar above to analyze them.
+                Click a start date on the calendar above, then an end date.
+              </p>
+            ) : !rangeEnd ? (
+              <p style={{ margin: 0, color: 'var(--establish, #36D6C3)', fontSize: '13px', textAlign: 'center', padding: '8px 0' }}>
+                Start: {rangeStart} — now click an end date.
+              </p>
+            ) : selectedInsightDates.size === 0 ? (
+              <p style={{ margin: 0, color: 'var(--fg-3)', fontSize: '13px', textAlign: 'center', padding: '8px 0' }}>
+                No SOAP entries found in that date range.
               </p>
             ) : (
               <>
