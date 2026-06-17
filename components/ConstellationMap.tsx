@@ -287,44 +287,49 @@ export default function ConstellationMap({
             onMouseEnter={() => handleStarEnter(person.id)}
             onMouseLeave={handleStarLeave}
           >
-            {/* Story popup — positioned above the star, inside hover zone */}
+            {/* Story popup — inside the hover div so moving mouse star→popup never fires mouseleave.
+                 paddingBottom fills the visual gap without any dead zone outside the div. */}
             {isHovered && hasStory && (
               <div
                 style={{
                   position: 'absolute',
-                  bottom: 'calc(100% + 10px)',
+                  bottom: '100%',
                   left: '50%',
                   transform: 'translateX(-50%)',
                   width: 220,
+                  paddingBottom: 10,
+                  cursor: 'default',
+                }}
+                onClick={e => e.stopPropagation()}
+              >
+                <div style={{
                   background: 'rgba(6,8,20,.94)',
                   backdropFilter: 'blur(14px)',
                   border: `1px solid ${config.color}40`,
                   borderRadius: 14,
                   padding: '10px 12px',
                   boxShadow: `0 0 24px -4px ${config.glowColor}60`,
-                  cursor: 'default',
-                }}
-                onClick={e => e.stopPropagation()}
-              >
-                <div className="mb-1.5 flex items-center gap-1.5">
-                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: config.color }} />
-                  <span className="text-[10px] font-semibold" style={{ color: config.color }}>
-                    {person.name.split(' ')[0]}&rsquo;s story
-                  </span>
+                }}>
+                  <div className="mb-1.5 flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full" style={{ background: config.color }} />
+                    <span className="text-[10px] font-semibold" style={{ color: config.color }}>
+                      {person.name.split(' ')[0]}&rsquo;s story
+                    </span>
+                  </div>
+                  {person.testimony_video_url ? (
+                    <video
+                      src={person.testimony_video_url}
+                      className="w-full rounded-lg"
+                      style={{ maxHeight: 130 }}
+                      playsInline
+                      controls
+                    />
+                  ) : (
+                    <p className="text-[11px] italic leading-relaxed text-[var(--fg-2)]">
+                      &ldquo;{(person.testimony_text ?? '').slice(0, 180)}{(person.testimony_text ?? '').length > 180 ? '…' : ''}&rdquo;
+                    </p>
+                  )}
                 </div>
-                {person.testimony_video_url ? (
-                  <video
-                    src={person.testimony_video_url}
-                    className="w-full rounded-lg"
-                    style={{ maxHeight: 130 }}
-                    playsInline
-                    controls
-                  />
-                ) : (
-                  <p className="text-[11px] italic leading-relaxed text-[var(--fg-2)]">
-                    &ldquo;{(person.testimony_text ?? '').slice(0, 180)}{(person.testimony_text ?? '').length > 180 ? '…' : ''}&rdquo;
-                  </p>
-                )}
               </div>
             )}
 
