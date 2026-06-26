@@ -43,6 +43,9 @@ export default function VictoryGroupsList({
   const { profile } = useAuth()
   // GBC Constellation = all groups; My Constellation = only groups I own.
   const [scope, setScope] = useState<'gbc' | 'mine'>('mine')
+  // Searchable owner picker: which group's picker is open + its filter text.
+  const [ownerPickerGroupId, setOwnerPickerGroupId] = useState<string | null>(null)
+  const [ownerSearch, setOwnerSearch] = useState('')
   const [groups, setGroups] = useState<VictoryGroup[]>([])
   const [allPeople, setAllPeople] = useState<Person[]>([])
   const [membersByGroup, setMembersByGroup] = useState<Record<string, PersonVictoryGroupWithPerson[]>>({})
@@ -253,6 +256,8 @@ export default function VictoryGroupsList({
 
   const handleSetOwner = async (groupId: string, ownerPersonId: string) => {
     if (!ownerPersonId) return
+    setOwnerPickerGroupId(null)
+    setOwnerSearch('')
     setError('')
     const { error } = await updateVictoryGroupOwner(groupId, ownerPersonId)
     if (error) {
@@ -486,22 +491,49 @@ export default function VictoryGroupsList({
                       <span className="text-[var(--fg-3)]">Owner:</span>
                       <span className="font-semibold text-[var(--fg-1)]">{personName(group.owner_person_id)}</span>
                       {canManageOwner && (
-                        <select
-                          value=""
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) => {
-                            e.stopPropagation()
-                            if (e.target.value) handleSetOwner(group.id, e.target.value)
-                          }}
-                          className="ml-auto rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-2 py-1 text-[11px] text-[var(--fg-1)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
-                        >
-                          <option value="">{group.owner_person_id ? 'Transfer…' : 'Assign owner…'}</option>
-                          {allPeople
-                            .filter(p => p.id !== group.owner_person_id)
-                            .map(p => (
-                              <option key={p.id} value={p.id}>{p.name}</option>
-                            ))}
-                        </select>
+                        <div className="relative ml-auto" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOwnerSearch('')
+                              setOwnerPickerGroupId(ownerPickerGroupId === group.id ? null : group.id)
+                            }}
+                            className="rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-2 py-1 text-[11px] font-medium text-[var(--fg-1)] hover:border-[var(--gbm-cobalt-bright)]"
+                          >
+                            {group.owner_person_id ? 'Transfer…' : 'Assign owner…'}
+                          </button>
+                          {ownerPickerGroupId === group.id && (
+                            <div className="absolute right-0 top-full z-50 mt-1 w-52 overflow-hidden rounded-xl border border-[var(--line-2)] bg-[var(--indigo)] shadow-lg">
+                              <input
+                                type="text"
+                                autoFocus
+                                value={ownerSearch}
+                                onChange={(e) => setOwnerSearch(e.target.value)}
+                                placeholder="Search name…"
+                                className="w-full border-b border-[var(--line-1)] bg-[var(--indigo-2)] px-3 py-2 text-xs text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:outline-none"
+                              />
+                              <div className="max-h-48 overflow-auto">
+                                {allPeople
+                                  .filter(p => p.id !== group.owner_person_id && p.name.toLowerCase().includes(ownerSearch.trim().toLowerCase()))
+                                  .slice(0, 50)
+                                  .map(p => (
+                                    <button
+                                      key={p.id}
+                                      type="button"
+                                      onClick={() => handleSetOwner(group.id, p.id)}
+                                      className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-xs text-[var(--fg-1)] transition-colors hover:bg-[var(--indigo-2)]"
+                                    >
+                                      <span className="truncate">{p.name}</span>
+                                      <span className="shrink-0 text-[10px] text-[var(--fg-3)]">{p.current_stage}</span>
+                                    </button>
+                                  ))}
+                                {allPeople.filter(p => p.id !== group.owner_person_id && p.name.toLowerCase().includes(ownerSearch.trim().toLowerCase())).length === 0 && (
+                                  <p className="px-3 py-2 text-xs text-[var(--fg-3)]">No matches</p>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
 

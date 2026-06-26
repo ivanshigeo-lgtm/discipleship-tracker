@@ -31,6 +31,7 @@ import type {
   Booklet,
   Stage,
 } from '../types/database'
+import { useAuth } from '../contexts/AuthContext'
 
 interface EmergingTeamSectionProps {
   refreshKey?: number
@@ -308,6 +309,9 @@ export default function EmergingTeamSection({
   onPersonClick,
   onChanged,
 }: EmergingTeamSectionProps) {
+  const { profile } = useAuth()
+  // GBC = all Equip-stage people; My Constellation = only people in my circle.
+  const [scope, setScope] = useState<'gbc' | 'mine'>('mine')
   const [people, setPeople] = useState<Person[]>([])
   const [checklistItems, setChecklistItems] = useState<StageChecklistItem[]>([])
   const [connections, setConnections] = useState<DiscipleshipConnection[]>([])
@@ -354,8 +358,32 @@ export default function EmergingTeamSection({
     loadData()
   }, [refreshKey])
 
+  // Same "My Constellation" definition as the Journey view: my whole downline
+  // (discipler → disciple edges, transitively) plus whoever directly coaches me.
+  const myCircleIds = useMemo(() => {
+    if (!profile?.id) return undefined
+    const ids = new Set<string>([profile.id])
+    let changed = true
+    while (changed) {
+      changed = false
+      for (const c of connections) {
+        if (c.disciple_person_id && ids.has(c.discipler_person_id) && !ids.has(c.disciple_person_id)) {
+          ids.add(c.disciple_person_id)
+          changed = true
+        }
+      }
+    }
+    for (const c of connections) {
+      if (c.disciple_person_id === profile.id) ids.add(c.discipler_person_id)
+    }
+    return ids
+  }, [connections, profile?.id])
+
   const forecasts = useMemo(() => {
-    return people.map(person => {
+    const scopedPeople = scope === 'mine' && myCircleIds
+      ? people.filter(p => myCircleIds.has(p.id))
+      : people
+    return scopedPeople.map(person => {
       const personItems = checklistItems.filter(i => i.person_id === person.id && i.completed)
       const completedLabels = new Set(personItems.map(i => i.label))
 
@@ -374,7 +402,7 @@ export default function EmergingTeamSection({
         engagements.filter(e => e.person_id === person.id),
       )
     }).sort((a, b) => b.percentComplete - a.percentComplete)
-  }, [people, checklistItems, bookletProgress, engagements, groupMemberPersonIds])
+  }, [people, checklistItems, bookletProgress, engagements, groupMemberPersonIds, scope, myCircleIds])
 
   const readyToEmpower = forecasts.filter(f => f.isReady)
   const inProgress = forecasts.filter(f => !f.isReady)
@@ -432,16 +460,31 @@ export default function EmergingTeamSection({
               <div className="flex items-center gap-2">
                 <h2 className="cn-h3">Emerging Team</h2>
                 <span className="rounded-full px-2 py-0.5 text-xs font-bold" style={{ background: `${equipColor}20`, color: equipColor }}>
-                  {people.length}
+                  {forecasts.length}
                 </span>
               </div>
               <p className="text-sm text-[var(--fg-2)]">People being equipped to lead and multiply</p>
             </div>
           </div>
         </div>
-        <button type="button" onClick={() => setIsExpanded(!isExpanded)} className="cn-chip self-start sm:self-center">
-          {isExpanded ? 'Collapse' : 'Expand'}
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-center">
+          {/* GBC = all Equip people; Mine = only my constellation */}
+          <div className="flex rounded-full border border-[var(--line-2)] bg-[var(--indigo)] p-0.5">
+            {([['gbc', 'GBC Constellation'], ['mine', 'My Constellation']] as const).map(([val, label]) => (
+              <button
+                key={val}
+                type="button"
+                onClick={() => setScope(val)}
+                className={`rounded-full px-2 py-0.5 text-[10px] font-semibold transition-all ${scope === val ? 'bg-[var(--gbm-cobalt-bright)] text-[var(--fg-1)]' : 'text-[var(--fg-2)] hover:text-[var(--fg-1)]'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <button type="button" onClick={() => setIsExpanded(!isExpanded)} className="cn-chip">
+            {isExpanded ? 'Collapse' : 'Expand'}
+          </button>
+        </div>
       </div>
 
       {isExpanded && (
