@@ -11,6 +11,7 @@ import type {
   SoapJournal,
   InviteToken,
   ShareVisibility,
+  Booklet,
 } from '../types/database'
 
 // ==================== PEOPLE ====================
@@ -350,6 +351,43 @@ export const getAllGroupMemberships = async () => {
   const { data, error } = await supabase
     .from('person_victory_groups')
     .select('person_id, victory_group_id')
+  return { data, error }
+}
+
+// ==================== BOOKLET PROGRESS ====================
+export const getAllBookletProgress = async () => {
+  const { data, error } = await supabase
+    .from('booklet_progress')
+    .select('*')
+  return { data, error }
+}
+
+export const getBookletProgress = async (personId: string) => {
+  const { data, error } = await supabase
+    .from('booklet_progress')
+    .select('*')
+    .eq('person_id', personId)
+  return { data, error }
+}
+
+export const upsertBookletProgress = async (
+  personId: string,
+  booklet: Booklet,
+  currentChapter: number,
+) => {
+  const { data, error } = await supabase
+    .from('booklet_progress')
+    .upsert(
+      {
+        person_id: personId,
+        booklet,
+        current_chapter: currentChapter,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'person_id,booklet' }
+    )
+    .select()
+    .single()
   return { data, error }
 }
 

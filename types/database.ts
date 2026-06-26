@@ -3,6 +3,17 @@ export type ShareVisibility = 'private' | 'coach' | 'group' | 'constellation'
 export type ChecklistCategory = 'Tool' | 'Action Step'
 export type MeetingType = 'One2One' | 'Making Disciples' | 'Coffee' | 'Church Community' | 'Empowering Leaders'
 
+// Chapter-based booklets on the path to Empowered leadership.
+export type Booklet = 'One2One' | 'Church Community' | 'Making Disciples' | 'Empowering Leadership'
+
+export type BookletProgress = {
+  id: string
+  person_id: string
+  booklet: Booklet
+  current_chapter: number
+  updated_at: string
+}
+
 export type Person = {
   id: string
   name: string
