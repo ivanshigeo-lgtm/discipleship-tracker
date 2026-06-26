@@ -12,6 +12,7 @@ import CoachingPipeline from '../components/CoachingPipeline'
 import NeedAttentionSection from '../components/NeedAttentionSection'
 import PointsOfActionSection from '../components/PointsOfActionSection'
 import PrayerWallSection from '../components/PrayerWallSection'
+import QuickPrayerEntry from '../components/QuickPrayerEntry'
 import VictoryGroupsList from '../components/VictoryGroupsList'
 import CurriculumBadgesSection from '../components/CurriculumBadgesSection'
 import EmergingTeamSection from '../components/EmergingTeamSection'
@@ -714,6 +715,7 @@ export default function DiscipleshipTracker() {
                   </button>
                 </div>
               </div>
+              <QuickPrayerEntry people={allPeople} onAdded={() => setRefreshKey(p => p + 1)} />
               <ErrorBoundary name="NeedAttentionSection">
                 <NeedAttentionSection
                   refreshKey={refreshKey}
