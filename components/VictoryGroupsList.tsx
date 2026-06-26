@@ -9,6 +9,7 @@ import {
   getVictoryGroups,
   removePersonFromVictoryGroup,
   updateVictoryGroup,
+  updateVictoryGroupOwner,
   upsertGroupAttendance,
   getGroupAttendance,
 } from '../lib/supabaseQueries'
@@ -40,6 +41,8 @@ export default function VictoryGroupsList({
   onAddNewPerson?: () => void
 }) {
   const { profile } = useAuth()
+  // GBC Constellation = all groups; My Constellation = only groups I own.
+  const [scope, setScope] = useState<'gbc' | 'mine'>('mine')
   const [groups, setGroups] = useState<VictoryGroup[]>([])
   const [allPeople, setAllPeople] = useState<Person[]>([])
   const [membersByGroup, setMembersByGroup] = useState<Record<string, PersonVictoryGroupWithPerson[]>>({})
@@ -181,7 +184,7 @@ export default function VictoryGroupsList({
 
     const result = editingGroupId
       ? await updateVictoryGroup(editingGroupId, payload)
-      : await addVictoryGroup(payload)
+      : await addVictoryGroup({ ...payload, owner_person_id: profile?.id ?? null })
 
     if (result.error) {
       setError(result.error.message)
@@ -248,6 +251,18 @@ export default function VictoryGroupsList({
     onChanged?.()
   }
 
+  const handleSetOwner = async (groupId: string, ownerPersonId: string) => {
+    if (!ownerPersonId) return
+    setError('')
+    const { error } = await updateVictoryGroupOwner(groupId, ownerPersonId)
+    if (error) {
+      setError(error.message)
+      return
+    }
+    await loadData()
+    onChanged?.()
+  }
+
   const toggleGroup = (groupId: string) => {
     setOpenGroupId(openGroupId === groupId ? null : groupId)
     if (openGroupId === groupId) {
@@ -295,10 +310,31 @@ export default function VictoryGroupsList({
     setSavingAttendance(false)
   }
 
+  // GBC scope shows every group; My Constellation shows only groups I own.
+  const visibleGroups = scope === 'mine'
+    ? groups.filter(g => g.owner_person_id === profile?.id)
+    : groups
+  const personName = (id: string | null) => allPeople.find(p => p.id === id)?.name ?? 'Unassigned'
+
   return (
     <div className="rounded-2xl border border-[var(--line-1)] bg-[var(--indigo-2)] p-3">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h3 className="text-sm font-semibold text-[var(--fg-1)]">Grace Groups</h3>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-[var(--fg-1)]">Grace Groups</h3>
+          {/* GBC = all groups, Mine = only groups I own */}
+          <div className="flex rounded-full border border-[var(--line-2)] bg-[var(--indigo)] p-0.5">
+            {([['gbc', 'GBC Constellation'], ['mine', 'My Constellation']] as const).map(([val, label]) => (
+              <button
+                key={val}
+                type="button"
+                onClick={() => setScope(val)}
+                className={`rounded-full px-2 py-0.5 text-[10px] font-semibold transition-all ${scope === val ? 'bg-[var(--gbm-cobalt-bright)] text-[var(--fg-1)]' : 'text-[var(--fg-2)] hover:text-[var(--fg-1)]'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="flex items-center gap-1.5">
           {showForm && (
             <button
@@ -359,11 +395,15 @@ export default function VictoryGroupsList({
         </div>
       )}
 
-      {groups.length === 0 ? (
-        <p className="text-sm text-[var(--fg-2)]">No Grace Groups yet.</p>
+      {visibleGroups.length === 0 ? (
+        <p className="text-sm text-[var(--fg-2)]">
+          {scope === 'mine'
+            ? 'You don’t own any groups yet. Switch to GBC Constellation to see and claim existing groups, or add one.'
+            : 'No Grace Groups yet.'}
+        </p>
       ) : (
         <div className="grid gap-2 sm:grid-cols-2">
-          {groups.map(group => {
+          {visibleGroups.map(group => {
             const memberships = membersByGroup[group.id] ?? []
             const sortedMemberships = [...memberships].sort((a, b) => {
               const aPerson = a.people
@@ -375,6 +415,8 @@ export default function VictoryGroupsList({
             const availablePeople = allPeople.filter(person => !memberIds.has(person.id))
             const isOpen = openGroupId === group.id
             const isAttendanceMode = attendanceGroupId === group.id
+            // Owner can transfer; admin can assign/transfer any (incl. unowned existing groups).
+            const canManageOwner = !!profile?.is_admin || group.owner_person_id === profile?.id
 
             return (
               <div
@@ -437,6 +479,30 @@ export default function VictoryGroupsList({
                       >
                         Edit
                       </button>
+                    </div>
+
+                    {/* Ownership: a group lives in its owner's constellation */}
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="text-[var(--fg-3)]">Owner:</span>
+                      <span className="font-semibold text-[var(--fg-1)]">{personName(group.owner_person_id)}</span>
+                      {canManageOwner && (
+                        <select
+                          value=""
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => {
+                            e.stopPropagation()
+                            if (e.target.value) handleSetOwner(group.id, e.target.value)
+                          }}
+                          className="ml-auto rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-2 py-1 text-[11px] text-[var(--fg-1)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
+                        >
+                          <option value="">{group.owner_person_id ? 'Transfer…' : 'Assign owner…'}</option>
+                          {allPeople
+                            .filter(p => p.id !== group.owner_person_id)
+                            .map(p => (
+                              <option key={p.id} value={p.id}>{p.name}</option>
+                            ))}
+                        </select>
+                      )}
                     </div>
 
                     {isAttendanceMode && (

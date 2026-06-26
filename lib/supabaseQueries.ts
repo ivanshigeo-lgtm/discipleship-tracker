@@ -324,6 +324,10 @@ export const addVictoryGroup = async (group: Omit<VictoryGroup, 'id' | 'created_
   return { data, error }
 }
 
+export const updateVictoryGroupOwner = async (groupId: string, ownerPersonId: string | null) => {
+  return updateVictoryGroup(groupId, { owner_person_id: ownerPersonId })
+}
+
 export const updateVictoryGroup = async (groupId: string, updates: Partial<Omit<VictoryGroup, 'id' | 'created_at'>>) => {
   const { data, error } = await supabase
     .from('victory_groups')
