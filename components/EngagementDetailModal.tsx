@@ -9,7 +9,9 @@ import {
   getPrayerRequestsByEngagement,
   addPrayerRequest,
   addPraise,
+  updateEngagement,
 } from '../lib/supabaseQueries'
+import { useAuth } from '../contexts/AuthContext'
 import type { Engagement, ActionItem, PrayerRequest } from '../types/database'
 
 export default function EngagementDetailModal({
@@ -23,12 +25,43 @@ export default function EngagementDetailModal({
   onClose: () => void
   onChanged?: () => void
 }) {
+  const { profile } = useAuth()
   const [items, setItems] = useState<ActionItem[]>([])
   const [prayers, setPrayers] = useState<PrayerRequest[]>([])
   const [newAction, setNewAction] = useState('')
   const [newPrayer, setNewPrayer] = useState('')
   const [newPraise, setNewPraise] = useState('')
   const [loading, setLoading] = useState(true)
+
+  // Reschedule
+  const [rescheduling, setRescheduling] = useState(false)
+  const [dateVal, setDateVal] = useState(engagement.follow_up_date ?? '')
+  const [timeVal, setTimeVal] = useState(engagement.follow_up_time ?? '')
+  const [savingReschedule, setSavingReschedule] = useState(false)
+
+  const handleReschedule = async () => {
+    setSavingReschedule(true)
+    await updateEngagement(engagement.id, { follow_up_date: dateVal || null, follow_up_time: timeVal || null })
+    // Keep the linked Google Calendar event in sync, if any.
+    if (engagement.google_calendar_event_id && profile?.id) {
+      try {
+        await fetch('/api/calendar/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'update',
+            coachPersonId: profile.id,
+            engagementId: engagement.id,
+            personName,
+            engagement: { ...engagement, follow_up_date: dateVal || null, follow_up_time: timeVal || null },
+          }),
+        })
+      } catch { /* best-effort calendar sync */ }
+    }
+    setSavingReschedule(false)
+    setRescheduling(false)
+    onChanged?.()
+  }
 
   const load = async () => {
     const [a, p] = await Promise.all([
@@ -101,9 +134,9 @@ export default function EngagementDetailModal({
   const praisePoints = prayers.filter(p => p.is_praise)
 
   const inputClass = 'w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-3 py-2 text-sm text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none'
-  const dateLabel = engagement.follow_up_date
-    ? new Date(engagement.follow_up_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-    : null
+  const dateLabel = dateVal
+    ? new Date(dateVal + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+    : 'No date set'
 
   return (
     <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/60 p-4" onClick={onClose}>
@@ -116,8 +149,42 @@ export default function EngagementDetailModal({
               {engagement.description || engagement.meeting_type || 'Meeting'}
             </h2>
             <p className="mt-0.5 text-xs text-[var(--fg-3)]">
-              {[engagement.meeting_type, dateLabel, engagement.follow_up_time, engagement.location].filter(Boolean).join(' · ')}
+              {[engagement.meeting_type, dateLabel, timeVal, engagement.location].filter(Boolean).join(' · ')}
             </p>
+            {!rescheduling ? (
+              <button
+                type="button"
+                onClick={() => setRescheduling(true)}
+                className="mt-1 text-[11px] font-medium text-[var(--gbm-cobalt-bright)] hover:underline"
+              >
+                Reschedule
+              </button>
+            ) : (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <input
+                  type="date"
+                  value={dateVal}
+                  onChange={e => setDateVal(e.target.value)}
+                  className="rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-2 py-1 text-xs text-[var(--fg-1)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
+                />
+                <input
+                  type="time"
+                  value={timeVal}
+                  onChange={e => setTimeVal(e.target.value)}
+                  className="rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-2 py-1 text-xs text-[var(--fg-1)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
+                />
+                <button type="button" onClick={handleReschedule} disabled={savingReschedule} className="cn-btn cn-btn-primary !px-2.5 !py-1 !text-xs disabled:opacity-50">
+                  {savingReschedule ? 'Saving…' : 'Save'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setRescheduling(false); setDateVal(engagement.follow_up_date ?? ''); setTimeVal(engagement.follow_up_time ?? '') }}
+                  className="cn-chip !text-xs"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
           </div>
           <button type="button" onClick={onClose} className="shrink-0 text-xl text-[var(--fg-3)] hover:text-[var(--fg-1)]">×</button>
         </div>
