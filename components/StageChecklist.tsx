@@ -5,10 +5,13 @@ import {
   getStageChecklistItems,
   updateStageChecklistItem,
   upsertStageChecklistItem,
+  getBookletProgress,
+  upsertBookletProgress,
 } from '../lib/supabaseQueries'
 import { supabase } from '../lib/supabaseClient'
 import { stageChecklistTemplates, stages } from '../lib/stageChecklistTemplates'
-import type { ChecklistCategory, Stage, StageChecklistItem } from '../types/database'
+import { BOOKLETS } from '../lib/curriculum'
+import type { ChecklistCategory, Stage, StageChecklistItem, BookletProgress, Booklet } from '../types/database'
 import { stageLabels } from '../lib/stageLabels'
 
 const STAGE_COLORS: Record<Stage, string> = {
@@ -36,6 +39,26 @@ export default function StageChecklist({
   })
   const [savingId, setSavingId] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const [bookletProgress, setBookletProgress] = useState<BookletProgress[]>([])
+
+  const loadBooklets = useCallback(async () => {
+    const { data } = await getBookletProgress(personId)
+    if (data) setBookletProgress(data as BookletProgress[])
+  }, [personId])
+
+  const setChapter = async (booklet: Booklet, chapter: number) => {
+    setBookletProgress(prev => {
+      const idx = prev.findIndex(b => b.booklet === booklet)
+      if (idx >= 0) {
+        const next = [...prev]
+        next[idx] = { ...next[idx], current_chapter: chapter }
+        return next
+      }
+      return [...prev, { id: `temp-${booklet}`, person_id: personId, booklet, current_chapter: chapter, updated_at: new Date().toISOString() }]
+    })
+    await upsertBookletProgress(personId, booklet, chapter)
+    onChanged?.()
+  }
 
   const loadItems = useCallback(async () => {
     setError('')
@@ -57,6 +80,7 @@ export default function StageChecklist({
 
   useEffect(() => {
     loadItems()
+    loadBooklets()
 
     // Live-sync: disciple self-confirms → coach sees it immediately (and vice versa)
     const channel = supabase
@@ -76,7 +100,7 @@ export default function StageChecklist({
       supabase.removeChannel(channel)
       document.removeEventListener('visibilitychange', onVisible)
     }
-  }, [personId, loadItems])
+  }, [personId, loadItems, loadBooklets])
 
   const toggleStageOpen = (stage: Stage) => {
     setOpenStages(current => ({
@@ -243,6 +267,45 @@ export default function StageChecklist({
                   <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--fg-3)]">Action Steps</div>
                   {renderItems(stage, 'Action Step')}
                 </div>
+                {BOOKLETS.some(b => b.stage === stage) && (
+                  <div>
+                    <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--fg-3)]">Chapters</div>
+                    <div className="space-y-1.5">
+                      {BOOKLETS.filter(b => b.stage === stage).map(b => {
+                        const current = Math.min(b.chapters, Math.max(0, bookletProgress.find(p => p.booklet === b.key)?.current_chapter ?? 0))
+                        const done = current >= b.chapters
+                        return (
+                          <div key={b.key} className="flex items-center justify-between gap-2 rounded-lg border border-[var(--line-1)] bg-[var(--indigo-2)] px-2.5 py-1.5">
+                            <span className={`min-w-0 flex-1 truncate text-xs ${done ? 'text-[var(--fg-3)]' : 'text-[var(--fg-1)]'}`}>
+                              {b.label}
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                disabled={current <= 0}
+                                onClick={() => setChapter(b.key, current - 1)}
+                                className="flex h-6 w-6 items-center justify-center rounded-full border border-[var(--line-2)] text-sm text-[var(--fg-2)] disabled:opacity-30 hover:bg-[var(--indigo-3)]"
+                              >
+                                −
+                              </button>
+                              <span className="w-12 text-center text-xs tabular-nums" style={{ color: stageColor }}>
+                                {current}/{b.chapters}
+                              </span>
+                              <button
+                                type="button"
+                                disabled={current >= b.chapters}
+                                onClick={() => setChapter(b.key, current + 1)}
+                                className="flex h-6 w-6 items-center justify-center rounded-full border border-[var(--line-2)] text-sm text-[var(--fg-2)] disabled:opacity-30 hover:bg-[var(--indigo-3)]"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
