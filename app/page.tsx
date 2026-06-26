@@ -32,6 +32,10 @@ type CircleFilter = { key: string; label: string; stages?: Stage[] }
 
 const allFilter: CircleFilter = { key: 'All', label: 'All' }
 
+// localStorage key: remembers the last section a coach visited so the app
+// reopens there instead of always landing on "Our Journey".
+const LAST_SECTION_KEY = 'constellations:last-section'
+
 // ─── Sidebar nav config ───────────────────────────────────────────────────────
 const NAV: Array<{ heading: string; items: Array<{ id: SectionId; label: string; dot?: string }> }> = [
   {
@@ -257,6 +261,22 @@ export default function DiscipleshipTracker() {
   useEffect(() => {
     if (isDisciple) router.replace('/my-journey')
   }, [isDisciple, router])
+
+  // Remember the last section visited, and reopen there next time.
+  // Persisted per-device in localStorage. 'messages' is excluded so we never
+  // restore straight into the message-center modal.
+  const [sectionRestored, setSectionRestored] = useState(false)
+  useEffect(() => {
+    const saved = localStorage.getItem(LAST_SECTION_KEY)
+    if (saved && saved !== 'messages' && NAV.some(g => g.items.some(i => i.id === saved))) {
+      setActiveSection(saved as SectionId)
+    }
+    setSectionRestored(true)
+  }, [])
+  useEffect(() => {
+    if (!sectionRestored || activeSection === 'messages') return
+    localStorage.setItem(LAST_SECTION_KEY, activeSection)
+  }, [activeSection, sectionRestored])
 
   // Profile loading timeout
   useEffect(() => {
