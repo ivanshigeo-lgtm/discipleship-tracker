@@ -177,8 +177,8 @@ export const getAllPrayerRequests = async () => {
 }
 
 export const addPrayerRequest = async (
-  request: Omit<PrayerRequest, 'id' | 'created_at' | 'updated_at' | 'visibility' | 'is_praise'> &
-    Partial<Pick<PrayerRequest, 'visibility' | 'is_praise'>>
+  request: Omit<PrayerRequest, 'id' | 'created_at' | 'updated_at' | 'visibility' | 'is_praise' | 'engagement_id'> &
+    Partial<Pick<PrayerRequest, 'visibility' | 'is_praise' | 'engagement_id'>>
 ) => {
   const { data, error } = await supabase
     .from('prayer_requests')
@@ -188,7 +188,7 @@ export const addPrayerRequest = async (
   return { data, error }
 }
 
-export const addPraise = async (personId: string, testimony: string) => {
+export const addPraise = async (personId: string, testimony: string, engagementId: string | null = null) => {
   const today = new Date().toISOString().split('T')[0]
   const { data, error } = await supabase
     .from('prayer_requests')
@@ -198,10 +198,56 @@ export const addPraise = async (personId: string, testimony: string) => {
       status: 'Answered',
       answered_date: today,
       answer_notes: null,
+      is_praise: true,
+      engagement_id: engagementId,
       updated_at: new Date().toISOString(),
     })
     .select()
     .single()
+  return { data, error }
+}
+
+// ==================== ENGAGEMENT ACTION ITEMS ====================
+export const getActionItemsByEngagement = async (engagementId: string) => {
+  const { data, error } = await supabase
+    .from('engagement_action_items')
+    .select('*')
+    .eq('engagement_id', engagementId)
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: true })
+  return { data, error }
+}
+
+export const addActionItem = async (engagementId: string, text: string, sortOrder: number) => {
+  const { data, error } = await supabase
+    .from('engagement_action_items')
+    .insert({ engagement_id: engagementId, text, sort_order: sortOrder })
+    .select()
+    .single()
+  return { data, error }
+}
+
+export const updateActionItem = async (id: string, updates: { text?: string; completed?: boolean }) => {
+  const { data, error } = await supabase
+    .from('engagement_action_items')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single()
+  return { data, error }
+}
+
+export const deleteActionItem = async (id: string) => {
+  const { error } = await supabase.from('engagement_action_items').delete().eq('id', id)
+  return { error }
+}
+
+export const getPrayerRequestsByEngagement = async (engagementId: string) => {
+  const { data, error } = await supabase
+    .from('prayer_requests')
+    .select('*')
+    .eq('engagement_id', engagementId)
+    .order('created_at', { ascending: true })
   return { data, error }
 }
 

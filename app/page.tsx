@@ -12,7 +12,6 @@ import CoachingPipeline from '../components/CoachingPipeline'
 import NeedAttentionSection from '../components/NeedAttentionSection'
 import PointsOfActionSection from '../components/PointsOfActionSection'
 import PrayerWallSection from '../components/PrayerWallSection'
-import QuickPrayerEntry from '../components/QuickPrayerEntry'
 import VictoryGroupsList from '../components/VictoryGroupsList'
 import CurriculumBadgesSection from '../components/CurriculumBadgesSection'
 import EmergingTeamSection from '../components/EmergingTeamSection'
@@ -23,7 +22,8 @@ import MessageCenter from '../components/MessageCenter'
 import SoapEntryModal from '../components/journey/SoapEntryModal'
 import SoapCalendarSection from '../components/SoapCalendarSection'
 import { getSoapJournals, getAllDiscipleshipConnections, getPeople } from '../lib/supabaseQueries'
-import type { Person, SoapJournal, Stage, DiscipleshipConnection } from '../types/database'
+import type { Person, SoapJournal, Stage, DiscipleshipConnection, Engagement } from '../types/database'
+import EngagementDetailModal from '../components/EngagementDetailModal'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type SectionId = 'journey' | 'snapshot' | 'emerging' | 'engagements' | 'points' | 'groups' | 'prayer' | 'messages' | 'soaps'
@@ -241,6 +241,8 @@ export default function DiscipleshipTracker() {
   // Engagements section: find an existing person to engage with
   const [engSearch, setEngSearch] = useState('')
   const [engSearchFocused, setEngSearchFocused] = useState(false)
+  // Open engagement detail (action/prayer/praise points)
+  const [detailEngagement, setDetailEngagement] = useState<{ engagement: Engagement; personName: string } | null>(null)
 
   // Person modal
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null)
@@ -715,11 +717,11 @@ export default function DiscipleshipTracker() {
                   </button>
                 </div>
               </div>
-              <QuickPrayerEntry people={allPeople} onAdded={() => setRefreshKey(p => p + 1)} />
               <ErrorBoundary name="NeedAttentionSection">
                 <NeedAttentionSection
                   refreshKey={refreshKey}
                   onPersonClick={(p, tab) => openPerson(p, tab)}
+                  onOpenEngagement={(engagement, personName) => setDetailEngagement({ engagement, personName })}
                   onAddNewPerson={() => setShowAddPerson(true)}
                   onGroupsChanged={() => setRefreshKey(p => p + 1)}
                 />
@@ -834,6 +836,17 @@ export default function DiscipleshipTracker() {
           onSaved={() => setRefreshKey(p => p + 1)}
           onDeleted={() => { setSelectedPerson(null); setInitialProfileTab('profile'); setRefreshKey(p => p + 1) }}
           onPersonCreated={() => setRefreshKey(p => p + 1)}
+          onOpenEngagement={(engagement, personName) => setDetailEngagement({ engagement, personName })}
+        />
+      )}
+
+      {/* ── Engagement detail (action / prayer / praise points) ── */}
+      {detailEngagement && (
+        <EngagementDetailModal
+          engagement={detailEngagement.engagement}
+          personName={detailEngagement.personName}
+          onClose={() => setDetailEngagement(null)}
+          onChanged={() => setRefreshKey(p => p + 1)}
         />
       )}
 

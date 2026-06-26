@@ -60,6 +60,18 @@ export type PrayerRequest = {
   answer_notes: string | null
   visibility: ShareVisibility
   is_praise: boolean
+  engagement_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+// Checkable action point captured inside an engagement.
+export type ActionItem = {
+  id: string
+  engagement_id: string
+  text: string
+  completed: boolean
+  sort_order: number
   created_at: string
   updated_at: string
 }

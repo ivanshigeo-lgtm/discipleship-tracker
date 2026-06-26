@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { deletePerson, updatePerson } from '../lib/supabaseQueries'
 import { useAuth } from '../contexts/AuthContext'
-import type { Person, Stage } from '../types/database'
+import type { Person, Stage, Engagement } from '../types/database'
 import { stageLabels, stageOrder } from '../lib/stageLabels'
 import StageChecklist from './StageChecklist'
 import NextStepsList from './NextStepsList'
@@ -32,6 +32,7 @@ type PersonProfileModalProps = {
   onSaved?: (person: Person) => void
   onDeleted?: (personId: string) => void
   onPersonCreated?: () => void
+  onOpenEngagement?: (engagement: Engagement, personName: string) => void
 }
 
 function ModalSectionCard({
@@ -65,7 +66,7 @@ function ModalSectionCard({
   )
 }
 
-export default function PersonProfileModal({ person, initialTab = 'profile', onClose, onSaved, onDeleted, onPersonCreated }: PersonProfileModalProps) {
+export default function PersonProfileModal({ person, initialTab = 'profile', onClose, onSaved, onDeleted, onPersonCreated, onOpenEngagement }: PersonProfileModalProps) {
   const { canEdit: checkCanEdit, profile } = useAuth()
   const [savedPerson, setSavedPerson] = useState(person)
   const [name, setName] = useState(person.name)
@@ -539,6 +540,7 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
                   coachPersonId={profile?.id}
                   refreshKey={refreshKey}
                   onUpdate={() => setRefreshKey(key => key + 1)}
+                  onOpenEngagement={onOpenEngagement}
                 />
                 <AddNextStepForm
                   personId={savedPerson.id}

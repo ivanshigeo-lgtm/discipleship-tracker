@@ -41,12 +41,14 @@ export default function NextStepsList({
   coachPersonId,
   refreshKey,
   onUpdate,
+  onOpenEngagement,
 }: {
   personId: string
   personName: string
   coachPersonId?: string
   refreshKey: number
   onUpdate?: () => void
+  onOpenEngagement?: (engagement: Engagement, personName: string) => void
 }) {
   const [engagements, setEngagements] = useState<Engagement[]>([])
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -275,6 +277,7 @@ export default function NextStepsList({
               canSyncCalendar={!!coachPersonId && !!eng.follow_up_date && !eng.google_calendar_event_id}
               onToggleComplete={() => handleToggleComplete(eng)}
               onExpand={() => handleExpand(eng)}
+              onOpen={() => onOpenEngagement?.(eng, personName)}
               onEditingChange={setEditingData}
               onSave={() => handleSave(eng)}
               onDelete={() => handleDelete(eng.id)}
@@ -299,6 +302,7 @@ export default function NextStepsList({
               canSyncCalendar={!!coachPersonId && !!eng.follow_up_date && !eng.google_calendar_event_id}
               onToggleComplete={() => handleToggleComplete(eng)}
               onExpand={() => handleExpand(eng)}
+              onOpen={() => onOpenEngagement?.(eng, personName)}
               onEditingChange={setEditingData}
               onSave={() => handleSave(eng)}
               onDelete={() => handleDelete(eng.id)}
@@ -319,6 +323,7 @@ function EngagementCard({
   canSyncCalendar,
   onToggleComplete,
   onExpand,
+  onOpen,
   onEditingChange,
   onSave,
   onDelete,
@@ -331,6 +336,7 @@ function EngagementCard({
   canSyncCalendar: boolean
   onToggleComplete: () => void
   onExpand: () => void
+  onOpen: () => void
   onEditingChange: (data: EditingEngagement | null) => void
   onSave: () => void
   onDelete: () => void
@@ -413,6 +419,14 @@ function EngagementCard({
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={onOpen}
+            className="rounded-full border border-[var(--line-2)] px-2.5 py-1 text-[10px] font-semibold text-[var(--fg-2)] hover:border-[var(--gbm-cobalt-bright)] hover:text-[var(--fg-1)]"
+            title="Open action, prayer & praise points"
+          >
+            Open
+          </button>
           {canSyncCalendar && (
             <button
               type="button"

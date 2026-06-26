@@ -14,6 +14,7 @@ import MeetingBadges, { type MeetingCounts } from './MeetingBadges'
 interface MyOneToOnesSectionProps {
   refreshKey?: number
   onPersonClick?: (person: Person, openTab?: 'engagements') => void
+  onOpenEngagement?: (engagement: Engagement, personName: string) => void
   onAddNewPerson?: () => void
   onGroupsChanged?: () => void
 }
@@ -172,6 +173,7 @@ function MeetingCard({
 export default function NeedAttentionSection({
   refreshKey = 0,
   onPersonClick,
+  onOpenEngagement,
   onAddNewPerson,
   onGroupsChanged,
 }: MyOneToOnesSectionProps) {
@@ -420,7 +422,7 @@ export default function NeedAttentionSection({
                   <MeetingCard
                     key={item.engagement.id}
                     item={item}
-                    onClick={() => onPersonClick?.(item.person, 'engagements')}
+                    onClick={() => onOpenEngagement?.(item.engagement, item.person.name)}
                     onComplete={() => handleComplete(item)}
                     completing={completingId === item.engagement.id}
                   />
