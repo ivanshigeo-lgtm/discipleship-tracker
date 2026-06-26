@@ -14,6 +14,7 @@ type AuthContextType = {
   canEdit: (personId: string) => boolean
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>
   signUp: (email: string, password: string) => Promise<{ error: Error | null }>
+  resetPassword: (email: string) => Promise<{ error: Error | null }>
   signOut: () => Promise<void>
   refreshProfile: () => Promise<void>
 }
@@ -177,6 +178,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error }
   }
 
+  // Sends a Supabase password-reset email; the link lands on /reset-password.
+  const resetPassword = async (email: string) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    })
+    return { error }
+  }
+
   const signOut = async () => {
     console.log('Signing out...')
     const { error } = await supabase.auth.signOut()
@@ -201,6 +210,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       canEdit,
       signIn,
       signUp,
+      resetPassword,
       signOut,
       refreshProfile,
     }}>
