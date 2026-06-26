@@ -7,6 +7,11 @@ export const metadata: Metadata = {
   description: "Helping people grow through the 4E process",
 };
 
+// Prevent Vercel's edge from caching stale HTML that references an old JS
+// bundle after a deploy — same fix already applied to app/my-journey/layout.tsx.
+// Without this, deployed UI changes don't appear until the cache expires.
+export const dynamic = "force-dynamic";
+
 export default function RootLayout({
   children,
 }: Readonly<{
