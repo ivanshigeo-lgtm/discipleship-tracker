@@ -237,6 +237,10 @@ export default function DiscipleshipTracker() {
   const [journeySearch, setJourneySearch] = useState('')
   const [searchFocused, setSearchFocused] = useState(false)
 
+  // Engagements section: find an existing person to engage with
+  const [engSearch, setEngSearch] = useState('')
+  const [engSearchFocused, setEngSearchFocused] = useState(false)
+
   // Person modal
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null)
   const [initialProfileTab, setInitialProfileTab] = useState<'profile' | 'journey' | 'connections' | 'engagements' | 'groups' | 'prayer'>('profile')
@@ -358,6 +362,16 @@ export default function DiscipleshipTracker() {
       .sort((a, b) => a.name.localeCompare(b.name))
       .slice(0, 8)
   }, [journeySearch, allPeople, allowedPersonIds])
+
+  // Engagements search: all people, unscoped — pick someone to engage with.
+  const engMatches = useMemo(() => {
+    const q = engSearch.trim().toLowerCase()
+    if (!q) return []
+    return allPeople
+      .filter(p => p.name.toLowerCase().includes(q))
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .slice(0, 8)
+  }, [engSearch, allPeople])
 
   const soapStreak = (() => {
     if (!coachSoaps.length) return 0
@@ -652,7 +666,54 @@ export default function DiscipleshipTracker() {
           {/* ── Engagements ── */}
           {activeSection === 'engagements' && (
             <div>
-              <SectionHeader title="Engagements" subtitle="Who needs your attention and upcoming meetings" />
+              <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h2 className="cn-h3">Engagements</h2>
+                  <p className="mt-1 text-xs text-[var(--fg-2)] sm:text-sm">Who needs your attention and upcoming meetings</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Find an existing person to engage with */}
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={engSearch}
+                      onChange={e => setEngSearch(e.target.value)}
+                      onFocus={() => setEngSearchFocused(true)}
+                      onBlur={() => setTimeout(() => setEngSearchFocused(false), 150)}
+                      placeholder="Find person to engage..."
+                      className="h-8 w-full rounded-full border border-[var(--line-2)] bg-[var(--indigo)] px-3 text-xs text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:outline-none focus:ring-1 focus:ring-[var(--gbm-cobalt-bright)]"
+                      style={{ minWidth: 160 }}
+                    />
+                    {engSearchFocused && engMatches.length > 0 && (
+                      <div className="absolute left-0 right-0 top-full z-40 mt-1 overflow-hidden rounded-xl border border-[var(--line-2)] bg-[var(--indigo)] shadow-lg">
+                        {engMatches.map(p => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onMouseDown={() => {
+                              openPerson(p, 'engagements')
+                              setEngSearch('')
+                              setEngSearchFocused(false)
+                            }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-[var(--fg-1)] transition-colors hover:bg-[var(--indigo-2)]"
+                          >
+                            <span className="truncate font-medium">{p.name}</span>
+                            <span className="ml-auto shrink-0 text-[10px] text-[var(--fg-3)]">{p.current_stage}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {/* Add a new person */}
+                  <button
+                    type="button"
+                    onClick={() => setShowAddPerson(true)}
+                    className="h-8 rounded-full bg-[var(--gbm-cobalt-bright)] px-3 text-xs font-semibold text-white hover:opacity-90"
+                  >
+                    + Add Person
+                  </button>
+                </div>
+              </div>
               <ErrorBoundary name="NeedAttentionSection">
                 <NeedAttentionSection
                   refreshKey={refreshKey}

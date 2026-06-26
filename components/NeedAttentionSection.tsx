@@ -235,22 +235,18 @@ export default function NeedAttentionSection({
     const today = new Date()
     today.setHours(0, 0, 0, 0)
 
-    // Current week: Monday → Sunday
-    const dayOfWeek = today.getDay() // 0=Sun, 1=Mon…
-    const monday = new Date(today)
-    monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1))
-    const sunday = new Date(monday)
-    sunday.setDate(monday.getDate() + 6)
-    const mondayStr = monday.toISOString().split('T')[0]
-    const sundayStr = sunday.toISOString().split('T')[0]
+    // Rolling window: today through the next 7 days
+    const next7 = new Date(today)
+    next7.setDate(today.getDate() + 7)
+    const next7Str = next7.toISOString().split('T')[0]
 
     const items: MeetingItem[] = []
 
     engagements
       .filter(e => {
         if (e.status !== 'Pending' || !e.follow_up_date) return false
-        // Show this week's meetings + overdue
-        return e.follow_up_date <= sundayStr
+        // Show meetings within the next 7 days + anything still overdue
+        return e.follow_up_date <= next7Str
       })
       .forEach(engagement => {
         const person = peopleById.get(engagement.person_id)
@@ -408,7 +404,7 @@ export default function NeedAttentionSection({
       </div>
 
       <p className="mt-1 text-sm text-[var(--fg-2)]">
-        This week&apos;s meetings — Monday through Sunday
+        Meetings for the next 7 days — rolling from today
       </p>
 
       {isExpanded && (
