@@ -37,6 +37,9 @@ export const MILESTONES: MilestoneDef[] = [
   { key: 'assisting_group',  label: 'Assisting in a small group' },
 ]
 
-// Equip-stage checklist labels that satisfy two of the milestones.
+// Checklist labels that satisfy milestones (in addition to profile date fields).
 export const SERVING_MINISTRY_LABEL = 'Begin Serving in a Ministry/Mission'
 export const ASSISTING_GROUP_LABEL = 'Assist in Leading Small Group'
+export const SALVATION_LABEL = 'Confirm salvation / spiritual birthday'
+export const BAPTISM_LABEL = 'Water baptism conversation'
+export const SMALL_GROUP_LABEL = 'Connect to Small Group'

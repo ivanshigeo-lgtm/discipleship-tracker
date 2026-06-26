@@ -15,6 +15,9 @@ import {
   BOOKLETS,
   SERVING_MINISTRY_LABEL,
   ASSISTING_GROUP_LABEL,
+  SALVATION_LABEL,
+  BAPTISM_LABEL,
+  SMALL_GROUP_LABEL,
 } from '../lib/curriculum'
 import {
   computeForecast,
@@ -388,9 +391,9 @@ export default function EmergingTeamSection({
       const completedLabels = new Set(personItems.map(i => i.label))
 
       const milestones: MilestoneStatus = {
-        saved: !!person.spiritual_birthday,
-        baptized: !!person.baptism_date,
-        small_group: !!person.victory_group_id || groupMemberPersonIds.has(person.id),
+        saved: !!person.spiritual_birthday || completedLabels.has(SALVATION_LABEL),
+        baptized: !!person.baptism_date || completedLabels.has(BAPTISM_LABEL),
+        small_group: !!person.victory_group_id || groupMemberPersonIds.has(person.id) || completedLabels.has(SMALL_GROUP_LABEL),
         serving_ministry: completedLabels.has(SERVING_MINISTRY_LABEL),
         assisting_group: completedLabels.has(ASSISTING_GROUP_LABEL),
       }
