@@ -242,6 +242,14 @@ export const deleteActionItem = async (id: string) => {
   return { error }
 }
 
+export const getAllActionItems = async () => {
+  const { data, error } = await supabase
+    .from('engagement_action_items')
+    .select('*')
+    .order('created_at', { ascending: false })
+  return { data, error }
+}
+
 export const getPrayerRequestsByEngagement = async (engagementId: string) => {
   const { data, error } = await supabase
     .from('prayer_requests')

@@ -731,6 +731,7 @@ export default function DiscipleshipTracker() {
                   <PointsOfActionSection
                     refreshKey={refreshKey}
                     onPersonClick={(p, tab) => openPerson(p, tab)}
+                    onOpenEngagement={(engagement, personName) => setDetailEngagement({ engagement, personName })}
                   />
                 </ErrorBoundary>
               </div>
@@ -745,6 +746,7 @@ export default function DiscipleshipTracker() {
                 <PointsOfActionSection
                   refreshKey={refreshKey}
                   onPersonClick={(p, tab) => openPerson(p, tab)}
+                  onOpenEngagement={(engagement, personName) => setDetailEngagement({ engagement, personName })}
                 />
               </ErrorBoundary>
             </div>
