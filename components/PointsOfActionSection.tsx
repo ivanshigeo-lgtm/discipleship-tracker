@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { getPeople, getAllEngagements, getAllActionItems, updateActionItem } from '../lib/supabaseQueries'
 import type { Person, Stage, Engagement, ActionItem } from '../types/database'
+import { SectionSkeleton } from './Skeleton'
 
 interface PointsOfActionSectionProps {
   refreshKey?: number
@@ -127,7 +128,7 @@ export default function PointsOfActionSection({
 
   const openCount = rows.filter(r => !r.item.completed).length
 
-  if (loading) return null
+  if (loading) return <SectionSkeleton title="Points of Action" count={3} />
 
   return (
     <section className="cn-card mb-6 p-4">

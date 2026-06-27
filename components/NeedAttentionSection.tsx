@@ -10,6 +10,7 @@ import {
 import type { Person, Stage, Engagement, VictoryGroup } from '../types/database'
 import VictoryGroupsList from './VictoryGroupsList'
 import MeetingBadges, { type MeetingCounts } from './MeetingBadges'
+import { SectionSkeleton } from './Skeleton'
 
 interface MyOneToOnesSectionProps {
   refreshKey?: number
@@ -362,7 +363,7 @@ export default function NeedAttentionSection({
   }, [people, engagements, victoryGroups])
 
   if (loading) {
-    return null
+    return <SectionSkeleton title="My Meetings" />
   }
 
   return (

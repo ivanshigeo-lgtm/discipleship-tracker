@@ -35,6 +35,7 @@ import type {
   Stage,
 } from '../types/database'
 import { useAuth } from '../contexts/AuthContext'
+import { SectionSkeleton } from './Skeleton'
 
 interface EmergingTeamSectionProps {
   refreshKey?: number
@@ -435,12 +436,7 @@ export default function EmergingTeamSection({
   }
 
   if (loading) {
-    return (
-      <section className="cn-card mb-6 p-4">
-        <h2 className="cn-h3">Emerging Team</h2>
-        <p className="mt-2 text-sm text-[var(--fg-3)]">Loading...</p>
-      </section>
-    )
+    return <SectionSkeleton title="Emerging Team" />
   }
 
   if (people.length === 0) return null

@@ -24,6 +24,7 @@ import SoapCalendarSection from '../components/SoapCalendarSection'
 import { getSoapJournals, getAllDiscipleshipConnections, getPeople } from '../lib/supabaseQueries'
 import type { Person, SoapJournal, Stage, DiscipleshipConnection, Engagement } from '../types/database'
 import EngagementDetailModal from '../components/EngagementDetailModal'
+import { DashboardSkeleton } from '../components/Skeleton'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type SectionId = 'journey' | 'snapshot' | 'emerging' | 'engagements' | 'points' | 'groups' | 'prayer' | 'messages' | 'soaps'
@@ -404,16 +405,11 @@ export default function DiscipleshipTracker() {
 
   // ── Guard renders ──────────────────────────────────────────────────────────
   if (loading) {
-    return <div className="flex min-h-screen items-center justify-center"><p className="text-[var(--fg-2)]">Loading…</p></div>
+    return <DashboardSkeleton />
   }
   if (!user) return <LoginPage />
   if (!profile && profileLoading) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-2">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--gbm-cobalt-bright)] border-t-transparent" />
-        <p className="text-[var(--fg-2)]">Loading your data…</p>
-      </div>
-    )
+    return <DashboardSkeleton />
   }
   if (!profile) {
     return (
