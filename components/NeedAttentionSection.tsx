@@ -6,13 +6,15 @@ import {
   getAllEngagements,
   getVictoryGroups,
   getAllGroupMemberships,
+  getAllDiscipleshipConnections,
   updateEngagement,
 } from '../lib/supabaseQueries'
-import type { Person, Stage, Engagement, VictoryGroup } from '../types/database'
+import type { Person, Stage, Engagement, VictoryGroup, DiscipleshipConnection } from '../types/database'
 import VictoryGroupsList from './VictoryGroupsList'
 import MeetingBadges, { type MeetingCounts } from './MeetingBadges'
 import { SectionSkeleton } from './Skeleton'
 import { bookletStage } from '../lib/curriculum'
+import { useAuth } from '../contexts/AuthContext'
 
 interface MyOneToOnesSectionProps {
   refreshKey?: number
@@ -184,6 +186,10 @@ export default function NeedAttentionSection({
   const [engagements, setEngagements] = useState<Engagement[]>([])
   const [victoryGroups, setVictoryGroups] = useState<VictoryGroup[]>([])
   const [groupMemberships, setGroupMemberships] = useState<{ person_id: string; victory_group_id: string }[]>([])
+  const [connections, setConnections] = useState<DiscipleshipConnection[]>([])
+  const { profile } = useAuth()
+  // Badge scope: GBC = whole church, mine = my constellation / my groups.
+  const [badgeScope, setBadgeScope] = useState<'gbc' | 'mine'>('gbc')
   const [groupsKey, setGroupsKey] = useState(0)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
@@ -194,12 +200,13 @@ export default function NeedAttentionSection({
     setLoading(true)
     setLoadError(false)
     try {
-      const [peopleResult, engagementsResult, groupsResult, membershipsResult] = await Promise.race([
+      const [peopleResult, engagementsResult, groupsResult, membershipsResult, connectionsResult] = await Promise.race([
         Promise.all([
           getPeople(),
           getAllEngagements(),
           getVictoryGroups(),
           getAllGroupMemberships(),
+          getAllDiscipleshipConnections(),
         ]),
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000))
       ])
@@ -209,6 +216,7 @@ export default function NeedAttentionSection({
       if (engagementsResult.data) setEngagements(engagementsResult.data as Engagement[])
       if (groupsResult.data) setVictoryGroups(groupsResult.data as VictoryGroup[])
       if (membershipsResult.data) setGroupMemberships(membershipsResult.data as { person_id: string; victory_group_id: string }[])
+      if (connectionsResult.data) setConnections(connectionsResult.data as DiscipleshipConnection[])
     } catch (err) {
       console.error('NeedAttentionSection load error:', err)
       setLoadError(true)
@@ -291,10 +299,33 @@ export default function NeedAttentionSection({
   const overdueCount = meetings.filter(m => m.isOverdue).length
   const todayCount = meetings.filter(m => m.isToday).length
 
+  // My constellation = my downline (same definition as the Journey view).
+  const myCircleIds = useMemo(() => {
+    if (!profile?.id) return undefined
+    const ids = new Set<string>([profile.id])
+    let changed = true
+    while (changed) {
+      changed = false
+      for (const c of connections) {
+        if (c.disciple_person_id && ids.has(c.discipler_person_id) && !ids.has(c.disciple_person_id)) {
+          ids.add(c.disciple_person_id)
+          changed = true
+        }
+      }
+    }
+    for (const c of connections) {
+      if (c.disciple_person_id === profile.id) ids.add(c.discipler_person_id)
+    }
+    return ids
+  }, [connections, profile?.id])
+
   const meetingCounts = useMemo(() => {
     const now = new Date()
     const todayStr = now.toISOString().split('T')[0] // YYYY-MM-DD format
     const todayDayOfWeek = now.getDay()
+    // Scope helpers for the My/GBC toggle.
+    const scopePerson = (personId: string) => badgeScope === 'gbc' || !myCircleIds || myCircleIds.has(personId)
+    const scopeGroup = (group: VictoryGroup) => badgeScope === 'gbc' || group.owner_person_id === profile?.id
 
     // Tomorrow
     const tomorrow = new Date(now)
@@ -325,6 +356,7 @@ export default function NeedAttentionSection({
       .forEach(e => {
         const person = peopleById.get(e.person_id)
         if (!person) return
+        if (!scopePerson(e.person_id)) return
 
         const stage = person.current_stage
         const followUpDateStr = e.follow_up_date! // Already YYYY-MM-DD format (filtered above)
@@ -356,6 +388,8 @@ export default function NeedAttentionSection({
     }
 
     victoryGroups.forEach(group => {
+      if (!scopeGroup(group)) return
+      const memberCount = membersByGroupId.get(group.id) ?? 0
       if (group.meeting_day) {
         const meetingDayNum = dayMap[group.meeting_day]
         if (meetingDayNum !== undefined) {
@@ -368,15 +402,17 @@ export default function NeedAttentionSection({
           }
         }
       }
+      // Total people across all groups (shown on the Groups gem).
+      counts['Grace Groups'].groupPeople += memberCount
       // Fold this group's members into its focus stage.
       const stage = bookletStage(group.focus)
       if (stage) {
-        counts[stage].groupPeople += membersByGroupId.get(group.id) ?? 0
+        counts[stage].groupPeople += memberCount
       }
     })
 
     return counts
-  }, [people, engagements, victoryGroups, groupMemberships])
+  }, [people, engagements, victoryGroups, groupMemberships, badgeScope, myCircleIds, profile?.id])
 
   if (loading) {
     return <SectionSkeleton title="My Meetings" />
@@ -393,7 +429,22 @@ export default function NeedAttentionSection({
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <MeetingBadges counts={meetingCounts} />
+          <div className="flex flex-col items-center gap-1.5">
+            <MeetingBadges counts={meetingCounts} />
+            {/* Scope the badge totals: whole church vs my constellation/groups */}
+            <div className="flex rounded-full border border-[var(--line-2)] bg-[var(--indigo)] p-0.5">
+              {([['gbc', 'GBC'], ['mine', 'Mine']] as const).map(([val, label]) => (
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => setBadgeScope(val)}
+                  className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold transition-all ${badgeScope === val ? 'bg-[var(--gbm-cobalt-bright)] text-[var(--fg-1)]' : 'text-[var(--fg-2)] hover:text-[var(--fg-1)]'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="flex items-center gap-2">
             {overdueCount > 0 && (
               <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'rgba(242,114,138,.15)', color: '#F2728A' }}>
