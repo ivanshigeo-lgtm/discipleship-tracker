@@ -461,8 +461,8 @@ export default function VictoryGroupsList({
             const availablePeople = allPeople.filter(person => !memberIds.has(person.id))
             const isOpen = openGroupId === group.id
             const isAttendanceMode = attendanceGroupId === group.id
-            // Owner can transfer; admin can assign/transfer any (incl. unowned existing groups).
-            const canManageOwner = !!profile?.is_admin || group.owner_person_id === profile?.id
+            // Only the group's owner (or an admin) can edit the group.
+            const canManage = !!profile?.is_admin || group.owner_person_id === profile?.id
 
             return (
               <div
@@ -495,7 +495,7 @@ export default function VictoryGroupsList({
                       {group.meeting_day ?? ''}{group.meeting_time ? ` @ ${group.meeting_time}` : ''} · {memberships.length}
                     </span>
                   </button>
-                  {group.meeting_day && !group.google_calendar_event_id && (
+                  {canManage && group.meeting_day && !group.google_calendar_event_id && (
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); handleSyncGroupToCalendar(group) }}
@@ -510,39 +510,44 @@ export default function VictoryGroupsList({
 
                 {isOpen && (
                   <div className="space-y-3 border-t border-[var(--line-1)] p-2.5">
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          toggleAttendanceMode(group.id)
-                        }}
-                        className="flex-1 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all"
-                        style={{
-                          borderColor: isAttendanceMode ? 'var(--gbm-cobalt-bright)' : 'var(--line-2)',
-                          background: isAttendanceMode ? 'var(--gbm-cobalt-bright)' : 'var(--indigo-2)',
-                          color: 'var(--fg-1)',
-                        }}
-                      >
-                        {isAttendanceMode ? 'Cancel' : 'Attendance'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          handleEdit(group)
-                        }}
-                        className="flex-1 rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-3 py-1.5 text-xs font-semibold text-[var(--fg-1)] transition-all hover:border-[var(--line-3)]"
-                      >
-                        Edit
-                      </button>
-                    </div>
+                    {canManage && (
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            toggleAttendanceMode(group.id)
+                          }}
+                          className="flex-1 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all"
+                          style={{
+                            borderColor: isAttendanceMode ? 'var(--gbm-cobalt-bright)' : 'var(--line-2)',
+                            background: isAttendanceMode ? 'var(--gbm-cobalt-bright)' : 'var(--indigo-2)',
+                            color: 'var(--fg-1)',
+                          }}
+                        >
+                          {isAttendanceMode ? 'Cancel' : 'Attendance'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            handleEdit(group)
+                          }}
+                          className="flex-1 rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-3 py-1.5 text-xs font-semibold text-[var(--fg-1)] transition-all hover:border-[var(--line-3)]"
+                        >
+                          Edit
+                        </button>
+                      </div>
+                    )}
+                    {!canManage && (
+                      <p className="text-[11px] text-[var(--fg-3)]">View only — only {personName(group.owner_person_id)} can edit this group.</p>
+                    )}
 
                     {/* Ownership: a group lives in its owner's constellation */}
                     <div className="flex items-center gap-2 text-xs">
                       <span className="text-[var(--fg-3)]">Owner:</span>
                       <span className="font-semibold text-[var(--fg-1)]">{personName(group.owner_person_id)}</span>
-                      {canManageOwner && (
+                      {canManage && (
                         <div className="relative ml-auto" onClick={(e) => e.stopPropagation()}>
                           <button
                             type="button"
@@ -668,7 +673,7 @@ export default function VictoryGroupsList({
                                     </div>
                                   </button>
                                 </div>
-                                {!isAttendanceMode && (
+                                {!isAttendanceMode && canManage && (
                                   <button
                                     type="button"
                                     onClick={(event) => {
@@ -707,7 +712,7 @@ export default function VictoryGroupsList({
                           {savingAttendance ? 'Saving...' : `Submit Attendance (${Object.values(draftAttendance).filter(Boolean).length}/${sortedMemberships.length})`}
                         </button>
                       </div>
-                    ) : (
+                    ) : canManage ? (
                       <div onClick={(e) => e.stopPropagation()}>
                         <button
                           type="button"
@@ -768,7 +773,7 @@ export default function VictoryGroupsList({
                           )
                         })()}
                       </div>
-                    )}
+                    ) : null}
                   </div>
                 )}
               </div>
