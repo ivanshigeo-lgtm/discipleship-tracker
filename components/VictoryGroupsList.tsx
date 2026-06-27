@@ -13,8 +13,9 @@ import {
   upsertGroupAttendance,
   getGroupAttendance,
 } from '../lib/supabaseQueries'
-import type { Person, PersonVictoryGroupWithPerson, Stage, VictoryGroup, GroupAttendance } from '../types/database'
+import type { Person, PersonVictoryGroupWithPerson, Stage, VictoryGroup, GroupAttendance, Booklet } from '../types/database'
 import { stageLabels } from '../lib/stageLabels'
+import { BOOKLETS, bookletStage } from '../lib/curriculum'
 import { useAuth } from '../contexts/AuthContext'
 
 const meetingDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -60,6 +61,7 @@ export default function VictoryGroupsList({
   const [name, setName] = useState('')
   const [meetingDay, setMeetingDay] = useState('')
   const [meetingTime, setMeetingTime] = useState('')
+  const [focus, setFocus] = useState<Booklet | ''>('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [syncingGroupId, setSyncingGroupId] = useState<string | null>(null)
@@ -172,6 +174,7 @@ export default function VictoryGroupsList({
     setName('')
     setMeetingDay('')
     setMeetingTime('')
+    setFocus('')
     setEditingGroupId(null)
     setShowForm(false)
     setError('')
@@ -188,6 +191,7 @@ export default function VictoryGroupsList({
       name: name.trim(),
       meeting_day: meetingDay || null,
       meeting_time: meetingTime || null,
+      focus: (focus || null) as Booklet | null,
     }
 
     const result = editingGroupId
@@ -228,6 +232,7 @@ export default function VictoryGroupsList({
     setName(group.name)
     setMeetingDay(group.meeting_day ?? '')
     setMeetingTime(group.meeting_time ?? '')
+    setFocus(group.focus ?? '')
     setShowForm(true)
     // Make sure the group stays open to show members
     setOpenGroupId(group.id)
@@ -421,6 +426,17 @@ export default function VictoryGroupsList({
               onChange={e => setMeetingTime(e.target.value)}
               className="rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] p-2 text-sm text-[var(--fg-1)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
             />
+            {/* Focus: which booklet this group takes people through (sets the 4E stage) */}
+            <select
+              value={focus}
+              onChange={e => setFocus(e.target.value as Booklet | '')}
+              className="col-span-2 rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] p-2 text-sm text-[var(--fg-1)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
+            >
+              <option value="">Focus — General (no booklet)</option>
+              {BOOKLETS.map(b => (
+                <option key={b.key} value={b.key}>{b.label} → {b.stage}</option>
+              ))}
+            </select>
           </div>
         </div>
       )}
@@ -462,7 +478,18 @@ export default function VictoryGroupsList({
                     onClick={() => toggleGroup(group.id)}
                     className="flex flex-1 items-center justify-between gap-2 px-2.5 py-1.5 text-left"
                   >
-                    <span className="truncate text-sm font-semibold text-[var(--fg-1)]">{group.name}</span>
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="truncate text-sm font-semibold text-[var(--fg-1)]">{group.name}</span>
+                      {group.focus && bookletStage(group.focus) && (
+                        <span
+                          className="shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold"
+                          style={{ background: `${STAGE_COLORS[bookletStage(group.focus)!]}22`, color: STAGE_COLORS[bookletStage(group.focus)!] }}
+                          title={`${group.focus} · ${bookletStage(group.focus)}`}
+                        >
+                          {bookletStage(group.focus)} · {group.focus}
+                        </span>
+                      )}
+                    </span>
                     <span className="shrink-0 text-[10px] text-[var(--fg-3)]">
                       {group.google_calendar_event_id && <span title="Synced to Google Calendar">📅 </span>}
                       {group.meeting_day ?? ''}{group.meeting_time ? ` @ ${group.meeting_time}` : ''} · {memberships.length}

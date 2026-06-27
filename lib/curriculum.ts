@@ -25,6 +25,11 @@ export const TOTAL_CHAPTERS = BOOKLETS.reduce((sum, b) => sum + b.chapters, 0) /
 
 export const CURRICULUM_MEETING_TYPES: MeetingType[] = BOOKLETS.map(b => b.meetingType)
 
+// The 4E stage a group is working in, derived from the booklet it focuses on.
+export function bookletStage(focus: Booklet | null): Stage | null {
+  return BOOKLETS.find(b => b.key === focus)?.stage ?? null
+}
+
 export type MilestoneKey = 'saved' | 'baptized' | 'small_group' | 'serving_ministry' | 'assisting_group'
 
 export type MilestoneDef = { key: MilestoneKey; label: string }

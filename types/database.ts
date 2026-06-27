@@ -83,6 +83,7 @@ export type VictoryGroup = {
   meeting_time: string | null
   google_calendar_event_id: string | null
   owner_person_id: string | null
+  focus: Booklet | null
   created_at: string
 }
 

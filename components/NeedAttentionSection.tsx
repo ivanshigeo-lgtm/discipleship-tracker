@@ -5,12 +5,14 @@ import {
   getPeople,
   getAllEngagements,
   getVictoryGroups,
+  getAllGroupMemberships,
   updateEngagement,
 } from '../lib/supabaseQueries'
 import type { Person, Stage, Engagement, VictoryGroup } from '../types/database'
 import VictoryGroupsList from './VictoryGroupsList'
 import MeetingBadges, { type MeetingCounts } from './MeetingBadges'
 import { SectionSkeleton } from './Skeleton'
+import { bookletStage } from '../lib/curriculum'
 
 interface MyOneToOnesSectionProps {
   refreshKey?: number
@@ -181,6 +183,7 @@ export default function NeedAttentionSection({
   const [people, setPeople] = useState<Person[]>([])
   const [engagements, setEngagements] = useState<Engagement[]>([])
   const [victoryGroups, setVictoryGroups] = useState<VictoryGroup[]>([])
+  const [groupMemberships, setGroupMemberships] = useState<{ person_id: string; victory_group_id: string }[]>([])
   const [groupsKey, setGroupsKey] = useState(0)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
@@ -191,11 +194,12 @@ export default function NeedAttentionSection({
     setLoading(true)
     setLoadError(false)
     try {
-      const [peopleResult, engagementsResult, groupsResult] = await Promise.race([
+      const [peopleResult, engagementsResult, groupsResult, membershipsResult] = await Promise.race([
         Promise.all([
           getPeople(),
           getAllEngagements(),
           getVictoryGroups(),
+          getAllGroupMemberships(),
         ]),
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000))
       ])
@@ -204,6 +208,7 @@ export default function NeedAttentionSection({
       if (peopleResult.data) setPeople(peopleResult.data as Person[])
       if (engagementsResult.data) setEngagements(engagementsResult.data as Engagement[])
       if (groupsResult.data) setVictoryGroups(groupsResult.data as VictoryGroup[])
+      if (membershipsResult.data) setGroupMemberships(membershipsResult.data as { person_id: string; victory_group_id: string }[])
     } catch (err) {
       console.error('NeedAttentionSection load error:', err)
       setLoadError(true)
@@ -305,11 +310,11 @@ export default function NeedAttentionSection({
     const next7Str = next7.toISOString().split('T')[0]
 
     const counts: MeetingCounts = {
-      Engage: { today: 0, week: 0, names: [] },
-      Establish: { today: 0, week: 0, names: [] },
-      Equip: { today: 0, week: 0, names: [] },
-      Empower: { today: 0, week: 0, names: [] },
-      'Grace Groups': { today: 0, week: 0, names: [] },
+      Engage: { today: 0, week: 0, names: [], groupPeople: 0 },
+      Establish: { today: 0, week: 0, names: [], groupPeople: 0 },
+      Equip: { today: 0, week: 0, names: [], groupPeople: 0 },
+      Empower: { today: 0, week: 0, names: [], groupPeople: 0 },
+      'Grace Groups': { today: 0, week: 0, names: [], groupPeople: 0 },
     }
 
     const peopleById = new Map(people.map(p => [p.id, p]))
@@ -344,6 +349,12 @@ export default function NeedAttentionSection({
       'Thursday': 4, 'Friday': 5, 'Saturday': 6
     }
 
+    // People being moved through each 4E stage via groups (by group focus).
+    const membersByGroupId = new Map<string, number>()
+    for (const m of groupMemberships) {
+      membersByGroupId.set(m.victory_group_id, (membersByGroupId.get(m.victory_group_id) ?? 0) + 1)
+    }
+
     victoryGroups.forEach(group => {
       if (group.meeting_day) {
         const meetingDayNum = dayMap[group.meeting_day]
@@ -357,10 +368,15 @@ export default function NeedAttentionSection({
           }
         }
       }
+      // Fold this group's members into its focus stage.
+      const stage = bookletStage(group.focus)
+      if (stage) {
+        counts[stage].groupPeople += membersByGroupId.get(group.id) ?? 0
+      }
     })
 
     return counts
-  }, [people, engagements, victoryGroups])
+  }, [people, engagements, victoryGroups, groupMemberships])
 
   if (loading) {
     return <SectionSkeleton title="My Meetings" />

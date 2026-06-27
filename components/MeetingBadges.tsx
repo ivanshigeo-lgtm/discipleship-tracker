@@ -3,12 +3,13 @@
 import type { ReactNode } from 'react'
 import type { Stage } from '../types/database'
 
+type StageCount = { today: number; week: number; names: string[]; groupPeople: number }
 type MeetingCounts = {
-  Engage: { today: number; week: number; names: string[] }
-  Establish: { today: number; week: number; names: string[] }
-  Equip: { today: number; week: number; names: string[] }
-  Empower: { today: number; week: number; names: string[] }
-  'Grace Groups': { today: number; week: number; names: string[] }
+  Engage: StageCount
+  Establish: StageCount
+  Equip: StageCount
+  Empower: StageCount
+  'Grace Groups': StageCount
 }
 
 interface MeetingBadgesProps {
@@ -75,7 +76,7 @@ const STAGE_ICONS: Record<string, ({ color }: { color: string }) => ReactNode> =
   'Grace Groups': GroupIcon,
 }
 
-function GemBadge({ label, today, week, names, color }: { label: string; today: number; week: number; names: string[]; color: string }) {
+function GemBadge({ label, today, week, names, color, groupPeople }: { label: string; today: number; week: number; names: string[]; color: string; groupPeople: number }) {
   const Icon = STAGE_ICONS[label === 'Groups' ? 'Grace Groups' : label]
   const uniqueNames = [...new Set(names)]
 
@@ -117,6 +118,17 @@ function GemBadge({ label, today, week, names, color }: { label: string; today: 
         </div>
       </div>
       <span className="text-[11px] text-[var(--fg-3)]">{label}</span>
+      {/* People being moved through this stage via groups */}
+      {groupPeople > 0 && (
+        <span className="flex items-center gap-0.5 text-[10px] font-semibold" style={{ color }} title={`${groupPeople} in groups`}>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+          </svg>
+          {groupPeople}
+        </span>
+      )}
 
       {/* Hover tooltip */}
       {uniqueNames.length > 0 && (
@@ -146,6 +158,7 @@ export default function MeetingBadges({ counts }: MeetingBadgesProps) {
           today={counts[stage].today}
           week={counts[stage].week}
           names={counts[stage].names}
+          groupPeople={counts[stage].groupPeople}
           color={STAGE_COLORS[stage]}
         />
       ))}
