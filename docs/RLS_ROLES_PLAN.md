@@ -144,29 +144,37 @@ create policy "prayer read" on prayer_requests for select using (
 4. Keep a one-line rollback per table (`using (true)`) ready during cutover.
 
 ## Resolved decisions (Jonavan, Jun 26 2026)
-- **D1 — Church directory: ✅ minimal directory for all.** Add a
-  `people_directory` view (id, name, current_stage only) readable by any
-  authenticated user. The base `people` table (with PII: email/phone/notes/
-  spiritual_birthday/baptism_date) is **self + coach(downline) + admin** only.
-  Repoint broad client reads (search, group member lists, GBC views) at the view.
+- **D1 — Church directory: ✅ name + color only (no stage names).** Add a
+  `people_directory` view exposing **id, name, and `stage_color` (hex)** — the
+  stage *name* is NOT exposed (the view maps current_stage → color in SQL so the
+  raw word never leaves the DB to general viewers). Readable by any authenticated
+  user. The base `people` table (PII + the literal stage) is **self +
+  coach(downline) + admin** only. Repoint broad client reads (search, group
+  member lists, GBC views) at the view; the colored dot renders from `stage_color`.
 - **D2 — Coach = Empower stage.** `app.is_coach()` = `current_stage = 'Empower'`
   OR `is_admin()`. A person reaches Empower automatically through the process or a
   coach sets it manually (existing stage controls). Downline (which people a coach
   sees) is still derived from `discipleship_connections`.
-- **D3 — Groups: browse read-only, NO self-join.** `victory_groups` SELECT = any
-  authenticated; `person_victory_groups` INSERT/DELETE = **group owner or admin
-  only** (remove self-join). ⚠️ Requires a UI change: the disciple "Join a Grace
-  Group" modal becomes **"Request to join"** → notifies the owner (message), who
-  adds them. (Owner-add already exists in VictoryGroupsList.)
+- **D3 — Groups: owner-managed, NO self-join.** `victory_groups` SELECT = any
+  authenticated (browse read-only); `person_victory_groups` INSERT/DELETE =
+  **group owner or admin only**. The owner adds members directly — **members do
+  not add themselves**. A leader can create and fully manage a group whose members
+  may **not be app users at all** (people rows without `auth_user_id`); RLS allows
+  the owner to add any person regardless of login status. ⚠️ UI change: the
+  disciple "Join a Grace Group" modal becomes **browse-only** (self-join removed).
+  A "request to join" notification to the owner is optional/nice-to-have.
 - **D4 — Multi-admin: ✅ build it.** Add an admin-only control on a person's
   profile to toggle `is_admin`. RLS: only admins may set `is_admin`. Build
   alongside the RLS migration.
 
 ### Companion UI work (beyond the migration)
-1. **Request-to-join flow** (D3): convert immediate self-join → request that
-   pings the group owner; owner approves by adding the member.
+1. **Remove disciple self-join** (D3): disciple "Join a Grace Group" becomes
+   browse-only; owners add members (incl. non-app-users). Optional: a request
+   notification to the owner.
 2. **Admin management UI** (D4): is_admin toggle on PersonProfileModal, admin-gated.
-3. **Directory view repoint** (D1): switch broad people reads to `people_directory`.
+3. **Directory view repoint** (D1): `people_directory` exposes id, name,
+   stage_color (hex) only; switch broad people reads to it; colored dot renders
+   from stage_color (no stage name shown).
 
 ## Effort estimate
 ~1 focused build session for helpers + policies + the directory view, plus a
