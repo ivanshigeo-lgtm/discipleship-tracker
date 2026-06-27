@@ -296,16 +296,12 @@ export default function NeedAttentionSection({
     const tomorrowStr = tomorrow.toISOString().split('T')[0]
     const tomorrowDayOfWeek = tomorrow.getDay()
 
-    // Get Monday of current week
-    const monday = new Date(now)
-    monday.setHours(0, 0, 0, 0)
-    monday.setDate(now.getDate() - (todayDayOfWeek === 0 ? 6 : todayDayOfWeek - 1))
-    const mondayStr = monday.toISOString().split('T')[0]
-
-    // Get Sunday of current week
-    const sunday = new Date(monday)
-    sunday.setDate(monday.getDate() + 6)
-    const sundayStr = sunday.toISOString().split('T')[0]
+    // Rolling 7-day window: today through today + 7 (matches the meetings list).
+    const todayStart = new Date(now)
+    todayStart.setHours(0, 0, 0, 0)
+    const next7 = new Date(todayStart)
+    next7.setDate(todayStart.getDate() + 7)
+    const next7Str = next7.toISOString().split('T')[0]
 
     const counts: MeetingCounts = {
       Engage: { today: 0, week: 0, names: [] },
@@ -327,17 +323,15 @@ export default function NeedAttentionSection({
         const stage = person.current_stage
         const followUpDateStr = e.follow_up_date! // Already YYYY-MM-DD format (filtered above)
 
-        // Check if meeting was scheduled for today or this week
-        const isThisWeek = followUpDateStr >= mondayStr && followUpDateStr <= sundayStr
+        // Today, or within the rolling next-7-days window
+        const isInWindow = followUpDateStr >= todayStr && followUpDateStr <= next7Str
         const isToday = followUpDateStr === todayStr
 
-        // Count all meetings scheduled today (pending or completed)
         if (isToday) {
           counts[stage].today++
         }
 
-        // Count all meetings (pending or completed) scheduled this week
-        if (isThisWeek) {
+        if (isInWindow) {
           counts[stage].week++
           counts[stage].names.push(person.name)
         }
