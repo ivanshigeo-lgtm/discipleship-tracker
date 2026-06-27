@@ -305,7 +305,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
 
   return (
     <>
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '680px', width: '100%', marginLeft: 'auto', marginRight: 'auto' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
 
       {/* ── Top bar ── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
@@ -588,36 +588,27 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
             >›</button>
           </div>
 
-          {/* Three month grids side by side */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: '0',
-            padding: '12px 8px 10px',
-          }}>
-            {calendarMonths.map(({ year, month, days }, colIdx) => (
-              <div
-                key={`${year}-${month}`}
-                style={{
-                  borderRight: colIdx < 2 ? '1px solid var(--line-2)' : 'none',
-                  paddingLeft: colIdx === 0 ? '0' : '6px',
-                  paddingRight: colIdx === 2 ? '0' : '6px',
-                }}
-              >
+          {/* Three months: side by side on desktop, stacked on mobile */}
+          <div
+            className="grid grid-cols-1 gap-6 md:grid-cols-3 md:gap-5"
+            style={{ padding: '14px 12px 12px' }}
+          >
+            {calendarMonths.map(({ year, month, days }) => (
+              <div key={`${year}-${month}`}>
                 {/* Month label */}
                 <div style={{
-                  textAlign: 'center', fontSize: '11px', fontWeight: 700,
+                  textAlign: 'center', fontSize: '13px', fontWeight: 700,
                   color: 'var(--fg-2)', letterSpacing: '0.06em',
-                  textTransform: 'uppercase', marginBottom: '6px',
+                  textTransform: 'uppercase', marginBottom: '8px',
                 }}>
                   {MONTH_NAMES[month]}
                 </div>
 
                 {/* Day-of-week header */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', marginBottom: '2px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', marginBottom: '4px' }}>
                   {DAY_HEADERS.map((d, i) => (
                     <div key={i} style={{
-                      textAlign: 'center', fontSize: '9px', fontWeight: 700,
+                      textAlign: 'center', fontSize: '11px', fontWeight: 700,
                       color: 'var(--fg-3)', letterSpacing: '0.08em',
                       textTransform: 'uppercase', paddingBottom: '4px',
                     }}>
@@ -627,7 +618,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
                 </div>
 
                 {/* Day cells */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '1px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px' }}>
                   {days.map(({ dateIso, dayNum, inMonth }) => {
                     const hasSoap = soapMap.has(dateIso)
                     const isSelected = selectedDate === dateIso
@@ -683,9 +674,9 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
                           color: inMonth ? (isFuture ? 'var(--fg-3)' : 'var(--fg-1)') : 'var(--fg-3)',
                           opacity: inMonth ? 1 : 0.20,
                           cursor: isClickable ? 'pointer' : 'default',
-                          fontSize: '11px',
+                          fontSize: '14px',
                           fontWeight: isEndpoint ? 700 : isToday ? 700 : 400,
-                          minHeight: '34px',
+                          minHeight: '46px',
                           transition: 'background 80ms ease',
                           outline: 'none',
                         }}
