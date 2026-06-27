@@ -505,7 +505,7 @@ export default function DiscipleshipTracker() {
                   <div>
                     <div className="flex flex-wrap items-center gap-3">
                       <h2 className="cn-h3">Our Journey</h2>
-                      <CurriculumBadgesSection refreshKey={refreshKey} />
+                      <CurriculumBadgesSection refreshKey={refreshKey} allowedPersonIds={allowedPersonIds} />
                     </div>
                     <p className="mt-1 text-xs text-[var(--fg-2)] sm:text-sm">
                       {circleView === 'pipeline' ? 'Move people through stages with the coaching pipeline.' : 'Visualize people moving toward Christ together.'}
@@ -599,7 +599,7 @@ export default function DiscipleshipTracker() {
                 </div>
 
                 <ErrorBoundary name="PipelineMomentum">
-                  <PipelineMomentum refreshKey={refreshKey} />
+                  <PipelineMomentum refreshKey={refreshKey} allowedPersonIds={allowedPersonIds} />
                 </ErrorBoundary>
 
                 {circleView === 'pipeline' && (

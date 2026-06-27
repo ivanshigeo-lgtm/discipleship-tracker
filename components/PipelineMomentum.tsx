@@ -1,9 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { getPeople, getAllStageChecklistItems, getPipelineEvents, getAllDiscipleshipConnections } from '../lib/supabaseQueries'
-import type { Person, StageChecklistItem, PipelineEvent, Stage, DiscipleshipConnection } from '../types/database'
-import { useAuth } from '../contexts/AuthContext'
+import { getPeople, getAllStageChecklistItems, getPipelineEvents } from '../lib/supabaseQueries'
+import type { Person, StageChecklistItem, PipelineEvent, Stage } from '../types/database'
 
 const STAGE_COLORS: Record<Stage, string> = {
   Engage: '#F4B650', Establish: '#36D6C3', Equip: '#5B8DF7', Empower: '#F0729F',
@@ -25,55 +24,34 @@ function Stat({ value, label, sub, color }: { value: string | number; label: str
   )
 }
 
-export default function PipelineMomentum({ refreshKey = 0 }: { refreshKey?: number }) {
-  const { profile } = useAuth()
+export default function PipelineMomentum({ refreshKey = 0, allowedPersonIds }: { refreshKey?: number; allowedPersonIds?: string[] }) {
   const [people, setPeople] = useState<Person[]>([])
   const [items, setItems] = useState<StageChecklistItem[]>([])
   const [events, setEvents] = useState<PipelineEvent[]>([])
-  const [connections, setConnections] = useState<DiscipleshipConnection[]>([])
   const [loading, setLoading] = useState(true)
   const [periodKey, setPeriodKey] = useState('90')
-  const [scope, setScope] = useState<'gbc' | 'mine'>('gbc')
+  const [isExpanded, setIsExpanded] = useState(true)
 
   useEffect(() => {
     let alive = true
     ;(async () => {
-      const [p, i, e, c] = await Promise.all([getPeople(), getAllStageChecklistItems(), getPipelineEvents(), getAllDiscipleshipConnections()])
+      const [p, i, e] = await Promise.all([getPeople(), getAllStageChecklistItems(), getPipelineEvents()])
       if (!alive) return
       if (p.data) setPeople(p.data as Person[])
       if (i.data) setItems(i.data as StageChecklistItem[])
       if (e.data) setEvents(e.data as PipelineEvent[])
-      if (c.data) setConnections(c.data as DiscipleshipConnection[])
       setLoading(false)
     })()
     return () => { alive = false }
   }, [refreshKey])
-
-  // My constellation = my downline (same definition as the Journey view).
-  const myCircleIds = useMemo(() => {
-    if (!profile?.id) return undefined
-    const ids = new Set<string>([profile.id])
-    let changed = true
-    while (changed) {
-      changed = false
-      for (const c of connections) {
-        if (c.disciple_person_id && ids.has(c.discipler_person_id) && !ids.has(c.disciple_person_id)) {
-          ids.add(c.disciple_person_id); changed = true
-        }
-      }
-    }
-    for (const c of connections) {
-      if (c.disciple_person_id === profile.id) ids.add(c.discipler_person_id)
-    }
-    return ids
-  }, [connections, profile?.id])
 
   const period = PERIODS.find(p => p.key === periodKey)!
 
   const data = useMemo(() => {
     const cutoff = Date.now() - period.days * 24 * 3600 * 1000
     const inWindow = (iso?: string | null) => !!iso && new Date(iso).getTime() >= cutoff
-    const allow = scope === 'mine' && myCircleIds ? myCircleIds : null
+    // Scoped by the page-level GBC / My Constellation toggle.
+    const allow = allowedPersonIds ? new Set(allowedPersonIds) : null
     const inScope = (personId: string) => !allow || allow.has(personId)
 
     const newPeople = people.filter(p => inScope(p.id) && inWindow(p.created_at)).length
@@ -115,7 +93,7 @@ export default function PipelineMomentum({ refreshKey = 0 }: { refreshKey?: numb
     const maxWeek = Math.max(1, ...series)
 
     return { newPeople, completions, empoweredInPeriod, perWeek, avgWeeks, dist, total, series, maxWeek }
-  }, [people, items, events, period, scope, myCircleIds])
+  }, [people, items, events, period, allowedPersonIds])
 
   if (loading) {
     return (
@@ -136,33 +114,27 @@ export default function PipelineMomentum({ refreshKey = 0 }: { refreshKey?: numb
           <p className="text-xs text-[var(--fg-3)]">How fast people are moving through the pipeline</p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex rounded-full border border-[var(--line-2)] bg-[var(--indigo)] p-0.5">
-            {([['gbc', 'GBC Constellation'], ['mine', 'My Constellation']] as const).map(([val, label]) => (
-              <button
-                key={val}
-                type="button"
-                onClick={() => setScope(val)}
-                className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-all ${scope === val ? 'bg-[var(--gbm-cobalt-bright)] text-[var(--fg-1)]' : 'text-[var(--fg-2)] hover:text-[var(--fg-1)]'}`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <div className="flex rounded-full border border-[var(--line-2)] bg-[var(--indigo)] p-0.5">
-            {PERIODS.map(p => (
-              <button
-                key={p.key}
-                type="button"
-                onClick={() => setPeriodKey(p.key)}
-                className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-all ${periodKey === p.key ? 'bg-[var(--gbm-cobalt-bright)] text-[var(--fg-1)]' : 'text-[var(--fg-2)] hover:text-[var(--fg-1)]'}`}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
+          {isExpanded && (
+            <div className="flex rounded-full border border-[var(--line-2)] bg-[var(--indigo)] p-0.5">
+              {PERIODS.map(p => (
+                <button
+                  key={p.key}
+                  type="button"
+                  onClick={() => setPeriodKey(p.key)}
+                  className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-all ${periodKey === p.key ? 'bg-[var(--gbm-cobalt-bright)] text-[var(--fg-1)]' : 'text-[var(--fg-2)] hover:text-[var(--fg-1)]'}`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          )}
+          <button type="button" onClick={() => setIsExpanded(v => !v)} className="cn-chip">
+            {isExpanded ? 'Collapse' : 'Expand'}
+          </button>
         </div>
       </div>
 
+      {isExpanded && (<>
       <div className="grid gap-2 sm:grid-cols-4">
         <Stat value={data.newPeople} label="New people" sub={`added in ${period.label}`} color="var(--equip)" />
         <Stat value={data.completions} label="Milestones completed" sub={`~${data.perWeek.toFixed(1)}/week`} color="var(--establish)" />
@@ -226,6 +198,7 @@ export default function PipelineMomentum({ refreshKey = 0 }: { refreshKey?: numb
           Stage-transition tracking starts now — “Reached Empower” and “Avg time to Empower” fill in as people advance.
         </p>
       )}
+      </>)}
     </section>
   )
 }

@@ -7,9 +7,10 @@ import EngagementBadges, { type CurriculumCounts } from './EngagementBadges'
 
 interface CurriculumBadgesSectionProps {
   refreshKey?: number
+  allowedPersonIds?: string[]
 }
 
-export default function CurriculumBadgesSection({ refreshKey = 0 }: CurriculumBadgesSectionProps) {
+export default function CurriculumBadgesSection({ refreshKey = 0, allowedPersonIds }: CurriculumBadgesSectionProps) {
   const [people, setPeople] = useState<Person[]>([])
   const [engagements, setEngagements] = useState<Engagement[]>([])
   const [checklistItems, setChecklistItems] = useState<StageChecklistItem[]>([])
@@ -32,6 +33,9 @@ export default function CurriculumBadgesSection({ refreshKey = 0 }: CurriculumBa
 
   const completedData = useMemo(() => {
     const peopleById = new Map(people.map(p => [p.id, p]))
+    // Scoped by the page-level GBC / My Constellation toggle.
+    const allow = allowedPersonIds ? new Set(allowedPersonIds) : null
+    const inScope = (personId: string) => !allow || allow.has(personId)
 
     const counts: CurriculumCounts = {
       'One2One': 0,
@@ -57,7 +61,7 @@ export default function CurriculumBadgesSection({ refreshKey = 0 }: CurriculumBa
     }
 
     checklistItems
-      .filter(item => item.completed && item.label in curriculumLabels)
+      .filter(item => item.completed && item.label in curriculumLabels && inScope(item.person_id))
       .forEach(item => {
         const curriculumType = curriculumLabels[item.label]
         if (curriculumType) {
@@ -70,7 +74,7 @@ export default function CurriculumBadgesSection({ refreshKey = 0 }: CurriculumBa
       })
 
     engagements
-      .filter(e => e.status === 'Completed' && e.meeting_type === 'Coffee')
+      .filter(e => e.status === 'Completed' && e.meeting_type === 'Coffee' && inScope(e.person_id))
       .forEach(e => {
         const person = peopleById.get(e.person_id)
         if (person && !names['Coffee'].includes(person.name)) {
@@ -80,7 +84,7 @@ export default function CurriculumBadgesSection({ refreshKey = 0 }: CurriculumBa
       })
 
     return { counts, names }
-  }, [checklistItems, engagements, people])
+  }, [checklistItems, engagements, people, allowedPersonIds])
 
   return <EngagementBadges completedCounts={completedData.counts} completedNames={completedData.names} />
 }
