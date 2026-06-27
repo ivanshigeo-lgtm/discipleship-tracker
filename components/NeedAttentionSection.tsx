@@ -378,13 +378,13 @@ export default function NeedAttentionSection({
           }
         }
       }
-      // Fold members into the focus stage. The Groups gem total is the sum of
-      // these, so the badges reconcile (General/unfocused groups aren't counted —
-      // give a group a focus to include it).
+      // Groups gem total = everyone in the scoped groups (so GBC, with more
+      // groups, is higher than Mine). Focused groups also fold into their stage;
+      // the gap between the total and the stage badges is unfocused/General groups.
+      counts['Grace Groups'].groupPeople += memberCount
       const stage = bookletStage(group.focus)
       if (stage) {
         counts[stage].groupPeople += memberCount
-        counts['Grace Groups'].groupPeople += memberCount
       }
     })
 
