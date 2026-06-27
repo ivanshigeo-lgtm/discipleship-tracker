@@ -76,7 +76,19 @@ export default function PipelineMomentum({ refreshKey = 0 }: { refreshKey?: numb
       total++
     }
 
-    return { newPeople, completions, empoweredInPeriod, perWeek, avgWeeks, dist, total }
+    // Weekly milestone-completion series across the window (oldest → newest).
+    const weekMs = 7 * 24 * 3600 * 1000
+    const numWeeks = Math.max(1, Math.round(period.days / 7))
+    const series = new Array(numWeeks).fill(0)
+    const nowMs = Date.now()
+    for (const it of items) {
+      if (!it.completed || !it.label.startsWith('Completed ') || !it.completed_at) continue
+      const weeksAgo = Math.floor((nowMs - new Date(it.completed_at).getTime()) / weekMs)
+      if (weeksAgo >= 0 && weeksAgo < numWeeks) series[numWeeks - 1 - weeksAgo]++
+    }
+    const maxWeek = Math.max(1, ...series)
+
+    return { newPeople, completions, empoweredInPeriod, perWeek, avgWeeks, dist, total, series, maxWeek }
   }, [people, items, events, period])
 
   if (loading) {
@@ -116,6 +128,35 @@ export default function PipelineMomentum({ refreshKey = 0 }: { refreshKey?: numb
         <Stat value={data.completions} label="Milestones completed" sub={`~${data.perWeek.toFixed(1)}/week`} color="var(--establish)" />
         <Stat value={data.empoweredInPeriod} label="Reached Empower" sub="from stage log" color="var(--empower)" />
         <Stat value={data.avgWeeks != null ? `${data.avgWeeks}w` : '—'} label="Avg time to Empower" sub={data.avgWeeks == null ? 'builds as people advance' : 'added → Empowered'} />
+      </div>
+
+      {/* Weekly milestone-completion trend */}
+      <div className="mt-4">
+        <div className="mb-1.5 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wide text-[var(--fg-3)]">
+          <span>Milestones / week</span>
+          <span>peak {data.maxWeek}</span>
+        </div>
+        <div className="flex h-12 items-end gap-px">
+          {data.series.map((v, i) => {
+            const isLast = i === data.series.length - 1
+            return (
+              <div
+                key={i}
+                className="flex-1 rounded-t-sm transition-all"
+                style={{
+                  height: `${(v / data.maxWeek) * 100}%`,
+                  minHeight: v > 0 ? '3px' : '1px',
+                  background: v > 0 ? (isLast ? 'var(--establish)' : 'rgba(54,214,195,.55)') : 'var(--indigo-3)',
+                }}
+                title={`${v} milestone${v === 1 ? '' : 's'}${isLast ? ' (this week)' : ''}`}
+              />
+            )
+          })}
+        </div>
+        <div className="mt-1 flex justify-between text-[9px] text-[var(--fg-3)]">
+          <span>{data.series.length}w ago</span>
+          <span>this week</span>
+        </div>
       </div>
 
       {/* Current distribution across the pipeline */}
