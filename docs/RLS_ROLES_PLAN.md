@@ -4,6 +4,9 @@ Status: **DRAFT / not implemented.** Goal: before public / app-store launch,
 replace the wide-open `using (true)` policies with real per-row enforcement so
 the exposed anon key can't be used to read/write data it shouldn't.
 
+
+> **Progress:** `google_calendar_tokens` and `invite_tokens` locked down to service-role-only on Jun 26 2026 (verified: anon denied, server unaffected). Remaining tables per the matrix below are pending launch-prep.
+
 ## Current state (verified against live DB)
 - RLS is **enabled** on all 18 tables, but every policy is effectively
   `using (true) / with check (true)` → anyone with the anon key can do anything.
