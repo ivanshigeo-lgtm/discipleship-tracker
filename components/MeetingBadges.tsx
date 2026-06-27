@@ -25,7 +25,7 @@ const STAGE_COLORS: Record<string, string> = {
 
 // Coffee cup icon for Engage
 const CoffeeIcon = ({ color }: { color: string }) => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M17 8h1a4 4 0 1 1 0 8h-1" />
     <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z" />
     <line x1="6" y1="2" x2="6" y2="4" />
@@ -36,7 +36,7 @@ const CoffeeIcon = ({ color }: { color: string }) => (
 
 // Open book icon for Establish
 const BookIcon = ({ color }: { color: string }) => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
     <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
   </svg>
@@ -44,14 +44,14 @@ const BookIcon = ({ color }: { color: string }) => (
 
 // Flame/torch icon for Equip
 const FlameIcon = ({ color }: { color: string }) => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />
   </svg>
 )
 
 // Cross/plus icon for Empower
 const CrossIcon = ({ color }: { color: string }) => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
     <line x1="12" y1="5" x2="12" y2="19" />
     <line x1="5" y1="12" x2="19" y2="12" />
   </svg>
@@ -59,7 +59,7 @@ const CrossIcon = ({ color }: { color: string }) => (
 
 // People icon for Grace Groups
 const GroupIcon = ({ color }: { color: string }) => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
     <circle cx="9" cy="7" r="4" />
     <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
@@ -83,7 +83,7 @@ function GemBadge({ label, today, week, names, color }: { label: string; today: 
     <div className="group relative flex flex-col items-center gap-1">
       <div className="relative">
         {/* Hexagon gem shape */}
-        <svg width="44" height="50" viewBox="0 0 44 50" className="drop-shadow-sm">
+        <svg width="53" height="60" viewBox="0 0 44 50" className="drop-shadow-sm">
           <defs>
             <linearGradient id={`grad-${label}`} x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor={color} stopOpacity="0.3" />
@@ -103,20 +103,20 @@ function GemBadge({ label, today, week, names, color }: { label: string; today: 
         </div>
         {/* Today's count badge (bottom right) */}
         <div
-          className="absolute -bottom-1 -right-1 flex items-center gap-0.5 rounded-full px-1 py-0.5 text-[8px] font-bold"
+          className="absolute -bottom-1 -right-1 flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold"
           style={{ background: 'var(--indigo-2)', border: `1.5px solid ${color}`, color }}
         >
           {today}<span className="font-normal opacity-70">today</span>
         </div>
         {/* Week count badge (top right) */}
         <div
-          className="absolute -right-1 -top-1 flex items-center gap-0.5 rounded-full px-1 py-0.5 text-[8px] font-bold"
+          className="absolute -right-1 -top-1 flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold"
           style={{ background: color, color: 'var(--void)' }}
         >
           {week}<span className="font-normal opacity-70">wk</span>
         </div>
       </div>
-      <span className="text-[9px] text-[var(--fg-3)]">{label}</span>
+      <span className="text-[11px] text-[var(--fg-3)]">{label}</span>
 
       {/* Hover tooltip */}
       {uniqueNames.length > 0 && (
@@ -138,7 +138,7 @@ export default function MeetingBadges({ counts }: MeetingBadgesProps) {
   const stages: (keyof MeetingCounts)[] = ['Engage', 'Establish', 'Equip', 'Empower', 'Grace Groups']
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-3">
       {stages.map(stage => (
         <GemBadge
           key={stage}
