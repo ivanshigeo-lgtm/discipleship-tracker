@@ -13,9 +13,9 @@ import {
   upsertGroupAttendance,
   getGroupAttendance,
 } from '../lib/supabaseQueries'
-import type { Person, PersonVictoryGroupWithPerson, Stage, VictoryGroup, GroupAttendance, Booklet } from '../types/database'
+import type { Person, PersonVictoryGroupWithPerson, Stage, VictoryGroup, GroupAttendance, GroupFocus } from '../types/database'
 import { stageLabels } from '../lib/stageLabels'
-import { BOOKLETS, bookletStage } from '../lib/curriculum'
+import { GROUP_FOCUS_OPTIONS, bookletStage } from '../lib/curriculum'
 import { useAuth } from '../contexts/AuthContext'
 
 const meetingDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -61,7 +61,7 @@ export default function VictoryGroupsList({
   const [name, setName] = useState('')
   const [meetingDay, setMeetingDay] = useState('')
   const [meetingTime, setMeetingTime] = useState('')
-  const [focus, setFocus] = useState<Booklet | ''>('')
+  const [focus, setFocus] = useState<GroupFocus | ''>('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [syncingGroupId, setSyncingGroupId] = useState<string | null>(null)
@@ -191,7 +191,7 @@ export default function VictoryGroupsList({
       name: name.trim(),
       meeting_day: meetingDay || null,
       meeting_time: meetingTime || null,
-      focus: (focus || null) as Booklet | null,
+      focus: (focus || null) as GroupFocus | null,
     }
 
     const result = editingGroupId
@@ -429,12 +429,12 @@ export default function VictoryGroupsList({
             {/* Focus: which booklet this group takes people through (sets the 4E stage) */}
             <select
               value={focus}
-              onChange={e => setFocus(e.target.value as Booklet | '')}
+              onChange={e => setFocus(e.target.value as GroupFocus | '')}
               className="col-span-2 rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] p-2 text-sm text-[var(--fg-1)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
             >
               <option value="">Focus — General (no booklet)</option>
-              {BOOKLETS.map(b => (
-                <option key={b.key} value={b.key}>{b.label} → {b.stage}</option>
+              {GROUP_FOCUS_OPTIONS.map(o => (
+                <option key={o.key} value={o.key}>{o.label} → {o.stage}</option>
               ))}
             </select>
           </div>

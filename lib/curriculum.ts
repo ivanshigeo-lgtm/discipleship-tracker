@@ -3,7 +3,7 @@
 // chapter-based booklets below plus five non-chapter milestones. Leadership 113
 // (1yr) and Leadership 215 (2yr) are supplementary and intentionally excluded.
 
-import type { Booklet, Stage, MeetingType } from '../types/database'
+import type { Booklet, GroupFocus, Stage, MeetingType } from '../types/database'
 
 export type BookletDef = {
   key: Booklet
@@ -25,9 +25,17 @@ export const TOTAL_CHAPTERS = BOOKLETS.reduce((sum, b) => sum + b.chapters, 0) /
 
 export const CURRICULUM_MEETING_TYPES: MeetingType[] = BOOKLETS.map(b => b.meetingType)
 
-// The 4E stage a group is working in, derived from the booklet it focuses on.
-export function bookletStage(focus: Booklet | null): Stage | null {
-  return BOOKLETS.find(b => b.key === focus)?.stage ?? null
+// Group focus options = the curriculum booklets plus SOAPS (an Engage-stage
+// rhythm, not a chapter booklet). Drives the group Focus dropdown and the 4E
+// stage a group's members are counted toward.
+export const GROUP_FOCUS_OPTIONS: { key: GroupFocus; label: string; stage: Stage }[] = [
+  ...BOOKLETS.map(b => ({ key: b.key as GroupFocus, label: b.label, stage: b.stage })),
+  { key: 'SOAPS', label: 'SOAPS', stage: 'Engage' },
+]
+
+// The 4E stage a group is working in, derived from its focus.
+export function bookletStage(focus: GroupFocus | null): Stage | null {
+  return GROUP_FOCUS_OPTIONS.find(o => o.key === focus)?.stage ?? null
 }
 
 export type MilestoneKey = 'saved' | 'baptized' | 'small_group' | 'serving_ministry' | 'assisting_group'

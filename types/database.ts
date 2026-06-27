@@ -6,6 +6,10 @@ export type MeetingType = 'One2One' | 'Making Disciples' | 'Coffee' | 'Church Co
 // Chapter-based booklets on the path to Empowered leadership.
 export type Booklet = 'One2One' | 'Church Community' | 'Making Disciples' | 'Empowering Leadership'
 
+// What a Grace Group focuses on: a curriculum booklet, or SOAPS (an Engage-stage
+// rhythm that isn't a chapter booklet).
+export type GroupFocus = Booklet | 'SOAPS'
+
 export type BookletProgress = {
   id: string
   person_id: string
@@ -83,7 +87,7 @@ export type VictoryGroup = {
   meeting_time: string | null
   google_calendar_event_id: string | null
   owner_person_id: string | null
-  focus: Booklet | null
+  focus: GroupFocus | null
   created_at: string
 }
 
