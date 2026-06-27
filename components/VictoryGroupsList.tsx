@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   addPersonToVictoryGroup,
   addVictoryGroup,
@@ -49,6 +49,7 @@ export default function VictoryGroupsList({
   // Searchable add-member picker.
   const [memberPickerGroupId, setMemberPickerGroupId] = useState<string | null>(null)
   const [memberSearch, setMemberSearch] = useState('')
+  const memberSearchRef = useRef<HTMLInputElement>(null)
   const [groups, setGroups] = useState<VictoryGroup[]>([])
   const [allPeople, setAllPeople] = useState<Person[]>([])
   const [membersByGroup, setMembersByGroup] = useState<Record<string, PersonVictoryGroupWithPerson[]>>({})
@@ -233,16 +234,27 @@ export default function VictoryGroupsList({
 
   const handleAssignPerson = async (groupId: string, personId: string) => {
     if (!personId) return
+    const person = allPeople.find(p => p.id === personId)
 
-    setMemberPickerGroupId(null)
-    setMemberSearch('')
     setError('')
+    setMemberSearch('')
+    // Optimistically show the new member and keep the group + picker open so the
+    // coach can immediately search for the next person to add.
+    if (person) {
+      setMembersByGroup(prev => ({
+        ...prev,
+        [groupId]: [
+          ...(prev[groupId] ?? []),
+          { id: `temp-${personId}`, person_id: personId, victory_group_id: groupId, created_at: new Date().toISOString(), people: person } as PersonVictoryGroupWithPerson,
+        ],
+      }))
+    }
+    setTimeout(() => memberSearchRef.current?.focus(), 0)
+
     const { error } = await addPersonToVictoryGroup(personId, groupId)
     if (error) {
       setError(error.message)
-      return
     }
-
     await loadData()
     onChanged?.()
   }
@@ -675,6 +687,7 @@ export default function VictoryGroupsList({
                         {memberPickerGroupId === group.id && (
                           <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl border border-[var(--line-2)] bg-[var(--indigo)] shadow-lg">
                             <input
+                              ref={memberSearchRef}
                               type="text"
                               autoFocus
                               value={memberSearch}
