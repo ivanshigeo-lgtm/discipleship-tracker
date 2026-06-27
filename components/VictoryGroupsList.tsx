@@ -46,6 +46,9 @@ export default function VictoryGroupsList({
   // Searchable owner picker: which group's picker is open + its filter text.
   const [ownerPickerGroupId, setOwnerPickerGroupId] = useState<string | null>(null)
   const [ownerSearch, setOwnerSearch] = useState('')
+  // Searchable add-member picker.
+  const [memberPickerGroupId, setMemberPickerGroupId] = useState<string | null>(null)
+  const [memberSearch, setMemberSearch] = useState('')
   const [groups, setGroups] = useState<VictoryGroup[]>([])
   const [allPeople, setAllPeople] = useState<Person[]>([])
   const [membersByGroup, setMembersByGroup] = useState<Record<string, PersonVictoryGroupWithPerson[]>>({})
@@ -231,6 +234,8 @@ export default function VictoryGroupsList({
   const handleAssignPerson = async (groupId: string, personId: string) => {
     if (!personId) return
 
+    setMemberPickerGroupId(null)
+    setMemberSearch('')
     setError('')
     const { error } = await addPersonToVictoryGroup(personId, groupId)
     if (error) {
@@ -656,27 +661,55 @@ export default function VictoryGroupsList({
                         </button>
                       </div>
                     ) : (
-                      <div>
-                        <select
-                          value=""
-                          onChange={(event) => {
-                            event.stopPropagation()
-                            if (event.target.value === '__NEW__') {
-                              onAddNewPerson?.()
-                            } else if (event.target.value) {
-                              handleAssignPerson(group.id, event.target.value)
-                            }
+                      <div className="relative" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMemberSearch('')
+                            setMemberPickerGroupId(memberPickerGroupId === group.id ? null : group.id)
                           }}
-                          className="w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] p-2 text-xs text-[var(--fg-1)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
+                          className="w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] p-2 text-left text-xs font-medium text-[var(--fg-1)] hover:border-[var(--gbm-cobalt-bright)]"
                         >
-                          <option value="">+ Add person...</option>
-                          <option value="__NEW__" className="font-semibold">✦ Create new person...</option>
-                          {availablePeople.map(person => (
-                            <option key={person.id} value={person.id}>
-                              {person.name}
-                            </option>
-                          ))}
-                        </select>
+                          + Add person...
+                        </button>
+                        {memberPickerGroupId === group.id && (
+                          <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl border border-[var(--line-2)] bg-[var(--indigo)] shadow-lg">
+                            <input
+                              type="text"
+                              autoFocus
+                              value={memberSearch}
+                              onChange={(e) => setMemberSearch(e.target.value)}
+                              placeholder="Search name…"
+                              className="w-full border-b border-[var(--line-1)] bg-[var(--indigo-2)] px-3 py-2 text-xs text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:outline-none"
+                            />
+                            <div className="max-h-48 overflow-auto">
+                              <button
+                                type="button"
+                                onClick={() => { setMemberPickerGroupId(null); setMemberSearch(''); onAddNewPerson?.() }}
+                                className="flex w-full items-center px-3 py-1.5 text-left text-xs font-semibold text-[var(--gbm-cobalt-bright)] transition-colors hover:bg-[var(--indigo-2)]"
+                              >
+                                ✦ Create new person…
+                              </button>
+                              {availablePeople
+                                .filter(person => person.name.toLowerCase().includes(memberSearch.trim().toLowerCase()))
+                                .slice(0, 50)
+                                .map(person => (
+                                  <button
+                                    key={person.id}
+                                    type="button"
+                                    onClick={() => handleAssignPerson(group.id, person.id)}
+                                    className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-xs text-[var(--fg-1)] transition-colors hover:bg-[var(--indigo-2)]"
+                                  >
+                                    <span className="truncate">{person.name}</span>
+                                    <span className="shrink-0 text-[10px] text-[var(--fg-3)]">{person.current_stage}</span>
+                                  </button>
+                                ))}
+                              {availablePeople.filter(person => person.name.toLowerCase().includes(memberSearch.trim().toLowerCase())).length === 0 && (
+                                <p className="px-3 py-2 text-xs text-[var(--fg-3)]">No matches</p>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
