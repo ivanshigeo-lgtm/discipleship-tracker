@@ -95,7 +95,7 @@ person sits; admin always full.
 | **prayer_requests** | owner, admin, + by `visibility`: coach→coach; group→that person's group members; constellation→same constellation | owner (own), owner's coach, admin |
 | **soap_journals** | owner, admin, + by `visibility` (coach/group/constellation); aggregates via existing SECURITY DEFINER leaderboard RPCs | owner, admin |
 | **victory_groups** | any authenticated (church can browse/join) | INSERT any auth (creator=owner); UPDATE/DELETE owner or admin |
-| **person_victory_groups** | any authenticated (member lists) | group owner/admin; **self-join allowed** (person_id = me) |
+| **person_victory_groups** | any authenticated (member lists) | **group owner/admin only** (no self-join — see D3; disciples request, owner adds) |
 | **group_attendance** | group owner, admin, the attendee | group owner, admin |
 | **messages** | from/to person only | INSERT sender=self; UPDATE read_at by recipient |
 | **conversations / _members / _messages** | conversation members only | members; sender=self for messages |
@@ -143,18 +143,30 @@ create policy "prayer read" on prayer_requests for select using (
    then people/prayer/soap last), watching for empty-result breakage.
 4. Keep a one-line rollback per table (`using (true)`) ready during cutover.
 
-## Open decisions for Jonavan
-- **D1 — Church directory:** can every authenticated member see the basic roster
-  (name + stage) of the whole church, or only their own constellation? (Affects
-  the GBC Constellation view for non-admins.) Recommend: yes to a *minimal*
-  directory view; full PII coach/admin-only.
-- **D2 — Coach definition:** is "coach" = has disciples, = stage Empower, or an
-  explicit role flag we add? Recommend adding an explicit `people.role` later for
-  clarity; derive for now.
-- **D3 — Groups browsing:** keep group list visible to all (for self-join), or
-  restrict to a person's coach's groups? Current app shows all.
-- **D4 — Multi-admin:** how are new admins promoted? (Admin UI toggle on a
-  person's profile, gated to existing admins.) Worth building alongside.
+## Resolved decisions (Jonavan, Jun 26 2026)
+- **D1 — Church directory: ✅ minimal directory for all.** Add a
+  `people_directory` view (id, name, current_stage only) readable by any
+  authenticated user. The base `people` table (with PII: email/phone/notes/
+  spiritual_birthday/baptism_date) is **self + coach(downline) + admin** only.
+  Repoint broad client reads (search, group member lists, GBC views) at the view.
+- **D2 — Coach = Empower stage.** `app.is_coach()` = `current_stage = 'Empower'`
+  OR `is_admin()`. A person reaches Empower automatically through the process or a
+  coach sets it manually (existing stage controls). Downline (which people a coach
+  sees) is still derived from `discipleship_connections`.
+- **D3 — Groups: browse read-only, NO self-join.** `victory_groups` SELECT = any
+  authenticated; `person_victory_groups` INSERT/DELETE = **group owner or admin
+  only** (remove self-join). ⚠️ Requires a UI change: the disciple "Join a Grace
+  Group" modal becomes **"Request to join"** → notifies the owner (message), who
+  adds them. (Owner-add already exists in VictoryGroupsList.)
+- **D4 — Multi-admin: ✅ build it.** Add an admin-only control on a person's
+  profile to toggle `is_admin`. RLS: only admins may set `is_admin`. Build
+  alongside the RLS migration.
+
+### Companion UI work (beyond the migration)
+1. **Request-to-join flow** (D3): convert immediate self-join → request that
+   pings the group owner; owner approves by adding the member.
+2. **Admin management UI** (D4): is_admin toggle on PersonProfileModal, admin-gated.
+3. **Directory view repoint** (D1): switch broad people reads to `people_directory`.
 
 ## Effort estimate
 ~1 focused build session for helpers + policies + the directory view, plus a
