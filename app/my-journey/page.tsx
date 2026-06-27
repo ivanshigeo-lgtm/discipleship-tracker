@@ -388,7 +388,7 @@ export default function MyJourneyPage() {
             >
               My Journey
             </h1>
-            {myDisciples.length > 0 && (
+            {(profile.is_admin || profile.current_stage === 'Empower') && (
               <div className="flex rounded-full border border-[var(--line-2)] bg-[rgba(9,12,26,.6)] p-0.5 text-xs font-semibold">
                 <span className="rounded-full px-3 py-1" style={{ background: 'var(--gbm-cobalt-bright)', color: '#fff' }}>
                   My Journey

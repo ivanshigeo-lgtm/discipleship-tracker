@@ -1,9 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function LoginPage() {
+  const router = useRouter()
   const { signIn, resetPassword } = useAuth()
   const [mode, setMode] = useState<'signin' | 'reset'>('signin')
   const [email, setEmail] = useState('')
@@ -21,6 +23,9 @@ export default function LoginPage() {
 
     if (error) {
       setError(error.message)
+    } else {
+      // Everyone's home is My Journey; coaches/admins toggle to My Constellations.
+      router.push('/my-journey')
     }
     setLoading(false)
   }
