@@ -239,8 +239,10 @@ export default function VictoryGroupsList({
 
     setError('')
     setMemberSearch('')
-    // Optimistically show the new member and keep the group + picker open so the
-    // coach can immediately search for the next person to add.
+    // Optimistically add the member and keep the group + picker open. We do NOT
+    // reload here — a full reload re-renders the panel (losing focus and feeling
+    // like the box closed). The optimistic state is authoritative until the next
+    // natural reload.
     if (person) {
       setMembersByGroup(prev => ({
         ...prev,
@@ -255,8 +257,13 @@ export default function VictoryGroupsList({
     const { error } = await addPersonToVictoryGroup(personId, groupId)
     if (error) {
       setError(error.message)
+      // Roll back the optimistic add on failure.
+      setMembersByGroup(prev => ({
+        ...prev,
+        [groupId]: (prev[groupId] ?? []).filter(m => m.person_id !== personId),
+      }))
+      return
     }
-    await loadData()
     onChanged?.()
   }
 
