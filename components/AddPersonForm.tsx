@@ -14,8 +14,8 @@ const STAGE_COLORS: Record<Stage, string> = {
   Empower: 'var(--empower)',
 }
 
-export default function AddPersonForm({ onPersonAdded }: { onPersonAdded?: () => void }) {
-  const [name, setName] = useState('')
+export default function AddPersonForm({ onPersonAdded, initialName = '' }: { onPersonAdded?: () => void; initialName?: string }) {
+  const [name, setName] = useState(initialName)
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
   const [currentStage, setCurrentStage] = useState<Stage>('Engage')

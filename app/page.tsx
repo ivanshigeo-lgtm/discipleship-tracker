@@ -250,6 +250,7 @@ export default function DiscipleshipTracker() {
 
   // Add person
   const [showAddPerson, setShowAddPerson] = useState(false)
+  const [newPersonName, setNewPersonName] = useState('')
 
   // Message center
   const [msgCenterOpen, setMsgCenterOpen] = useState(false)
@@ -722,7 +723,7 @@ export default function DiscipleshipTracker() {
                   refreshKey={refreshKey}
                   onPersonClick={(p, tab) => openPerson(p, tab)}
                   onOpenEngagement={(engagement, personName) => setDetailEngagement({ engagement, personName })}
-                  onAddNewPerson={() => setShowAddPerson(true)}
+                  onAddNewPerson={(name) => { setNewPersonName(name ?? ''); setShowAddPerson(true) }}
                   onGroupsChanged={() => setRefreshKey(p => p + 1)}
                 />
               </ErrorBoundary>
@@ -760,7 +761,7 @@ export default function DiscipleshipTracker() {
                 <VictoryGroupsList
                   onChanged={() => setRefreshKey(p => p + 1)}
                   onPersonClick={p => openPerson(p)}
-                  onAddNewPerson={() => setShowAddPerson(true)}
+                  onAddNewPerson={(name) => { setNewPersonName(name ?? ''); setShowAddPerson(true) }}
                 />
               </ErrorBoundary>
             </div>
@@ -823,9 +824,9 @@ export default function DiscipleshipTracker() {
         <div className="cn-card fixed inset-x-3 top-3 z-50 max-h-[85vh] overflow-y-auto p-4 sm:inset-auto sm:right-8 sm:top-4 sm:w-[min(92vw,420px)]">
           <div className="mb-3 flex items-center justify-between gap-3">
             <h2 className="cn-h3">Add new person</h2>
-            <button type="button" onClick={() => setShowAddPerson(false)} className="cn-chip">Close</button>
+            <button type="button" onClick={() => { setShowAddPerson(false); setNewPersonName('') }} className="cn-chip">Close</button>
           </div>
-          <AddPersonForm onPersonAdded={() => { setRefreshKey(p => p + 1); setShowAddPerson(false) }} />
+          <AddPersonForm initialName={newPersonName} onPersonAdded={() => { setRefreshKey(p => p + 1); setShowAddPerson(false); setNewPersonName('') }} />
         </div>
       )}
 

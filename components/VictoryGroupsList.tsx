@@ -38,7 +38,7 @@ export default function VictoryGroupsList({
   onChanged?: () => void
   startWithForm?: boolean
   onPersonClick?: (person: Person) => void
-  onAddNewPerson?: () => void
+  onAddNewPerson?: (name?: string) => void
 }) {
   const { profile } = useAuth()
   // GBC Constellation = all groups; My Constellation = only groups I own.
@@ -126,11 +126,12 @@ export default function VictoryGroupsList({
       setGroups(nextGroups)
       setAllPeople(nextPeople)
 
+      // Fetch all groups' members in parallel instead of one-at-a-time (N+1).
+      const memberResults = await Promise.all(nextGroups.map(g => getPeopleByVictoryGroup(g.id)))
       const groupedMembers: Record<string, PersonVictoryGroupWithPerson[]> = {}
-      for (const group of nextGroups) {
-        const { data } = await getPeopleByVictoryGroup(group.id)
-        groupedMembers[group.id] = (data ?? []) as unknown as PersonVictoryGroupWithPerson[]
-      }
+      nextGroups.forEach((group, i) => {
+        groupedMembers[group.id] = (memberResults[i].data ?? []) as unknown as PersonVictoryGroupWithPerson[]
+      })
       setMembersByGroup(groupedMembers)
     } catch (err) {
       console.error('VictoryGroupsList load error:', err)
@@ -673,7 +674,7 @@ export default function VictoryGroupsList({
                         </button>
                       </div>
                     ) : (
-                      <div className="relative" onClick={(e) => e.stopPropagation()}>
+                      <div onClick={(e) => e.stopPropagation()}>
                         <button
                           type="button"
                           onClick={() => {
@@ -682,31 +683,24 @@ export default function VictoryGroupsList({
                           }}
                           className="w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] p-2 text-left text-xs font-medium text-[var(--fg-1)] hover:border-[var(--gbm-cobalt-bright)]"
                         >
-                          + Add person...
+                          {memberPickerGroupId === group.id ? '× Close' : '+ Add person...'}
                         </button>
-                        {memberPickerGroupId === group.id && (
-                          <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl border border-[var(--line-2)] bg-[var(--indigo)] shadow-lg">
-                            <input
-                              ref={memberSearchRef}
-                              type="text"
-                              autoFocus
-                              value={memberSearch}
-                              onChange={(e) => setMemberSearch(e.target.value)}
-                              placeholder="Search name…"
-                              className="w-full border-b border-[var(--line-1)] bg-[var(--indigo-2)] px-3 py-2 text-xs text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:outline-none"
-                            />
-                            <div className="max-h-48 overflow-auto">
-                              <button
-                                type="button"
-                                onClick={() => { setMemberPickerGroupId(null); setMemberSearch(''); onAddNewPerson?.() }}
-                                className="flex w-full items-center px-3 py-1.5 text-left text-xs font-semibold text-[var(--gbm-cobalt-bright)] transition-colors hover:bg-[var(--indigo-2)]"
-                              >
-                                ✦ Create new person…
-                              </button>
-                              {availablePeople
-                                .filter(person => person.name.toLowerCase().includes(memberSearch.trim().toLowerCase()))
-                                .slice(0, 50)
-                                .map(person => (
+                        {memberPickerGroupId === group.id && (() => {
+                          const q = memberSearch.trim().toLowerCase()
+                          const matches = availablePeople.filter(person => person.name.toLowerCase().includes(q)).slice(0, 50)
+                          return (
+                            <div className="mt-1 rounded-xl border border-[var(--line-2)] bg-[var(--indigo)]">
+                              <input
+                                ref={memberSearchRef}
+                                type="text"
+                                autoFocus
+                                value={memberSearch}
+                                onChange={(e) => setMemberSearch(e.target.value)}
+                                placeholder="Search name…"
+                                className="w-full rounded-t-xl border-b border-[var(--line-1)] bg-[var(--indigo-2)] px-3 py-2 text-xs text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:outline-none"
+                              />
+                              <div className="max-h-56 overflow-auto">
+                                {matches.map(person => (
                                   <button
                                     key={person.id}
                                     type="button"
@@ -717,12 +711,28 @@ export default function VictoryGroupsList({
                                     <span className="shrink-0 text-[10px] text-[var(--fg-3)]">{person.current_stage}</span>
                                   </button>
                                 ))}
-                              {availablePeople.filter(person => person.name.toLowerCase().includes(memberSearch.trim().toLowerCase())).length === 0 && (
-                                <p className="px-3 py-2 text-xs text-[var(--fg-3)]">No matches</p>
-                              )}
+                                {matches.length === 0 && (
+                                  <p className="px-3 py-2 text-xs text-[var(--fg-3)]">
+                                    {memberSearch.trim() ? `No one found for “${memberSearch.trim()}”.` : 'Type to search, or create a new person.'}
+                                  </p>
+                                )}
+                                {/* Create a new person (pre-fills the typed name) */}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const name = memberSearch.trim()
+                                    setMemberPickerGroupId(null)
+                                    setMemberSearch('')
+                                    onAddNewPerson?.(name || undefined)
+                                  }}
+                                  className="flex w-full items-center gap-1 border-t border-[var(--line-1)] px-3 py-2 text-left text-xs font-semibold text-[var(--gbm-cobalt-bright)] transition-colors hover:bg-[var(--indigo-2)]"
+                                >
+                                  ✦ {memberSearch.trim() ? `Create “${memberSearch.trim()}”` : 'Create new person…'}
+                                </button>
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          )
+                        })()}
                       </div>
                     )}
                   </div>

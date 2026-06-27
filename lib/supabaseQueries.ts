@@ -14,22 +14,36 @@ import type {
   Booklet,
 } from '../types/database'
 
-// ==================== PEOPLE ====================
-export const getPeople = async (stage?: Stage | Stage[]) => {
-  let query = supabase
-    .from('people')
-    .select('*')
-    .order('created_at', { ascending: false })
-
-  if (Array.isArray(stage) && stage.length > 0) {
-    query = query.in('current_stage', stage)
-  } else if (stage) {
-    query = query.eq('current_stage', stage)
-  }
-
-  const { data, error } = await query
-  return { data, error }
+// In-flight request de-duplication. When several components mount at once and
+// each calls the same read (e.g. getPeople), they share ONE network request
+// instead of firing N. The entry clears as soon as the request settles, so
+// reads after a write always start fresh — no staleness.
+const _inflight = new Map<string, Promise<unknown>>()
+function dedup<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const existing = _inflight.get(key)
+  if (existing) return existing as Promise<T>
+  const p = fn().finally(() => { _inflight.delete(key) })
+  _inflight.set(key, p)
+  return p
 }
+
+// ==================== PEOPLE ====================
+export const getPeople = (stage?: Stage | Stage[]) =>
+  dedup(`getPeople:${Array.isArray(stage) ? stage.join(',') : stage ?? ''}`, async () => {
+    let query = supabase
+      .from('people')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (Array.isArray(stage) && stage.length > 0) {
+      query = query.in('current_stage', stage)
+    } else if (stage) {
+      query = query.eq('current_stage', stage)
+    }
+
+    const { data, error } = await query
+    return { data, error }
+  })
 
 export const addPerson = async (person: Omit<Person, 'id' | 'created_at' | 'updated_at' | 'auth_user_id' | 'is_admin' | 'testimony_text' | 'testimony_video_url'>) => {
   const { data, error } = await supabase
@@ -111,13 +125,14 @@ export const getEngagementsByPerson = async (personId: string) => {
   return { data, error }
 }
 
-export const getAllEngagements = async () => {
-  const { data, error } = await supabase
-    .from('engagements')
-    .select('*')
-    .order('follow_up_date', { ascending: true, nullsFirst: false })
-  return { data, error }
-}
+export const getAllEngagements = () =>
+  dedup('getAllEngagements', async () => {
+    const { data, error } = await supabase
+      .from('engagements')
+      .select('*')
+      .order('follow_up_date', { ascending: true, nullsFirst: false })
+    return { data, error }
+  })
 
 export const addEngagement = async (engagement: Omit<Engagement, 'id' | 'created_at' | 'notes' | 'completed_at' | 'action_completed' | 'action_completed_at' | 'google_calendar_event_id'> & { follow_up_time?: string | null; location?: string | null }) => {
   const { data, error } = await supabase
@@ -168,13 +183,14 @@ export const getPrayerRequestsByPerson = async (personId: string) => {
   return { data, error }
 }
 
-export const getAllPrayerRequests = async () => {
-  const { data, error } = await supabase
-    .from('prayer_requests')
-    .select('*')
-    .order('created_at', { ascending: false })
-  return { data, error }
-}
+export const getAllPrayerRequests = () =>
+  dedup('getAllPrayerRequests', async () => {
+    const { data, error } = await supabase
+      .from('prayer_requests')
+      .select('*')
+      .order('created_at', { ascending: false })
+    return { data, error }
+  })
 
 export const addPrayerRequest = async (
   request: Omit<PrayerRequest, 'id' | 'created_at' | 'updated_at' | 'visibility' | 'is_praise' | 'engagement_id'> &
@@ -242,13 +258,14 @@ export const deleteActionItem = async (id: string) => {
   return { error }
 }
 
-export const getAllActionItems = async () => {
-  const { data, error } = await supabase
-    .from('engagement_action_items')
-    .select('*')
-    .order('created_at', { ascending: false })
-  return { data, error }
-}
+export const getAllActionItems = () =>
+  dedup('getAllActionItems', async () => {
+    const { data, error } = await supabase
+      .from('engagement_action_items')
+      .select('*')
+      .order('created_at', { ascending: false })
+    return { data, error }
+  })
 
 export const getPrayerRequestsByEngagement = async (engagementId: string) => {
   const { data, error } = await supabase
@@ -361,13 +378,14 @@ export const deletePrayerRequest = async (id: string) => {
 }
 
 // ==================== VICTORY GROUPS ====================
-export const getVictoryGroups = async () => {
-  const { data, error } = await supabase
-    .from('victory_groups')
-    .select('*')
-    .order('name', { ascending: true })
-  return { data, error }
-}
+export const getVictoryGroups = () =>
+  dedup('getVictoryGroups', async () => {
+    const { data, error } = await supabase
+      .from('victory_groups')
+      .select('*')
+      .order('name', { ascending: true })
+    return { data, error }
+  })
 
 export const addVictoryGroup = async (group: Omit<VictoryGroup, 'id' | 'created_at' | 'google_calendar_event_id'>) => {
   const { data, error } = await supabase
@@ -405,20 +423,22 @@ export const updateVictoryGroup = async (groupId: string, updates: Partial<Omit<
 }
 
 // ==================== GROUP MEMBERSHIPS ====================
-export const getAllGroupMemberships = async () => {
-  const { data, error } = await supabase
-    .from('person_victory_groups')
-    .select('person_id, victory_group_id')
-  return { data, error }
-}
+export const getAllGroupMemberships = () =>
+  dedup('getAllGroupMemberships', async () => {
+    const { data, error } = await supabase
+      .from('person_victory_groups')
+      .select('person_id, victory_group_id')
+    return { data, error }
+  })
 
 // ==================== BOOKLET PROGRESS ====================
-export const getAllBookletProgress = async () => {
-  const { data, error } = await supabase
-    .from('booklet_progress')
-    .select('*')
-  return { data, error }
-}
+export const getAllBookletProgress = () =>
+  dedup('getAllBookletProgress', async () => {
+    const { data, error } = await supabase
+      .from('booklet_progress')
+      .select('*')
+    return { data, error }
+  })
 
 export const getBookletProgress = async (personId: string) => {
   const { data, error } = await supabase
@@ -499,14 +519,15 @@ export const getStageChecklistItems = async (personId: string) => {
   return { data, error }
 }
 
-export const getAllStageChecklistItems = async () => {
-  const { data, error } = await supabase
-    .from('stage_checklist_items')
-    .select('*')
-    .order('person_id', { ascending: true })
-    .order('stage', { ascending: true })
-  return { data, error }
-}
+export const getAllStageChecklistItems = () =>
+  dedup('getAllStageChecklistItems', async () => {
+    const { data, error } = await supabase
+      .from('stage_checklist_items')
+      .select('*')
+      .order('person_id', { ascending: true })
+      .order('stage', { ascending: true })
+    return { data, error }
+  })
 
 export const upsertStageChecklistItem = async (
   item: Omit<StageChecklistItem, 'id' | 'created_at' | 'updated_at' | 'completed_at'>
@@ -577,12 +598,13 @@ export const getDiscipleshipConnections = async (disciplerPersonId: string) => {
   return { data, error }
 }
 
-export const getAllDiscipleshipConnections = async () => {
-  const { data, error } = await supabase
-    .from('discipleship_connections')
-    .select('*')
-  return { data, error }
-}
+export const getAllDiscipleshipConnections = () =>
+  dedup('getAllDiscipleshipConnections', async () => {
+    const { data, error } = await supabase
+      .from('discipleship_connections')
+      .select('*')
+    return { data, error }
+  })
 
 export const addDiscipleshipConnection = async (
   connection: Omit<DiscipleshipConnection, 'id' | 'created_at' | 'updated_at'>

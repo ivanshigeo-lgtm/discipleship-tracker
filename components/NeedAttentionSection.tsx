@@ -15,7 +15,7 @@ interface MyOneToOnesSectionProps {
   refreshKey?: number
   onPersonClick?: (person: Person, openTab?: 'engagements') => void
   onOpenEngagement?: (engagement: Engagement, personName: string) => void
-  onAddNewPerson?: () => void
+  onAddNewPerson?: (name?: string) => void
   onGroupsChanged?: () => void
 }
 
