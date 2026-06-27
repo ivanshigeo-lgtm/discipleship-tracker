@@ -394,7 +394,7 @@ export default function MyJourneyPage() {
                   My Journey
                 </span>
                 <a
-                  href="/"
+                  href="/my-constellations"
                   className="rounded-full px-3 py-1 text-[var(--fg-3)] transition-colors hover:text-[var(--fg-1)]"
                 >
                   My Constellations

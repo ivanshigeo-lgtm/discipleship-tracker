@@ -15,7 +15,7 @@ const successPage = `
   <script>
     // Redirect after a short delay to allow browser to settle
     setTimeout(function() {
-      window.location.href = '/?gcal=connected&t=' + Date.now();
+      window.location.href = '/my-constellations?gcal=connected&t=' + Date.now();
     }, 500);
   </script>
 </head>
