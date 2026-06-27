@@ -14,6 +14,7 @@ import PointsOfActionSection from '../components/PointsOfActionSection'
 import PrayerWallSection from '../components/PrayerWallSection'
 import VictoryGroupsList from '../components/VictoryGroupsList'
 import CurriculumBadgesSection from '../components/CurriculumBadgesSection'
+import PipelineMomentum from '../components/PipelineMomentum'
 import EmergingTeamSection from '../components/EmergingTeamSection'
 import PersonProfileModal from '../components/PersonProfileModal'
 import LoginPage from '../components/LoginPage'
@@ -596,6 +597,10 @@ export default function DiscipleshipTracker() {
                     </button>
                   </div>
                 </div>
+
+                <ErrorBoundary name="PipelineMomentum">
+                  <PipelineMomentum refreshKey={refreshKey} />
+                </ErrorBoundary>
 
                 {circleView === 'pipeline' && (
                   <div className="mt-4">

@@ -69,6 +69,15 @@ export type PrayerRequest = {
   updated_at: string
 }
 
+// A logged stage transition, for pipeline velocity.
+export type PipelineEvent = {
+  id: string
+  person_id: string
+  from_stage: Stage | null
+  to_stage: Stage
+  created_at: string
+}
+
 // Checkable action point captured inside an engagement.
 export type ActionItem = {
   id: string

@@ -80,7 +80,26 @@ export const updatePerson = async (
 }
 
 export const updatePersonStage = async (personId: string, newStage: Stage) => {
-  return updatePerson(personId, { current_stage: newStage })
+  // Capture the prior stage so the transition can be logged for velocity.
+  const { data: prior } = await supabase
+    .from('people')
+    .select('current_stage')
+    .eq('id', personId)
+    .maybeSingle()
+  const result = await updatePerson(personId, { current_stage: newStage })
+  const fromStage = (prior as { current_stage?: Stage } | null)?.current_stage ?? null
+  if (!result.error && fromStage !== newStage) {
+    await supabase.from('pipeline_events').insert({ person_id: personId, from_stage: fromStage, to_stage: newStage })
+  }
+  return result
+}
+
+export const getPipelineEvents = async () => {
+  const { data, error } = await supabase
+    .from('pipeline_events')
+    .select('*')
+    .order('created_at', { ascending: false })
+  return { data, error }
 }
 
 export const deletePerson = async (personId: string) => {
