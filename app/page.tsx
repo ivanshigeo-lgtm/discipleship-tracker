@@ -797,19 +797,31 @@ export default function DiscipleshipTracker() {
 
           {/* ── My SOAPs ── */}
           {activeSection === 'soaps' && (
-            !soapsLoaded ? (
-              <div className="flex justify-center py-12">
-                <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--establish)] border-t-transparent" />
+            <div>
+              {!soapsLoaded ? (
+                <div className="flex justify-center py-12">
+                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--establish)] border-t-transparent" />
+                </div>
+              ) : (
+                <SoapCalendarSection
+                  soaps={coachSoaps}
+                  onNewEntry={() => { setSoapEntryDate(null); setShowSoapEntry(true) }}
+                  soapStreak={soapStreak}
+                  onRefresh={loadSoaps}
+                  onNewEntryForDate={date => { setSoapEntryDate(date); setShowSoapEntry(true) }}
+                />
+              )}
+              {/* Prayer & praise wall so you can pray over your people while you SOAP */}
+              <div className="mt-6">
+                <SectionHeader title="Prayer &amp; Praise Wall" subtitle="People and praises to lift up as you pray" />
+                <ErrorBoundary name="PrayerWallSection">
+                  <PrayerWallSection
+                    refreshKey={refreshKey}
+                    onPersonClick={p => openPerson(p, 'prayer')}
+                  />
+                </ErrorBoundary>
               </div>
-            ) : (
-              <SoapCalendarSection
-                soaps={coachSoaps}
-                onNewEntry={() => { setSoapEntryDate(null); setShowSoapEntry(true) }}
-                soapStreak={soapStreak}
-                onRefresh={loadSoaps}
-                onNewEntryForDate={date => { setSoapEntryDate(date); setShowSoapEntry(true) }}
-              />
-            )
+            </div>
           )}
 
         </main>
