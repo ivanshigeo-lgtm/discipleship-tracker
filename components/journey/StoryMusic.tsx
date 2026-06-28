@@ -15,6 +15,8 @@ const TARGET_VOLUME = 0.45
 export default function StoryMusic({ active }: { active: boolean }) {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const fadeRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const activeRef = useRef(active)
+  activeRef.current = active
   const [available, setAvailable] = useState(true)
   const [blocked, setBlocked] = useState(false)
   const [muted, setMuted] = useState(false)
@@ -23,14 +25,21 @@ export default function StoryMusic({ active }: { active: boolean }) {
     const a = audioRef.current
     if (!a) return
     if (fadeRef.current) clearInterval(fadeRef.current)
+    // Time-bounded fade: always finishes (and runs onDone) after the window,
+    // even on iOS Safari where setting audio.volume is a no-op. Otherwise the
+    // stop never completes there and the music plays forever.
+    const start = a.volume
+    const steps = 18 // ~1.26s
+    let i = 0
     fadeRef.current = setInterval(() => {
-      const next = target > a.volume ? Math.min(target, a.volume + 0.03) : Math.max(target, a.volume - 0.03)
-      a.volume = next
-      if (next === target) {
+      i++
+      a.volume = Math.max(0, Math.min(1, start + (target - start) * (i / steps)))
+      if (i >= steps) {
         if (fadeRef.current) clearInterval(fadeRef.current)
+        fadeRef.current = null
         onDone?.()
       }
-    }, 80)
+    }, 70)
   }
 
   useEffect(() => {
@@ -41,6 +50,8 @@ export default function StoryMusic({ active }: { active: boolean }) {
       a.volume = a.paused ? 0 : a.volume
       a.play()
         .then(() => {
+          // The story may have ended while play() was resolving — if so, stop.
+          if (!activeRef.current) { a.pause(); return }
           setBlocked(false)
           fadeTo(TARGET_VOLUME)
         })
