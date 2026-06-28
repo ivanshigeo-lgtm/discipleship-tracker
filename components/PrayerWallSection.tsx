@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
-import { getAllPrayerRequests, getPeople, addPraise } from '../lib/supabaseQueries'
+import { getAllPrayerRequests, getPeople, addPraise, addPrayerRequest } from '../lib/supabaseQueries'
+import PersonSearchSelect from './PersonSearchSelect'
 import type { PrayerRequest, Person, Stage } from '../types/database'
 
 interface PrayerWallSectionProps {
@@ -163,6 +164,10 @@ export default function PrayerWallSection({
   const [praisePersonId, setPraisePersonId] = useState('')
   const [praiseText, setPraiseText] = useState('')
   const [savingPraise, setSavingPraise] = useState(false)
+  const [showPrayerForm, setShowPrayerForm] = useState(false)
+  const [prayerPersonId, setPrayerPersonId] = useState('')
+  const [prayerText, setPrayerText] = useState('')
+  const [savingPrayer, setSavingPrayer] = useState(false)
 
   const loadData = async () => {
     setLoading(true)
@@ -248,6 +253,26 @@ export default function PrayerWallSection({
     setSavingPraise(false)
   }
 
+  const handleAddPrayer = async () => {
+    if (!prayerPersonId || !prayerText.trim()) return
+    setSavingPrayer(true)
+    const { error } = await addPrayerRequest({
+      person_id: prayerPersonId,
+      request: prayerText.trim(),
+      status: 'Active',
+      answered_date: null,
+      answer_notes: null,
+    })
+    if (!error) {
+      setPrayerPersonId('')
+      setPrayerText('')
+      setShowPrayerForm(false)
+      await loadData()
+      onChanged?.()
+    }
+    setSavingPrayer(false)
+  }
+
   if (loading) {
     return null
   }
@@ -263,7 +288,15 @@ export default function PrayerWallSection({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setShowPraiseForm(!showPraiseForm)}
+            onClick={() => { setShowPrayerForm(!showPrayerForm); setShowPraiseForm(false) }}
+            className="rounded-full px-2.5 py-1 text-xs font-semibold transition-colors"
+            style={{ background: 'rgba(155,128,255,.15)', color: '#9B80FF' }}
+          >
+            + Add Prayer
+          </button>
+          <button
+            type="button"
+            onClick={() => { setShowPraiseForm(!showPraiseForm); setShowPrayerForm(false) }}
             className="rounded-full px-2.5 py-1 text-xs font-semibold transition-colors"
             style={{ background: 'rgba(54,214,195,.15)', color: 'var(--establish)' }}
           >
@@ -299,20 +332,45 @@ export default function PrayerWallSection({
         Prayer requests and answered prayers across all people
       </p>
 
+      {showPrayerForm && (
+        <div className="mt-3 rounded-lg border bg-[var(--indigo)] p-3" style={{ borderColor: '#9B80FF' }}>
+          <div className="mb-2 text-xs font-semibold" style={{ color: '#9B80FF' }}>Add Prayer Request</div>
+          <div className="space-y-2">
+            <PersonSearchSelect people={people} value={prayerPersonId} onChange={setPrayerPersonId} />
+            <textarea
+              value={prayerText}
+              onChange={(e) => setPrayerText(e.target.value)}
+              placeholder="What are you praying for?"
+              rows={2}
+              className="w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] p-2 text-sm text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:outline-none"
+            />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleAddPrayer}
+                disabled={savingPrayer || !prayerPersonId || !prayerText.trim()}
+                className="flex-1 rounded-lg py-2 text-xs font-semibold transition-all disabled:opacity-50"
+                style={{ background: '#9B80FF', color: 'var(--void)' }}
+              >
+                {savingPrayer ? 'Adding...' : 'Add Prayer'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowPrayerForm(false); setPrayerPersonId(''); setPrayerText('') }}
+                className="rounded-lg border border-[var(--line-2)] px-3 py-2 text-xs text-[var(--fg-2)]"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showPraiseForm && (
         <div className="mt-3 rounded-lg border border-[var(--establish)] bg-[var(--indigo)] p-3">
           <div className="mb-2 text-xs font-semibold text-[var(--establish)]">Add Testimony / Praise</div>
           <div className="space-y-2">
-            <select
-              value={praisePersonId}
-              onChange={(e) => setPraisePersonId(e.target.value)}
-              className="w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] p-2 text-sm text-[var(--fg-1)] focus:border-[var(--establish)] focus:outline-none"
-            >
-              <option value="">Select person...</option>
-              {people.map(person => (
-                <option key={person.id} value={person.id}>{person.name}</option>
-              ))}
-            </select>
+            <PersonSearchSelect people={people} value={praisePersonId} onChange={setPraisePersonId} />
             <textarea
               value={praiseText}
               onChange={(e) => setPraiseText(e.target.value)}
