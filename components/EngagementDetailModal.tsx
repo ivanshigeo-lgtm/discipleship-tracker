@@ -220,19 +220,17 @@ export default function EngagementDetailModal({
                     />
                   </div>
                 ))}
-                {/* Trailing blank — only creates a new item once filled */}
-                <div className="flex items-center gap-2">
-                  <span className="h-4 w-4 shrink-0 rounded border border-dashed border-[var(--line-2)]" />
-                  <input
-                    type="text"
-                    value={newAction}
-                    onChange={e => setNewAction(e.target.value)}
-                    onBlur={commitNewAction}
-                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commitNewAction() } }}
-                    placeholder="Add an action point…"
-                    className="flex-1 bg-transparent text-sm text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:outline-none"
-                  />
-                </div>
+              </div>
+              <div className="mt-1.5 flex gap-1.5">
+                <input
+                  type="text"
+                  value={newAction}
+                  onChange={e => setNewAction(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commitNewAction() } }}
+                  placeholder="Add an action point…"
+                  className={inputClass}
+                />
+                <button type="button" onClick={commitNewAction} disabled={!newAction.trim()} className="cn-btn cn-btn-primary shrink-0 !px-3 !text-xs disabled:opacity-50">Add</button>
               </div>
             </section>
 
