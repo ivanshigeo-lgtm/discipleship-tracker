@@ -20,7 +20,7 @@ type Beat =
   | { kind: 'stage'; stageIdx: number }
   | { kind: 'finale' }
 
-const BEAT_MS = { stage: 6200, finale: 5400 }
+const BEAT_MS = { stage: 8200, finale: 5400 }
 
 function buildBeats(): Beat[] {
   const beats: Beat[] = TOUR.map((_, stageIdx) => ({ kind: 'stage' as const, stageIdx }))
