@@ -137,7 +137,7 @@ function PraiseCard({
           <ul className="mt-1.5 space-y-1">
             {requests.map(req => (
               <li key={req.id} className="text-xs">
-                <span className="text-[var(--fg-3)] line-through">{req.request}</span>
+                <span className={req.is_praise ? 'text-[var(--fg-2)]' : 'text-[var(--fg-3)] line-through'}>{req.request}</span>
                 {req.answer_notes && (
                   <span className="ml-1 text-[var(--establish)]">— {req.answer_notes}</span>
                 )}

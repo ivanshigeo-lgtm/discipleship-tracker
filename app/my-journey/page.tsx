@@ -22,7 +22,6 @@ import StarQuadrants from '../../components/journey/StarQuadrants'
 import BadgeCelebration from '../../components/journey/BadgeCelebration'
 import SoapEntryModal from '../../components/journey/SoapEntryModal'
 import TestimonyModal from '../../components/journey/TestimonyModal'
-import CommunityLights from '../../components/journey/CommunityLights'
 import ConstellationRail, { ConstellationFeedInline, useConstellationFeed } from '../../components/journey/ConstellationRail'
 import StoryMusic from '../../components/journey/StoryMusic'
 import MessageCoachModal from '../../components/journey/MessageCoachModal'
@@ -521,7 +520,7 @@ export default function MyJourneyPage() {
         {/* lights you carry */}
         {earnedBadges.length > 0 && (
           <section className="mt-10">
-            <div className="cn-label mb-3">Lights you carry</div>
+            <div className="cn-label mb-3">My Milestones of Faith</div>
             <div className="flex flex-wrap gap-2">
               {earnedBadges.map(b => (
                 <span
@@ -536,11 +535,6 @@ export default function MyJourneyPage() {
             </div>
           </section>
         )}
-
-        {/* community rhythms */}
-        <section className="mt-10">
-          <CommunityLights myPersonId={profile.id} />
-        </section>
 
         {/* shared lights inline (small screens) */}
         <section className="mt-10">

@@ -44,7 +44,15 @@ export default function MessageCoachModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(6,8,20,.8)] p-4 backdrop-blur-sm">
-      <div className="w-full max-w-sm rounded-[var(--r-xl)] border border-[var(--line-2)] bg-[var(--indigo)] p-6" style={{ boxShadow: 'var(--elev-2)' }}>
+      <div className="relative w-full max-w-sm rounded-[var(--r-xl)] border border-[var(--line-2)] bg-[var(--indigo)] p-6" style={{ boxShadow: 'var(--elev-2)' }}>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute right-4 top-4 text-xl leading-none text-[var(--fg-3)] transition-colors hover:text-[var(--fg-1)]"
+        >
+          ×
+        </button>
         {sent ? (
           <div className="jy-rise-in py-6 text-center">
             <p className="text-2xl" style={{ fontFamily: 'var(--font-display)', color: 'var(--establish)' }}>
