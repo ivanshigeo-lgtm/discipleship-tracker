@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { TOUR, E_COLORS, E_ORDER } from './journeyModel'
+import { TOUR, E_COLORS, E_ORDER, E_VERSES } from './journeyModel'
 import { StarBadge } from './StarPrimitives'
 
 /*
@@ -18,17 +18,12 @@ import { StarBadge } from './StarPrimitives'
 
 type Beat =
   | { kind: 'stage'; stageIdx: number }
-  | { kind: 'step'; stageIdx: number; stepIdx: number }
   | { kind: 'finale' }
 
-const BEAT_MS = { stage: 4600, step: 3900, finale: 5400 }
+const BEAT_MS = { stage: 6200, finale: 5400 }
 
 function buildBeats(): Beat[] {
-  const beats: Beat[] = []
-  TOUR.forEach((t, stageIdx) => {
-    beats.push({ kind: 'stage', stageIdx })
-    t.steps.forEach((_, stepIdx) => beats.push({ kind: 'step', stageIdx, stepIdx }))
-  })
+  const beats: Beat[] = TOUR.map((_, stageIdx) => ({ kind: 'stage' as const, stageIdx }))
   beats.push({ kind: 'finale' })
   return beats
 }
@@ -75,7 +70,7 @@ export default function JourneyTour({
     const byStage: Record<string, number> = {}
     for (let i = 0; i <= beatIdx && i < beats.length; i++) {
       const b = beats[i]
-      if (b.kind === 'step') byStage[TOUR[b.stageIdx].stage] = (b.stepIdx + 1) / TOUR[b.stageIdx].steps.length
+      if (b.kind === 'stage') byStage[TOUR[b.stageIdx].stage] = 1
       if (b.kind === 'finale') TOUR.forEach(t => (byStage[t.stage] = 1))
     }
     return E_ORDER.map(stage => byStage[stage] ?? 0)
@@ -87,12 +82,8 @@ export default function JourneyTour({
   const stageColor = E_COLORS[stage]
   const ringEmphasis = E_ORDER.indexOf(stage)
 
-  const caption =
-    beat?.kind === 'stage'
-      ? { eyebrow: stage, title: '', line: tourStage.intro }
-      : beat?.kind === 'step'
-      ? { eyebrow: stage, title: tourStage.steps[beat.stepIdx].title, line: tourStage.steps[beat.stepIdx].line }
-      : { eyebrow: 'The journey', title: '', line: 'Rooted, sharpened, entrusted — until you engage someone new and a star is born. It starts today, one step at a time.' }
+  const verse = E_VERSES[stage]
+  const isFinale = beat?.kind === 'finale'
 
   return (
     <div className="fixed inset-0 z-[100] overflow-hidden bg-[var(--void)]">
@@ -117,51 +108,44 @@ export default function JourneyTour({
         </div>
       </div>
 
-      {/* the narration */}
+      {/* the narration — one inspirational beat per stage */}
       {!settling && (
-        <div key={beatIdx} className="jy-rise-in absolute inset-x-0 top-[56%] flex flex-col items-center px-6 text-center">
-          {caption.title ? (
+        <div key={beatIdx} className="jy-rise-in absolute inset-x-0 top-[52%] flex flex-col items-center px-6 text-center">
+          {isFinale ? (
             <>
-              {/* step beat: the level's name stays the headline, step beneath it */}
               <h2
                 className="text-3xl font-semibold sm:text-4xl"
-                style={{
-                  fontFamily: 'var(--font-display)',
-                  color: stageColor,
-                  textShadow: `0 0 26px ${stageColor}55, 0 2px 14px rgba(6,8,20,.9)`,
-                }}
+                style={{ fontFamily: 'var(--font-display)', color: stageColor, textShadow: `0 0 26px ${stageColor}55, 0 2px 14px rgba(6,8,20,.9)` }}
               >
-                {caption.eyebrow}
+                The journey
               </h2>
-              <div className="mt-3 flex items-center gap-3">
-                <span
-                  className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold"
-                  style={{ background: stageColor, color: 'var(--void)', boxShadow: `0 0 14px -1px ${stageColor}` }}
-                >
-                  ✓
-                </span>
-                <h3 className="text-2xl font-semibold text-[var(--fg-1)]">{caption.title}</h3>
-              </div>
+              <p className="mt-3 max-w-md text-lg italic leading-relaxed text-[var(--fg-2)]" style={{ fontFamily: 'var(--font-display)' }}>
+                Rooted, sharpened, entrusted — until you engage someone new and a star is born. It starts today, one step at a time.
+              </p>
             </>
           ) : (
-            /* stage beat: the level's name IS the title — let it command the screen */
-            <h2
-              className="text-5xl font-semibold sm:text-6xl"
-              style={{
-                fontFamily: 'var(--font-display)',
-                color: stageColor,
-                textShadow: `0 0 32px ${stageColor}66, 0 2px 18px rgba(6,8,20,.9)`,
-              }}
-            >
-              {caption.eyebrow}
-            </h2>
+            <>
+              {/* the stage name commands the screen */}
+              <h2
+                className="text-5xl font-semibold sm:text-6xl"
+                style={{ fontFamily: 'var(--font-display)', color: stageColor, textShadow: `0 0 32px ${stageColor}66, 0 2px 18px rgba(6,8,20,.9)` }}
+              >
+                {stage}
+              </h2>
+              {/* outcome */}
+              <p className="mt-3 max-w-md text-2xl font-semibold leading-snug text-[var(--fg-1)]" style={{ fontFamily: 'var(--font-display)' }}>
+                {tourStage.outcome}
+              </p>
+              {/* why */}
+              <p className="mt-2 max-w-md text-base italic leading-relaxed text-[var(--fg-2)]">
+                {tourStage.why}
+              </p>
+              {/* verse */}
+              <p className="mt-4 max-w-md text-sm italic text-[var(--fg-3)]">
+                &ldquo;{verse.text}&rdquo; &mdash; {verse.ref}
+              </p>
+            </>
           )}
-          <p
-            className="mt-3 max-w-md text-lg italic leading-relaxed text-[var(--fg-2)]"
-            style={{ fontFamily: 'var(--font-display)' }}
-          >
-            {caption.line}
-          </p>
         </div>
       )}
 

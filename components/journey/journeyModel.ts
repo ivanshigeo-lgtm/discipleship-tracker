@@ -18,10 +18,10 @@ export const E_COLORS: Record<Stage, string> = {
 }
 
 export const E_VERSES: Record<Stage, { text: string; ref: string }> = {
-  Engage: { text: 'We love because he first loved us.', ref: '1 John 4:19' },
+  Engage: { text: 'Follow me, and I will make you fishers of men.', ref: 'Matthew 4:19' },
   Establish: { text: 'Rooted and built up in him, strengthened in the faith.', ref: 'Colossians 2:7' },
   Equip: { text: 'To equip his people for works of service.', ref: 'Ephesians 4:12' },
-  Empower: { text: 'Go and make disciples of all nations.', ref: 'Matthew 28:19' },
+  Empower: { text: 'Entrust to faithful people who will be able to teach others also.', ref: '2 Timothy 2:2' },
 }
 
 export const E_TAGLINES: Record<Stage, string> = {
@@ -341,59 +341,36 @@ export function levelByStage(levels: JourneyLevel[], stage: Stage): JourneyLevel
   return levels.find(l => l.stage === stage)
 }
 
-// ---------- The guided tour (the story the star tells on first visit) ----------
+// ---------- The guided tour (the 4E story the star tells on first visit) ----------
+// One inspirational beat per stage: the outcome ("what"), a why drawn from the
+// Making Disciples booklet, and the stage's verse (E_VERSES). The detailed steps
+// live in each quadrant — the tour is for vision, not a checklist.
 export type TourStage = {
   stage: Stage
-  intro: string
-  steps: { title: string; line: string }[]
+  outcome: string
+  why: string
 }
 
 export const TOUR: TourStage[] = [
   {
     stage: 'Establish',
-    intro: 'First, put down roots — in church, in the Word, in the faith.',
-    steps: [
-      { title: 'Connect with your coach', line: 'A companion for the whole road.' },
-      { title: 'Join a Grace Group', line: 'Faith grows in community.' },
-      { title: 'Start SOAPing', line: 'SOAP daily, and let the Word shape you.' },
-      { title: 'Accept Christ As Lord', line: 'Pray, and mark your spiritual birthday.' },
-      { title: 'Get Baptized', line: 'Buried and raised with him, filled with the Spirit.' },
-      { title: 'Go Through One2One', line: 'The foundations, walked together.' },
-      { title: 'Complete Biblical Foundation', line: 'Rooted in scripture with your coach.' },
-      { title: 'Complete Church Community', line: 'Planted in the body of Christ.' },
-    ],
+    outcome: 'Grounded in the faith, the Word, and the church.',
+    why: 'Foundations, not façades — a life rooted in Jesus through repentance, faith, his Word, and his family.',
   },
   {
     stage: 'Equip',
-    intro: 'Then be sharpened — to serve, to lead, and to tell your story.',
-    steps: [
-      { title: 'Journey Through Making Disciples', line: 'Learn to pass on what you received.' },
-      { title: 'Complete Leadership 113', line: 'Equipped to lead with character and skill.' },
-      { title: 'Complete Next Steps', line: 'Every step forward is a step of faith.' },
-      { title: 'Share Your Story', line: 'Two minutes of light for others to find.' },
-      { title: 'Share Your Hope In Christ', line: 'Your story, spoken out loud.' },
-      { title: 'Discover and Deploy Your Gifts', line: 'Step into a ministry or mission.' },
-      { title: 'Serve Your Grace Group', line: 'Help carry what once carried you.' },
-    ],
+    outcome: 'Equipped to serve.',
+    why: 'Ministry was never meant for the experts alone — you’re equipped to serve and build up the body of Christ.',
   },
   {
     stage: 'Empower',
-    intro: 'Then — the light you received becomes light you give.',
-    steps: [
-      { title: 'Journey Through Empowering Leaders', line: 'Entrusted to raise up others.' },
-      { title: 'Complete Leadership 215', line: 'Deepened to multiply leaders.' },
-      { title: 'Identify your circle', line: 'Name who God has placed around you.' },
-      { title: 'Launch A New Grace Group', line: 'Shepherd a group of your own.' },
-    ],
+    outcome: 'Empowered to lead.',
+    why: 'A healthy church raises up leaders — you’re entrusted to lead, and to make leaders of others.',
   },
   {
     stage: 'Engage',
-    intro: 'And at last, you go — to engage someone new, just as you were once engaged.',
-    steps: [
-      { title: 'Engage Your Community Using SALT', line: 'Pray, look around: who has God placed near you?' },
-      { title: 'Coach Someone Through One2One', line: 'Hear their story. Share yours.' },
-      { title: 'Help Establish Them In Faith', line: 'A new star is lit — your light multiplies.' },
-    ],
+    outcome: 'Sent to make disciples.',
+    why: 'Every soul is worth the search — he left the ninety-nine for the one. Now your light gives light.',
   },
 ]
 
