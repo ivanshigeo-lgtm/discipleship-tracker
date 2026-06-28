@@ -43,11 +43,13 @@ function MeetingCard({
   item,
   onClick,
   onComplete,
+  onOpenPerson,
   completing,
 }: {
   item: MeetingItem
   onClick: () => void
   onComplete: () => void
+  onOpenPerson: () => void
   completing: boolean
 }) {
   const stageColor = STAGE_COLORS[item.person.current_stage]
@@ -81,8 +83,11 @@ function MeetingCard({
       }}
     >
       <div className="flex items-start gap-3">
-        <div
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold"
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onOpenPerson() }}
+          title="Open profile"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-transform hover:scale-105"
           style={{
             background: 'var(--indigo)',
             border: `2px solid ${stageColor}`,
@@ -90,7 +95,7 @@ function MeetingCard({
           }}
         >
           {initials}
-        </div>
+        </button>
 
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
@@ -463,6 +468,7 @@ export default function NeedAttentionSection({
                     item={item}
                     onClick={() => onOpenEngagement?.(item.engagement, item.person.name)}
                     onComplete={() => handleComplete(item)}
+                    onOpenPerson={() => onPersonClick?.(item.person)}
                     completing={completingId === item.engagement.id}
                   />
                 ))}

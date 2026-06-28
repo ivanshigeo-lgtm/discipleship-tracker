@@ -192,7 +192,7 @@ export default function EngagementDetailModal({
               </div>
             )}
           </div>
-          <button type="button" onClick={onClose} className="shrink-0 text-xl text-[var(--fg-3)] hover:text-[var(--fg-1)]">×</button>
+          <button type="button" onClick={onClose} className="cn-chip shrink-0">Close</button>
         </div>
 
         {loading ? (
