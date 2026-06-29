@@ -117,7 +117,7 @@ export default function JourneyTour({
                 className="text-3xl font-semibold sm:text-4xl"
                 style={{ fontFamily: 'var(--font-display)', color: stageColor, textShadow: `0 0 26px ${stageColor}55, 0 2px 14px rgba(6,8,20,.9)` }}
               >
-                The journey
+                The Journey
               </h2>
               <p className="mt-3 max-w-md text-lg italic leading-relaxed text-[var(--fg-2)]" style={{ fontFamily: 'var(--font-display)' }}>
                 Rooted, sharpened, entrusted — until you engage someone new and a star is born. It starts today, one step at a time.
