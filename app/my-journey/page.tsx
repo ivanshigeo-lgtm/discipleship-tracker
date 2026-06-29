@@ -578,7 +578,15 @@ export default function MyJourneyPage() {
         {soapJournals.length >= 3 && (
           <section className="mt-10">
             <div className="flex items-center justify-between">
-              <div className="cn-label">Weekly insight</div>
+              <div className="group relative">
+                <div className="cn-label flex cursor-help items-center gap-1.5">
+                  Weekly insight
+                  <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full border border-[var(--line-2)] text-[8px] font-bold text-[var(--fg-3)]">i</span>
+                </div>
+                <div className="pointer-events-none absolute left-0 top-full z-20 mt-1.5 hidden w-64 rounded-lg border border-[var(--line-2)] bg-[var(--indigo)] p-2.5 text-[11px] normal-case leading-relaxed tracking-normal text-[var(--fg-2)] shadow-xl group-hover:block">
+                  A gentle weekly reflection on your time in the Word. Once you&rsquo;ve logged a few SOAP entries this week, tap &ldquo;Gather this week&rdquo; — your guide reads them and sums up what God seems to be saying to you.
+                </div>
+              </div>
               {!weeklySummary && (
                 <button type="button" onClick={fetchWeeklySummary} disabled={loadingSummary} className="text-xs font-semibold text-[var(--gbm-cobalt-soft)]">
                   {loadingSummary ? 'Listening…' : 'Gather this week'}
@@ -667,8 +675,12 @@ export default function MyJourneyPage() {
       {/* Left nav menu */}
       <JourneyMenu
         personId={profile.id}
+        levels={levels}
         onSoaps={() => setActiveModal('soap')}
         onMessage={() => { setMsgCenterOpen(true); setUnreadMsgCount(0) }}
+        onStepAction={handleStepAction}
+        onStepToggle={handleStepToggle}
+        onRequestSignoff={handleRequestSignoff}
         soapStreak={soapStreak}
       />
 

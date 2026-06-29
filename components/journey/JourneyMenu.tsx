@@ -2,20 +2,14 @@
 
 import { useEffect, useState } from 'react'
 import {
-  getStageChecklistItems,
   getPrayerRequestsByPerson,
   getEngagementsByPerson,
   addPrayerRequest,
 } from '../../lib/supabaseQueries'
-import { stageChecklistTemplates } from '../../lib/stageChecklistTemplates'
-import type { Engagement, PrayerRequest, Stage, StageChecklistItem } from '../../types/database'
+import type { Engagement, PrayerRequest, Stage } from '../../types/database'
+import type { JourneyLevel, JourneyStep } from './journeyModel'
+import { StageStepList } from './StageStepList'
 
-// ─── colour tokens ────────────────────────────────────────────────────────────
-const STAGE_GLOW: Record<string, string> = {
-  Establish: '#36D6C3',
-  Equip: '#5B8DF7',
-  Empower: '#F0729F',
-}
 
 // ─── Content panel (bottom sheet / center modal) ─────────────────────────────
 function Panel({ title, color, onClose, children }: {
@@ -43,65 +37,36 @@ function Panel({ title, color, onClose, children }: {
   )
 }
 
-// ─── Stage checklist panel ────────────────────────────────────────────────────
-function StagePanel({ stage, personId, onClose }: { stage: Stage; personId: string; onClose: () => void }) {
-  const [completedKeys, setCompletedKeys] = useState<Set<string>>(new Set())
-  const glow = STAGE_GLOW[stage] ?? '#FBF6EC'
-
-  // Fetch completion status in background — template renders immediately
-  useEffect(() => {
-    getStageChecklistItems(personId).then(({ data }) => {
-      if (data) {
-        setCompletedKeys(new Set(
-          (data as StageChecklistItem[]).filter(i => i.completed && i.stage === stage).map(i => i.label)
-        ))
-      }
-    })
-  }, [personId, stage])
-
-  const template = stageChecklistTemplates[stage] ?? []
-  const done = template.filter(t => completedKeys.has(t.label)).length
-
+// ─── Stage panel — the same content as the star's hover pop-out ───────────────
+function StagePanel({
+  level,
+  onClose,
+  onStepAction,
+  onStepToggle,
+  onRequestSignoff,
+}: {
+  level: JourneyLevel
+  onClose: () => void
+  onStepAction?: (step: JourneyStep) => void
+  onStepToggle?: (step: JourneyStep) => void
+  onRequestSignoff?: (stage: string) => void
+}) {
+  const glow = level.color
+  const pct = Math.round(level.progress * 100)
   return (
-    <Panel title={stage} color={glow} onClose={onClose}>
+    <Panel title={level.stage} color={glow} onClose={onClose}>
       <div className="mb-1 h-1 overflow-hidden rounded-full bg-[var(--indigo-2)]">
-        <div
-          className="h-full rounded-full transition-all duration-500"
-          style={{ width: template.length ? `${Math.round((done / template.length) * 100)}%` : '0%', background: glow }}
-        />
+        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: glow }} />
       </div>
-      <p className="mb-4 text-xs text-[var(--fg-3)]">{done} of {template.length} completed</p>
-      <div className="space-y-2">
-        {template.map(t => {
-          const checked = completedKeys.has(t.label)
-          return (
-            <div
-              key={t.label}
-              className="flex items-start gap-3 rounded-xl px-3 py-2.5"
-              style={{ background: checked ? `${glow}10` : 'var(--indigo-2)' }}
-            >
-              <span
-                className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border text-[9px] font-bold"
-                style={{
-                  borderColor: checked ? glow : 'var(--line-2)',
-                  background: checked ? glow : 'transparent',
-                  color: checked ? 'var(--void)' : 'transparent',
-                }}
-              >
-                ✓
-              </span>
-              <div>
-                <p className="text-sm leading-snug" style={{ color: checked ? 'var(--fg-1)' : 'var(--fg-2)' }}>
-                  {t.label}
-                </p>
-                {'description' in t && (t as { description?: string }).description && (
-                  <p className="mt-0.5 text-[11px] leading-relaxed text-[var(--fg-3)]">{(t as { description?: string }).description}</p>
-                )}
-              </div>
-            </div>
-          )
-        })}
-      </div>
+      <p className="mb-3 text-xs text-[var(--fg-3)]">{pct}% complete</p>
+      <p className="mb-3 text-left text-sm italic leading-snug text-[var(--fg-2)]" style={{ fontFamily: 'var(--font-display)' }}>
+        {level.tagline}
+      </p>
+      {level.unlocked ? (
+        <StageStepList level={level} onStepAction={onStepAction} onStepToggle={onStepToggle} onRequestSignoff={onRequestSignoff} />
+      ) : (
+        <p className="text-xs text-[var(--fg-3)]">Opens when your coach signs off the previous stage.</p>
+      )}
     </Panel>
   )
 }
@@ -268,7 +233,8 @@ function SupplementalPanel({ material, onClose }: { material: Supplemental; onCl
 }
 
 // ─── Nav config ───────────────────────────────────────────────────────────────
-type PanelKind = 'Establish' | 'Equip' | 'Empower' | 'engagements' | 'message' | 'prayer' | 'soaps'
+type PanelKind = 'Establish' | 'Equip' | 'Empower' | 'Engage' | 'engagements' | 'message' | 'prayer' | 'soaps'
+const STAGE_KINDS: PanelKind[] = ['Establish', 'Equip', 'Empower', 'Engage']
 
 type NavSection = {
   heading: string
@@ -282,6 +248,7 @@ const NAV: NavSection[] = [
       { id: 'Establish', label: 'Establish', dot: '#36D6C3' },
       { id: 'Equip',     label: 'Equip',     dot: '#5B8DF7' },
       { id: 'Empower',   label: 'Empower',   dot: '#F0729F' },
+      { id: 'Engage',    label: 'Engage',    dot: '#F4B650' },
     ],
   },
   {
@@ -303,13 +270,21 @@ const NAV: NavSection[] = [
 // ─── Main export ──────────────────────────────────────────────────────────────
 export default function JourneyMenu({
   personId,
+  levels,
   onSoaps,
   onMessage,
+  onStepAction,
+  onStepToggle,
+  onRequestSignoff,
   soapStreak = 0,
 }: {
   personId: string
+  levels: JourneyLevel[]
   onSoaps: () => void
   onMessage: () => void
+  onStepAction?: (step: JourneyStep) => void
+  onStepToggle?: (step: JourneyStep) => void
+  onRequestSignoff?: (stage: string) => void
   soapStreak?: number
 }) {
   const [open, setOpen] = useState(false)
@@ -450,9 +425,15 @@ export default function JourneyMenu({
       </div>
 
       {/* ── Content panels ── */}
-      {panel === 'Establish'   && <StagePanel stage="Establish" personId={personId} onClose={() => setPanel(null)} />}
-      {panel === 'Equip'       && <StagePanel stage="Equip"     personId={personId} onClose={() => setPanel(null)} />}
-      {panel === 'Empower'     && <StagePanel stage="Empower"   personId={personId} onClose={() => setPanel(null)} />}
+      {panel && STAGE_KINDS.includes(panel) && levels.find(l => l.stage === panel) && (
+        <StagePanel
+          level={levels.find(l => l.stage === panel)!}
+          onClose={() => setPanel(null)}
+          onStepAction={(s) => { setPanel(null); onStepAction?.(s) }}
+          onStepToggle={onStepToggle}
+          onRequestSignoff={onRequestSignoff}
+        />
+      )}
       {panel === 'prayer'      && <PrayerPanel       personId={personId} onClose={() => setPanel(null)} />}
       {panel === 'engagements' && <EngagementsPanel  personId={personId} onClose={() => setPanel(null)} />}
       {supplemental && <SupplementalPanel material={supplemental} onClose={() => setSupplemental(null)} />}

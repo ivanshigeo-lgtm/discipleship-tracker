@@ -50,6 +50,24 @@ export const STEP_CHECKLIST: Record<string, { stage: Stage; label: string; categ
   'empowering-leaders': { stage: 'Empower', label: 'Completed Empowering Leaders', category: 'Tool' },
 }
 
+// Static, explanatory hover descriptions for each step (what it is / how to do it).
+export const STEP_DESCRIPTIONS: Record<string, string> = {
+  coach: "A companion for the whole journey. Enter your coach's code to connect, then reach out anytime.",
+  group: 'Faith grows in community — find a Grace Group and join it.',
+  word: 'Time in the Word — Scripture, Observation, Application, Prayer, Surrender. Log an entry to start your rhythm.',
+  salvation: 'Pray to receive Jesus as Lord and mark your spiritual birthday.',
+  baptism: 'Be baptized in water and filled with the Spirit — buried and raised with Christ.',
+  one2one: 'Walk the One2One booklet with your coach — the foundations of following Jesus.',
+  'church-community': 'Learn what it means to belong to the body of Christ.',
+  'making-disciples': 'Journey through the Making Disciples booklet — learn to help others follow Jesus.',
+  testimony: 'Prepare and share your two-minute testimony — your story becomes light for others.',
+  'empowering-leaders': 'Be equipped to raise up and release new leaders.',
+  identify: 'Look around your world — Start a conversation, Ask questions, Listen, Tell your story.',
+  'start-one2one': 'Begin walking someone through One2One, as you were walked through it.',
+  'actively-disciple': 'Help your disciple get rooted in the faith, the Word, and the church.',
+  'lead-gg': 'Start and shepherd a Grace Group of your own — the journey multiplies.',
+}
+
 export const UNLOCK_THRESHOLD = 0.75
 
 export type StepAction =

@@ -2,7 +2,8 @@
 
 import { useState, useRef, useEffect } from 'react'
 import type { JourneyLevel, JourneyStep } from './journeyModel'
-import { JOURNEY_ORDER, ringProgressFromLevels, STEP_CHECKLIST } from './journeyModel'
+import { JOURNEY_ORDER, ringProgressFromLevels } from './journeyModel'
+import { StageStepList } from './StageStepList'
 import { StarBadge } from './StarPrimitives'
 import type { Stage } from '../../types/database'
 
@@ -24,91 +25,9 @@ const QUADRANT_META: { corner: 'tl' | 'tr' | 'br' | 'bl'; stage: Stage }[] = [
   { corner: 'bl', stage: 'Empower' },
 ]
 
-function StepRow({
-  step,
-  color,
-  locked,
-  onAction,
-  onToggle,
-}: {
-  step: JourneyStep
-  color: string
-  locked: boolean
-  onAction?: (step: JourneyStep) => void
-  onToggle?: (step: JourneyStep) => void
-}) {
-  // The circle checks/unchecks any mapped step directly. The row body still
-  // opens that step's richer flow (date picker, join, SOAP, testimony) — the
-  // two coexist: circle = quick toggle, row = guided action.
-  const toggleable = !locked && !!STEP_CHECKLIST[step.id] && !!onToggle
-  // message-coach stays alive after completion — you can always reach out
-  const actionable =
-    !locked &&
-    (step.action === 'message-coach' ||
-      (!step.completed &&
-        (step.action === 'coach-code' ||
-          step.action === 'join-group' ||
-          step.action === 'soap' ||
-          step.action === 'testimony' ||
-          step.action === 'self-confirm')))
-
-  const boxStyle = step.completed
-    ? { background: color, borderColor: color, color: 'var(--void)', boxShadow: `0 0 8px -1px ${color}` }
-    : step.progress > 0
-    ? { borderColor: color, color }
-    : { borderColor: 'var(--line-2)', color: toggleable ? 'var(--fg-3)' : 'transparent' }
-
-  return (
-    <div
-      title={step.detail}
-      className={`flex items-center gap-2.5 rounded-lg px-2 py-1.5 ${actionable ? 'cursor-pointer transition-colors hover:bg-[rgba(246,241,231,.05)]' : ''}`}
-      onClick={actionable && onAction ? () => onAction(step) : undefined}
-    >
-      {toggleable ? (
-        <button
-          type="button"
-          title={step.completed ? 'Mark not done' : 'Mark done'}
-          onClick={(e) => { e.stopPropagation(); onToggle!(step) }}
-          className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border text-[9px] font-bold transition-transform hover:scale-110"
-          style={boxStyle}
-        >
-          {step.completed ? '✓' : ''}
-        </button>
-      ) : (
-        <span
-          className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border text-[9px] font-bold"
-          style={boxStyle}
-        >
-          {step.completed ? '✓' : '·'}
-        </span>
-      )}
-      <span className={`min-w-0 flex-1 truncate text-left text-[13px] font-medium ${step.completed ? 'text-[var(--fg-3)]' : 'text-[var(--fg-1)]'}`}>
-        {step.title}
-      </span>
-      {step.progress > 0 && step.progress < 1 && (
-        <span className="shrink-0 text-[9px] font-bold" style={{ color }}>
-          {Math.round(step.progress * 100)}%
-        </span>
-      )}
-      {actionable && (
-        <span className="shrink-0 text-[10px] font-bold" style={{ color }}>
-          {step.action === 'message-coach'
-            ? 'Message →'
-            : step.action === 'join-group'
-            ? 'Join →'
-            : step.action === 'self-confirm'
-            ? 'Mark it →'
-            : '→'}
-        </span>
-      )}
-    </div>
-  )
-}
-
 function QuadrantPanel({
   level,
   prev,
-  corner,
   onStepAction,
   onStepToggle,
   onRequestSignoff,
@@ -117,7 +36,6 @@ function QuadrantPanel({
 }: {
   level: JourneyLevel
   prev?: JourneyLevel
-  corner: 'tl' | 'tr' | 'br' | 'bl'
   onStepAction: (step: JourneyStep) => void
   onStepToggle?: (step: JourneyStep) => void
   onRequestSignoff?: (stage: string) => void
@@ -125,20 +43,15 @@ function QuadrantPanel({
   onCloseSoon?: () => void
 }) {
   const locked = !level.unlocked
-  // Desktop: pop out away from the star, origin at the star's corner.
-  // Mobile (no hover, tight space): rise as a sheet beneath the star.
-  const place: Record<string, string> = {
-    tl: 'sm:right-[58%] sm:bottom-[58%] sm:origin-bottom-right',
-    tr: 'sm:left-[58%] sm:bottom-[58%] sm:origin-bottom-left',
-    br: 'sm:left-[58%] sm:top-[58%] sm:origin-top-left',
-    bl: 'sm:right-[58%] sm:top-[58%] sm:origin-top-right',
-  }
 
+  // A centered dropdown directly beneath the star — always within the viewport
+  // (horizontally centered, grows downward into the scrollable page), with its
+  // own max-height + scroll so a long stage never runs off-screen.
   return (
     <div
       onMouseEnter={onKeepOpen}
       onMouseLeave={onCloseSoon}
-      className={`jy-quad-pop pointer-events-auto absolute inset-x-0 top-full z-30 origin-top rounded-2xl border p-3 sm:inset-x-auto sm:top-auto sm:w-60 ${place[corner]}`}
+      className="jy-quad-pop pointer-events-auto absolute left-1/2 top-full z-30 mt-2 max-h-[62vh] w-[min(300px,90vw)] -translate-x-1/2 origin-top overflow-y-auto overflow-x-hidden rounded-2xl border p-3"
       style={{
         borderColor: locked ? 'var(--line-2)' : `${level.color}55`,
         background: 'rgba(15,21,48,.92)',
@@ -180,52 +93,12 @@ function QuadrantPanel({
           <p className="px-1 pt-1 text-left text-[11px] italic leading-snug text-[var(--fg-2)]" style={{ fontFamily: 'var(--font-display)', fontSize: 13 }}>
             {level.tagline}
           </p>
-          <div className="mt-1.5 space-y-0.5">
-            {level.steps.map(step => (
-              <StepRow key={step.id} step={step} color={level.color} locked={locked} onAction={onStepAction} onToggle={onStepToggle} />
-            ))}
+          <div className="mt-1.5">
+            <StageStepList level={level} onStepAction={onStepAction} onStepToggle={onStepToggle} onRequestSignoff={onRequestSignoff} />
           </div>
-          <SignoffFooter level={level} onRequestSignoff={onRequestSignoff} />
         </>
       )}
     </div>
-  )
-}
-
-// The sign-off gate at the bottom of a completed level's panel.
-function SignoffFooter({ level, onRequestSignoff }: { level: JourneyLevel; onRequestSignoff?: (stage: string) => void }) {
-  const isEngage = level.stage === 'Engage'
-
-  if (level.signoff === 'approved') {
-    return (
-      <div className="mt-2.5 rounded-lg border px-3 py-2" style={{ borderColor: `${level.color}55`, background: `${level.color}12` }}>
-        <p className="text-[11px] font-bold" style={{ color: level.color }}>
-          ✦ Signed off by your coach
-        </p>
-        {level.congrats && <p className="mt-1 text-xs italic leading-relaxed text-[var(--fg-1)]">&ldquo;{level.congrats}&rdquo;</p>}
-      </div>
-    )
-  }
-
-  if (level.signoff === 'requested') {
-    return (
-      <p className="mt-2.5 rounded-lg border border-[var(--line-2)] px-3 py-2 text-center text-[11px] font-semibold text-[var(--fg-2)]">
-        ✦ Awaiting your coach&rsquo;s sign-off
-      </p>
-    )
-  }
-
-  // 'none' — only offer the request once every step is done.
-  if (!level.completed || !onRequestSignoff) return null
-  return (
-    <button
-      type="button"
-      onClick={() => onRequestSignoff(level.stage)}
-      className="mt-2.5 w-full rounded-lg py-2 text-xs font-bold transition-transform hover:scale-[1.02]"
-      style={{ background: level.color, color: 'var(--void)', boxShadow: `0 0 16px -3px ${level.color}` }}
-    >
-      {isEngage ? 'Request final sign-off →' : `Request coach sign-off →`}
-    </button>
   )
 }
 
@@ -397,7 +270,6 @@ export default function StarQuadrants({
         <QuadrantPanel
           level={byStage(QUADRANT_META[shown].stage)!}
           prev={prevOf(QUADRANT_META[shown].stage)}
-          corner={QUADRANT_META[shown].corner}
           onStepAction={onStepAction}
           onStepToggle={onStepToggle}
           onRequestSignoff={onRequestSignoff}
