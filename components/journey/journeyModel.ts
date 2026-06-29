@@ -40,10 +40,7 @@ export const STEP_CHECKLIST: Record<string, { stage: Stage; label: string }> = {
   'biblical-foundation': { stage: 'Establish', label: 'Completed Biblical Foundation' },
   'church-community': { stage: 'Establish', label: 'Completed Church Community' },
   'making-disciples': { stage: 'Equip', label: 'Completed Making Disciples' },
-  'leadership-113': { stage: 'Equip', label: 'Completed Leadership 113' },
-  'next-steps': { stage: 'Equip', label: 'Completed Next Steps' },
   'empowering-leaders': { stage: 'Empower', label: 'Completed Empowering Leaders' },
-  'leadership-215': { stage: 'Empower', label: 'Completed Leadership 215' },
 }
 
 export const UNLOCK_THRESHOLD = 0.75
@@ -99,6 +96,9 @@ function checklistDone(checklist: StageChecklistItem[], stage: Stage, label: str
 export function computeJourney(d: JourneyData): JourneyLevel[] {
   const isConnected = d.coach !== null
   const inGroup = d.groups.length > 0
+  const leadsGroup =
+    d.groups.some(g => g.owner_person_id === d.profile.id) ||
+    checklistDone(d.checklist, 'Empower', 'Lead a Grace Group')
   const hasTestimony = Boolean(d.profile.testimony_text || d.profile.testimony_video_url)
 
   /*
@@ -140,6 +140,17 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
           : 'Disciple them through their own journey.',
       completed: discipling > 0,
       progress: discipling > 0 ? 1 : 0,
+      action: 'celebrate',
+    },
+    {
+      // The journey's capstone: multiply — start your own Grace Group.
+      id: 'lead-gg',
+      title: 'Launch Your Own Grace Group',
+      detail: leadsGroup
+        ? 'You shepherd a group of your own — the journey multiplies.'
+        : 'Start a Grace Group and disciple others — a new star is lit through you.',
+      completed: leadsGroup,
+      progress: leadsGroup ? 1 : 0,
       action: 'celebrate',
     },
   ]
@@ -232,22 +243,6 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
       action: 'coach-verified',
     },
     {
-      id: 'leadership-113',
-      title: 'I Completed Leadership 113',
-      detail: 'Complete the Leadership 113 curriculum.',
-      completed: checklistDone(d.checklist, 'Equip', 'Completed Leadership 113'),
-      progress: checklistDone(d.checklist, 'Equip', 'Completed Leadership 113') ? 1 : 0,
-      action: 'self-confirm',
-    },
-    {
-      id: 'next-steps',
-      title: 'I Completed Next Steps',
-      detail: 'Complete the Next Steps curriculum.',
-      completed: checklistDone(d.checklist, 'Equip', 'Completed Next Steps'),
-      progress: checklistDone(d.checklist, 'Equip', 'Completed Next Steps') ? 1 : 0,
-      action: 'self-confirm',
-    },
-    {
       id: 'testimony',
       title: 'Share Your Story',
       detail: hasTestimony
@@ -267,14 +262,6 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
       completed: checklistDone(d.checklist, 'Empower', 'Completed Empowering Leaders'),
       progress: checklistDone(d.checklist, 'Empower', 'Completed Empowering Leaders') ? 1 : 0,
       action: 'coach-verified',
-    },
-    {
-      id: 'leadership-215',
-      title: 'I Completed Leadership 215',
-      detail: 'Complete the Leadership 215 curriculum.',
-      completed: checklistDone(d.checklist, 'Empower', 'Completed Leadership 215'),
-      progress: checklistDone(d.checklist, 'Empower', 'Completed Leadership 215') ? 1 : 0,
-      action: 'self-confirm',
     },
   ]
 
