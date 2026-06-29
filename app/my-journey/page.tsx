@@ -35,6 +35,7 @@ import JoinGroupModal from '../../components/journey/JoinGroupModal'
 import SelfConfirmModal, { type SelfConfirmKind } from '../../components/journey/SelfConfirmModal'
 import JourneyMenu from '../../components/journey/JourneyMenu'
 import SoapCalendarSection from '../../components/SoapCalendarSection'
+import SharedSoapFeed from '../../components/SharedSoapFeed'
 
 const INTRO_KEY = 'journey_intro_seen'
 const DEMO_KEY = 'journey_quadrant_demo_seen'
@@ -590,6 +591,13 @@ export default function MyJourneyPage() {
                 <p className="mt-2 text-xs text-[var(--fg-3)]">From {weeklySummary.journalCount} entries this week</p>
               </div>
             )}
+          </section>
+        )}
+
+        {/* SOAPs shared with your Grace Group */}
+        {groups.length > 0 && (
+          <section className="mt-10">
+            <SharedSoapFeed personId={profile.id} scope="group" />
           </section>
         )}
 

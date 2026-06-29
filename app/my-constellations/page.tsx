@@ -11,6 +11,7 @@ import MyCircleMap from '../../components/MyCircleMap'
 import CoachingPipeline from '../../components/CoachingPipeline'
 import NeedAttentionSection from '../../components/NeedAttentionSection'
 import SignoffRequestsSection from '../../components/SignoffRequestsSection'
+import SharedSoapFeed from '../../components/SharedSoapFeed'
 import PointsOfActionSection from '../../components/PointsOfActionSection'
 import PrayerWallSection from '../../components/PrayerWallSection'
 import VictoryGroupsList from '../../components/VictoryGroupsList'
@@ -825,6 +826,9 @@ export default function DiscipleshipTracker() {
           {/* ── My SOAPs ── */}
           {activeSection === 'soaps' && (
             <div>
+              <ErrorBoundary name="SharedSoapFeed">
+                <SharedSoapFeed personId={profile.id} scope="coach" refreshKey={refreshKey} />
+              </ErrorBoundary>
               {!soapsLoaded ? (
                 <div className="flex justify-center py-12">
                   <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--establish)] border-t-transparent" />

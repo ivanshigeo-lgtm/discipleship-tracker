@@ -852,6 +852,54 @@ export const getSharedPraises = async (limit = 12) => {
   return { data, error }
 }
 
+const SHARED_SOAP_COLS = 'id, person_id, journal_date, scripture_reference, ocr_text, summary, visibility, created_at, people(name)'
+
+// SOAPs a coach's disciples shared with their coach (visibility = 'coach').
+export const getCoachSharedSoaps = async (coachPersonId: string, limit = 20) => {
+  const { data: conns, error: connErr } = await supabase
+    .from('discipleship_connections')
+    .select('disciple_person_id')
+    .eq('discipler_person_id', coachPersonId)
+  if (connErr) return { data: null, error: connErr }
+  const ids = (conns ?? []).map(c => c.disciple_person_id).filter(Boolean)
+  if (ids.length === 0) return { data: [], error: null }
+  const { data, error } = await supabase
+    .from('soap_journals')
+    .select(SHARED_SOAP_COLS)
+    .eq('visibility', 'coach')
+    .in('person_id', ids)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  return { data, error }
+}
+
+// SOAPs shared with the Grace Group(s) this person belongs to (visibility =
+// 'group'), from any fellow member.
+export const getGroupSharedSoaps = async (personId: string, limit = 20) => {
+  const { data: myGroups, error: gErr } = await supabase
+    .from('person_victory_groups')
+    .select('victory_group_id')
+    .eq('person_id', personId)
+  if (gErr) return { data: null, error: gErr }
+  const gids = (myGroups ?? []).map(g => g.victory_group_id).filter(Boolean)
+  if (gids.length === 0) return { data: [], error: null }
+  const { data: members, error: mErr } = await supabase
+    .from('person_victory_groups')
+    .select('person_id')
+    .in('victory_group_id', gids)
+  if (mErr) return { data: null, error: mErr }
+  const pids = Array.from(new Set((members ?? []).map(m => m.person_id).filter(Boolean)))
+  if (pids.length === 0) return { data: [], error: null }
+  const { data, error } = await supabase
+    .from('soap_journals')
+    .select(SHARED_SOAP_COLS)
+    .eq('visibility', 'group')
+    .in('person_id', pids)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  return { data, error }
+}
+
 export const addJourneyPrayerRequest = async (
   personId: string,
   request: string,
