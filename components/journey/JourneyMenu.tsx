@@ -246,6 +246,27 @@ function EngagementsPanel({ personId, onClose }: { personId: string; onClose: ()
   )
 }
 
+// ─── Supplemental materials ───────────────────────────────────────────────────
+type Supplemental = { label: string; description: string }
+
+const SUPPLEMENTAL: Supplemental[] = [
+  { label: 'Leadership 113', description: 'Leadership development — first-year track.' },
+  { label: 'Leadership 215', description: 'Leadership development — second-year track.' },
+  { label: 'Next Steps', description: 'A guide to your next steps in following Jesus.' },
+  { label: 'Biblical Foundation', description: 'The Purple Book — a twelve-part Bible study to help you stand firm and grow strong in the Christian life.' },
+  { label: 'Cleansing Stream', description: 'A discipleship course on walking in spiritual freedom.' },
+  { label: 'Victory Weekend', description: 'A retreat to understand and walk in the freedom Christ won for us at the cross.' },
+]
+
+function SupplementalPanel({ material, onClose }: { material: Supplemental; onClose: () => void }) {
+  return (
+    <Panel title={material.label} color="#9AA7C7" onClose={onClose}>
+      <p className="text-sm leading-relaxed text-[var(--fg-2)]">{material.description}</p>
+      <p className="mt-4 text-xs text-[var(--fg-3)]">Ask your coach about going through this material.</p>
+    </Panel>
+  )
+}
+
 // ─── Nav config ───────────────────────────────────────────────────────────────
 type PanelKind = 'Establish' | 'Equip' | 'Empower' | 'engagements' | 'message' | 'prayer' | 'soaps'
 
@@ -294,6 +315,7 @@ export default function JourneyMenu({
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState<PanelKind | null>(null)
   const [panel, setPanel] = useState<PanelKind | null>(null)
+  const [supplemental, setSupplemental] = useState<Supplemental | null>(null)
 
   const handleItem = (id: PanelKind) => {
     setActive(id)
@@ -400,6 +422,25 @@ export default function JourneyMenu({
               })}
             </div>
           ))}
+
+          {/* Supplemental materials — reference resources, not journey steps */}
+          <div className="mb-1">
+            <p className="px-4 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--fg-3)]">
+              Supplemental Materials
+            </p>
+            {SUPPLEMENTAL.map(m => (
+              <button
+                key={m.label}
+                type="button"
+                onClick={() => { setOpen(false); setSupplemental(m) }}
+                className="group flex w-full items-center gap-2.5 px-3 py-[7px] text-left text-sm text-[var(--fg-2)] transition-colors hover:text-[var(--fg-1)]"
+                style={{ borderLeft: '2px solid transparent' }}
+              >
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: '#9AA7C7', opacity: 0.5 }} />
+                <span className="flex-1">{m.label}</span>
+              </button>
+            ))}
+          </div>
         </nav>
 
         {/* footer ornament */}
@@ -414,6 +455,7 @@ export default function JourneyMenu({
       {panel === 'Empower'     && <StagePanel stage="Empower"   personId={personId} onClose={() => setPanel(null)} />}
       {panel === 'prayer'      && <PrayerPanel       personId={personId} onClose={() => setPanel(null)} />}
       {panel === 'engagements' && <EngagementsPanel  personId={personId} onClose={() => setPanel(null)} />}
+      {supplemental && <SupplementalPanel material={supplemental} onClose={() => setSupplemental(null)} />}
     </>
   )
 }
