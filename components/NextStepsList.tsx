@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { getEngagementsByPerson, updateEngagement, deleteEngagement, addEngagement } from '../lib/supabaseQueries'
 import type { Engagement, MeetingType } from '../types/database'
+import { type Recurrence, RECURRENCE_OPTIONS, recurrenceDates, recurrenceLabel } from '../lib/recurrence'
 
 const MEETING_TYPES: MeetingType[] = ['One2One', 'Making Disciples', 'Coffee', 'Church Community', 'Empowering Leaders']
 
@@ -13,26 +14,19 @@ type EditingEngagement = {
   follow_up_time: string
   location: string
   notes: string
-  repeatWeekly: boolean
+  recurrence: Recurrence
   repeatUntil: string
 }
 
-function addWeeks(dateStr: string, weeks: number): string {
+function addDaysStr(dateStr: string, days: number): string {
   const d = new Date(dateStr + 'T00:00:00')
-  d.setDate(d.getDate() + weeks * 7)
+  d.setDate(d.getDate() + days)
   return d.toISOString().split('T')[0]
 }
 
-function weeklyRepeatDates(start: string, until: string): string[] {
-  const dates: string[] = []
-  let current = start
-  while (true) {
-    const next = addWeeks(current, 1)
-    if (next > until) break
-    dates.push(next)
-    current = next
-  }
-  return dates
+// Future occurrences only (the engagement being edited already covers `start`).
+function repeatCopies(start: string, until: string, rec: Recurrence): string[] {
+  return recurrenceDates(start, until, rec).filter(d => d > start)
 }
 
 export default function NextStepsList({
@@ -147,9 +141,9 @@ export default function NextStepsList({
         }
       }
 
-      // Create weekly repeat copies
-      if (editingData.repeatWeekly && updates.follow_up_date && editingData.repeatUntil) {
-        const repeatDates = weeklyRepeatDates(updates.follow_up_date, editingData.repeatUntil)
+      // Create recurring copies (occurrences after this one)
+      if (editingData.recurrence !== 'none' && updates.follow_up_date && editingData.repeatUntil) {
+        const repeatDates = repeatCopies(updates.follow_up_date, editingData.repeatUntil, editingData.recurrence)
         for (const date of repeatDates) {
           const { data: newEng } = await addEngagement({
             person_id: eng.person_id,
@@ -208,7 +202,7 @@ export default function NextStepsList({
         follow_up_time: eng.follow_up_time || '',
         location: eng.location || '',
         notes: eng.notes || '',
-        repeatWeekly: false,
+        recurrence: 'none',
         repeatUntil: '',
       })
     }
@@ -519,33 +513,35 @@ function EngagementCard({
             </div>
           </div>
 
-          {/* Repeat weekly */}
+          {/* Recurrence */}
           <div className="flex flex-wrap items-center gap-2">
-            <label className={`flex items-center gap-1.5 ${editingData.follow_up_date ? 'cursor-pointer' : 'cursor-not-allowed opacity-40'}`}>
-              <input
-                type="checkbox"
-                checked={editingData.repeatWeekly}
-                disabled={!editingData.follow_up_date}
-                onChange={(e) => {
-                  onEditingChange({ ...editingData, repeatWeekly: e.target.checked, repeatUntil: '' })
-                }}
-                className="h-3.5 w-3.5 rounded border-[var(--line-2)] accent-[var(--equip)]"
-              />
-              <span className="text-xs text-[var(--fg-2)]">Repeat weekly</span>
-            </label>
-            {editingData.repeatWeekly && editingData.follow_up_date && (
+            <span className="text-xs text-[var(--fg-3)]">Repeats</span>
+            <select
+              value={editingData.recurrence}
+              disabled={!editingData.follow_up_date}
+              onChange={(e) => {
+                const v = e.target.value as Recurrence
+                onEditingChange({ ...editingData, recurrence: v, repeatUntil: v === 'none' ? '' : editingData.repeatUntil })
+              }}
+              className={`rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-2.5 py-1.5 text-xs text-[var(--fg-1)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none ${editingData.follow_up_date ? '' : 'cursor-not-allowed opacity-40'}`}
+            >
+              {RECURRENCE_OPTIONS.map(o => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+            {editingData.recurrence !== 'none' && editingData.follow_up_date && (
               <>
                 <span className="text-xs text-[var(--fg-3)]">until</span>
                 <input
                   type="date"
                   value={editingData.repeatUntil}
-                  min={addWeeks(editingData.follow_up_date, 1)}
+                  min={addDaysStr(editingData.follow_up_date, 1)}
                   onChange={(e) => onEditingChange({ ...editingData, repeatUntil: e.target.value })}
                   className="rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-2.5 py-1.5 text-xs text-[var(--fg-1)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
                 />
-                {editingData.repeatUntil && (
+                {editingData.repeatUntil && repeatCopies(editingData.follow_up_date, editingData.repeatUntil, editingData.recurrence).length > 0 && (
                   <span className="text-[10px] text-[var(--fg-3)]">
-                    {weeklyRepeatDates(editingData.follow_up_date, editingData.repeatUntil).length} more
+                    {recurrenceLabel(editingData.recurrence, editingData.follow_up_date)} · {repeatCopies(editingData.follow_up_date, editingData.repeatUntil, editingData.recurrence).length} more
                   </span>
                 )}
               </>
