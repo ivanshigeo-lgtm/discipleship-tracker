@@ -190,8 +190,8 @@ export default function JourneyIntro({
           >
             &ldquo;Look up at the sky and count the stars&thinsp;—&thinsp;if indeed you can count them&hellip;
             so shall your offspring be.&rdquo;
+            <span className="text-lg not-italic sm:text-xl" style={{ color: 'rgba(246,241,231,.55)' }}>&thinsp;&mdash; Genesis 15:5</span>
           </p>
-          <p className="cn-label mt-5" style={{ textShadow: '0 2px 12px rgba(6,8,20,.9)' }}>Genesis 15:5</p>
         </div>
       </div>
 
@@ -285,8 +285,9 @@ export default function JourneyIntro({
             style={{ fontFamily: 'var(--font-display)', color: '#f6f1e7' }}
           >
             &ldquo;He determines the number of the stars and calls them each by name.&rdquo;
+            <span className="text-base not-italic" style={{ color: 'rgba(246,241,231,.55)' }}>&thinsp;&mdash; Psalm 147:4</span>
           </p>
-          <p className="cn-label mt-4" style={{ color: 'rgba(246,241,231,.7)' }}>Psalm 147:4 · This is your church&rsquo;s constellation</p>
+          <p className="cn-label mt-4" style={{ color: 'rgba(246,241,231,.7)' }}>This is your church&rsquo;s constellation</p>
         </div>
 
         <div
