@@ -754,28 +754,30 @@ export const getSoapStreak = async (personId: string) => {
     .select('journal_date')
     .eq('person_id', personId)
     .order('journal_date', { ascending: false })
-    .limit(60)
+    .limit(366)
 
   if (error || !data) return { streak: 0, error }
 
+  // Compare LOCAL date strings (YYYY-MM-DD) directly — never parse the stored
+  // date as UTC (which shifts a day in negative-offset timezones like Hawaii).
+  const logged = new Set(data.map(d => d.journal_date))
+  const fmt = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+  const cursor = new Date()
+  cursor.setHours(0, 0, 0, 0)
+
+  // Grace: if today isn't logged yet but yesterday was, the streak is still
+  // alive — start counting from yesterday.
+  if (!logged.has(fmt(cursor))) {
+    cursor.setDate(cursor.getDate() - 1)
+    if (!logged.has(fmt(cursor))) return { streak: 0, error: null }
+  }
+
   let streak = 0
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-
-  for (let i = 0; i < data.length; i++) {
-    const journalDate = new Date(data[i].journal_date)
-    journalDate.setHours(0, 0, 0, 0)
-
-    const expectedDate = new Date(today)
-    expectedDate.setDate(today.getDate() - i)
-
-    if (journalDate.getTime() === expectedDate.getTime()) {
-      streak++
-    } else if (i === 0 && journalDate.getTime() === expectedDate.getTime() - 86400000) {
-      continue
-    } else {
-      break
-    }
+  while (logged.has(fmt(cursor))) {
+    streak++
+    cursor.setDate(cursor.getDate() - 1)
   }
 
   return { streak, error: null }
