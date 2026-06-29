@@ -24,6 +24,7 @@ import JourneyIntro from '../../components/journey/JourneyIntro'
 import JourneyTour from '../../components/journey/JourneyTour'
 import StarQuadrants from '../../components/journey/StarQuadrants'
 import BadgeCelebration from '../../components/journey/BadgeCelebration'
+import Milestones from '../../components/journey/Milestones'
 import SoapEntryModal from '../../components/journey/SoapEntryModal'
 import TestimonyModal from '../../components/journey/TestimonyModal'
 import ConstellationRail, { ConstellationFeedInline, useConstellationFeed } from '../../components/journey/ConstellationRail'
@@ -244,7 +245,6 @@ export default function MyJourneyPage() {
 
   const levels = useMemo(() => (journeyData ? computeJourney(journeyData) : []), [journeyData])
   const badges = useMemo(() => (journeyData ? computeBadges(journeyData, levels) : []), [journeyData, levels])
-  const earnedBadges = badges.filter(b => b.earned)
   const ringProgress = ringProgressFromLevels(levels)
   // full circle = the disciple is engaging someone of their own
   const fullCircle = levelByStage(levels, 'Engage')?.completed ?? false
@@ -433,7 +433,7 @@ export default function MyJourneyPage() {
             >
               My Journey
             </h1>
-            {(profile.is_admin || profile.current_stage === 'Empower') && (
+            {(profile.is_admin || signoffs.some(s => s.stage === 'Empower' && s.status === 'approved')) && (
               <div className="flex rounded-full border border-[var(--line-2)] bg-[rgba(9,12,26,.6)] p-0.5 text-xs font-semibold">
                 <span className="rounded-full px-3 py-1" style={{ background: 'var(--gbm-cobalt-bright)', color: '#fff' }}>
                   My Journey
@@ -566,24 +566,7 @@ export default function MyJourneyPage() {
         )}
 
         {/* lights you carry */}
-        {earnedBadges.length > 0 && (
-          <section className="mt-10">
-            <div className="cn-label mb-3">My Milestones of Faith</div>
-            <div className="flex flex-wrap gap-2">
-              {earnedBadges.map(b => (
-                <span
-                  key={b.id}
-                  title={b.line}
-                  className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold"
-                  style={{ borderColor: `${b.color}44`, background: `${b.color}14`, color: b.color }}
-                >
-                  <span aria-hidden className="text-sm leading-none">{b.icon}</span>
-                  {b.title}
-                </span>
-              ))}
-            </div>
-          </section>
-        )}
+        <Milestones badges={badges} />
 
         {/* shared lights inline (small screens) */}
         <section className="mt-10">

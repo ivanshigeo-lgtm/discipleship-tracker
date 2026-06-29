@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<!-- @dsCard group="Components" name="Gems & Badges" subtitle="Precious, earned rewards" viewport="700x240" -->
+<html lang="en"><head><meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<link rel="stylesheet" href="card-base.css">
+<style>
+  body{ justify-content:center; }
+  .gems { display:flex; gap:22px; align-items:flex-start; }
+  .gem { width:56px; height:64px; clip-path: polygon(50% 0, 100% 30%, 100% 70%, 50% 100%, 0 70%, 0 30%); position:relative; display:grid; place-items:center; }
+  .gem .face { position:absolute; inset:0; clip-path: polygon(50% 0, 100% 30%, 50% 50%, 0 30%); background:rgba(255,255,255,.32); }
+  .gem .emblem { position:relative; z-index:2; display:flex; }
+  .gem .emblem svg { width:22px; height:22px; }
+  .cross { position:relative; width:15px; height:21px; display:block; }
+  .cross::before { content:''; position:absolute; left:50%; top:0; transform:translateX(-50%); width:4.5px; height:100%; background:currentColor; border-radius:2px; }
+  .cross::after { content:''; position:absolute; left:0; top:31%; width:100%; height:4.5px; background:currentColor; border-radius:2px; }
+  .gemlbl { font-size:10.5px; color:var(--fg-3); text-align:center; margin-top:9px; }
+  .gcol { display:flex; flex-direction:column; align-items:center; }
+  .badge { width:64px; height:64px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    background:radial-gradient(circle at 38% 32%, #FCE8C0, #E0A94A 70%); box-shadow: var(--glow-gold), inset 0 -4px 10px rgba(120,70,0,.35); }
+  .badge img { width:34px; height:34px; }
+  .badge.locked { background:var(--indigo-3); box-shadow:none; border:1px dashed var(--line-2); }
+</style></head>
+<body>
+  <div class="cd-eyebrow">Gems &amp; badges · precious, earned</div>
+  <div class="cd-row" style="gap:34px; align-items:flex-start;">
+    <div class="gems">
+      <div class="gcol"><div class="gem" style="background:linear-gradient(145deg,#FFD98A,#E0A94A); box-shadow:0 0 22px -4px var(--engage-glow);"><div class="face"></div><span class="emblem" style="color:#5A3A00;"><i data-lucide="coffee"></i></span></div><div class="gemlbl">Engage</div></div>
+      <div class="gcol"><div class="gem" style="background:linear-gradient(145deg,#7DEFE0,#36D6C3); box-shadow:0 0 22px -4px var(--establish-glow);"><div class="face"></div><span class="emblem" style="color:#0A4A43;"><i data-lucide="book-open"></i></span></div><div class="gemlbl">Establish</div></div>
+      <div class="gcol"><div class="gem" style="background:linear-gradient(145deg,#9DBBFF,#5B8DF7); box-shadow:0 0 22px -4px var(--equip-glow);"><div class="face"></div><span class="emblem" style="color:#102C66;"><i data-lucide="flame"></i></span></div><div class="gemlbl">Equip</div></div>
+      <div class="gcol"><div class="gem" style="background:linear-gradient(145deg,#FBA6C5,#F0729F); box-shadow:0 0 22px -4px var(--empower-glow);"><div class="face"></div><span class="emblem" style="color:#6E1238;"><span class="cross"></span></span></div><div class="gemlbl">Empower</div></div>
+    </div>
+    <div class="gems" style="border-left:1px solid var(--line-1); padding-left:30px;">
+      <div class="gcol"><div class="badge"><img src="../assets/logos/gbm-flame-white.png" alt=""></div><div class="gemlbl">First light</div></div>
+      <div class="gcol"><div class="badge locked"><span style="color:var(--fg-3); font-size:20px;">✦</span></div><div class="gemlbl">Multiplier</div></div>
+    </div>
+  </div>
+  <div class="cd-note">Each gem carries its stage emblem — coffee (Engage), open Word (Establish), torch (Equip), cross (Empower). Badges are gold medallions with the flame.</div>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script>lucide.createIcons();</script>
+</body></html>

@@ -112,6 +112,8 @@ function QuadrantPanel({
   onStepAction,
   onStepToggle,
   onRequestSignoff,
+  onKeepOpen,
+  onCloseSoon,
 }: {
   level: JourneyLevel
   prev?: JourneyLevel
@@ -119,6 +121,8 @@ function QuadrantPanel({
   onStepAction: (step: JourneyStep) => void
   onStepToggle?: (step: JourneyStep) => void
   onRequestSignoff?: (stage: string) => void
+  onKeepOpen?: () => void
+  onCloseSoon?: () => void
 }) {
   const locked = !level.unlocked
   // Desktop: pop out away from the star, origin at the star's corner.
@@ -132,6 +136,8 @@ function QuadrantPanel({
 
   return (
     <div
+      onMouseEnter={onKeepOpen}
+      onMouseLeave={onCloseSoon}
       className={`jy-quad-pop pointer-events-auto absolute inset-x-0 top-full z-30 origin-top rounded-2xl border p-3 sm:inset-x-auto sm:top-auto sm:w-60 ${place[corner]}`}
       style={{
         borderColor: locked ? 'var(--line-2)' : `${level.color}55`,
@@ -243,6 +249,11 @@ export default function StarQuadrants({
   const [pinned, setPinned] = useState<number | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const demoWasOpen = useRef(false)
+  // Hover with a short close-delay so the mouse can travel from a quadrant to
+  // its pop-out without the panel closing in the gap between them.
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const openQuad = (i: number) => { if (hoverTimer.current) clearTimeout(hoverTimer.current); setActive(i) }
+  const closeSoon = () => { if (hoverTimer.current) clearTimeout(hoverTimer.current); hoverTimer.current = setTimeout(() => setActive(null), 160) }
 
   // the demo points at the stage the disciple is currently walking
   const demoQuadrant = (() => {
@@ -318,11 +329,11 @@ export default function StarQuadrants({
               type="button"
               aria-label={`${q.stage} steps`}
               className="h-full w-full cursor-pointer rounded-full focus:outline-none"
-              onMouseEnter={() => setActive(i)}
-              onMouseLeave={() => setActive(null)}
+              onMouseEnter={() => openQuad(i)}
+              onMouseLeave={closeSoon}
               onClick={() => setPinned(p => (p === i ? null : i))}
-              onFocus={() => setActive(i)}
-              onBlur={() => setActive(null)}
+              onFocus={() => openQuad(i)}
+              onBlur={closeSoon}
             />
             <span
               className={`pointer-events-none absolute select-none text-[13px] font-bold uppercase tracking-[.16em] transition-all duration-300 sm:text-sm ${labelPos[q.corner]}`}
@@ -390,6 +401,8 @@ export default function StarQuadrants({
           onStepAction={onStepAction}
           onStepToggle={onStepToggle}
           onRequestSignoff={onRequestSignoff}
+          onKeepOpen={() => { if (shown !== null) openQuad(shown) }}
+          onCloseSoon={closeSoon}
         />
       )}
     </div>

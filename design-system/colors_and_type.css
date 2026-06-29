@@ -1,0 +1,190 @@
+/* =====================================================================
+   CONSTELLATION — Design System Foundation
+   Grace Bible Maui · Discipleship App
+   Colors + Type tokens. Dark-first, cosmic, warm, reverent.
+   Mirror of claude.ai/design project 677c2dae-... (saved 2026-06-28).
+   ===================================================================== */
+
+/* ----- Webfonts ----- */
+/* Both families are self-hosted from uploaded brand files (fonts/).
+   Montserrat = the GBM brand sans (matches the wordmark) · Cormorant Garamond = reverent display serif. */
+
+@font-face {
+  font-family: 'Montserrat';
+  src: url('fonts/Montserrat-VariableFont_wght.ttf') format('truetype-variations'),
+       url('fonts/Montserrat-VariableFont_wght.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Montserrat';
+  src: url('fonts/Montserrat-Italic-VariableFont_wght.ttf') format('truetype-variations'),
+       url('fonts/Montserrat-Italic-VariableFont_wght.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Cormorant Garamond';
+  src: url('fonts/CormorantGaramond-VariableFont_wght.ttf') format('truetype-variations'),
+       url('fonts/CormorantGaramond-VariableFont_wght.ttf') format('truetype');
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Cormorant Garamond';
+  src: url('fonts/CormorantGaramond-Italic-VariableFont_wght.ttf') format('truetype-variations'),
+       url('fonts/CormorantGaramond-Italic-VariableFont_wght.ttf') format('truetype');
+  font-weight: 300 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+:root {
+  /* =================================================================
+     1 · BRAND
+     ================================================================= */
+  --gbm-cobalt:        #1539C9;   /* official Grace Bible Maui flame blue (sampled) */
+  --gbm-cobalt-bright: #2E55E6;   /* glowing variant for dark backgrounds */
+  --gbm-cobalt-soft:   #5B8DF7;   /* tints, links, focus on dark */
+
+  /* =================================================================
+     2 · COSMIC BACKGROUNDS  (deep space, near-black → indigo)
+     ================================================================= */
+  --void:        #060814;   /* deepest space — app backdrop */
+  --space:       #0B1027;   /* base canvas */
+  --space-2:     #11173200; /* (reserved) */
+  --indigo:      #141B3D;   /* raised surface / panels */
+  --indigo-2:    #1B2347;   /* cards */
+  --indigo-3:    #232C57;   /* hover surface, inputs */
+  --nebula:      #2A2150;   /* warm violet accent surface */
+
+  /* gradient stops used for the "deep space" backdrop */
+  --grad-space:  radial-gradient(135% 120% at 50% -10%, #1B2155 0%, #0C1230 42%, #060814 100%);
+  --grad-nebula: radial-gradient(80% 90% at 80% 10%, rgba(94,75,180,.45) 0%, rgba(11,16,39,0) 60%);
+
+  /* =================================================================
+     3 · TEXT  (warm whites on dark)
+     ================================================================= */
+  --fg-1:  #F6F1E7;   /* warm white — primary text */
+  --fg-2:  #B4BAD6;   /* cool lavender-grey — secondary */
+  --fg-3:  #7A82A8;   /* faint — captions, metadata */
+  --fg-on-light: #141B3D;  /* text on light/gold surfaces */
+
+  /* =================================================================
+     4 · ACCENTS  (glow palette)
+     ================================================================= */
+  --gold:        #F2C879;   /* legacy, gems, badges, "precious/earned" */
+  --gold-deep:   #E0A94A;
+  --teal:        #36D6C3;   /* light, life, secondary glow */
+  --warm-white:  #FBF6EC;   /* purest light — Jesus / the central sun */
+
+  /* =================================================================
+     5 · THE FOUR E's  (discipleship journey — progress ring sections)
+        an arc of light:  warm → cool → brand → radiant
+     ================================================================= */
+  --engage:      #F4B650;   /* Engage    — amber / first warmth */
+  --establish:   #36D6C3;   /* Establish — teal / rooted life */
+  --equip:       #5B8DF7;   /* Equip     — azure / brand sharpening */
+  --empower:     #F0729F;   /* Empower   — rose / sent + multiplying */
+
+  --engage-glow:    rgba(244,182,80,.55);
+  --establish-glow: rgba(54,214,195,.55);
+  --equip-glow:     rgba(91,141,247,.55);
+  --empower-glow:   rgba(240,114,159,.60);
+
+  /* =================================================================
+     6 · SEMANTIC
+     ================================================================= */
+  --success:  #4BD6A0;
+  --warning:  #F2C879;
+  --danger:   #F2728A;
+  --info:     #5B8DF7;
+
+  /* hairlines & strokes (on dark) */
+  --line-1:  rgba(246,241,231,.10);   /* default divider */
+  --line-2:  rgba(246,241,231,.16);   /* stronger border */
+  --line-glow: rgba(91,141,247,.35);  /* lit edge */
+
+  /* =================================================================
+     7 · TYPOGRAPHY
+     ================================================================= */
+  --font-display: 'Cormorant Garamond', Georgia, 'Times New Roman', serif; /* reverent serif */
+  --font-ui:      'Montserrat', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif; /* brand sans */
+  --font-brand:   'Montserrat', ui-sans-serif, system-ui, sans-serif;  /* matches the GBM wordmark */
+
+  /* type scale (rem-ish, px values for clarity) */
+  --t-display: 56px;
+  --t-h1: 40px;
+  --t-h2: 30px;
+  --t-h3: 23px;
+  --t-h4: 19px;
+  --t-body: 16px;
+  --t-body-sm: 14px;
+  --t-caption: 13px;
+  --t-micro: 11px;
+
+  --lh-tight: 1.1;
+  --lh-snug: 1.25;
+  --lh-body: 1.55;
+
+  /* tracked label (small caps style) */
+  --track-label: .14em;
+  --track-wide:  .22em;
+
+  /* =================================================================
+     8 · SPACE · RADIUS · ELEVATION
+     ================================================================= */
+  --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px;
+  --s-5: 24px; --s-6: 32px; --s-7: 48px; --s-8: 64px;
+
+  --r-sm: 8px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 28px;
+  --r-pill: 999px;
+
+  /* elevation — soft shadow + a faint inner lit edge for the "glass in space" feel */
+  --elev-1: 0 1px 2px rgba(0,0,0,.4), inset 0 1px 0 rgba(246,241,231,.04);
+  --elev-2: 0 8px 24px -8px rgba(0,0,0,.6), inset 0 1px 0 rgba(246,241,231,.06);
+  --elev-3: 0 24px 60px -16px rgba(0,0,0,.7), inset 0 1px 0 rgba(246,241,231,.07);
+
+  /* glows — the signature look */
+  --glow-cobalt: 0 0 0 1px rgba(91,141,247,.25), 0 0 32px -4px rgba(46,85,230,.55);
+  --glow-gold:   0 0 0 1px rgba(242,200,121,.30), 0 0 36px -6px rgba(242,200,121,.55);
+  --glow-soft:   0 0 48px -10px rgba(120,150,255,.35);
+
+  --ease-soft: cubic-bezier(.22,.61,.36,1);    /* gentle, reverent */
+  --ease-rise: cubic-bezier(.16,.84,.44,1);    /* star growth */
+}
+
+/* =====================================================================
+   SEMANTIC ELEMENT DEFAULTS
+   ===================================================================== */
+.cn-display {
+  font-family: var(--font-display);
+  font-size: var(--t-display);
+  line-height: var(--lh-tight);
+  font-weight: 500;
+  letter-spacing: -.01em;
+  color: var(--fg-1);
+}
+.cn-h1 { font-family: var(--font-display); font-size: var(--t-h1); line-height: var(--lh-snug); font-weight: 600; color: var(--fg-1); letter-spacing: -.01em; }
+.cn-h2 { font-family: var(--font-ui); font-size: var(--t-h2); line-height: var(--lh-snug); font-weight: 700; color: var(--fg-1); letter-spacing: -.01em; }
+.cn-h3 { font-family: var(--font-ui); font-size: var(--t-h3); line-height: var(--lh-snug); font-weight: 700; color: var(--fg-1); }
+.cn-h4 { font-family: var(--font-ui); font-size: var(--t-h4); line-height: var(--lh-snug); font-weight: 600; color: var(--fg-1); }
+.cn-body { font-family: var(--font-ui); font-size: var(--t-body); line-height: var(--lh-body); font-weight: 400; color: var(--fg-2); }
+.cn-body-sm { font-family: var(--font-ui); font-size: var(--t-body-sm); line-height: var(--lh-body); font-weight: 400; color: var(--fg-2); }
+.cn-caption { font-family: var(--font-ui); font-size: var(--t-caption); line-height: 1.4; font-weight: 500; color: var(--fg-3); }
+.cn-verse { font-family: var(--font-display); font-style: italic; font-weight: 500; font-size: var(--t-h2); line-height: 1.35; color: var(--fg-1); }
+.cn-label {
+  font-family: var(--font-ui);
+  font-size: var(--t-micro);
+  font-weight: 700;
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--fg-3);
+}

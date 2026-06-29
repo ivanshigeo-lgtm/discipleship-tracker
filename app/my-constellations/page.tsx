@@ -23,7 +23,7 @@ import GoogleCalendarConnect from '../../components/GoogleCalendarConnect'
 import MessageCenter from '../../components/MessageCenter'
 import SoapEntryModal from '../../components/journey/SoapEntryModal'
 import SoapCalendarSection from '../../components/SoapCalendarSection'
-import { getSoapJournals, getAllDiscipleshipConnections, getPeople } from '../../lib/supabaseQueries'
+import { getSoapJournals, getAllDiscipleshipConnections, getPeople, getLevelSignoffs } from '../../lib/supabaseQueries'
 import type { Person, SoapJournal, Stage, DiscipleshipConnection, Engagement } from '../../types/database'
 import EngagementDetailModal from '../../components/EngagementDetailModal'
 import { DashboardSkeleton } from '../../components/Skeleton'
@@ -267,8 +267,21 @@ export default function DiscipleshipTracker() {
   const [soapEntryDate, setSoapEntryDate] = useState<string | null>(null)
   const [profileLoading, setProfileLoading] = useState(true)
 
-  // Disciple redirect
-  const isDisciple = profile && !profile.is_admin && profile.current_stage !== 'Empower'
+  // Coach-dashboard access is gated on the coach having signed off this
+  // person's Empower stage (admins always allowed). null = still loading.
+  const [empowerApproved, setEmpowerApproved] = useState<boolean | null>(null)
+  useEffect(() => {
+    if (!profile?.id) return
+    if (profile.is_admin) { setEmpowerApproved(true); return }
+    getLevelSignoffs(profile.id).then(({ data }) => {
+      setEmpowerApproved(Boolean(data?.some(s => s.stage === 'Empower' && s.status === 'approved')))
+    })
+  }, [profile?.id, profile?.is_admin])
+
+  // Disciple = not admin and Empower not yet signed off. While we don't yet know
+  // (null), don't redirect or render the dashboard.
+  const accessUnknown = profile && !profile.is_admin && empowerApproved === null
+  const isDisciple = profile && !profile.is_admin && empowerApproved === false
   useEffect(() => {
     if (isDisciple) router.replace('/my-journey')
   }, [isDisciple, router])
@@ -424,7 +437,7 @@ export default function DiscipleshipTracker() {
       </div>
     )
   }
-  if (isDisciple) {
+  if (isDisciple || accessUnknown) {
     return <div className="flex min-h-screen items-center justify-center bg-[var(--void)]"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--gbm-cobalt-bright)] border-t-transparent" /></div>
   }
 

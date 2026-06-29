@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import type { Badge } from './journeyModel'
 import { BethlehemStar } from './StarPrimitives'
+import { StageGem, Medallion } from './MilestoneArt'
 
 const SEEN_KEY = 'journey_badges_seen'
 
@@ -66,10 +67,14 @@ export default function BadgeCelebration({ badges, ready }: { badges: Badge[]; r
         }}
         onClick={e => e.stopPropagation()}
       >
-        <div className="relative mx-auto mb-2 flex justify-center">
-          <BethlehemStar size={110} color={current.color} className="jy-breathe" />
-          <span aria-hidden className="absolute inset-0 flex items-center justify-center text-3xl">
-            {current.icon}
+        <div className="relative mx-auto mb-3 flex h-[120px] items-center justify-center">
+          <span className="absolute inset-0 flex items-center justify-center opacity-40">
+            <BethlehemStar size={120} color={current.color} className="jy-breathe" />
+          </span>
+          <span className="relative jy-breathe">
+            {current.kind === 'gem'
+              ? <StageGem badge={current} size={84} />
+              : <Medallion badge={current} size={84} />}
           </span>
         </div>
         <p className="cn-label" style={{ color: current.color }}>
