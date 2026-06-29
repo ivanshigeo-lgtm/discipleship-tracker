@@ -577,7 +577,8 @@ export default function MyJourneyPage() {
                   className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold"
                   style={{ borderColor: `${b.color}44`, background: `${b.color}14`, color: b.color }}
                 >
-                  ✦ {b.title}
+                  <span aria-hidden className="text-sm leading-none">{b.icon}</span>
+                  {b.title}
                 </span>
               ))}
             </div>

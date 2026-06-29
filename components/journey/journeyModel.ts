@@ -363,6 +363,7 @@ export const TOUR: TourStage[] = [
 export type Badge = {
   id: string
   title: string
+  icon: string
   line: string
   color: string
   earned: boolean
@@ -373,20 +374,26 @@ export function computeBadges(d: JourneyData, levels: JourneyLevel[]): Badge[] {
     levels.find(l => l.stage === stage)?.steps.find(s => s.id === id)?.completed ?? false
   const stageDone = (stage: Stage) => levels.find(l => l.stage === stage)?.completed ?? false
 
+  // Titles mirror the 4E step verbiage; the icon symbolizes the milestone and
+  // the poetic `line` becomes the hover subtitle.
   return [
-    { id: 'connected', title: 'Connected', line: 'You no longer walk alone.', color: E_COLORS.Establish, earned: find('Establish', 'coach') },
-    { id: 'found-people', title: 'Found your people', line: 'Planted in a Grace Group.', color: E_COLORS.Establish, earned: find('Establish', 'group') },
-    { id: 'first-soap', title: 'First light', line: 'Your first SOAP in the Word.', color: E_COLORS.Establish, earned: d.soapCount >= 1 },
-    { id: 'streak-3', title: 'Three days burning', line: 'A rhythm is forming.', color: E_COLORS.Establish, earned: d.soapStreak >= 3 },
-    { id: 'streak-7', title: 'Seven days steady', line: 'Your light is steadying.', color: E_COLORS.Establish, earned: d.soapStreak >= 7 },
-    { id: 'streak-30', title: 'Thirty days faithful', line: 'A month abiding in the Word.', color: '#F2C879', earned: d.soapStreak >= 30 },
-    { id: 'new-birth', title: 'Born of the Spirit', line: 'Your spiritual birthday is written.', color: E_COLORS.Establish, earned: find('Establish', 'salvation') },
-    { id: 'baptized', title: 'Through the waters', line: 'Buried and raised with him.', color: E_COLORS.Establish, earned: find('Establish', 'baptism') },
-    { id: 'storyteller', title: 'Storyteller', line: 'Your testimony now shines for all.', color: E_COLORS.Equip, earned: find('Equip', 'testimony') },
-    { id: 'established', title: 'Established', line: 'Rooted — the Establish ring is full.', color: E_COLORS.Establish, earned: stageDone('Establish') },
-    { id: 'equipped', title: 'Equipped', line: 'Sharpened for service.', color: E_COLORS.Equip, earned: stageDone('Equip') },
-    { id: 'empowered', title: 'Empowered', line: 'Entrusted — light ready to be given.', color: E_COLORS.Empower, earned: stageDone('Empower') },
-    { id: 'engager', title: 'A new star', line: 'You engaged someone — your light multiplies.', color: E_COLORS.Engage, earned: d.disciples.length > 0 },
-    { id: 'full-circle', title: 'Full circle', line: 'Engaged to engaging — the journey gives itself away.', color: '#F2C879', earned: stageDone('Engage') },
+    { id: 'connected', title: 'Coached', icon: '🧭', line: 'Connected with your coach — you no longer walk alone.', color: E_COLORS.Establish, earned: find('Establish', 'coach') },
+    { id: 'found-people', title: 'Grace Group', icon: '👥', line: 'Planted in a Grace Group.', color: E_COLORS.Establish, earned: find('Establish', 'group') },
+    { id: 'first-soap', title: 'First SOAP', icon: '📖', line: 'Your first SOAP in the Word.', color: E_COLORS.Establish, earned: d.soapCount >= 1 },
+    { id: 'streak-3', title: '3-Day Streak', icon: '🔥', line: 'A SOAP rhythm is forming.', color: E_COLORS.Establish, earned: d.soapStreak >= 3 },
+    { id: 'streak-7', title: '7-Day Streak', icon: '🔥', line: 'Your light is steadying — a week in the Word.', color: E_COLORS.Establish, earned: d.soapStreak >= 7 },
+    { id: 'streak-30', title: '30-Day Streak', icon: '🔥', line: 'A month abiding in the Word.', color: '#F2C879', earned: d.soapStreak >= 30 },
+    { id: 'new-birth', title: 'Salvation', icon: '✝️', line: 'Born of the Spirit — your spiritual birthday is written.', color: E_COLORS.Establish, earned: find('Establish', 'salvation') },
+    { id: 'baptized', title: 'Baptized', icon: '💧', line: 'Through the waters — buried and raised with him.', color: E_COLORS.Establish, earned: find('Establish', 'baptism') },
+    { id: 'one2one', title: 'One2One', icon: '🤝', line: 'You walked the One2One foundations.', color: E_COLORS.Establish, earned: find('Establish', 'one2one') },
+    { id: 'church-community', title: 'Church Community', icon: '⛪', line: 'Planted in the body of Christ.', color: E_COLORS.Establish, earned: find('Establish', 'church-community') },
+    { id: 'established', title: 'Established', icon: '🌱', line: 'Rooted — the Establish ring is full.', color: E_COLORS.Establish, earned: stageDone('Establish') },
+    { id: 'making-disciples', title: 'Making Disciples', icon: '📘', line: 'You journeyed through Making Disciples.', color: E_COLORS.Equip, earned: find('Equip', 'making-disciples') },
+    { id: 'storyteller', title: 'Your Story', icon: '🎙️', line: 'Your testimony now shines for all.', color: E_COLORS.Equip, earned: find('Equip', 'testimony') },
+    { id: 'equipped', title: 'Equipped', icon: '🛠️', line: 'Sharpened for service.', color: E_COLORS.Equip, earned: stageDone('Equip') },
+    { id: 'empowering-leaders', title: 'Empowering Leaders', icon: '🕯️', line: 'Entrusted to raise up others.', color: E_COLORS.Empower, earned: find('Empower', 'empowering-leaders') },
+    { id: 'empowered', title: 'Empowered', icon: '👑', line: 'Entrusted — light ready to be given.', color: E_COLORS.Empower, earned: stageDone('Empower') },
+    { id: 'engager', title: 'Engaging', icon: '🌟', line: 'You engaged someone — your light multiplies.', color: E_COLORS.Engage, earned: d.disciples.length > 0 },
+    { id: 'full-circle', title: 'Full Circle', icon: '🔄', line: 'Engaged to engaging — the journey gives itself away.', color: '#F2C879', earned: stageDone('Engage') },
   ]
 }

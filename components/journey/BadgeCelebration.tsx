@@ -66,8 +66,11 @@ export default function BadgeCelebration({ badges, ready }: { badges: Badge[]; r
         }}
         onClick={e => e.stopPropagation()}
       >
-        <div className="mx-auto mb-2 flex justify-center">
+        <div className="relative mx-auto mb-2 flex justify-center">
           <BethlehemStar size={110} color={current.color} className="jy-breathe" />
+          <span aria-hidden className="absolute inset-0 flex items-center justify-center text-3xl">
+            {current.icon}
+          </span>
         </div>
         <p className="cn-label" style={{ color: current.color }}>
           A new light
