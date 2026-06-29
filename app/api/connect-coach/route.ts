@@ -6,15 +6,26 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// Find coach by code (codes are the last 6 chars of the person ID, uppercase)
+// Find coach by code (codes are the last 6 chars of the person ID, uppercase).
+// "Empowered" = admin OR an approved Empower sign-off — the same definition the
+// coach dashboard gates on, so only empowered people can be coaches.
 async function findCoachByCode(code: string) {
   const normalizedCode = code.toUpperCase().trim()
 
-  // Get all coaches (people who are admins or in Empower stage)
+  const { data: signoffs } = await supabase
+    .from('level_signoffs')
+    .select('person_id')
+    .eq('stage', 'Empower')
+    .eq('status', 'approved')
+  const empoweredIds = (signoffs ?? []).map(s => s.person_id).filter(Boolean)
+
+  const orParts = ['is_admin.eq.true']
+  if (empoweredIds.length) orParts.push(`id.in.(${empoweredIds.join(',')})`)
+
   const { data: coaches, error } = await supabase
     .from('people')
-    .select('id, name, current_stage, is_admin')
-    .or('is_admin.eq.true,current_stage.eq.Empower')
+    .select('id, name, is_admin')
+    .or(orParts.join(','))
 
   if (error || !coaches) return null
 
