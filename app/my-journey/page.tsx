@@ -36,6 +36,7 @@ import SelfConfirmModal, { type SelfConfirmKind } from '../../components/journey
 import JourneyMenu from '../../components/journey/JourneyMenu'
 import SoapCalendarSection from '../../components/SoapCalendarSection'
 import SharedSoapFeed from '../../components/SharedSoapFeed'
+import SignoffNotice from '../../components/journey/SignoffNotice'
 
 const INTRO_KEY = 'journey_intro_seen'
 const DEMO_KEY = 'journey_quadrant_demo_seen'
@@ -486,6 +487,9 @@ export default function MyJourneyPage() {
       </header>
 
       <main className="relative z-10 mx-auto max-w-xl px-4 pb-20 sm:px-6">
+        {/* Coach: disciples waiting on a sign-off (banner + browser alerts) */}
+        <SignoffNotice coachId={profile.id} />
+
         {/* hero — your star IS the interface */}
         <section className="flex flex-col items-center pt-2 text-center">
           <div className="relative">
