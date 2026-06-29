@@ -37,7 +37,6 @@ export const E_TAGLINES: Record<Stage, string> = {
 // own flows and aren't in here.)
 export const STEP_CHECKLIST: Record<string, { stage: Stage; label: string }> = {
   one2one: { stage: 'Establish', label: 'Completed One2One' },
-  'biblical-foundation': { stage: 'Establish', label: 'Completed Biblical Foundation' },
   'church-community': { stage: 'Establish', label: 'Completed Church Community' },
   'making-disciples': { stage: 'Equip', label: 'Completed Making Disciples' },
   'empowering-leaders': { stage: 'Empower', label: 'Completed Empowering Leaders' },
@@ -213,14 +212,6 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
       detail: 'Walk through the One2One foundations with your coach.',
       completed: checklistDone(d.checklist, 'Establish', 'Completed One2One'),
       progress: checklistDone(d.checklist, 'Establish', 'Completed One2One') ? 1 : 0,
-      action: 'self-confirm',
-    },
-    {
-      id: 'biblical-foundation',
-      title: 'I Completed Biblical Foundation',
-      detail: 'Walk through the Biblical Foundation curriculum with your coach.',
-      completed: checklistDone(d.checklist, 'Establish', 'Completed Biblical Foundation'),
-      progress: checklistDone(d.checklist, 'Establish', 'Completed Biblical Foundation') ? 1 : 0,
       action: 'self-confirm',
     },
     {

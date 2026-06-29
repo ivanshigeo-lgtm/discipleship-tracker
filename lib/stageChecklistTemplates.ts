@@ -13,7 +13,6 @@ export const stageChecklistTemplates: Record<Stage, ChecklistTemplateItem[]> = {
   ],
   Establish: [
     { category: 'Tool', label: 'Completed One2One' },
-    { category: 'Tool', label: 'Completed Biblical Foundation' },
     { category: 'Tool', label: 'Completed Church Community' },
     { category: 'Action Step', label: 'Confirm salvation / spiritual birthday' },
     { category: 'Action Step', label: 'Start One2One' },

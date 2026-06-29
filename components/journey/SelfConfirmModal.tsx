@@ -8,7 +8,6 @@ export type SelfConfirmKind =
   | 'salvation'
   | 'baptism'
   | 'one2one'
-  | 'biblical-foundation'
   | 'church-community'
 
 /*
@@ -62,17 +61,6 @@ const CONTENT: Record<
     personField: null,
     celebration: 'The foundations are laid.',
     coachNote: 'I completed One2One ✦',
-  },
-  'biblical-foundation': {
-    title: 'I Completed Biblical Foundation',
-    question: 'Have you finished the Biblical Foundation curriculum with your coach?',
-    dateLabel: null,
-    stage: 'Establish',
-    checklistLabel: 'Completed Biblical Foundation',
-    category: 'Tool',
-    personField: null,
-    celebration: 'Rooted in the Word.',
-    coachNote: 'I completed Biblical Foundation ✦',
   },
   'church-community': {
     title: 'I Completed Church Community',
