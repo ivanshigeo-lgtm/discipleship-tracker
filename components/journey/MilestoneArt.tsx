@@ -25,6 +25,9 @@ const ICONS: Record<string, React.ReactNode> = {
   'book-marked': <><path d="M10 2v8l3-3 3 3V2" /><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20" /></>,
   mic: <><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" x2="12" y1="19" y2="22" /></>,
   sparkles: <><path d="M9.94 14.06A2 2 0 0 0 8.5 12.6l-5.1-1.32a.5.5 0 0 1 0-.96L8.5 9a2 2 0 0 0 1.44-1.44l1.32-5.1a.5.5 0 0 1 .96 0l1.32 5.1A2 2 0 0 0 15 9l5.1 1.32a.5.5 0 0 1 0 .96L15 12.6a2 2 0 0 0-1.44 1.46l-1.32 5.1a.5.5 0 0 1-.96 0z" /><path d="M20 3v4" /><path d="M22 5h-4" /><path d="M4 17v2" /><path d="M5 18H3" /></>,
+  sprout: <><path d="M7 20h10" /><path d="M10 20c5.5-2.5.8-6.4 3-10" /><path d="M9.5 9.4c1.1.8 1.8 2.2 2.3 3.7-2 .4-3.5.4-4.8-.3-1.2-.6-2.3-1.9-3-4.2 2.8-.5 4.4 0 5.5.8z" /><path d="M14.1 6a7 7 0 0 0-1.1 4c1.9-.1 3.3-.6 4.3-1.4 1-1 1.6-2.3 1.7-4.6-2.7.1-4 1-4.9 2z" /></>,
+  send: <><path d="M14.54 21.69a.5.5 0 0 0 .93-.02l6.5-19a.5.5 0 0 0-.64-.64l-19 6.5a.5.5 0 0 0-.02.94l7.93 3.18a2 2 0 0 1 1.11 1.11z" /><path d="m21.85 2.15-10.94 10.94" /></>,
+  star: <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />,
 }
 
 export function LineIcon({ name, size = 22, color = 'currentColor', strokeWidth = 2 }: { name: string; size?: number; color?: string; strokeWidth?: number }) {
@@ -54,34 +57,66 @@ const EMBLEM_TINT: Record<string, string> = {
   Engage: '#5A3A00',
 }
 
-export function StageGem({ badge, size = 56 }: { badge: Badge; size?: number }) {
+// The stage capstone — a "very nice" gem marking the coach's sign-off of a
+// stage. Larger than a medallion, with a radiant aura, a faceted sheen, a lit
+// border, and a small sparkle crown when earned.
+export function StageGem({ badge, size = 76 }: { badge: Badge; size?: number }) {
   const earned = badge.earned
   const tint = badge.stage ? EMBLEM_TINT[badge.stage] : '#0A4A43'
+  const h = Math.round(size * 1.14)
   return (
-    <div
-      style={{
-        width: size,
-        height: Math.round(size * 1.14),
-        clipPath: GEM_CLIP,
-        display: 'grid',
-        placeItems: 'center',
-        position: 'relative',
-        background: earned ? `linear-gradient(145deg, ${badge.color}, ${badge.color})` : 'var(--indigo-3)',
-        boxShadow: earned ? `0 0 22px -4px ${badge.color}` : 'none',
-        opacity: earned ? 1 : 0.55,
-      }}
-    >
-      {earned && <span style={{ position: 'absolute', inset: 0, clipPath: 'polygon(50% 0, 100% 30%, 50% 50%, 0 30%)', background: 'rgba(255,255,255,.32)' }} />}
-      <span style={{ position: 'relative', zIndex: 2, display: 'flex' }}>
-        <LineIcon name={badge.icon} size={Math.round(size * 0.4)} color={earned ? tint : 'var(--fg-3)'} strokeWidth={2.2} />
-      </span>
+    <div style={{ position: 'relative', width: size, height: h, display: 'grid', placeItems: 'center' }}>
+      {/* radiant aura */}
+      {earned && (
+        <span aria-hidden style={{ position: 'absolute', inset: -10, borderRadius: '50%', background: `radial-gradient(circle, ${badge.color}66 0%, transparent 70%)`, filter: 'blur(2px)' }} />
+      )}
+      {/* lit border ring (slightly larger hexagon behind) */}
+      {earned && (
+        <span aria-hidden style={{ position: 'absolute', width: size + 4, height: h + 5, clipPath: GEM_CLIP, background: `${badge.color}`, opacity: 0.55 }} />
+      )}
+      {/* the gem face */}
+      <div
+        style={{
+          position: 'relative',
+          width: size,
+          height: h,
+          clipPath: GEM_CLIP,
+          display: 'grid',
+          placeItems: 'center',
+          background: earned ? `linear-gradient(155deg, ${badge.color} 0%, ${badge.color} 45%, rgba(255,255,255,.18) 100%)` : 'var(--indigo-3)',
+          boxShadow: earned ? `0 0 26px -2px ${badge.color}` : 'none',
+          border: earned ? 'none' : '1px dashed var(--line-2)',
+          opacity: earned ? 1 : 0.5,
+        }}
+      >
+        {/* top facet sheen */}
+        {earned && <span aria-hidden style={{ position: 'absolute', inset: 0, clipPath: 'polygon(50% 0, 100% 30%, 50% 52%, 0 30%)', background: 'rgba(255,255,255,.42)' }} />}
+        <span style={{ position: 'relative', zIndex: 2, display: 'flex' }}>
+          <LineIcon name={badge.icon} size={Math.round(size * 0.42)} color={earned ? tint : 'var(--fg-3)'} strokeWidth={2.4} />
+        </span>
+      </div>
+      {/* sparkle crown */}
+      {earned && (
+        <span aria-hidden style={{ position: 'absolute', top: -2, color: badge.color, filter: `drop-shadow(0 0 5px ${badge.color})`, display: 'flex' }}>
+          <LineIcon name="star" size={14} color={badge.color} />
+        </span>
+      )}
     </div>
   )
 }
 
+// Relative luminance of a #rrggbb color → pick a dark or warm-white foreground.
+function readableOn(hex: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex)
+  if (!m) return '#0B1027'
+  const n = parseInt(m[1], 16)
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255
+  const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
+  return lum > 0.6 ? '#0B1027' : '#FBF6EC'
+}
+
 export function Medallion({ badge, size = 56 }: { badge: Badge; size?: number }) {
   const earned = badge.earned
-  const isFlame = badge.icon === 'flame'
   if (!earned) {
     return (
       <div style={{ width: size, height: size, borderRadius: '50%', display: 'grid', placeItems: 'center', background: 'var(--indigo-3)', border: '1px dashed var(--line-2)' }}>
@@ -89,6 +124,10 @@ export function Medallion({ badge, size = 56 }: { badge: Badge; size?: number })
       </div>
     )
   }
+  // Earned medallion, color-coded to the milestone's stage. A white top-left
+  // highlight gives the glossy "gem" sheen over the stage color; the icon takes
+  // a dark or warm-white tone for legibility on that color.
+  const fg = readableOn(badge.color)
   return (
     <div
       style={{
@@ -97,25 +136,29 @@ export function Medallion({ badge, size = 56 }: { badge: Badge; size?: number })
         borderRadius: '50%',
         display: 'grid',
         placeItems: 'center',
-        background: 'radial-gradient(circle at 38% 32%, #FCE8C0, #E0A94A 70%)',
-        boxShadow: '0 0 0 1px rgba(242,200,121,.30), 0 0 30px -6px rgba(242,200,121,.6), inset 0 -4px 10px rgba(120,70,0,.35)',
+        background: `radial-gradient(circle at 36% 30%, rgba(255,255,255,.7), ${badge.color} 72%)`,
+        boxShadow: `0 0 0 1px ${badge.color}55, 0 0 30px -6px ${badge.color}, inset 0 -4px 10px rgba(0,0,0,.28)`,
       }}
     >
-      {isFlame ? (
-        <img src="/gbm-flame-white.png" alt="" style={{ width: Math.round(size * 0.5), height: Math.round(size * 0.5) }} />
-      ) : (
-        <LineIcon name={badge.icon} size={Math.round(size * 0.44)} color="#5A3A00" strokeWidth={2.2} />
-      )}
+      <LineIcon name={badge.icon} size={Math.round(size * 0.44)} color={fg} strokeWidth={2.2} />
     </div>
   )
 }
 
-// Single milestone, dispatched by kind, with its label beneath.
-export function MilestoneBadge({ badge, size = 56 }: { badge: Badge; size?: number }) {
+// Single milestone, dispatched by kind, with its label beneath. The capstone
+// gem renders larger than a medallion.
+export function MilestoneBadge({ badge }: { badge: Badge }) {
+  const isGem = badge.kind === 'gem'
+  const size = isGem ? 76 : 56
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: size + 24 }}>
-      {badge.kind === 'gem' ? <StageGem badge={badge} size={size} /> : <Medallion badge={badge} size={size} />}
-      <span className="mt-2 text-center text-[10.5px] leading-tight" style={{ color: badge.earned ? 'var(--fg-2)' : 'var(--fg-3)' }}>
+      <div style={{ height: 88, display: 'flex', alignItems: 'center' }}>
+        {isGem ? <StageGem badge={badge} size={size} /> : <Medallion badge={badge} size={size} />}
+      </div>
+      <span
+        className="text-center text-[10.5px] leading-tight"
+        style={{ color: badge.earned ? (isGem ? badge.color : 'var(--fg-2)') : 'var(--fg-3)', fontWeight: isGem ? 700 : 400 }}
+      >
         {badge.title}
       </span>
     </div>
