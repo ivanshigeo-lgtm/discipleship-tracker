@@ -4,25 +4,14 @@ import { useState } from 'react'
 import { addEngagement } from '../lib/supabaseQueries'
 import { useAuth } from '../contexts/AuthContext'
 import type { MeetingType } from '../types/database'
+import { type Recurrence, RECURRENCE_OPTIONS, recurrenceDates, recurrenceLabel } from '../lib/recurrence'
 
 const MEETING_TYPES: MeetingType[] = ['One2One', 'Making Disciples', 'Coffee', 'Church Community', 'Empowering Leaders']
 
-function addWeeks(dateStr: string, weeks: number): string {
+function addDaysStr(dateStr: string, days: number): string {
   const d = new Date(dateStr + 'T00:00:00')
-  d.setDate(d.getDate() + weeks * 7)
+  d.setDate(d.getDate() + days)
   return d.toISOString().split('T')[0]
-}
-
-function weeklyDates(start: string, until: string): string[] {
-  const dates: string[] = [start]
-  let current = start
-  while (true) {
-    const next = addWeeks(current, 1)
-    if (next > until) break
-    dates.push(next)
-    current = next
-  }
-  return dates
 }
 
 export default function AddNextStepForm({
@@ -40,7 +29,7 @@ export default function AddNextStepForm({
   const [followUpTime, setFollowUpTime] = useState('')
   const [location, setLocation] = useState('')
   const [meetingType, setMeetingType] = useState<MeetingType | ''>('')
-  const [repeatWeekly, setRepeatWeekly] = useState(false)
+  const [recurrence, setRecurrence] = useState<Recurrence>('none')
   const [repeatUntil, setRepeatUntil] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -54,8 +43,8 @@ export default function AddNextStepForm({
 
     // Build the list of dates to schedule
     const dates: string[] =
-      repeatWeekly && followUpDate && repeatUntil
-        ? weeklyDates(followUpDate, repeatUntil)
+      recurrence !== 'none' && followUpDate && repeatUntil
+        ? recurrenceDates(followUpDate, repeatUntil, recurrence)
         : [followUpDate || '']
 
     for (const date of dates) {
@@ -106,7 +95,7 @@ export default function AddNextStepForm({
     setFollowUpTime('')
     setLocation('')
     setMeetingType('')
-    setRepeatWeekly(false)
+    setRecurrence('none')
     setRepeatUntil('')
     onAdded()
     setLoading(false)
@@ -115,8 +104,8 @@ export default function AddNextStepForm({
   const inputClass = "rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] p-2 text-xs text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
 
   const repeatCount =
-    repeatWeekly && followUpDate && repeatUntil
-      ? weeklyDates(followUpDate, repeatUntil).length
+    recurrence !== 'none' && followUpDate && repeatUntil
+      ? recurrenceDates(followUpDate, repeatUntil, recurrence).length
       : 0
 
   return (
@@ -171,35 +160,37 @@ export default function AddNextStepForm({
         />
       </div>
 
-      {/* Repeat row — always visible; checkbox disabled until a date is chosen */}
+      {/* Recurrence row — pick a cadence; disabled until a date is chosen */}
       <div className="flex flex-wrap items-center gap-2 pt-0.5">
-        <label className={`flex items-center gap-1.5 ${followUpDate ? 'cursor-pointer' : 'cursor-not-allowed opacity-40'}`}>
-          <input
-            type="checkbox"
-            checked={repeatWeekly}
-            disabled={!followUpDate}
-            onChange={(e) => {
-              setRepeatWeekly(e.target.checked)
-              if (!e.target.checked) setRepeatUntil('')
-            }}
-            className="h-3.5 w-3.5 rounded border-[var(--line-2)] accent-[var(--equip)]"
-          />
-          <span className="text-xs text-[var(--fg-2)]">Repeat weekly</span>
-        </label>
-        {repeatWeekly && followUpDate && (
+        <span className="text-xs text-[var(--fg-3)]">Repeats</span>
+        <select
+          value={recurrence}
+          disabled={!followUpDate}
+          onChange={(e) => {
+            const v = e.target.value as Recurrence
+            setRecurrence(v)
+            if (v === 'none') setRepeatUntil('')
+          }}
+          className={`${inputClass} w-44 ${followUpDate ? '' : 'cursor-not-allowed opacity-40'}`}
+        >
+          {RECURRENCE_OPTIONS.map(o => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+        {recurrence !== 'none' && followUpDate && (
           <>
             <span className="text-xs text-[var(--fg-3)]">until</span>
             <input
               type="date"
               value={repeatUntil}
-              min={addWeeks(followUpDate, 1)}
+              min={addDaysStr(followUpDate, 1)}
               onChange={(e) => setRepeatUntil(e.target.value)}
               className={`${inputClass} w-28`}
-              required={repeatWeekly}
+              required
             />
             {repeatCount > 1 && (
               <span className="text-[10px] text-[var(--fg-3)]">
-                {repeatCount} meetings
+                {recurrenceLabel(recurrence, followUpDate)} · {repeatCount} meetings
               </span>
             )}
           </>
