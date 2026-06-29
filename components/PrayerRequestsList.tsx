@@ -35,7 +35,9 @@ export default function PrayerRequestsList({
         setError(result.error.message)
         return
       }
-      if (result.data) setRequests(result.data)
+      // Private prayers belong only to the individual — never surface them
+      // here (this list is the coach's view of a disciple's profile).
+      if (result.data) setRequests(result.data.filter(r => r.visibility !== 'private'))
     } catch (err) {
       console.error('PrayerRequestsList load error:', err)
       setError('Failed to load prayer requests')

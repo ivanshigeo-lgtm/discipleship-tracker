@@ -36,6 +36,7 @@ import SelfConfirmModal, { type SelfConfirmKind } from '../../components/journey
 import JourneyMenu from '../../components/journey/JourneyMenu'
 import SoapCalendarSection from '../../components/SoapCalendarSection'
 import SharedSoapFeed from '../../components/SharedSoapFeed'
+import SharedPrayerFeed from '../../components/SharedPrayerFeed'
 import SignoffNotice from '../../components/journey/SignoffNotice'
 
 const INTRO_KEY = 'journey_intro_seen'
@@ -621,9 +622,10 @@ export default function MyJourneyPage() {
           </section>
         )}
 
-        {/* SOAPs shared with your Grace Group */}
+        {/* Shared with your Grace Group */}
         {groups.length > 0 && (
           <section className="mt-10">
+            <SharedPrayerFeed personId={profile.id} scope="group" />
             <SharedSoapFeed personId={profile.id} scope="group" />
           </section>
         )}

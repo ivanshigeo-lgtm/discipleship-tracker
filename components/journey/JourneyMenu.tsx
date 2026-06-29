@@ -6,7 +6,7 @@ import {
   getEngagementsByPerson,
   addPrayerRequest,
 } from '../../lib/supabaseQueries'
-import type { Engagement, PrayerRequest, Stage } from '../../types/database'
+import type { Engagement, PrayerRequest, Stage, ShareVisibility } from '../../types/database'
 import type { JourneyLevel, JourneyStep } from './journeyModel'
 import { StageStepList } from './StageStepList'
 
@@ -72,10 +72,18 @@ function StagePanel({
 }
 
 // ─── Prayer panel ─────────────────────────────────────────────────────────────
+const PRAYER_SCOPES: { value: ShareVisibility; label: string }[] = [
+  { value: 'private', label: 'Just me' },
+  { value: 'coach', label: 'My coach' },
+  { value: 'group', label: 'My group' },
+  { value: 'constellation', label: 'Everyone' },
+]
+
 function PrayerPanel({ personId, onClose }: { personId: string; onClose: () => void }) {
   const [requests, setRequests] = useState<PrayerRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [text, setText] = useState('')
+  const [visibility, setVisibility] = useState<ShareVisibility>('private')
   const [saving, setSaving] = useState(false)
 
   const load = () =>
@@ -89,7 +97,7 @@ function PrayerPanel({ personId, onClose }: { personId: string; onClose: () => v
   const submit = async () => {
     if (!text.trim()) return
     setSaving(true)
-    await addPrayerRequest({ person_id: personId, request: text.trim(), status: 'Active', answered_date: null, answer_notes: null })
+    await addPrayerRequest({ person_id: personId, request: text.trim(), status: 'Active', answered_date: null, answer_notes: null, visibility })
     setText('')
     await load()
     setSaving(false)
@@ -97,7 +105,7 @@ function PrayerPanel({ personId, onClose }: { personId: string; onClose: () => v
 
   return (
     <Panel title="Prayer" color="#9B80FF" onClose={onClose}>
-      <div className="mb-5 flex gap-2">
+      <div className="mb-2 flex gap-2">
         <textarea
           value={text}
           onChange={e => setText(e.target.value)}
@@ -114,6 +122,23 @@ function PrayerPanel({ personId, onClose }: { personId: string; onClose: () => v
         >
           {saving ? '…' : 'Add'}
         </button>
+      </div>
+      {/* Who sees this prayer */}
+      <div className="mb-5 flex flex-wrap items-center gap-1.5">
+        <span className="text-[10px] uppercase tracking-wider text-[var(--fg-3)]">Share with</span>
+        {PRAYER_SCOPES.map(s => (
+          <button
+            key={s.value}
+            type="button"
+            onClick={() => setVisibility(s.value)}
+            className="rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors"
+            style={visibility === s.value
+              ? { background: '#9B80FF', color: 'var(--void)' }
+              : { background: 'var(--indigo-2)', color: 'var(--fg-2)' }}
+          >
+            {s.label}
+          </button>
+        ))}
       </div>
       {loading ? (
         <div className="flex justify-center py-6">

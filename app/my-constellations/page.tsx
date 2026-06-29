@@ -12,6 +12,7 @@ import CoachingPipeline from '../../components/CoachingPipeline'
 import NeedAttentionSection from '../../components/NeedAttentionSection'
 import SignoffRequestsSection from '../../components/SignoffRequestsSection'
 import SharedSoapFeed from '../../components/SharedSoapFeed'
+import SharedPrayerFeed from '../../components/SharedPrayerFeed'
 import PointsOfActionSection from '../../components/PointsOfActionSection'
 import PrayerWallSection from '../../components/PrayerWallSection'
 import VictoryGroupsList from '../../components/VictoryGroupsList'
@@ -800,7 +801,10 @@ export default function DiscipleshipTracker() {
 
           {activeSection === 'prayer' && (
             <div>
-              <SectionHeader title="Prayer Wall" subtitle="Requests and praises from across your constellation" />
+              <SectionHeader title="Prayer Wall" subtitle="Requests and praises shared with everyone" />
+              <ErrorBoundary name="SharedPrayerFeed">
+                <SharedPrayerFeed personId={profile.id} scope="coach" refreshKey={refreshKey} />
+              </ErrorBoundary>
               <ErrorBoundary name="PrayerWallSection">
                 <PrayerWallSection
                   refreshKey={refreshKey}
