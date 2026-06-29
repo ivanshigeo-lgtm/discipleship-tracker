@@ -122,6 +122,7 @@ export default function MyJourneyPage() {
   const { user, profile, loading, signOut } = useAuth()
   const [coach, setCoach] = useState<Person | null>(null)
   const [groups, setGroups] = useState<VictoryGroup[]>([])
+  const [pendingGroupIds, setPendingGroupIds] = useState<string[]>([])
   const [soapJournals, setSoapJournals] = useState<SoapJournal[]>([])
   const [soapStreak, setSoapStreak] = useState(0)
   const [currentStreak, setCurrentStreak] = useState(0)
@@ -188,7 +189,11 @@ export default function MyJourneyPage() {
     if (coachRes.data?.discipler) setCoach(coachRes.data.discipler as Person)
     if (disciplesRes.data) setMyDisciples(disciplesRes.data as DiscipleshipConnection[])
     if (groupsRes.data) {
-      setGroups(groupsRes.data.map((g: { victory_groups: VictoryGroup }) => g.victory_groups).filter(Boolean))
+      const rows = groupsRes.data as { victory_groups: VictoryGroup; victory_group_id: string; status?: string }[]
+      // Only APPROVED memberships count as being "in" the group; pending ones
+      // are awaiting the group owner's approval.
+      setGroups(rows.filter(g => g.status !== 'pending').map(g => g.victory_groups).filter(Boolean))
+      setPendingGroupIds(rows.filter(g => g.status === 'pending').map(g => g.victory_group_id))
     }
     if (journalsRes.data) setSoapJournals(journalsRes.data as SoapJournal[])
     if (streakRes.streak !== undefined) setSoapStreak(streakRes.streak)
@@ -714,6 +719,7 @@ export default function MyJourneyPage() {
           personId={profile.id}
           coach={coach}
           myGroupIds={groups.map(g => g.id)}
+          pendingGroupIds={pendingGroupIds}
           onClose={() => setActiveModal(null)}
           onJoined={loadData}
         />

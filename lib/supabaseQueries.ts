@@ -523,13 +523,51 @@ export const getPeopleByVictoryGroup = async (groupId: string) => {
   return { data, error }
 }
 
-export const addPersonToVictoryGroup = async (personId: string, victoryGroupId: string) => {
+export const addPersonToVictoryGroup = async (
+  personId: string,
+  victoryGroupId: string,
+  status: 'pending' | 'approved' = 'approved'
+) => {
   const { data, error } = await supabase
     .from('person_victory_groups')
-    .insert({ person_id: personId, victory_group_id: victoryGroupId })
-    .select('id, person_id, victory_group_id, created_at')
+    .insert({ person_id: personId, victory_group_id: victoryGroupId, status })
+    .select('id, person_id, victory_group_id, created_at, status')
     .single()
   return { data, error }
+}
+
+// Pending join requests for the groups a given person owns (for the owner to
+// approve). Includes the requesting person + the group.
+export const getPendingGroupRequests = async (ownerPersonId: string) => {
+  const { data: owned, error: oErr } = await supabase
+    .from('victory_groups')
+    .select('id')
+    .eq('owner_person_id', ownerPersonId)
+  if (oErr) return { data: null, error: oErr }
+  const groupIds = (owned ?? []).map(g => g.id)
+  if (groupIds.length === 0) return { data: [], error: null }
+  const { data, error } = await supabase
+    .from('person_victory_groups')
+    .select('id, person_id, victory_group_id, created_at, status, people(name), victory_groups(name)')
+    .eq('status', 'pending')
+    .in('victory_group_id', groupIds)
+    .order('created_at', { ascending: true })
+  return { data, error }
+}
+
+export const setGroupMembershipStatus = async (membershipId: string, status: 'pending' | 'approved') => {
+  const { data, error } = await supabase
+    .from('person_victory_groups')
+    .update({ status })
+    .eq('id', membershipId)
+    .select()
+    .single()
+  return { data, error }
+}
+
+export const deleteGroupMembership = async (membershipId: string) => {
+  const { error } = await supabase.from('person_victory_groups').delete().eq('id', membershipId)
+  return { error }
 }
 
 export const removePersonFromVictoryGroup = async (personId: string, victoryGroupId: string) => {
@@ -914,6 +952,7 @@ export const getGroupSharedSoaps = async (personId: string, limit = 20) => {
     .from('person_victory_groups')
     .select('victory_group_id')
     .eq('person_id', personId)
+    .eq('status', 'approved')
   if (gErr) return { data: null, error: gErr }
   const gids = (myGroups ?? []).map(g => g.victory_group_id).filter(Boolean)
   if (gids.length === 0) return { data: [], error: null }
@@ -921,6 +960,7 @@ export const getGroupSharedSoaps = async (personId: string, limit = 20) => {
     .from('person_victory_groups')
     .select('person_id')
     .in('victory_group_id', gids)
+    .eq('status', 'approved')
   if (mErr) return { data: null, error: mErr }
   const pids = Array.from(new Set((members ?? []).map(m => m.person_id).filter(Boolean)))
   if (pids.length === 0) return { data: [], error: null }
@@ -961,6 +1001,7 @@ export const getGroupSharedPrayers = async (personId: string, limit = 30) => {
     .from('person_victory_groups')
     .select('victory_group_id')
     .eq('person_id', personId)
+    .eq('status', 'approved')
   if (gErr) return { data: null, error: gErr }
   const gids = (myGroups ?? []).map(g => g.victory_group_id).filter(Boolean)
   if (gids.length === 0) return { data: [], error: null }
@@ -968,6 +1009,7 @@ export const getGroupSharedPrayers = async (personId: string, limit = 30) => {
     .from('person_victory_groups')
     .select('person_id')
     .in('victory_group_id', gids)
+    .eq('status', 'approved')
   if (mErr) return { data: null, error: mErr }
   const pids = Array.from(new Set((members ?? []).map(m => m.person_id).filter(Boolean)))
   if (pids.length === 0) return { data: [], error: null }

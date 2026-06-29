@@ -18,12 +18,14 @@ export default function JoinGroupModal({
   personId,
   coach,
   myGroupIds,
+  pendingGroupIds = [],
   onClose,
   onJoined,
 }: {
   personId: string
   coach: Person | null
   myGroupIds: string[]
+  pendingGroupIds?: string[]
   onClose: () => void
   onJoined: () => void
 }) {
@@ -52,19 +54,23 @@ export default function JoinGroupModal({
   const handleJoin = async (group: VictoryGroup) => {
     setJoiningId(group.id)
     setError('')
-    const { error: err } = await addPersonToVictoryGroup(personId, group.id)
+    // Self-joins are a REQUEST — the group owner approves before you're a
+    // member (and can see the group's prayers/SOAPs).
+    const { error: err } = await addPersonToVictoryGroup(personId, group.id, 'pending')
     if (err) {
-      setError(err.message?.includes('duplicate') ? 'You’re already in that group.' : 'Could not join. Please try again.')
+      setError(err.message?.includes('duplicate') ? 'You’ve already requested that group.' : 'Could not request. Please try again.')
       setJoiningId(null)
       return
     }
-    if (coach) {
-      await sendMessage(personId, coach.id, 'note', `I just joined ${group.name}.`)
+    // Ask the group's owner (who approves), falling back to your coach.
+    const notifyId = group.owner_person_id || coach?.id
+    if (notifyId) {
+      await sendMessage(personId, notifyId, 'note', `I’d like to join ${group.name}. Could you approve my request?`)
     }
     setJoinedName(group.name)
     setJoiningId(null)
     onJoined()
-    setTimeout(onClose, 2000)
+    setTimeout(onClose, 2500)
   }
 
   const sorted = [...groups].sort((a, b) => {
@@ -79,9 +85,9 @@ export default function JoinGroupModal({
         {joinedName ? (
           <div className="jy-rise-in py-6 text-center">
             <p className="text-2xl" style={{ fontFamily: 'var(--font-display)', color: 'var(--establish)' }}>
-              ✦ Welcome to {joinedName}
+              ✦ Request sent
             </p>
-            <p className="mt-2 text-sm text-[var(--fg-2)]">Your people are expecting you.</p>
+            <p className="mt-2 text-sm text-[var(--fg-2)]">The leader of {joinedName} will approve you soon.</p>
           </div>
         ) : (
           <>
@@ -131,6 +137,10 @@ export default function JoinGroupModal({
                         <span className="shrink-0 text-xs font-semibold" style={{ color: 'var(--establish)' }}>
                           ✓ joined
                         </span>
+                      ) : pendingGroupIds.includes(group.id) ? (
+                        <span className="shrink-0 text-xs font-semibold text-[var(--fg-3)]">
+                          ⌛ requested
+                        </span>
                       ) : (
                         <button
                           type="button"
@@ -138,7 +148,7 @@ export default function JoinGroupModal({
                           disabled={joiningId !== null}
                           className="cn-btn cn-btn-primary shrink-0 !px-3 !py-1.5 !text-xs disabled:opacity-50"
                         >
-                          {joiningId === group.id ? 'Joining…' : 'Join'}
+                          {joiningId === group.id ? 'Requesting…' : 'Request to join'}
                         </button>
                       )}
                     </div>

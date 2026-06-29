@@ -11,6 +11,7 @@ import MyCircleMap from '../../components/MyCircleMap'
 import CoachingPipeline from '../../components/CoachingPipeline'
 import NeedAttentionSection from '../../components/NeedAttentionSection'
 import SignoffRequestsSection from '../../components/SignoffRequestsSection'
+import GroupJoinRequests from '../../components/GroupJoinRequests'
 import SharedSoapFeed from '../../components/SharedSoapFeed'
 import SharedPrayerFeed from '../../components/SharedPrayerFeed'
 import PointsOfActionSection from '../../components/PointsOfActionSection'
@@ -742,6 +743,13 @@ export default function DiscipleshipTracker() {
                 <SignoffRequestsSection
                   coachId={profile.id}
                   isAdmin={Boolean(profile.is_admin)}
+                  refreshKey={refreshKey}
+                  onChanged={() => setRefreshKey(p => p + 1)}
+                />
+              </ErrorBoundary>
+              <ErrorBoundary name="GroupJoinRequests">
+                <GroupJoinRequests
+                  ownerPersonId={profile.id}
                   refreshKey={refreshKey}
                   onChanged={() => setRefreshKey(p => p + 1)}
                 />
