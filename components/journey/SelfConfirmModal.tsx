@@ -10,9 +10,6 @@ export type SelfConfirmKind =
   | 'one2one'
   | 'biblical-foundation'
   | 'church-community'
-  | 'leadership-113'
-  | 'next-steps'
-  | 'leadership-215'
 
 /*
  * The disciple marks their own milestone. Writes the same checklist row
@@ -87,39 +84,6 @@ const CONTENT: Record<
     personField: null,
     celebration: 'Planted in the body of Christ.',
     coachNote: 'I completed Church Community ✦',
-  },
-  'leadership-113': {
-    title: 'I Completed Leadership 113',
-    question: 'Have you finished the Leadership 113 curriculum?',
-    dateLabel: null,
-    stage: 'Equip',
-    checklistLabel: 'Completed Leadership 113',
-    category: 'Tool',
-    personField: null,
-    celebration: 'Equipped to lead.',
-    coachNote: 'I completed Leadership 113 ✦',
-  },
-  'next-steps': {
-    title: 'I Completed Next Steps',
-    question: 'Have you finished the Next Steps curriculum?',
-    dateLabel: null,
-    stage: 'Equip',
-    checklistLabel: 'Completed Next Steps',
-    category: 'Tool',
-    personField: null,
-    celebration: 'Every step forward is a step of faith.',
-    coachNote: 'I completed Next Steps ✦',
-  },
-  'leadership-215': {
-    title: 'I Completed Leadership 215',
-    question: 'Have you finished the Leadership 215 curriculum?',
-    dateLabel: null,
-    stage: 'Empower',
-    checklistLabel: 'Completed Leadership 215',
-    category: 'Tool',
-    personField: null,
-    celebration: 'Deepened to multiply leaders.',
-    coachNote: 'I completed Leadership 215 ✦',
   },
 }
 

@@ -23,15 +23,12 @@ export const stageChecklistTemplates: Record<Stage, ChecklistTemplateItem[]> = {
   ],
   Equip: [
     { category: 'Tool', label: 'Completed Making Disciples' },
-    { category: 'Tool', label: 'Completed Leadership 113' },
-    { category: 'Tool', label: 'Completed Next Steps' },
     { category: 'Action Step', label: 'Practice Sharing Testimony/Gospel' },
     { category: 'Action Step', label: 'Begin Serving in a Ministry/Mission' },
     { category: 'Action Step', label: 'Assist in Leading Small Group' },
   ],
   Empower: [
     { category: 'Tool', label: 'Completed Empowering Leaders' },
-    { category: 'Tool', label: 'Completed Leadership 215' },
     { category: 'Action Step', label: 'Identified Their Circle' },
     { category: 'Action Step', label: 'Lead a Grace Group' },
   ],
