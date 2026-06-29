@@ -309,6 +309,9 @@ export default function MyJourneyPage() {
   const dismissTour = useCallback(() => {
     localStorage.setItem(INTRO_KEY, '1')
     setShowTour(false)
+    // Land at the top of the homepage, not wherever the page was scrolled
+    // before the story played.
+    window.scrollTo({ top: 0, behavior: 'auto' })
     // The coachmark is the story's closing beat — a meteor lights the
     // instruction, an arrow presses the quadrant open. Every showing ends
     // with it, so the handoff into the app is always demonstrated.
