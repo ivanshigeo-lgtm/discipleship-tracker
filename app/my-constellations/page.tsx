@@ -746,7 +746,8 @@ export default function DiscipleshipTracker() {
               <ErrorBoundary name="NeedAttentionSection">
                 <NeedAttentionSection
                   refreshKey={refreshKey}
-                  allowedPersonIds={allowedPersonIds}
+                  viewerPersonId={profile.id}
+                  isAdmin={isAdmin}
                   onPersonClick={(p, tab) => openPerson(p, tab)}
                   onOpenEngagement={(engagement, personName) => setDetailEngagement({ engagement, personName })}
                   onAddNewPerson={(name) => { setNewPersonName(name ?? ''); setShowAddPerson(true) }}
@@ -757,7 +758,8 @@ export default function DiscipleshipTracker() {
                 <ErrorBoundary name="PointsOfActionSection">
                   <PointsOfActionSection
                     refreshKey={refreshKey}
-                    allowedPersonIds={allowedPersonIds}
+                    viewerPersonId={profile.id}
+                    isAdmin={isAdmin}
                     onPersonClick={(p, tab) => openPerson(p, tab)}
                     onOpenEngagement={(engagement, personName) => setDetailEngagement({ engagement, personName })}
                   />
@@ -773,7 +775,8 @@ export default function DiscipleshipTracker() {
               <ErrorBoundary name="PointsOfActionSection">
                 <PointsOfActionSection
                   refreshKey={refreshKey}
-                  allowedPersonIds={allowedPersonIds}
+                  viewerPersonId={profile.id}
+                  isAdmin={isAdmin}
                   onPersonClick={(p, tab) => openPerson(p, tab)}
                   onOpenEngagement={(engagement, personName) => setDetailEngagement({ engagement, personName })}
                 />

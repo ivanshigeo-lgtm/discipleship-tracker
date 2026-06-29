@@ -50,6 +50,7 @@ export default function AddNextStepForm({
     for (const date of dates) {
       const { data: newEngagement, error: insertError } = await addEngagement({
         person_id: personId,
+        created_by_person_id: profile?.id ?? null,
         description,
         follow_up_date: date || null,
         follow_up_time: followUpTime || null,

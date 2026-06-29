@@ -41,6 +41,9 @@ export type Person = {
 export type Engagement = {
   id: string
   person_id: string
+  // The coach who created/owns this engagement. With person_id, these are the
+  // two "involved" parties — the only ones (besides admins) who can see it.
+  created_by_person_id: string | null
   description: string
   follow_up_date: string | null
   follow_up_time: string | null

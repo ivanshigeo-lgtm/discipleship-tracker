@@ -147,6 +147,7 @@ export default function NextStepsList({
         for (const date of repeatDates) {
           const { data: newEng } = await addEngagement({
             person_id: eng.person_id,
+            created_by_person_id: eng.created_by_person_id ?? coachPersonId ?? null,
             description: updates.description,
             follow_up_date: date,
             follow_up_time: updates.follow_up_time || null,

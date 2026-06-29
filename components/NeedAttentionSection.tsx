@@ -21,9 +21,11 @@ interface MyOneToOnesSectionProps {
   onOpenEngagement?: (engagement: Engagement, personName: string) => void
   onAddNewPerson?: (name?: string) => void
   onGroupsChanged?: () => void
-  /* When set, only show meetings for these people (the coach's own circle).
-     Undefined = the whole church (admin / GBC view). */
-  allowedPersonIds?: string[]
+  /* Engagements are visible only to the people involved: the coach who created
+     it (created_by_person_id) and the person it's with (person_id). Admins see
+     all. */
+  viewerPersonId?: string
+  isAdmin?: boolean
 }
 
 type MeetingItem = {
@@ -188,8 +190,13 @@ export default function NeedAttentionSection({
   onOpenEngagement,
   onAddNewPerson,
   onGroupsChanged,
-  allowedPersonIds,
+  viewerPersonId,
+  isAdmin = false,
 }: MyOneToOnesSectionProps) {
+  // An engagement is visible if you're an admin, you created it, or it's with
+  // you.
+  const involvedInEngagement = (e: Engagement) =>
+    isAdmin || (!!viewerPersonId && (e.created_by_person_id === viewerPersonId || e.person_id === viewerPersonId))
   const [people, setPeople] = useState<Person[]>([])
   const [engagements, setEngagements] = useState<Engagement[]>([])
   const [victoryGroups, setVictoryGroups] = useState<VictoryGroup[]>([])
@@ -252,7 +259,6 @@ export default function NeedAttentionSection({
   }, [refreshKey])
 
   const meetings = useMemo(() => {
-    const allow = allowedPersonIds ? new Set(allowedPersonIds) : null
     const peopleById = new Map(people.map(p => [p.id, p]))
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -267,7 +273,7 @@ export default function NeedAttentionSection({
     engagements
       .filter(e => {
         if (e.status !== 'Pending' || !e.follow_up_date) return false
-        if (allow && !allow.has(e.person_id)) return false
+        if (!involvedInEngagement(e)) return false
         // Show meetings within the next 7 days + anything still overdue
         return e.follow_up_date <= next7Str
       })
@@ -301,19 +307,17 @@ export default function NeedAttentionSection({
     })
 
     return items
-  }, [people, engagements, allowedPersonIds])
+  }, [people, engagements, viewerPersonId, isAdmin])
 
   const overdueCount = meetings.filter(m => m.isOverdue).length
   const todayCount = meetings.filter(m => m.isToday).length
 
   const meetingCounts = useMemo(() => {
-    const allow = allowedPersonIds ? new Set(allowedPersonIds) : null
     const now = new Date()
     const todayStr = now.toISOString().split('T')[0] // YYYY-MM-DD format
     const todayDayOfWeek = now.getDay()
-    // When scoped to a coach's circle (allow set), only their people/groups
-    // count; otherwise the section's own GBC/mine toggle applies to groups.
-    const effectiveScope = allow ? 'mine' : badgeScope
+    // Non-admins only ever count their own groups; admins may toggle GBC/mine.
+    const effectiveScope = isAdmin ? badgeScope : 'mine'
     const scopeGroup = (group: VictoryGroup) => effectiveScope === 'gbc' || group.owner_person_id === profile?.id
 
     // Tomorrow
@@ -341,7 +345,7 @@ export default function NeedAttentionSection({
 
     // Count engagements by person's stage (both pending and completed this week)
     engagements
-      .filter(e => e.follow_up_date && (!allow || allow.has(e.person_id)))
+      .filter(e => e.follow_up_date && involvedInEngagement(e))
       .forEach(e => {
         const person = peopleById.get(e.person_id)
         if (!person) return
@@ -401,7 +405,7 @@ export default function NeedAttentionSection({
     })
 
     return counts
-  }, [people, engagements, victoryGroups, groupMemberships, badgeScope, allowedPersonIds, profile?.id])
+  }, [people, engagements, victoryGroups, groupMemberships, badgeScope, viewerPersonId, isAdmin, profile?.id])
 
   if (loading) {
     return <SectionSkeleton title="My Meetings" />
@@ -420,9 +424,8 @@ export default function NeedAttentionSection({
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex flex-col items-center gap-1.5">
             <MeetingBadges counts={meetingCounts} />
-            {/* Scope the badge totals: whole church vs my constellation/groups.
-                Hidden when the dashboard already scopes to the coach's circle. */}
-            {!allowedPersonIds && (
+            {/* Scope the badge totals: whole church vs my groups (admins only). */}
+            {isAdmin && (
               <div className="flex rounded-full border border-[var(--line-2)] bg-[var(--indigo)] p-0.5">
                 {([['gbc', 'GBC'], ['mine', 'Mine']] as const).map(([val, label]) => (
                   <button
