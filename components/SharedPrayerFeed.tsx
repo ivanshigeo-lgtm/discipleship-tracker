@@ -31,6 +31,7 @@ export default function SharedPrayerFeed({
 }) {
   const [items, setItems] = useState<SharedPrayer[]>([])
   const [loading, setLoading] = useState(true)
+  const [collapsed, setCollapsed] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -58,11 +59,16 @@ export default function SharedPrayerFeed({
 
   return (
     <section className="cn-card mb-6 p-4">
-      <div className="mb-1 flex items-center gap-3">
+      <div className="flex items-center gap-3">
         <h2 className="cn-h3">{title}</h2>
         <span className="cn-chip !py-0.5 !text-xs">{items.length}</span>
+        <button type="button" onClick={() => setCollapsed(c => !c)} className="ml-auto cn-chip">
+          {collapsed ? 'Expand' : 'Collapse'}
+        </button>
       </div>
-      <p className="mb-4 text-sm text-[var(--fg-2)]">{subtitle}</p>
+      {collapsed ? null : (
+      <>
+      <p className="mb-4 mt-1 text-sm text-[var(--fg-2)]">{subtitle}</p>
       <div className="space-y-2">
         {items.map(p => (
           <div key={p.id} className="rounded-xl px-3 py-2.5" style={{ background: p.is_praise ? 'rgba(242,200,121,.08)' : 'var(--indigo-2)' }}>
@@ -77,6 +83,8 @@ export default function SharedPrayerFeed({
           </div>
         ))}
       </div>
+      </>
+      )}
     </section>
   )
 }
