@@ -44,14 +44,13 @@ function QuadrantPanel({
 }) {
   const locked = !level.unlocked
 
-  // A centered dropdown directly beneath the star — always within the viewport
-  // (horizontally centered, grows downward into the scrollable page), with its
-  // own max-height + scroll so a long stage never runs off-screen.
+  // A fixed, viewport-centered panel — always fully on-screen regardless of how
+  // far down the star sits, with its own max-height + scroll for long stages.
   return (
     <div
       onMouseEnter={onKeepOpen}
       onMouseLeave={onCloseSoon}
-      className="jy-quad-pop pointer-events-auto absolute left-1/2 top-full z-30 mt-2 max-h-[62vh] w-[min(300px,90vw)] -translate-x-1/2 origin-top overflow-y-auto overflow-x-hidden rounded-2xl border p-3"
+      className="jy-quad-pop pointer-events-auto fixed left-1/2 top-1/2 z-[60] max-h-[85vh] w-[min(320px,92vw)] -translate-x-1/2 -translate-y-1/2 origin-center overflow-y-auto overflow-x-hidden rounded-2xl border p-3"
       style={{
         borderColor: locked ? 'var(--line-2)' : `${level.color}55`,
         background: 'rgba(15,21,48,.92)',

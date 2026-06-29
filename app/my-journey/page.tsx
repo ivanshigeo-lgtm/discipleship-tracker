@@ -124,6 +124,7 @@ export default function MyJourneyPage() {
   const [groups, setGroups] = useState<VictoryGroup[]>([])
   const [soapJournals, setSoapJournals] = useState<SoapJournal[]>([])
   const [soapStreak, setSoapStreak] = useState(0)
+  const [currentStreak, setCurrentStreak] = useState(0)
   const [checklistItems, setChecklistItems] = useState<StageChecklistItem[]>([])
   const [myDisciples, setMyDisciples] = useState<DiscipleshipConnection[]>([])
   const [signoffs, setSignoffs] = useState<LevelSignoff[]>([])
@@ -191,6 +192,7 @@ export default function MyJourneyPage() {
     }
     if (journalsRes.data) setSoapJournals(journalsRes.data as SoapJournal[])
     if (streakRes.streak !== undefined) setSoapStreak(streakRes.streak)
+    if (streakRes.current !== undefined) setCurrentStreak(streakRes.current)
     if (checklistRes.data) setChecklistItems(checklistRes.data as StageChecklistItem[])
     if (signoffsRes.data) setSignoffs(signoffsRes.data as LevelSignoff[])
     setDataReady(true)
@@ -527,9 +529,19 @@ export default function MyJourneyPage() {
             {soapStreak > 0 && (
               <span
                 className="rounded-full border px-2.5 py-1 text-[11px] font-bold"
+                title="Longest SOAP streak"
                 style={{ borderColor: 'rgba(54,214,195,.4)', background: 'rgba(54,214,195,.12)', color: 'var(--establish)' }}
               >
-                ✦ {soapStreak}d
+                ✦ {soapStreak}d best
+              </span>
+            )}
+            {currentStreak > 0 && (
+              <span
+                className="rounded-full border px-2.5 py-1 text-[11px] font-bold"
+                title="Current SOAP streak"
+                style={{ borderColor: 'rgba(244,182,80,.4)', background: 'rgba(244,182,80,.12)', color: '#F4B650' }}
+              >
+                ✦ {currentStreak}d now
               </span>
             )}
           </div>

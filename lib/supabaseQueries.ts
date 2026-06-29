@@ -756,31 +756,46 @@ export const getSoapStreak = async (personId: string) => {
     .order('journal_date', { ascending: false })
     .limit(366)
 
-  if (error || !data) return { streak: 0, error }
+  if (error || !data) return { streak: 0, current: 0, error }
 
-  // Compare LOCAL date strings (YYYY-MM-DD) directly — never parse the stored
-  // date as UTC (which shifts a day in negative-offset timezones like Hawaii).
-  const logged = new Set(data.map(d => d.journal_date))
+  // Compare local date strings (never parse the stored date as UTC — that
+  // shifts a day in negative-offset timezones like Hawaii). setDate handles
+  // month/DST rollover. Returns the LONGEST run (`streak`) and the CURRENT run
+  // ending today/yesterday (`current`).
   const fmt = (d: Date) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
+  const logged = new Set(data.map(d => d.journal_date))
+  const days = Array.from(logged).sort() // ascending YYYY-MM-DD
+
+  // Longest run.
+  let best = 0
+  let run = 0
+  let prev: string | null = null
+  for (const day of days) {
+    if (prev) {
+      const next = new Date(prev + 'T00:00:00')
+      next.setDate(next.getDate() + 1)
+      run = fmt(next) === day ? run + 1 : 1
+    } else {
+      run = 1
+    }
+    if (run > best) best = run
+    prev = day
+  }
+
+  // Current run ending today (or yesterday, as a grace day if today isn't
+  // logged yet).
   const cursor = new Date()
   cursor.setHours(0, 0, 0, 0)
-
-  // Grace: if today isn't logged yet but yesterday was, the streak is still
-  // alive — start counting from yesterday.
-  if (!logged.has(fmt(cursor))) {
-    cursor.setDate(cursor.getDate() - 1)
-    if (!logged.has(fmt(cursor))) return { streak: 0, error: null }
-  }
-
-  let streak = 0
+  if (!logged.has(fmt(cursor))) cursor.setDate(cursor.getDate() - 1)
+  let current = 0
   while (logged.has(fmt(cursor))) {
-    streak++
+    current++
     cursor.setDate(cursor.getDate() - 1)
   }
 
-  return { streak, error: null }
+  return { streak: best, current, error: null }
 }
 
 // ==================== INVITE TOKENS ====================
