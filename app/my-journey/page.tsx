@@ -559,14 +559,29 @@ export default function MyJourneyPage() {
             <p className="cn-label" style={{ color: fullCircle ? 'var(--gold)' : 'var(--empower)' }}>
               {fullCircle ? 'Full circle' : 'Empowered'}
             </p>
-            <p className="mt-2 text-xl italic leading-relaxed" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>
-              {fullCircle
-                ? 'You were engaged — and now a new star is being lit through you.'
-                : 'Your coach dashboard is open. One thing remains: engage someone new.'}
-            </p>
-            <a href="/" className="cn-btn cn-btn-primary mt-4 inline-flex">
-              Open your coach dashboard
-            </a>
+            {(() => {
+              const hasDashboard = profile.is_admin || signoffs.some(s => s.stage === 'Empower' && s.status === 'approved')
+              return (
+                <>
+                  <p className="mt-2 text-xl italic leading-relaxed" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>
+                    {fullCircle
+                      ? 'You were engaged — and now a new star is being lit through you.'
+                      : hasDashboard
+                      ? 'Your coach dashboard is open. One thing remains: engage someone new.'
+                      : 'You’ve completed Empower. Once your coach signs off, your coach dashboard opens.'}
+                  </p>
+                  {hasDashboard ? (
+                    <a href="/my-constellations" className="cn-btn cn-btn-primary mt-4 inline-flex">
+                      Open your coach dashboard
+                    </a>
+                  ) : (
+                    <p className="mt-4 text-xs text-[var(--fg-3)]">
+                      Awaiting your coach&rsquo;s Empower sign-off.
+                    </p>
+                  )}
+                </>
+              )
+            })()}
           </section>
         )}
 
