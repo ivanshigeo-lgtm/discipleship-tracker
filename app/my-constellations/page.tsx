@@ -397,26 +397,28 @@ export default function DiscipleshipTracker() {
       .slice(0, 8)
   }, [engSearch, allPeople])
 
-  const soapStreak = (() => {
-    if (!coachSoaps.length) return 0
-    const dates = new Set(coachSoaps.map(j => j.journal_date.slice(0, 10)))
-    const today = new Date()
-    let streak = 0
-    for (let i = 0; i < 365; i++) {
-      const d = new Date(today)
-      d.setDate(today.getDate() - i)
-      const key = d.toISOString().slice(0, 10)
-      if (dates.has(key)) {
-        streak++
-      } else if (i === 0) {
-        // missing today is OK — check yesterday before breaking
-        continue
-      } else {
-        break
-      }
+  // Longest + current SOAP runs, timezone-correct (compare local date strings,
+  // never parse the stored date as UTC).
+  const { soapStreak, currentStreak } = useMemo(() => {
+    const fmt = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    const logged = new Set(coachSoaps.map(j => j.journal_date.slice(0, 10)))
+    const days = Array.from(logged).sort()
+    let best = 0, run = 0, prev: string | null = null
+    for (const day of days) {
+      if (prev) {
+        const n = new Date(prev + 'T00:00:00'); n.setDate(n.getDate() + 1)
+        run = fmt(n) === day ? run + 1 : 1
+      } else run = 1
+      if (run > best) best = run
+      prev = day
     }
-    return streak
-  })()
+    const c = new Date(); c.setHours(0, 0, 0, 0)
+    if (!logged.has(fmt(c))) c.setDate(c.getDate() - 1)
+    let cur = 0
+    while (logged.has(fmt(c))) { cur++; c.setDate(c.getDate() - 1) }
+    return { soapStreak: best, currentStreak: cur }
+  }, [coachSoaps])
 
   useEffect(() => {
     if (!soapsLoaded) loadSoaps()
@@ -859,6 +861,7 @@ export default function DiscipleshipTracker() {
                   soaps={coachSoaps}
                   onNewEntry={() => { setSoapEntryDate(null); setShowSoapEntry(true) }}
                   soapStreak={soapStreak}
+                  currentStreak={currentStreak}
                   onRefresh={loadSoaps}
                   onNewEntryForDate={date => { setSoapEntryDate(date); setShowSoapEntry(true) }}
                 />

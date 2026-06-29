@@ -667,6 +667,7 @@ export default function MyJourneyPage() {
             soaps={soapJournals}
             onNewEntry={() => { setSoapEntryDate(null); setActiveModal('soap') }}
             soapStreak={soapStreak}
+            currentStreak={currentStreak}
             onRefresh={loadData}
             onNewEntryForDate={date => { setSoapEntryDate(date); setActiveModal('soap') }}
           />

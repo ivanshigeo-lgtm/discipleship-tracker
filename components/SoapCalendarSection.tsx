@@ -7,7 +7,8 @@ import { SoapJournal } from '../types/database'
 interface Props {
   soaps: SoapJournal[]
   onNewEntry: () => void
-  soapStreak: number
+  soapStreak: number        // longest run
+  currentStreak?: number    // current run
   onRefresh?: () => void
   onNewEntryForDate?: (date: string) => void
 }
@@ -142,7 +143,7 @@ function shiftMonth(year: number, month: number, delta: number) {
   return { year: y, month: m }
 }
 
-export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onRefresh, onNewEntryForDate }: Props) {
+export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, currentStreak = 0, onRefresh, onNewEntryForDate }: Props) {
   const today = new Date()
   const todayIso = toLocalIso(today)
 
@@ -313,14 +314,24 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
           <h2 style={{ margin: 0, color: 'var(--fg-1)', fontSize: '19px', fontWeight: 600, letterSpacing: '-0.01em' }}>
             My SOAPs
           </h2>
-          {soapStreak > 0 && (
+          {currentStreak > 0 && (
             <span style={{
               display: 'inline-flex', alignItems: 'center', gap: '4px',
               padding: '3px 10px', borderRadius: '999px',
               background: 'rgba(244,182,80,.15)', border: '1px solid rgba(244,182,80,.30)',
               color: '#F4B650', fontSize: '12px', fontWeight: 600, letterSpacing: '0.01em',
             }}>
-              ⚡ {soapStreak} {soapStreak === 1 ? 'day' : 'days'}
+              ✦ {currentStreak}d current
+            </span>
+          )}
+          {soapStreak > 0 && (
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: '4px',
+              padding: '3px 10px', borderRadius: '999px',
+              background: 'rgba(54,214,195,.12)', border: '1px solid rgba(54,214,195,.30)',
+              color: 'var(--establish)', fontSize: '12px', fontWeight: 600, letterSpacing: '0.01em',
+            }}>
+              ✦ {soapStreak}d longest
             </span>
           )}
         </div>
@@ -605,7 +616,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
                 </div>
 
                 {/* Day-of-week header */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', marginBottom: '4px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', marginBottom: '4px' }}>
                   {DAY_HEADERS.map((d, i) => (
                     <div key={i} style={{
                       textAlign: 'center', fontSize: '11px', fontWeight: 700,
@@ -618,7 +629,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, onR
                 </div>
 
                 {/* Day cells */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px' }}>
                   {days.map(({ dateIso, dayNum, inMonth }) => {
                     const hasSoap = soapMap.has(dateIso)
                     const isSelected = selectedDate === dateIso
