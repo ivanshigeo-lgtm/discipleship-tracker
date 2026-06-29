@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import type { JourneyLevel, JourneyStep } from './journeyModel'
-import { UNLOCK_THRESHOLD, JOURNEY_ORDER, ringProgressFromLevels, STEP_CHECKLIST } from './journeyModel'
+import { JOURNEY_ORDER, ringProgressFromLevels, STEP_CHECKLIST } from './journeyModel'
 import { StarBadge } from './StarPrimitives'
 import type { Stage } from '../../types/database'
 
@@ -111,12 +111,14 @@ function QuadrantPanel({
   corner,
   onStepAction,
   onStepToggle,
+  onRequestSignoff,
 }: {
   level: JourneyLevel
   prev?: JourneyLevel
   corner: 'tl' | 'tr' | 'br' | 'bl'
   onStepAction: (step: JourneyStep) => void
   onStepToggle?: (step: JourneyStep) => void
+  onRequestSignoff?: (stage: string) => void
 }) {
   const locked = !level.unlocked
   // Desktop: pop out away from the star, origin at the star's corner.
@@ -161,7 +163,9 @@ function QuadrantPanel({
           <p className="text-xs leading-relaxed text-[var(--fg-2)]">{level.tagline}</p>
           {prev && (
             <p className="mt-1.5 text-[10px] text-[var(--fg-3)]">
-              Opens when {prev.stage} reaches {Math.round(UNLOCK_THRESHOLD * 100)}% — it&rsquo;s at {Math.round(prev.progress * 100)}%.
+              {prev.signoff === 'requested'
+                ? `Awaiting your coach's sign-off on ${prev.stage}.`
+                : `Opens when your coach signs off on ${prev.stage}${prev.completed ? '' : ` — finish it first (it's at ${Math.round(prev.progress * 100)}%)`}.`}
             </p>
           )}
         </div>
@@ -175,9 +179,47 @@ function QuadrantPanel({
               <StepRow key={step.id} step={step} color={level.color} locked={locked} onAction={onStepAction} onToggle={onStepToggle} />
             ))}
           </div>
+          <SignoffFooter level={level} onRequestSignoff={onRequestSignoff} />
         </>
       )}
     </div>
+  )
+}
+
+// The sign-off gate at the bottom of a completed level's panel.
+function SignoffFooter({ level, onRequestSignoff }: { level: JourneyLevel; onRequestSignoff?: (stage: string) => void }) {
+  const isEngage = level.stage === 'Engage'
+
+  if (level.signoff === 'approved') {
+    return (
+      <div className="mt-2.5 rounded-lg border px-3 py-2" style={{ borderColor: `${level.color}55`, background: `${level.color}12` }}>
+        <p className="text-[11px] font-bold" style={{ color: level.color }}>
+          ✦ Signed off by your coach
+        </p>
+        {level.congrats && <p className="mt-1 text-xs italic leading-relaxed text-[var(--fg-1)]">&ldquo;{level.congrats}&rdquo;</p>}
+      </div>
+    )
+  }
+
+  if (level.signoff === 'requested') {
+    return (
+      <p className="mt-2.5 rounded-lg border border-[var(--line-2)] px-3 py-2 text-center text-[11px] font-semibold text-[var(--fg-2)]">
+        ✦ Awaiting your coach&rsquo;s sign-off
+      </p>
+    )
+  }
+
+  // 'none' — only offer the request once every step is done.
+  if (!level.completed || !onRequestSignoff) return null
+  return (
+    <button
+      type="button"
+      onClick={() => onRequestSignoff(level.stage)}
+      className="mt-2.5 w-full rounded-lg py-2 text-xs font-bold transition-transform hover:scale-[1.02]"
+      style={{ background: level.color, color: 'var(--void)', boxShadow: `0 0 16px -3px ${level.color}` }}
+    >
+      {isEngage ? 'Request final sign-off →' : `Request coach sign-off →`}
+    </button>
   )
 }
 
@@ -186,12 +228,14 @@ export default function StarQuadrants({
   color,
   onStepAction,
   onStepToggle,
+  onRequestSignoff,
   demo = null,
 }: {
   levels: JourneyLevel[]
   color: string
   onStepAction: (step: JourneyStep) => void
   onStepToggle?: (step: JourneyStep) => void
+  onRequestSignoff?: (stage: string) => void
   /* first-visit coachmark: 'arrow' glides toward the quadrant, 'open' presses it */
   demo?: 'arrow' | 'open' | null
 }) {
@@ -345,6 +389,7 @@ export default function StarQuadrants({
           corner={QUADRANT_META[shown].corner}
           onStepAction={onStepAction}
           onStepToggle={onStepToggle}
+          onRequestSignoff={onRequestSignoff}
         />
       )}
     </div>

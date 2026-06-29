@@ -10,6 +10,7 @@ import MultiplicationSnapshot from '../../components/MultiplicationSnapshot'
 import MyCircleMap from '../../components/MyCircleMap'
 import CoachingPipeline from '../../components/CoachingPipeline'
 import NeedAttentionSection from '../../components/NeedAttentionSection'
+import SignoffRequestsSection from '../../components/SignoffRequestsSection'
 import PointsOfActionSection from '../../components/PointsOfActionSection'
 import PrayerWallSection from '../../components/PrayerWallSection'
 import VictoryGroupsList from '../../components/VictoryGroupsList'
@@ -719,6 +720,14 @@ export default function DiscipleshipTracker() {
                   </button>
                 </div>
               </div>
+              <ErrorBoundary name="SignoffRequestsSection">
+                <SignoffRequestsSection
+                  coachId={profile.id}
+                  isAdmin={Boolean(profile.is_admin)}
+                  refreshKey={refreshKey}
+                  onChanged={() => setRefreshKey(p => p + 1)}
+                />
+              </ErrorBoundary>
               <ErrorBoundary name="NeedAttentionSection">
                 <NeedAttentionSection
                   refreshKey={refreshKey}

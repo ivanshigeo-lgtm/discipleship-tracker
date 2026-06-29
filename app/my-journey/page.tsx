@@ -12,9 +12,12 @@ import {
   upsertStageChecklistItem,
   getDiscipleshipConnections,
   getMyConversations,
+  getLevelSignoffs,
+  requestLevelSignoff,
+  sendMessage,
 } from '../../lib/supabaseQueries'
 import { supabase } from '../../lib/supabaseClient'
-import type { SoapJournal, StageChecklistItem, Person, VictoryGroup, DiscipleshipConnection } from '../../types/database'
+import type { SoapJournal, StageChecklistItem, Person, VictoryGroup, DiscipleshipConnection, LevelSignoff } from '../../types/database'
 import { computeJourney, computeBadges, ringProgressFromLevels, levelByStage, STEP_CHECKLIST, type JourneyStep } from '../../components/journey/journeyModel'
 import { Starfield } from '../../components/journey/StarPrimitives'
 import JourneyIntro from '../../components/journey/JourneyIntro'
@@ -119,6 +122,7 @@ export default function MyJourneyPage() {
   const [soapStreak, setSoapStreak] = useState(0)
   const [checklistItems, setChecklistItems] = useState<StageChecklistItem[]>([])
   const [myDisciples, setMyDisciples] = useState<DiscipleshipConnection[]>([])
+  const [signoffs, setSignoffs] = useState<LevelSignoff[]>([])
   const [showIntro, setShowIntro] = useState<boolean | null>(null)
   const [showTour, setShowTour] = useState(false)
   const [dataReady, setDataReady] = useState(false)
@@ -165,13 +169,14 @@ export default function MyJourneyPage() {
 
   const loadData = useCallback(async () => {
     if (!profile?.id) return
-    const [coachRes, groupsRes, journalsRes, streakRes, checklistRes, disciplesRes] = await Promise.all([
+    const [coachRes, groupsRes, journalsRes, streakRes, checklistRes, disciplesRes, signoffsRes] = await Promise.all([
       getMyCoach(profile.id),
       getMyGroups(profile.id),
       getSoapJournals(profile.id, 365),
       getSoapStreak(profile.id),
       getStageChecklistItems(profile.id),
       getDiscipleshipConnections(profile.id),
+      getLevelSignoffs(profile.id),
     ])
     if (coachRes.data?.discipler) setCoach(coachRes.data.discipler as Person)
     if (disciplesRes.data) setMyDisciples(disciplesRes.data as DiscipleshipConnection[])
@@ -181,6 +186,7 @@ export default function MyJourneyPage() {
     if (journalsRes.data) setSoapJournals(journalsRes.data as SoapJournal[])
     if (streakRes.streak !== undefined) setSoapStreak(streakRes.streak)
     if (checklistRes.data) setChecklistItems(checklistRes.data as StageChecklistItem[])
+    if (signoffsRes.data) setSignoffs(signoffsRes.data as LevelSignoff[])
     setDataReady(true)
   }, [profile?.id])
 
@@ -230,9 +236,10 @@ export default function MyJourneyPage() {
             hasSoapToday: soapJournals.some(j => j.journal_date === new Date().toISOString().split('T')[0]),
             checklist: checklistItems,
             disciples: myDisciples,
+            signoffs,
           }
         : null,
-    [profile, coach, groups, soapStreak, soapJournals, checklistItems, myDisciples]
+    [profile, coach, groups, soapStreak, soapJournals, checklistItems, myDisciples, signoffs]
   )
 
   const levels = useMemo(() => (journeyData ? computeJourney(journeyData) : []), [journeyData])
@@ -265,6 +272,28 @@ export default function MyJourneyPage() {
       completed: !step.completed,
     })
     refreshChecklist()
+  }
+
+  // Disciple finished a level — ask the coach to sign off so the next unlocks.
+  const handleRequestSignoff = async (stage: string) => {
+    if (!profile) return
+    await requestLevelSignoff(profile.id, stage)
+    if (coach) {
+      const last = stage === 'Engage'
+      await sendMessage(
+        profile.id,
+        coach.id,
+        'note',
+        last
+          ? `${profile.name} has completed the whole journey through Engage and is asking for your final sign-off. 🎉`
+          : `${profile.name} has completed ${stage} and is asking for your sign-off to unlock the next level.`
+      )
+    }
+    setSignoffs(prev => {
+      const others = prev.filter(s => s.stage !== stage)
+      return [...others, { id: `tmp-${stage}`, person_id: profile.id, stage: stage as LevelSignoff['stage'], status: 'requested', congrats_message: null, requested_at: new Date().toISOString(), approved_at: null, approved_by: null, created_at: new Date().toISOString() }]
+    })
+    loadData()
   }
 
   // intro hands off to the tour — same star, focus unbroken
@@ -467,6 +496,7 @@ export default function MyJourneyPage() {
           <div className="relative z-20 mt-2 w-full">
             <StarQuadrants
               onStepToggle={handleStepToggle}
+              onRequestSignoff={handleRequestSignoff}
               levels={levels}
               color={currentLevel?.color ?? '#FBF6EC'}
               onStepAction={handleStepAction}

@@ -911,6 +911,66 @@ export const sendMessage = async (
   return { data, error }
 }
 
+// ==================== LEVEL SIGN-OFFS ====================
+// A coach signs off on a completed level before the next unlocks.
+export const getLevelSignoffs = async (personId: string) => {
+  const { data, error } = await supabase
+    .from('level_signoffs')
+    .select('*')
+    .eq('person_id', personId)
+  return { data, error }
+}
+
+export const requestLevelSignoff = async (personId: string, stage: string) => {
+  const { data, error } = await supabase
+    .from('level_signoffs')
+    .upsert(
+      { person_id: personId, stage, status: 'requested', requested_at: new Date().toISOString(), approved_at: null, approved_by: null, congrats_message: null },
+      { onConflict: 'person_id,stage' }
+    )
+    .select()
+    .single()
+  return { data, error }
+}
+
+// Pending sign-off requests across a coach's disciples (for the coach view).
+export const getPendingLevelSignoffs = async (coachPersonId: string) => {
+  const { data: conns, error: connErr } = await supabase
+    .from('discipleship_connections')
+    .select('disciple_person_id')
+    .eq('discipler_person_id', coachPersonId)
+  if (connErr) return { data: null, error: connErr }
+  const discipleIds = (conns ?? []).map(c => c.disciple_person_id).filter(Boolean)
+  if (discipleIds.length === 0) return { data: [], error: null }
+  const { data, error } = await supabase
+    .from('level_signoffs')
+    .select('*, person:people!level_signoffs_person_id_fkey(id, name, current_stage)')
+    .eq('status', 'requested')
+    .in('person_id', discipleIds)
+    .order('requested_at', { ascending: true })
+  return { data, error }
+}
+
+// All pending sign-off requests (admin view — across every disciple).
+export const getAllPendingLevelSignoffs = async () => {
+  const { data, error } = await supabase
+    .from('level_signoffs')
+    .select('*, person:people!level_signoffs_person_id_fkey(id, name, current_stage)')
+    .eq('status', 'requested')
+    .order('requested_at', { ascending: true })
+  return { data, error }
+}
+
+export const approveLevelSignoff = async (id: string, coachPersonId: string, congrats: string) => {
+  const { data, error } = await supabase
+    .from('level_signoffs')
+    .update({ status: 'approved', approved_at: new Date().toISOString(), approved_by: coachPersonId, congrats_message: congrats || null })
+    .eq('id', id)
+    .select()
+    .single()
+  return { data, error }
+}
+
 export const getMyMessages = async (personId: string, limit = 30) => {
   const { data, error } = await supabase
     .from('messages')

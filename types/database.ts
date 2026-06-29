@@ -161,6 +161,18 @@ export type SoapJournal = {
   updated_at: string
 }
 
+export type LevelSignoff = {
+  id: string
+  person_id: string
+  stage: Stage
+  status: 'requested' | 'approved'
+  congrats_message: string | null
+  requested_at: string
+  approved_at: string | null
+  approved_by: string | null
+  created_at: string
+}
+
 export type Message = {
   id: string
   from_person_id: string

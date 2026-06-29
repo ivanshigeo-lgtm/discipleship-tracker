@@ -1,4 +1,4 @@
-import type { Person, StageChecklistItem, VictoryGroup, Stage, DiscipleshipConnection, ChecklistCategory } from '../../types/database'
+import type { Person, StageChecklistItem, VictoryGroup, Stage, DiscipleshipConnection, ChecklistCategory, LevelSignoff } from '../../types/database'
 
 /* Ring/quadrant positions (TL, TR, BR, BL) — fixed visual placement */
 export const E_ORDER: Stage[] = ['Engage', 'Establish', 'Equip', 'Empower']
@@ -80,6 +80,10 @@ export type JourneyLevel = {
   progress: number // 0..1
   unlocked: boolean
   completed: boolean
+  // Coach sign-off gate: 'none' = not yet requested, 'requested' = awaiting the
+  // coach, 'approved' = signed off (this is what unlocks the next level).
+  signoff: 'none' | 'requested' | 'approved'
+  congrats: string | null
 }
 
 export type JourneyData = {
@@ -92,6 +96,8 @@ export type JourneyData = {
   checklist: StageChecklistItem[]
   /* connections where THIS person is the discipler — their own engaging */
   disciples: DiscipleshipConnection[]
+  /* coach sign-offs on completed levels */
+  signoffs: LevelSignoff[]
 }
 
 const SOAP_STREAK_TARGET = 7
@@ -286,11 +292,14 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
   }
 
   // Walk the disciple's order: Establish → Equip → Empower → Engage.
-  let prevProgress = 1 // Establish is always open — the journey starts there
+  // A level unlocks only when the PREVIOUS level's coach sign-off is approved.
+  const signoffFor = (stage: Stage) => d.signoffs.find(s => s.stage === stage)
+  let prevApproved = true // Establish is always open — the journey starts there
   for (const stage of JOURNEY_ORDER) {
     const steps = stepSets[stage]
     const progress = steps.reduce((a, s) => a + s.progress, 0) / steps.length
-    const unlocked = prevProgress >= UNLOCK_THRESHOLD
+    const so = signoffFor(stage)
+    const signoff: 'none' | 'requested' | 'approved' = so ? so.status : 'none'
     levels.push({
       stage,
       color: E_COLORS[stage],
@@ -298,10 +307,12 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
       verse: E_VERSES[stage],
       steps,
       progress,
-      unlocked,
+      unlocked: prevApproved,
       completed: progress >= 1,
+      signoff,
+      congrats: so?.congrats_message ?? null,
     })
-    prevProgress = progress
+    prevApproved = signoff === 'approved'
   }
   return levels
 }
