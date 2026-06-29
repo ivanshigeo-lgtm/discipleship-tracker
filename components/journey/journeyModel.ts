@@ -42,13 +42,8 @@ export const STEP_CHECKLIST: Record<string, { stage: Stage; label: string }> = {
   'making-disciples': { stage: 'Equip', label: 'Completed Making Disciples' },
   'leadership-113': { stage: 'Equip', label: 'Completed Leadership 113' },
   'next-steps': { stage: 'Equip', label: 'Completed Next Steps' },
-  'practice-share': { stage: 'Equip', label: 'Practice Sharing Testimony/Gospel' },
-  serve: { stage: 'Equip', label: 'Begin Serving in a Ministry/Mission' },
-  'assist-gg': { stage: 'Equip', label: 'Assist in Leading Small Group' },
   'empowering-leaders': { stage: 'Empower', label: 'Completed Empowering Leaders' },
   'leadership-215': { stage: 'Empower', label: 'Completed Leadership 215' },
-  circle: { stage: 'Empower', label: 'Identified Their Circle' },
-  'lead-gg': { stage: 'Empower', label: 'Lead a Grace Group' },
 }
 
 export const UNLOCK_THRESHOLD = 0.75
@@ -262,30 +257,6 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
       progress: hasTestimony ? 1 : 0,
       action: 'testimony',
     },
-    {
-      id: 'practice-share',
-      title: 'Share Your Hope In Christ',
-      detail: 'Share your testimony and the gospel with someone this season.',
-      completed: checklistDone(d.checklist, 'Equip', 'Practice Sharing Testimony/Gospel'),
-      progress: checklistDone(d.checklist, 'Equip', 'Practice Sharing Testimony/Gospel') ? 1 : 0,
-      action: 'coach-verified',
-    },
-    {
-      id: 'serve',
-      title: 'Discover and Deploy Your Gifts',
-      detail: 'Step into a ministry or mission.',
-      completed: checklistDone(d.checklist, 'Equip', 'Begin Serving in a Ministry/Mission'),
-      progress: checklistDone(d.checklist, 'Equip', 'Begin Serving in a Ministry/Mission') ? 1 : 0,
-      action: 'coach-verified',
-    },
-    {
-      id: 'assist-gg',
-      title: 'Serve Your Grace Group',
-      detail: "Help carry the group you've grown in.",
-      completed: checklistDone(d.checklist, 'Equip', 'Assist in Leading Small Group'),
-      progress: checklistDone(d.checklist, 'Equip', 'Assist in Leading Small Group') ? 1 : 0,
-      action: 'coach-verified',
-    },
   ]
 
   const empower: JourneyStep[] = [
@@ -304,22 +275,6 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
       completed: checklistDone(d.checklist, 'Empower', 'Completed Leadership 215'),
       progress: checklistDone(d.checklist, 'Empower', 'Completed Leadership 215') ? 1 : 0,
       action: 'self-confirm',
-    },
-    {
-      id: 'circle',
-      title: 'Identify your circle',
-      detail: 'Name the people God has placed around you to disciple.',
-      completed: checklistDone(d.checklist, 'Empower', 'Identified Their Circle'),
-      progress: checklistDone(d.checklist, 'Empower', 'Identified Their Circle') ? 1 : 0,
-      action: 'coach-verified',
-    },
-    {
-      id: 'lead-gg',
-      title: 'Launch A New Grace Group',
-      detail: 'Shepherd a group of your own.',
-      completed: checklistDone(d.checklist, 'Empower', 'Lead a Grace Group'),
-      progress: checklistDone(d.checklist, 'Empower', 'Lead a Grace Group') ? 1 : 0,
-      action: 'coach-verified',
     },
   ]
 
