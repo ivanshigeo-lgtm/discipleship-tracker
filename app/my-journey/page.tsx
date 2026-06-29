@@ -16,7 +16,6 @@ import {
 import { supabase } from '../../lib/supabaseClient'
 import type { SoapJournal, StageChecklistItem, Person, VictoryGroup, DiscipleshipConnection } from '../../types/database'
 import { computeJourney, computeBadges, ringProgressFromLevels, levelByStage, STEP_CHECKLIST, type JourneyStep } from '../../components/journey/journeyModel'
-import { stageChecklistTemplates } from '../../lib/stageChecklistTemplates'
 import { Starfield } from '../../components/journey/StarPrimitives'
 import JourneyIntro from '../../components/journey/JourneyIntro'
 import JourneyTour from '../../components/journey/JourneyTour'
@@ -252,16 +251,16 @@ export default function MyJourneyPage() {
     else if (step.action === 'self-confirm') setSelfConfirm(step.id as SelfConfirmKind)
   }
 
-  // Direct check/uncheck for checklist-backed steps (tapping the star's circle).
+  // Direct check/uncheck for any mapped step (tapping the star's circle).
+  // Writes the step's checklist row, which acts as a non-destructive override.
   const handleStepToggle = async (step: JourneyStep) => {
     if (!profile) return
     const target = STEP_CHECKLIST[step.id]
     if (!target) return
-    const category = stageChecklistTemplates[target.stage].find(t => t.label === target.label)?.category ?? 'Tool'
     await upsertStageChecklistItem({
       person_id: profile.id,
       stage: target.stage,
-      category,
+      category: target.category,
       label: target.label,
       completed: !step.completed,
     })

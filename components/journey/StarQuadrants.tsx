@@ -37,11 +37,12 @@ function StepRow({
   onAction?: (step: JourneyStep) => void
   onToggle?: (step: JourneyStep) => void
 }) {
-  // Steps backed by a checklist item can be checked/unchecked directly.
+  // The circle checks/unchecks any mapped step directly. The row body still
+  // opens that step's richer flow (date picker, join, SOAP, testimony) — the
+  // two coexist: circle = quick toggle, row = guided action.
   const toggleable = !locked && !!STEP_CHECKLIST[step.id] && !!onToggle
   // message-coach stays alive after completion — you can always reach out
   const actionable =
-    !toggleable &&
     !locked &&
     (step.action === 'message-coach' ||
       (!step.completed &&

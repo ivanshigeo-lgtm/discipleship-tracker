@@ -1,4 +1,4 @@
-import type { Person, StageChecklistItem, VictoryGroup, Stage, DiscipleshipConnection } from '../../types/database'
+import type { Person, StageChecklistItem, VictoryGroup, Stage, DiscipleshipConnection, ChecklistCategory } from '../../types/database'
 
 /* Ring/quadrant positions (TL, TR, BR, BL) — fixed visual placement */
 export const E_ORDER: Stage[] = ['Engage', 'Establish', 'Equip', 'Empower']
@@ -31,15 +31,23 @@ export const E_TAGLINES: Record<Stage, string> = {
   Empower: 'The light you received becomes light you give.',
 }
 
-// Journey steps a disciple can directly check/uncheck — each is backed 1:1 by a
-// stage_checklist_items label, so toggling upserts that item. (Activity-driven
-// steps — coach connection, group, SOAP, testimony, engaging others — keep their
-// own flows and aren't in here.)
-export const STEP_CHECKLIST: Record<string, { stage: Stage; label: string }> = {
-  one2one: { stage: 'Establish', label: 'Completed One2One' },
-  'church-community': { stage: 'Establish', label: 'Completed Church Community' },
-  'making-disciples': { stage: 'Equip', label: 'Completed Making Disciples' },
-  'empowering-leaders': { stage: 'Empower', label: 'Completed Empowering Leaders' },
+// Journey steps whose circle can be checked AND unchecked. Each maps to a
+// stage_checklist_items label. For activity-derived steps (coach, group, SOAP,
+// salvation, baptism, testimony) this row acts as a non-destructive OVERRIDE:
+// when the row exists its `completed` wins; otherwise we fall back to the live
+// data (see `stepDone`). So unchecking never deletes a journal, group
+// membership, date, or testimony — it just marks the step not-done.
+export const STEP_CHECKLIST: Record<string, { stage: Stage; label: string; category: ChecklistCategory }> = {
+  coach: { stage: 'Establish', label: 'Connected with Coach', category: 'Action Step' },
+  group: { stage: 'Establish', label: 'Connect to Small Group', category: 'Action Step' },
+  word: { stage: 'Establish', label: 'Start SOAPing', category: 'Action Step' },
+  salvation: { stage: 'Establish', label: 'Confirm salvation / spiritual birthday', category: 'Action Step' },
+  baptism: { stage: 'Establish', label: 'Water baptism conversation', category: 'Action Step' },
+  one2one: { stage: 'Establish', label: 'Completed One2One', category: 'Tool' },
+  'church-community': { stage: 'Establish', label: 'Completed Church Community', category: 'Tool' },
+  'making-disciples': { stage: 'Equip', label: 'Completed Making Disciples', category: 'Tool' },
+  testimony: { stage: 'Equip', label: 'Shared Their Story', category: 'Action Step' },
+  'empowering-leaders': { stage: 'Empower', label: 'Completed Empowering Leaders', category: 'Tool' },
 }
 
 export const UNLOCK_THRESHOLD = 0.75
@@ -90,6 +98,17 @@ const SOAP_STREAK_TARGET = 7
 
 function checklistDone(checklist: StageChecklistItem[], stage: Stage, label: string): boolean {
   return checklist.some(i => i.stage === stage && i.label === label && i.completed)
+}
+
+// Completion for a togglable step. If the disciple has explicitly set this
+// step's checklist row (via the circle), that wins; otherwise fall back to the
+// live/derived value. This is what lets the circle UNcheck an activity-derived
+// step (e.g. SOAP) without deleting the underlying data.
+function stepDone(checklist: StageChecklistItem[], stepId: string, derived: boolean): boolean {
+  const t = STEP_CHECKLIST[stepId]
+  if (!t) return derived
+  const item = checklist.find(i => i.stage === t.stage && i.label === t.label)
+  return item ? item.completed : derived
 }
 
 export function computeJourney(d: JourneyData): JourneyLevel[] {
@@ -161,8 +180,8 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
       detail: d.coach
         ? `Walking with ${d.coach.name} — send a greeting or a prayer request`
         : "Enter your coach's code to begin the journey together.",
-      completed: isConnected,
-      progress: isConnected ? 1 : 0,
+      completed: stepDone(d.checklist, 'coach', isConnected),
+      progress: stepDone(d.checklist, 'coach', isConnected) ? 1 : 0,
       action: isConnected ? 'message-coach' : 'coach-code',
     },
     {
@@ -171,8 +190,8 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
       detail: inGroup
         ? `You belong to ${d.groups.map(g => g.name).join(', ')}`
         : 'Find your people — pick a group and join.',
-      completed: inGroup,
-      progress: inGroup ? 1 : 0,
+      completed: stepDone(d.checklist, 'group', inGroup),
+      progress: stepDone(d.checklist, 'group', inGroup) ? 1 : 0,
       action: 'join-group',
     },
     {
@@ -184,8 +203,8 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
             ? `A ${d.soapStreak}-day rhythm — keep it burning`
             : `You've started SOAPing${d.soapStreak > 0 ? ` — ${d.soapStreak}-day streak` : ''}`
           : 'SOAP daily — start your rhythm in the Word.',
-      completed: d.soapCount > 0,
-      progress: d.soapCount > 0 ? 1 : 0,
+      completed: stepDone(d.checklist, 'word', d.soapCount > 0),
+      progress: stepDone(d.checklist, 'word', d.soapCount > 0) ? 1 : 0,
       action: 'soap',
     },
     {
@@ -194,8 +213,8 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
       detail: d.profile.spiritual_birthday
         ? `Your spiritual birthday: ${d.profile.spiritual_birthday}`
         : 'Pray the prayer of salvation with your coach — mark your spiritual birthday.',
-      completed: Boolean(d.profile.spiritual_birthday) || checklistDone(d.checklist, 'Establish', 'Confirm salvation / spiritual birthday'),
-      progress: Boolean(d.profile.spiritual_birthday) || checklistDone(d.checklist, 'Establish', 'Confirm salvation / spiritual birthday') ? 1 : 0,
+      completed: stepDone(d.checklist, 'salvation', Boolean(d.profile.spiritual_birthday)),
+      progress: stepDone(d.checklist, 'salvation', Boolean(d.profile.spiritual_birthday)) ? 1 : 0,
       action: 'self-confirm',
     },
     {
@@ -204,24 +223,24 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
       detail: d.profile.baptism_date
         ? `Baptized ${d.profile.baptism_date}`
         : 'Talk with your coach about water baptism and being filled with the Spirit.',
-      completed: Boolean(d.profile.baptism_date) || checklistDone(d.checklist, 'Establish', 'Water baptism conversation'),
-      progress: Boolean(d.profile.baptism_date) || checklistDone(d.checklist, 'Establish', 'Water baptism conversation') ? 1 : 0,
+      completed: stepDone(d.checklist, 'baptism', Boolean(d.profile.baptism_date)),
+      progress: stepDone(d.checklist, 'baptism', Boolean(d.profile.baptism_date)) ? 1 : 0,
       action: 'self-confirm',
     },
     {
       id: 'one2one',
       title: 'One2One',
       detail: 'Walk through the One2One foundations with your coach.',
-      completed: checklistDone(d.checklist, 'Establish', 'Completed One2One'),
-      progress: checklistDone(d.checklist, 'Establish', 'Completed One2One') ? 1 : 0,
+      completed: stepDone(d.checklist, 'one2one', false),
+      progress: stepDone(d.checklist, 'one2one', false) ? 1 : 0,
       action: 'self-confirm',
     },
     {
       id: 'church-community',
       title: 'Church Community',
       detail: 'Walk through the Church Community curriculum with your coach.',
-      completed: checklistDone(d.checklist, 'Establish', 'Completed Church Community'),
-      progress: checklistDone(d.checklist, 'Establish', 'Completed Church Community') ? 1 : 0,
+      completed: stepDone(d.checklist, 'church-community', false),
+      progress: stepDone(d.checklist, 'church-community', false) ? 1 : 0,
       action: 'self-confirm',
     },
   ]
@@ -231,8 +250,8 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
       id: 'making-disciples',
       title: 'Making Disciples',
       detail: "Learn to pass on what you've received.",
-      completed: checklistDone(d.checklist, 'Equip', 'Completed Making Disciples'),
-      progress: checklistDone(d.checklist, 'Equip', 'Completed Making Disciples') ? 1 : 0,
+      completed: stepDone(d.checklist, 'making-disciples', false),
+      progress: stepDone(d.checklist, 'making-disciples', false) ? 1 : 0,
       action: 'coach-verified',
     },
     {
@@ -241,8 +260,8 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
       detail: hasTestimony
         ? 'Your two-minute testimony shines in the constellation.'
         : 'Record or write your two-minute testimony — your story becomes light for others.',
-      completed: hasTestimony,
-      progress: hasTestimony ? 1 : 0,
+      completed: stepDone(d.checklist, 'testimony', hasTestimony),
+      progress: stepDone(d.checklist, 'testimony', hasTestimony) ? 1 : 0,
       action: 'testimony',
     },
   ]
@@ -252,8 +271,8 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
       id: 'empowering-leaders',
       title: 'Empowering Leaders',
       detail: 'Be entrusted to raise up others.',
-      completed: checklistDone(d.checklist, 'Empower', 'Completed Empowering Leaders'),
-      progress: checklistDone(d.checklist, 'Empower', 'Completed Empowering Leaders') ? 1 : 0,
+      completed: stepDone(d.checklist, 'empowering-leaders', false),
+      progress: stepDone(d.checklist, 'empowering-leaders', false) ? 1 : 0,
       action: 'coach-verified',
     },
   ]
