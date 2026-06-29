@@ -21,7 +21,7 @@ export default function StoryMusic({ active }: { active: boolean }) {
   const [blocked, setBlocked] = useState(false)
   const [muted, setMuted] = useState(false)
 
-  const fadeTo = (target: number, onDone?: () => void) => {
+  const fadeTo = (target: number, onDone?: () => void, steps = 18) => {
     const a = audioRef.current
     if (!a) return
     if (fadeRef.current) clearInterval(fadeRef.current)
@@ -29,7 +29,6 @@ export default function StoryMusic({ active }: { active: boolean }) {
     // even on iOS Safari where setting audio.volume is a no-op. Otherwise the
     // stop never completes there and the music plays forever.
     const start = a.volume
-    const steps = 18 // ~1.26s
     let i = 0
     fadeRef.current = setInterval(() => {
       i++
@@ -57,7 +56,8 @@ export default function StoryMusic({ active }: { active: boolean }) {
         })
         .catch(() => setBlocked(true))
     } else {
-      fadeTo(0, () => a.pause())
+      // Graceful ~3s fade-out at the end of the story, then stop.
+      fadeTo(0, () => a.pause(), 42)
     }
 
     return () => {
@@ -69,7 +69,7 @@ export default function StoryMusic({ active }: { active: boolean }) {
 
   return (
     <>
-      <audio ref={audioRef} src={TRACK} loop preload="auto" onError={() => setAvailable(false)} />
+      <audio ref={audioRef} src={TRACK} preload="auto" onError={() => setAvailable(false)} />
       {active && (
         <button
           type="button"
