@@ -346,9 +346,10 @@ export default function DiscipleshipTracker() {
     })
   }, [refreshKey])
 
-  // "My Constellation" = me + everyone in my DOWNSTREAM coaching tree (people I
-  // coach, people they coach, …). Deliberately excludes whoever coaches ME — a
-  // coach's dashboard shows their own circle, never their coach's schedule.
+  // "My Constellation" = everyone in my DOWNSTREAM coaching tree (people I
+  // coach, people they coach, …). Excludes whoever coaches ME, and excludes ME
+  // — a coach can't coach themselves, so the coach never appears as a person in
+  // their own pipeline/momentum (their own journey lives on My Journey).
   const myCircleIds = useMemo(() => {
     if (!profile?.id) return undefined
     const ids = new Set<string>([profile.id])
@@ -362,6 +363,7 @@ export default function DiscipleshipTracker() {
         }
       }
     }
+    ids.delete(profile.id)
     return ids
   }, [connections, profile?.id])
 
