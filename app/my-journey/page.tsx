@@ -129,6 +129,7 @@ export default function MyJourneyPage() {
   const [signoffs, setSignoffs] = useState<LevelSignoff[]>([])
   const [showIntro, setShowIntro] = useState<boolean | null>(null)
   const [showTour, setShowTour] = useState(false)
+  const [signingOut, setSigningOut] = useState(false)
   const [dataReady, setDataReady] = useState(false)
   const [demo, setDemo] = useState<DemoPhase>(null)
   const [activeModal, setActiveModal] = useState<'soap' | 'testimony' | 'coach' | 'message' | 'join-group' | null>(null)
@@ -475,13 +476,16 @@ export default function MyJourneyPage() {
             </button>
             <button
               type="button"
+              disabled={signingOut}
               onClick={async () => {
+                if (signingOut) return
+                setSigningOut(true)
                 await signOut()
                 window.location.href = '/'
               }}
-              className="cn-chip !text-xs"
+              className="cn-chip !text-xs disabled:opacity-60"
             >
-              Sign out
+              {signingOut ? 'Signing out…' : 'Sign out'}
             </button>
           </div>
         </div>

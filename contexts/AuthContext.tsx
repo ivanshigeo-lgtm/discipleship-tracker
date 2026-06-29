@@ -187,17 +187,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signOut = async () => {
-    console.log('Signing out...')
-    const { error } = await supabase.auth.signOut()
-    if (error) {
-      console.error('Sign out error:', error)
-    } else {
-      console.log('Signed out successfully')
-    }
+    // Clear local state immediately so the UI reacts instantly...
     setUser(null)
     setSession(null)
     setProfile(null)
     setDownline([])
+    // ...and sign out with LOCAL scope: drops the session from this browser
+    // without the slow server round-trip that 'global' makes to revoke every
+    // session. The session is gone here, which is what logging out means.
+    try {
+      await supabase.auth.signOut({ scope: 'local' })
+    } catch (error) {
+      console.error('Sign out error:', error)
+    }
   }
 
   return (
