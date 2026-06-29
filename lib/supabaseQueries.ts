@@ -222,6 +222,43 @@ export const getConstellationPrayerRequests = () =>
     return { data, error }
   })
 
+// A coach's Prayer Wall: every prayer/praise they're allowed to see — never
+// anyone's private ones. Admins see all shared; a coach sees prayers shared to
+// everyone (constellation), shared with them by people in their coaching tree
+// (coach), and shared with a Grace Group they belong to (group).
+export const getPrayerWallForViewer = async (viewerPersonId: string, isAdmin: boolean) => {
+  const { data, error } = await supabase
+    .from('prayer_requests')
+    .select('*')
+    .neq('visibility', 'private')
+    .order('created_at', { ascending: false })
+    .limit(300)
+  if (error) return { data: null, error }
+  if (isAdmin) return { data, error: null }
+
+  const { data: downlineRows } = await supabase.rpc('get_downline', { coach_person_id: viewerPersonId })
+  const downline = new Set<string>((downlineRows ?? []).map((d: { person_id: string }) => d.person_id))
+  downline.add(viewerPersonId)
+
+  const { data: myGroups } = await supabase
+    .from('person_victory_groups').select('victory_group_id').eq('person_id', viewerPersonId).eq('status', 'approved')
+  const gids = (myGroups ?? []).map(g => g.victory_group_id).filter(Boolean)
+  let groupMembers = new Set<string>()
+  if (gids.length) {
+    const { data: members } = await supabase
+      .from('person_victory_groups').select('person_id').in('victory_group_id', gids).eq('status', 'approved')
+    groupMembers = new Set((members ?? []).map(m => m.person_id).filter(Boolean))
+  }
+
+  const filtered = (data ?? []).filter(p => {
+    if (p.visibility === 'constellation') return true
+    if (p.visibility === 'coach') return downline.has(p.person_id)
+    if (p.visibility === 'group') return groupMembers.has(p.person_id)
+    return false
+  })
+  return { data: filtered, error: null }
+}
+
 export const addPrayerRequest = async (
   request: Omit<PrayerRequest, 'id' | 'created_at' | 'updated_at' | 'visibility' | 'is_praise' | 'engagement_id'> &
     Partial<Pick<PrayerRequest, 'visibility' | 'is_praise' | 'engagement_id'>>

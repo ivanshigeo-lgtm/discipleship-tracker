@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
-import { getConstellationPrayerRequests, getPeople, addPraise, addPrayerRequest } from '../lib/supabaseQueries'
+import { getPrayerWallForViewer, getConstellationPrayerRequests, getPeople, addPraise, addPrayerRequest } from '../lib/supabaseQueries'
 import PersonSearchSelect from './PersonSearchSelect'
 import type { PrayerRequest, Person, Stage } from '../types/database'
 
@@ -9,6 +9,8 @@ interface PrayerWallSectionProps {
   refreshKey?: number
   onPersonClick?: (person: Person) => void
   onChanged?: () => void
+  viewerPersonId?: string
+  isAdmin?: boolean
 }
 
 const STAGE_COLORS: Record<Stage, string> = {
@@ -155,6 +157,8 @@ export default function PrayerWallSection({
   refreshKey = 0,
   onPersonClick,
   onChanged,
+  viewerPersonId,
+  isAdmin = false,
 }: PrayerWallSectionProps) {
   const [requests, setRequests] = useState<PrayerRequest[]>([])
   const [people, setPeople] = useState<Person[]>([])
@@ -174,7 +178,7 @@ export default function PrayerWallSection({
     try {
       const [requestsResult, peopleResult] = await Promise.race([
         Promise.all([
-          getConstellationPrayerRequests(),
+          viewerPersonId ? getPrayerWallForViewer(viewerPersonId, isAdmin) : getConstellationPrayerRequests(),
           getPeople(),
         ]),
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000))
@@ -191,7 +195,8 @@ export default function PrayerWallSection({
 
   useEffect(() => {
     loadData()
-  }, [refreshKey])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey, viewerPersonId, isAdmin])
 
   const peopleById = useMemo(() => {
     return new Map(people.map(p => [p.id, p]))

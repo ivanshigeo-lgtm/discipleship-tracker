@@ -13,7 +13,6 @@ import NeedAttentionSection from '../../components/NeedAttentionSection'
 import SignoffRequestsSection from '../../components/SignoffRequestsSection'
 import GroupJoinRequests from '../../components/GroupJoinRequests'
 import SharedSoapFeed from '../../components/SharedSoapFeed'
-import SharedPrayerFeed from '../../components/SharedPrayerFeed'
 import PointsOfActionSection from '../../components/PointsOfActionSection'
 import PrayerWallSection from '../../components/PrayerWallSection'
 import VictoryGroupsList from '../../components/VictoryGroupsList'
@@ -813,13 +812,12 @@ export default function DiscipleshipTracker() {
 
           {activeSection === 'prayer' && (
             <div>
-              <SectionHeader title="Prayer Wall" subtitle="Requests and praises shared with everyone" />
-              <ErrorBoundary name="SharedPrayerFeed">
-                <SharedPrayerFeed personId={profile.id} scope="coach" refreshKey={refreshKey} />
-              </ErrorBoundary>
+              <SectionHeader title="Prayer Wall" subtitle="Requests and praises across your people" />
               <ErrorBoundary name="PrayerWallSection">
                 <PrayerWallSection
                   refreshKey={refreshKey}
+                  viewerPersonId={profile.id}
+                  isAdmin={isAdmin}
                   onPersonClick={p => openPerson(p, 'prayer')}
                 />
               </ErrorBoundary>
@@ -869,12 +867,11 @@ export default function DiscipleshipTracker() {
               {/* Prayer & praise wall so you can pray over your people while you SOAP */}
               <div className="mt-6">
                 <SectionHeader title="Prayer &amp; Praise Wall" subtitle="People and praises to lift up as you pray" />
-                <ErrorBoundary name="SharedPrayerFeed">
-                  <SharedPrayerFeed personId={profile.id} scope="coach" refreshKey={refreshKey} />
-                </ErrorBoundary>
                 <ErrorBoundary name="PrayerWallSection">
                   <PrayerWallSection
                     refreshKey={refreshKey}
+                    viewerPersonId={profile.id}
+                    isAdmin={isAdmin}
                     onPersonClick={p => openPerson(p, 'prayer')}
                   />
                 </ErrorBoundary>
