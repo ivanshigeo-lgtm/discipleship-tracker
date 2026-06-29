@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { deletePerson, updatePerson } from '../lib/supabaseQueries'
+import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
 import type { Person, Stage, Engagement } from '../types/database'
 import { stageLabels, stageOrder } from '../lib/stageLabels'
@@ -85,6 +86,7 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
   const [activeSection, setActiveSection] = useState<ModalSection>(initialTab)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [inviteCopied, setInviteCopied] = useState(false)
+  const [accessState, setAccessState] = useState<'idle' | 'loading' | 'copied'>('idle')
 
   const stageColor = STAGE_COLORS[currentStage]
   const canEdit = checkCanEdit(person.id)
@@ -95,6 +97,35 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
     navigator.clipboard.writeText(link)
     setInviteCopied(true)
     setTimeout(() => setInviteCopied(false), 2000)
+  }
+
+  // Magic sign-in link for someone who already has an account — copy & send it
+  // to them to re-access their account.
+  const copyAccessLink = async () => {
+    setAccessState('loading')
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/auth/access-link', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token ?? ''}`,
+        },
+        body: JSON.stringify({ personId: person.id }),
+      })
+      const data = await res.json()
+      if (res.ok && data.link) {
+        await navigator.clipboard.writeText(data.link)
+        setAccessState('copied')
+        setTimeout(() => setAccessState('idle'), 3000)
+      } else {
+        setAccessState('idle')
+        alert(data.error || 'Could not generate an access link.')
+      }
+    } catch {
+      setAccessState('idle')
+      alert('Could not generate an access link.')
+    }
   }
 
   useEffect(() => {
@@ -299,8 +330,19 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
             </div>
           )}
           {person.auth_user_id && (
-            <div className="mt-3 flex items-center gap-2 rounded-lg bg-[rgba(54,214,195,.1)] px-3 py-2">
+            <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg bg-[rgba(54,214,195,.1)] px-3 py-2">
               <span className="text-xs text-[var(--establish)]">✓ Has account — tracking their own journey</span>
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={copyAccessLink}
+                  disabled={accessState === 'loading'}
+                  title="Generate a one-click sign-in link to send them (valid ~1 hour)"
+                  className="ml-auto rounded-full bg-[var(--establish)] px-2.5 py-1 text-[10px] font-semibold text-[var(--void)] transition-opacity hover:opacity-90 disabled:opacity-60"
+                >
+                  {accessState === 'loading' ? 'Generating…' : accessState === 'copied' ? 'Copied — valid ~1 hr' : 'Copy access link'}
+                </button>
+              )}
             </div>
           )}
         </div>
