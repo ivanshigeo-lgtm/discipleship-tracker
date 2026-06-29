@@ -345,12 +345,12 @@ export default function DiscipleshipTracker() {
     })
   }, [refreshKey])
 
-  // "My Constellation" = me + everyone in my downstream coaching tree
-  // (people I coach, people they coach, …) + people who directly coach me.
+  // "My Constellation" = me + everyone in my DOWNSTREAM coaching tree (people I
+  // coach, people they coach, …). Deliberately excludes whoever coaches ME — a
+  // coach's dashboard shows their own circle, never their coach's schedule.
   const myCircleIds = useMemo(() => {
     if (!profile?.id) return undefined
     const ids = new Set<string>([profile.id])
-    // Downstream: expand from me following discipler → disciple edges.
     let changed = true
     while (changed) {
       changed = false
@@ -361,15 +361,14 @@ export default function DiscipleshipTracker() {
         }
       }
     }
-    // Upstream (direct only): whoever coaches me.
-    for (const c of connections) {
-      if (c.disciple_person_id === profile.id) ids.add(c.discipler_person_id)
-    }
     return ids
   }, [connections, profile?.id])
 
-  // Allowed person ids to display, or undefined for the whole church (GBC).
-  const allowedPersonIds = circleScope === 'mine' && myCircleIds
+  // Only admins may view the whole church (GBC). Everyone else is locked to
+  // their own circle so a coach never sees another coach's people/meetings.
+  const isAdmin = Boolean(profile?.is_admin)
+  const effectiveScope: 'gbc' | 'mine' = isAdmin ? circleScope : 'mine'
+  const allowedPersonIds = effectiveScope === 'mine' && myCircleIds
     ? Array.from(myCircleIds)
     : undefined
 
@@ -527,19 +526,21 @@ export default function DiscipleshipTracker() {
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    {/* Scope: whole church vs my coaching circle */}
-                    <div className="flex rounded-full border border-[var(--line-2)] bg-[var(--indigo)] p-1">
-                      {([['gbc', 'GBC Constellation'], ['mine', 'My Constellation']] as const).map(([val, label]) => (
-                        <button
-                          key={val}
-                          type="button"
-                          onClick={() => setCircleScope(val)}
-                          className={`rounded-full px-2 py-1 text-[10px] font-semibold transition-all sm:px-3 sm:text-xs ${circleScope === val ? 'bg-[var(--gbm-cobalt-bright)] text-[var(--fg-1)]' : 'text-[var(--fg-2)] hover:text-[var(--fg-1)]'}`}
-                        >
-                          {label}
-                        </button>
-                      ))}
-                    </div>
+                    {/* Scope: whole church vs my coaching circle (admin only) */}
+                    {isAdmin && (
+                      <div className="flex rounded-full border border-[var(--line-2)] bg-[var(--indigo)] p-1">
+                        {([['gbc', 'GBC Constellation'], ['mine', 'My Constellation']] as const).map(([val, label]) => (
+                          <button
+                            key={val}
+                            type="button"
+                            onClick={() => setCircleScope(val)}
+                            className={`rounded-full px-2 py-1 text-[10px] font-semibold transition-all sm:px-3 sm:text-xs ${circleScope === val ? 'bg-[var(--gbm-cobalt-bright)] text-[var(--fg-1)]' : 'text-[var(--fg-2)] hover:text-[var(--fg-1)]'}`}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     {/* Search + live results dropdown */}
                     <div className="relative">
                       <input
@@ -745,6 +746,7 @@ export default function DiscipleshipTracker() {
               <ErrorBoundary name="NeedAttentionSection">
                 <NeedAttentionSection
                   refreshKey={refreshKey}
+                  allowedPersonIds={allowedPersonIds}
                   onPersonClick={(p, tab) => openPerson(p, tab)}
                   onOpenEngagement={(engagement, personName) => setDetailEngagement({ engagement, personName })}
                   onAddNewPerson={(name) => { setNewPersonName(name ?? ''); setShowAddPerson(true) }}
@@ -755,6 +757,7 @@ export default function DiscipleshipTracker() {
                 <ErrorBoundary name="PointsOfActionSection">
                   <PointsOfActionSection
                     refreshKey={refreshKey}
+                    allowedPersonIds={allowedPersonIds}
                     onPersonClick={(p, tab) => openPerson(p, tab)}
                     onOpenEngagement={(engagement, personName) => setDetailEngagement({ engagement, personName })}
                   />
@@ -770,6 +773,7 @@ export default function DiscipleshipTracker() {
               <ErrorBoundary name="PointsOfActionSection">
                 <PointsOfActionSection
                   refreshKey={refreshKey}
+                  allowedPersonIds={allowedPersonIds}
                   onPersonClick={(p, tab) => openPerson(p, tab)}
                   onOpenEngagement={(engagement, personName) => setDetailEngagement({ engagement, personName })}
                 />

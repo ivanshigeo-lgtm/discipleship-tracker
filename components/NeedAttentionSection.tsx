@@ -21,6 +21,9 @@ interface MyOneToOnesSectionProps {
   onOpenEngagement?: (engagement: Engagement, personName: string) => void
   onAddNewPerson?: (name?: string) => void
   onGroupsChanged?: () => void
+  /* When set, only show meetings for these people (the coach's own circle).
+     Undefined = the whole church (admin / GBC view). */
+  allowedPersonIds?: string[]
 }
 
 type MeetingItem = {
@@ -185,6 +188,7 @@ export default function NeedAttentionSection({
   onOpenEngagement,
   onAddNewPerson,
   onGroupsChanged,
+  allowedPersonIds,
 }: MyOneToOnesSectionProps) {
   const [people, setPeople] = useState<Person[]>([])
   const [engagements, setEngagements] = useState<Engagement[]>([])
@@ -248,6 +252,7 @@ export default function NeedAttentionSection({
   }, [refreshKey])
 
   const meetings = useMemo(() => {
+    const allow = allowedPersonIds ? new Set(allowedPersonIds) : null
     const peopleById = new Map(people.map(p => [p.id, p]))
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -262,6 +267,7 @@ export default function NeedAttentionSection({
     engagements
       .filter(e => {
         if (e.status !== 'Pending' || !e.follow_up_date) return false
+        if (allow && !allow.has(e.person_id)) return false
         // Show meetings within the next 7 days + anything still overdue
         return e.follow_up_date <= next7Str
       })
@@ -295,19 +301,20 @@ export default function NeedAttentionSection({
     })
 
     return items
-  }, [people, engagements])
+  }, [people, engagements, allowedPersonIds])
 
   const overdueCount = meetings.filter(m => m.isOverdue).length
   const todayCount = meetings.filter(m => m.isToday).length
 
   const meetingCounts = useMemo(() => {
+    const allow = allowedPersonIds ? new Set(allowedPersonIds) : null
     const now = new Date()
     const todayStr = now.toISOString().split('T')[0] // YYYY-MM-DD format
     const todayDayOfWeek = now.getDay()
-    // The toggle scopes GROUP numbers only (groups have owners). One-to-one
-    // engagements aren't tagged to a coach, so their counts are the same in
-    // both scopes — they're already "My Meetings".
-    const scopeGroup = (group: VictoryGroup) => badgeScope === 'gbc' || group.owner_person_id === profile?.id
+    // When scoped to a coach's circle (allow set), only their people/groups
+    // count; otherwise the section's own GBC/mine toggle applies to groups.
+    const effectiveScope = allow ? 'mine' : badgeScope
+    const scopeGroup = (group: VictoryGroup) => effectiveScope === 'gbc' || group.owner_person_id === profile?.id
 
     // Tomorrow
     const tomorrow = new Date(now)
@@ -334,7 +341,7 @@ export default function NeedAttentionSection({
 
     // Count engagements by person's stage (both pending and completed this week)
     engagements
-      .filter(e => e.follow_up_date)
+      .filter(e => e.follow_up_date && (!allow || allow.has(e.person_id)))
       .forEach(e => {
         const person = peopleById.get(e.person_id)
         if (!person) return
@@ -394,7 +401,7 @@ export default function NeedAttentionSection({
     })
 
     return counts
-  }, [people, engagements, victoryGroups, groupMemberships, badgeScope, profile?.id])
+  }, [people, engagements, victoryGroups, groupMemberships, badgeScope, allowedPersonIds, profile?.id])
 
   if (loading) {
     return <SectionSkeleton title="My Meetings" />
@@ -413,19 +420,22 @@ export default function NeedAttentionSection({
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex flex-col items-center gap-1.5">
             <MeetingBadges counts={meetingCounts} />
-            {/* Scope the badge totals: whole church vs my constellation/groups */}
-            <div className="flex rounded-full border border-[var(--line-2)] bg-[var(--indigo)] p-0.5">
-              {([['gbc', 'GBC'], ['mine', 'Mine']] as const).map(([val, label]) => (
-                <button
-                  key={val}
-                  type="button"
-                  onClick={() => setBadgeScope(val)}
-                  className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold transition-all ${badgeScope === val ? 'bg-[var(--gbm-cobalt-bright)] text-[var(--fg-1)]' : 'text-[var(--fg-2)] hover:text-[var(--fg-1)]'}`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+            {/* Scope the badge totals: whole church vs my constellation/groups.
+                Hidden when the dashboard already scopes to the coach's circle. */}
+            {!allowedPersonIds && (
+              <div className="flex rounded-full border border-[var(--line-2)] bg-[var(--indigo)] p-0.5">
+                {([['gbc', 'GBC'], ['mine', 'Mine']] as const).map(([val, label]) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setBadgeScope(val)}
+                    className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold transition-all ${badgeScope === val ? 'bg-[var(--gbm-cobalt-bright)] text-[var(--fg-1)]' : 'text-[var(--fg-2)] hover:text-[var(--fg-1)]'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {overdueCount > 0 && (

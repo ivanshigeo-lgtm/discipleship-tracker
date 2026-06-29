@@ -9,6 +9,8 @@ interface PointsOfActionSectionProps {
   refreshKey?: number
   onPersonClick?: (person: Person, openTab?: 'engagements') => void
   onOpenEngagement?: (engagement: Engagement, personName: string) => void
+  /* Limit to these people (the coach's circle). Undefined = whole church. */
+  allowedPersonIds?: string[]
 }
 
 type Row = {
@@ -76,6 +78,7 @@ function ActionRow({
 export default function PointsOfActionSection({
   refreshKey = 0,
   onOpenEngagement,
+  allowedPersonIds,
 }: PointsOfActionSectionProps) {
   const [people, setPeople] = useState<Person[]>([])
   const [engagements, setEngagements] = useState<Engagement[]>([])
@@ -108,12 +111,14 @@ export default function PointsOfActionSection({
   }
 
   const rows = useMemo(() => {
+    const allow = allowedPersonIds ? new Set(allowedPersonIds) : null
     const peopleById = new Map(people.map(p => [p.id, p]))
     const engById = new Map(engagements.map(e => [e.id, e]))
     const out: Row[] = []
     for (const item of actionItems) {
       const engagement = engById.get(item.engagement_id)
       if (!engagement) continue
+      if (allow && !allow.has(engagement.person_id)) continue
       const person = peopleById.get(engagement.person_id)
       if (!person) continue
       out.push({ item, engagement, person })
@@ -124,7 +129,7 @@ export default function PointsOfActionSection({
       return new Date(b.item.created_at).getTime() - new Date(a.item.created_at).getTime()
     })
     return out
-  }, [people, engagements, actionItems])
+  }, [people, engagements, actionItems, allowedPersonIds])
 
   const openCount = rows.filter(r => !r.item.completed).length
 
