@@ -211,6 +211,17 @@ export const getAllPrayerRequests = () =>
     return { data, error }
   })
 
+// The Prayer Wall only shows requests/praises explicitly shared to everyone.
+export const getConstellationPrayerRequests = () =>
+  dedup('getConstellationPrayerRequests', async () => {
+    const { data, error } = await supabase
+      .from('prayer_requests')
+      .select('*')
+      .eq('visibility', 'constellation')
+      .order('created_at', { ascending: false })
+    return { data, error }
+  })
+
 export const addPrayerRequest = async (
   request: Omit<PrayerRequest, 'id' | 'created_at' | 'updated_at' | 'visibility' | 'is_praise' | 'engagement_id'> &
     Partial<Pick<PrayerRequest, 'visibility' | 'is_praise' | 'engagement_id'>>
@@ -223,7 +234,12 @@ export const addPrayerRequest = async (
   return { data, error }
 }
 
-export const addPraise = async (personId: string, testimony: string, engagementId: string | null = null) => {
+export const addPraise = async (
+  personId: string,
+  testimony: string,
+  engagementId: string | null = null,
+  visibility?: 'private' | 'coach' | 'group' | 'constellation'
+) => {
   const today = new Date().toISOString().split('T')[0]
   const { data, error } = await supabase
     .from('prayer_requests')
@@ -235,6 +251,7 @@ export const addPraise = async (personId: string, testimony: string, engagementI
       answer_notes: null,
       is_praise: true,
       engagement_id: engagementId,
+      ...(visibility ? { visibility } : {}),
       updated_at: new Date().toISOString(),
     })
     .select()

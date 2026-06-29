@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
-import { getAllPrayerRequests, getPeople, addPraise, addPrayerRequest } from '../lib/supabaseQueries'
+import { getConstellationPrayerRequests, getPeople, addPraise, addPrayerRequest } from '../lib/supabaseQueries'
 import PersonSearchSelect from './PersonSearchSelect'
 import type { PrayerRequest, Person, Stage } from '../types/database'
 
@@ -174,7 +174,7 @@ export default function PrayerWallSection({
     try {
       const [requestsResult, peopleResult] = await Promise.race([
         Promise.all([
-          getAllPrayerRequests(),
+          getConstellationPrayerRequests(),
           getPeople(),
         ]),
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000))
@@ -242,7 +242,7 @@ export default function PrayerWallSection({
   const handleAddPraise = async () => {
     if (!praisePersonId || !praiseText.trim()) return
     setSavingPraise(true)
-    const { error } = await addPraise(praisePersonId, praiseText.trim())
+    const { error } = await addPraise(praisePersonId, praiseText.trim(), null, 'constellation')
     if (!error) {
       setPraisePersonId('')
       setPraiseText('')
@@ -262,6 +262,7 @@ export default function PrayerWallSection({
       status: 'Active',
       answered_date: null,
       answer_notes: null,
+      visibility: 'constellation',
     })
     if (!error) {
       setPrayerPersonId('')
