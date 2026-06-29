@@ -141,6 +141,7 @@ export default function MyJourneyPage() {
   const [processingOcr, setProcessingOcr] = useState(false)
   const [weeklySummary, setWeeklySummary] = useState<{ summary: string; journalCount: number } | null>(null)
   const [loadingSummary, setLoadingSummary] = useState(false)
+  const [summaryNote, setSummaryNote] = useState('')
   const feedItems = useConstellationFeed()
 
   useEffect(() => {
@@ -363,6 +364,7 @@ export default function MyJourneyPage() {
   const fetchWeeklySummary = async () => {
     if (!profile?.id) return
     setLoadingSummary(true)
+    setSummaryNote('')
     try {
       const res = await fetch('/api/soap/summary', {
         method: 'POST',
@@ -371,8 +373,10 @@ export default function MyJourneyPage() {
       })
       const data = await res.json()
       if (data.summary) setWeeklySummary(data)
+      else setSummaryNote(data.error || data.message || 'No SOAP entries to gather from this week yet.')
     } catch (err) {
       console.error('Summary error:', err)
+      setSummaryNote('Could not gather your week right now. Please try again.')
     }
     setLoadingSummary(false)
   }
@@ -623,8 +627,11 @@ export default function MyJourneyPage() {
             {weeklySummary && (
               <div className="cn-card mt-3 p-4">
                 <p className="text-sm leading-relaxed text-[var(--fg-2)]">{weeklySummary.summary}</p>
-                <p className="mt-2 text-xs text-[var(--fg-3)]">From {weeklySummary.journalCount} entries this week</p>
+                <p className="mt-2 text-xs text-[var(--fg-3)]">From {weeklySummary.journalCount} {weeklySummary.journalCount === 1 ? 'entry' : 'entries'} in the last 7 days</p>
               </div>
+            )}
+            {!weeklySummary && summaryNote && (
+              <p className="mt-3 text-xs text-[var(--fg-3)]">{summaryNote}</p>
             )}
           </section>
         )}

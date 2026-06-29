@@ -43,12 +43,13 @@ export async function POST(request: NextRequest) {
     .map((j) => `[${j.journal_date}] ${j.scripture_reference || 'Scripture not noted'}\n${j.ocr_text}`)
     .join('\n\n---\n\n')
 
-  const { text } = await generateText({
-    model: anthropic('claude-sonnet-4-20250514'),
-    messages: [
-      {
-        role: 'user',
-        content: `You are a warm, encouraging Christian mentor reviewing someone's SOAP journal entries from the past ${period}.
+  try {
+    const { text } = await generateText({
+      model: anthropic('claude-haiku-4-5-20251001'),
+      messages: [
+        {
+          role: 'user',
+          content: `You are a warm, encouraging Christian mentor reviewing someone's SOAP journal entries from the past ${period}.
 
 Here are their journal entries:
 
@@ -60,13 +61,17 @@ Please provide a brief, encouraging summary (3-4 sentences) that:
 3. Offers a gentle word of encouragement for their spiritual journey
 
 Keep the tone warm and pastoral, like a caring mentor. Be specific to what they actually wrote - reference their actual scriptures or observations when possible.`,
-      },
-    ],
-  })
+        },
+      ],
+    })
 
-  return NextResponse.json({
-    summary: text,
-    journalCount: journalsWithText.length,
-    period,
-  })
+    return NextResponse.json({
+      summary: text,
+      journalCount: journalsWithText.length,
+      period,
+    })
+  } catch (err) {
+    console.error('Weekly summary generation error:', err)
+    return NextResponse.json({ error: 'Could not gather your week right now. Please try again.' }, { status: 500 })
+  }
 }
