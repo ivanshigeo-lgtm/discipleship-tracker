@@ -113,7 +113,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
   const engage: JourneyStep[] = [
     {
       id: 'identify',
-      title: 'Engage Your Community Using SALT',
+      title: 'Engage (SALT)',
       detail:
         identified > 0
           ? `You're engaging ${identified} ${identified === 1 ? 'person' : 'people'}`
@@ -124,7 +124,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
     },
     {
       id: 'start-one2one',
-      title: 'Coach Someone Through One2One',
+      title: 'Coach One2One',
       detail: started > 0 ? 'A new journey has begun' : 'Hear their story. Share yours.',
       completed: started > 0,
       progress: started > 0 ? 1 : 0,
@@ -132,7 +132,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
     },
     {
       id: 'actively-disciple',
-      title: 'Help Establish Them In Faith',
+      title: 'Establish Them',
       detail:
         discipling > 0
           ? 'A new star is being lit through you'
@@ -144,7 +144,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
     {
       // The journey's capstone: multiply — start your own Grace Group.
       id: 'lead-gg',
-      title: 'Launch Your Own Grace Group',
+      title: 'Launch a Grace Group',
       detail: leadsGroup
         ? 'You shepherd a group of your own — the journey multiplies.'
         : 'Start a Grace Group and disciple others — a new star is lit through you.',
@@ -157,7 +157,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
   const establish: JourneyStep[] = [
     {
       id: 'coach',
-      title: 'Connect with your coach',
+      title: 'Your Coach',
       detail: d.coach
         ? `Walking with ${d.coach.name} — send a greeting or a prayer request`
         : "Enter your coach's code to begin the journey together.",
@@ -167,7 +167,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
     },
     {
       id: 'group',
-      title: 'I joined a Grace Group',
+      title: 'Grace Group',
       detail: inGroup
         ? `You belong to ${d.groups.map(g => g.name).join(', ')}`
         : 'Find your people — pick a group and join.',
@@ -177,7 +177,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
     },
     {
       id: 'word',
-      title: 'I Started SOAPing',
+      title: 'SOAP',
       detail:
         d.soapStreak >= SOAP_STREAK_TARGET
           ? `A ${d.soapStreak}-day rhythm — keep it burning`
@@ -188,7 +188,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
     },
     {
       id: 'salvation',
-      title: 'I Accepted Jesus as Lord',
+      title: 'Salvation',
       detail: d.profile.spiritual_birthday
         ? `Your spiritual birthday: ${d.profile.spiritual_birthday}`
         : 'Pray the prayer of salvation with your coach — mark your spiritual birthday.',
@@ -198,7 +198,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
     },
     {
       id: 'baptism',
-      title: 'I got Baptized',
+      title: 'Baptism',
       detail: d.profile.baptism_date
         ? `Baptized ${d.profile.baptism_date}`
         : 'Talk with your coach about water baptism and being filled with the Spirit.',
@@ -208,7 +208,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
     },
     {
       id: 'one2one',
-      title: "I'm Going Through One2One",
+      title: 'One2One',
       detail: 'Walk through the One2One foundations with your coach.',
       completed: checklistDone(d.checklist, 'Establish', 'Completed One2One'),
       progress: checklistDone(d.checklist, 'Establish', 'Completed One2One') ? 1 : 0,
@@ -216,7 +216,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
     },
     {
       id: 'church-community',
-      title: 'I Completed Church Community',
+      title: 'Church Community',
       detail: 'Walk through the Church Community curriculum with your coach.',
       completed: checklistDone(d.checklist, 'Establish', 'Completed Church Community'),
       progress: checklistDone(d.checklist, 'Establish', 'Completed Church Community') ? 1 : 0,
@@ -227,7 +227,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
   const equip: JourneyStep[] = [
     {
       id: 'making-disciples',
-      title: 'Journey Through Making Disciples',
+      title: 'Making Disciples',
       detail: "Learn to pass on what you've received.",
       completed: checklistDone(d.checklist, 'Equip', 'Completed Making Disciples'),
       progress: checklistDone(d.checklist, 'Equip', 'Completed Making Disciples') ? 1 : 0,
@@ -235,7 +235,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
     },
     {
       id: 'testimony',
-      title: 'Share Your Story',
+      title: 'Your Story',
       detail: hasTestimony
         ? 'Your two-minute testimony shines in the constellation.'
         : 'Record or write your two-minute testimony — your story becomes light for others.',
@@ -248,7 +248,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
   const empower: JourneyStep[] = [
     {
       id: 'empowering-leaders',
-      title: 'Journey Through Empowering Leaders',
+      title: 'Empowering Leaders',
       detail: 'Be entrusted to raise up others.',
       completed: checklistDone(d.checklist, 'Empower', 'Completed Empowering Leaders'),
       progress: checklistDone(d.checklist, 'Empower', 'Completed Empowering Leaders') ? 1 : 0,

@@ -59,6 +59,7 @@ function StepRow({
 
   return (
     <div
+      title={step.detail}
       className={`flex items-center gap-2.5 rounded-lg px-2 py-1.5 ${actionable ? 'cursor-pointer transition-colors hover:bg-[rgba(246,241,231,.05)]' : ''}`}
       onClick={actionable && onAction ? () => onAction(step) : undefined}
     >
