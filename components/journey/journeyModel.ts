@@ -179,11 +179,13 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
       id: 'word',
       title: 'SOAP',
       detail:
-        d.soapStreak >= SOAP_STREAK_TARGET
-          ? `A ${d.soapStreak}-day rhythm — keep it burning`
-          : `SOAP daily — ${d.soapStreak} of ${SOAP_STREAK_TARGET} days in a row`,
-      completed: d.soapStreak >= SOAP_STREAK_TARGET,
-      progress: Math.min(d.soapStreak / SOAP_STREAK_TARGET, 1),
+        d.soapCount > 0
+          ? d.soapStreak >= SOAP_STREAK_TARGET
+            ? `A ${d.soapStreak}-day rhythm — keep it burning`
+            : `You've started SOAPing${d.soapStreak > 0 ? ` — ${d.soapStreak}-day streak` : ''}`
+          : 'SOAP daily — start your rhythm in the Word.',
+      completed: d.soapCount > 0,
+      progress: d.soapCount > 0 ? 1 : 0,
       action: 'soap',
     },
     {

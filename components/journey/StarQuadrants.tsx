@@ -81,7 +81,7 @@ function StepRow({
           {step.completed ? '✓' : '·'}
         </span>
       )}
-      <span className={`min-w-0 flex-1 truncate text-[13px] font-medium ${step.completed ? 'text-[var(--fg-3)]' : 'text-[var(--fg-1)]'}`}>
+      <span className={`min-w-0 flex-1 truncate text-left text-[13px] font-medium ${step.completed ? 'text-[var(--fg-3)]' : 'text-[var(--fg-1)]'}`}>
         {step.title}
       </span>
       {step.progress > 0 && step.progress < 1 && (
@@ -166,7 +166,7 @@ function QuadrantPanel({
         </div>
       ) : (
         <>
-          <p className="px-1 pt-1 text-[11px] italic leading-snug text-[var(--fg-2)]" style={{ fontFamily: 'var(--font-display)', fontSize: 13 }}>
+          <p className="px-1 pt-1 text-left text-[11px] italic leading-snug text-[var(--fg-2)]" style={{ fontFamily: 'var(--font-display)', fontSize: 13 }}>
             {level.tagline}
           </p>
           <div className="mt-1.5 space-y-0.5">
