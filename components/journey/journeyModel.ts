@@ -31,6 +31,26 @@ export const E_TAGLINES: Record<Stage, string> = {
   Empower: 'The light you received becomes light you give.',
 }
 
+// Journey steps a disciple can directly check/uncheck — each is backed 1:1 by a
+// stage_checklist_items label, so toggling upserts that item. (Activity-driven
+// steps — coach connection, group, SOAP, testimony, engaging others — keep their
+// own flows and aren't in here.)
+export const STEP_CHECKLIST: Record<string, { stage: Stage; label: string }> = {
+  one2one: { stage: 'Establish', label: 'Completed One2One' },
+  'biblical-foundation': { stage: 'Establish', label: 'Completed Biblical Foundation' },
+  'church-community': { stage: 'Establish', label: 'Completed Church Community' },
+  'making-disciples': { stage: 'Equip', label: 'Completed Making Disciples' },
+  'leadership-113': { stage: 'Equip', label: 'Completed Leadership 113' },
+  'next-steps': { stage: 'Equip', label: 'Completed Next Steps' },
+  'practice-share': { stage: 'Equip', label: 'Practice Sharing Testimony/Gospel' },
+  serve: { stage: 'Equip', label: 'Begin Serving in a Ministry/Mission' },
+  'assist-gg': { stage: 'Equip', label: 'Assist in Leading Small Group' },
+  'empowering-leaders': { stage: 'Empower', label: 'Completed Empowering Leaders' },
+  'leadership-215': { stage: 'Empower', label: 'Completed Leadership 215' },
+  circle: { stage: 'Empower', label: 'Identified Their Circle' },
+  'lead-gg': { stage: 'Empower', label: 'Lead a Grace Group' },
+}
+
 export const UNLOCK_THRESHOLD = 0.75
 
 export type StepAction =

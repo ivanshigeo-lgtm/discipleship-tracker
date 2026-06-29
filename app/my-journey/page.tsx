@@ -9,12 +9,14 @@ import {
   getSoapJournals,
   getSoapStreak,
   getStageChecklistItems,
+  upsertStageChecklistItem,
   getDiscipleshipConnections,
   getMyConversations,
 } from '../../lib/supabaseQueries'
 import { supabase } from '../../lib/supabaseClient'
 import type { SoapJournal, StageChecklistItem, Person, VictoryGroup, DiscipleshipConnection } from '../../types/database'
-import { computeJourney, computeBadges, ringProgressFromLevels, levelByStage, type JourneyStep } from '../../components/journey/journeyModel'
+import { computeJourney, computeBadges, ringProgressFromLevels, levelByStage, STEP_CHECKLIST, type JourneyStep } from '../../components/journey/journeyModel'
+import { stageChecklistTemplates } from '../../lib/stageChecklistTemplates'
 import { Starfield } from '../../components/journey/StarPrimitives'
 import JourneyIntro from '../../components/journey/JourneyIntro'
 import JourneyTour from '../../components/journey/JourneyTour'
@@ -250,6 +252,22 @@ export default function MyJourneyPage() {
     else if (step.action === 'self-confirm') setSelfConfirm(step.id as SelfConfirmKind)
   }
 
+  // Direct check/uncheck for checklist-backed steps (tapping the star's circle).
+  const handleStepToggle = async (step: JourneyStep) => {
+    if (!profile) return
+    const target = STEP_CHECKLIST[step.id]
+    if (!target) return
+    const category = stageChecklistTemplates[target.stage].find(t => t.label === target.label)?.category ?? 'Tool'
+    await upsertStageChecklistItem({
+      person_id: profile.id,
+      stage: target.stage,
+      category,
+      label: target.label,
+      completed: !step.completed,
+    })
+    refreshChecklist()
+  }
+
   // intro hands off to the tour — same star, focus unbroken
   const dismissIntro = useCallback(() => {
     setShowIntro(false)
@@ -449,6 +467,7 @@ export default function MyJourneyPage() {
           </div>
           <div className="relative z-20 mt-2 w-full">
             <StarQuadrants
+              onStepToggle={handleStepToggle}
               levels={levels}
               color={currentLevel?.color ?? '#FBF6EC'}
               onStepAction={handleStepAction}

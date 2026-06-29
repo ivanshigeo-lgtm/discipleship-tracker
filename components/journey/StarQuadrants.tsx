@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import type { JourneyLevel, JourneyStep } from './journeyModel'
-import { UNLOCK_THRESHOLD, JOURNEY_ORDER, ringProgressFromLevels } from './journeyModel'
+import { UNLOCK_THRESHOLD, JOURNEY_ORDER, ringProgressFromLevels, STEP_CHECKLIST } from './journeyModel'
 import { StarBadge } from './StarPrimitives'
 import type { Stage } from '../../types/database'
 
@@ -29,14 +29,19 @@ function StepRow({
   color,
   locked,
   onAction,
+  onToggle,
 }: {
   step: JourneyStep
   color: string
   locked: boolean
   onAction?: (step: JourneyStep) => void
+  onToggle?: (step: JourneyStep) => void
 }) {
+  // Steps backed by a checklist item can be checked/unchecked directly.
+  const toggleable = !locked && !!STEP_CHECKLIST[step.id] && !!onToggle
   // message-coach stays alive after completion — you can always reach out
   const actionable =
+    !toggleable &&
     !locked &&
     (step.action === 'message-coach' ||
       (!step.completed &&
@@ -46,23 +51,35 @@ function StepRow({
           step.action === 'testimony' ||
           step.action === 'self-confirm')))
 
+  const boxStyle = step.completed
+    ? { background: color, borderColor: color, color: 'var(--void)', boxShadow: `0 0 8px -1px ${color}` }
+    : step.progress > 0
+    ? { borderColor: color, color }
+    : { borderColor: 'var(--line-2)', color: toggleable ? 'var(--fg-3)' : 'transparent' }
+
   return (
     <div
       className={`flex items-center gap-2.5 rounded-lg px-2 py-1.5 ${actionable ? 'cursor-pointer transition-colors hover:bg-[rgba(246,241,231,.05)]' : ''}`}
       onClick={actionable && onAction ? () => onAction(step) : undefined}
     >
-      <span
-        className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border text-[9px] font-bold"
-        style={
-          step.completed
-            ? { background: color, borderColor: color, color: 'var(--void)', boxShadow: `0 0 8px -1px ${color}` }
-            : step.progress > 0
-            ? { borderColor: color, color }
-            : { borderColor: 'var(--line-2)', color: 'transparent' }
-        }
-      >
-        {step.completed ? '✓' : '·'}
-      </span>
+      {toggleable ? (
+        <button
+          type="button"
+          title={step.completed ? 'Mark not done' : 'Mark done'}
+          onClick={(e) => { e.stopPropagation(); onToggle!(step) }}
+          className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border text-[9px] font-bold transition-transform hover:scale-110"
+          style={boxStyle}
+        >
+          {step.completed ? '✓' : ''}
+        </button>
+      ) : (
+        <span
+          className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border text-[9px] font-bold"
+          style={boxStyle}
+        >
+          {step.completed ? '✓' : '·'}
+        </span>
+      )}
       <span className={`min-w-0 flex-1 truncate text-[13px] font-medium ${step.completed ? 'text-[var(--fg-3)]' : 'text-[var(--fg-1)]'}`}>
         {step.title}
       </span>
@@ -91,11 +108,13 @@ function QuadrantPanel({
   prev,
   corner,
   onStepAction,
+  onStepToggle,
 }: {
   level: JourneyLevel
   prev?: JourneyLevel
   corner: 'tl' | 'tr' | 'br' | 'bl'
   onStepAction: (step: JourneyStep) => void
+  onStepToggle?: (step: JourneyStep) => void
 }) {
   const locked = !level.unlocked
   // Desktop: pop out away from the star, origin at the star's corner.
@@ -151,7 +170,7 @@ function QuadrantPanel({
           </p>
           <div className="mt-1.5 space-y-0.5">
             {level.steps.map(step => (
-              <StepRow key={step.id} step={step} color={level.color} locked={locked} onAction={onStepAction} />
+              <StepRow key={step.id} step={step} color={level.color} locked={locked} onAction={onStepAction} onToggle={onStepToggle} />
             ))}
           </div>
         </>
@@ -164,11 +183,13 @@ export default function StarQuadrants({
   levels,
   color,
   onStepAction,
+  onStepToggle,
   demo = null,
 }: {
   levels: JourneyLevel[]
   color: string
   onStepAction: (step: JourneyStep) => void
+  onStepToggle?: (step: JourneyStep) => void
   /* first-visit coachmark: 'arrow' glides toward the quadrant, 'open' presses it */
   demo?: 'arrow' | 'open' | null
 }) {
@@ -321,6 +342,7 @@ export default function StarQuadrants({
           prev={prevOf(QUADRANT_META[shown].stage)}
           corner={QUADRANT_META[shown].corner}
           onStepAction={onStepAction}
+          onStepToggle={onStepToggle}
         />
       )}
     </div>
