@@ -12,6 +12,7 @@ import type { JourneyLevel, JourneyStep } from './journeyModel'
 import { StageStepList } from './StageStepList'
 import PrayerWallSection from '../PrayerWallSection'
 import NeedAttentionSection from '../NeedAttentionSection'
+import PointsOfActionSection from '../PointsOfActionSection'
 import EngagementDetailModal from '../EngagementDetailModal'
 
 
@@ -555,6 +556,14 @@ export default function JourneyMenu({
             onOpenEngagement={(engagement, personName) => setDetailEngagement({ engagement, personName })}
             onGroupsChanged={() => setSectionKey(k => k + 1)}
           />
+          <div className="mt-6">
+            <PointsOfActionSection
+              viewerPersonId={personId}
+              isAdmin={isAdmin}
+              refreshKey={sectionKey}
+              onOpenEngagement={(engagement, personName) => setDetailEngagement({ engagement, personName })}
+            />
+          </div>
         </FullSection>
       )}
       {detailEngagement && (
