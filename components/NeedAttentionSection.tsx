@@ -430,40 +430,52 @@ export default function NeedAttentionSection({
 
   return (
     <section className="cn-card mb-6 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-        <div className="flex items-center gap-2">
-          <h2 className="cn-h3">My Meetings</h2>
-          {meetings.length > 0 && (
-            <span className="cn-chip !py-0.5 !text-xs">{meetings.length}</span>
-          )}
-          {/* Scope the badge totals: whole church vs my groups (admins only). */}
-          {isAdmin && (
-            <div className="ml-1 flex rounded-full border border-[var(--line-2)] bg-[var(--indigo)] p-0.5">
-              {([['gbc', 'GBC'], ['mine', 'Mine']] as const).map(([val, label]) => (
-                <button
-                  key={val}
-                  type="button"
-                  onClick={() => setBadgeScope(val)}
-                  className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold transition-all ${badgeScope === val ? 'bg-[var(--gbm-cobalt-bright)] text-[var(--fg-1)]' : 'text-[var(--fg-2)] hover:text-[var(--fg-1)]'}`}
-                >
-                  {label}
-                </button>
-              ))}
+      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+        {/* Left column — title, subtitle and section label stack up to fill the
+            space beside the tall stage badges. */}
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="cn-h3">My Meetings</h2>
+            {meetings.length > 0 && (
+              <span className="cn-chip !py-0.5 !text-xs">{meetings.length}</span>
+            )}
+            {/* Scope the badge totals: whole church vs my groups (admins only). */}
+            {isAdmin && (
+              <div className="ml-1 flex rounded-full border border-[var(--line-2)] bg-[var(--indigo)] p-0.5">
+                {([['gbc', 'GBC'], ['mine', 'Mine']] as const).map(([val, label]) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setBadgeScope(val)}
+                    className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold transition-all ${badgeScope === val ? 'bg-[var(--gbm-cobalt-bright)] text-[var(--fg-1)]' : 'text-[var(--fg-2)] hover:text-[var(--fg-1)]'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+            {overdueCount > 0 && (
+              <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'rgba(242,114,138,.15)', color: '#F2728A' }}>
+                {overdueCount} overdue
+              </span>
+            )}
+            {todayCount > 0 && (
+              <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'rgba(54,214,195,.15)', color: 'var(--establish)' }}>
+                {todayCount} today
+              </span>
+            )}
+          </div>
+          <p className="mt-1 text-sm text-[var(--fg-2)]">
+            Meetings for the next 7 days — rolling from today
+          </p>
+          {isExpanded && meetings.length > 0 && (
+            <div className="mt-3 text-[10px] font-semibold uppercase tracking-wide text-[var(--fg-3)]">
+              One-to-One Meetings
             </div>
-          )}
-          {overdueCount > 0 && (
-            <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'rgba(242,114,138,.15)', color: '#F2728A' }}>
-              {overdueCount} overdue
-            </span>
-          )}
-          {todayCount > 0 && (
-            <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'rgba(54,214,195,.15)', color: 'var(--establish)' }}>
-              {todayCount} today
-            </span>
           )}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-start gap-3">
           <MeetingBadges counts={meetingCounts} />
           <button
             type="button"
@@ -475,19 +487,12 @@ export default function NeedAttentionSection({
         </div>
       </div>
 
-      <p className="mt-1 text-sm text-[var(--fg-2)]">
-        Meetings for the next 7 days — rolling from today
-      </p>
-
       {isExpanded && (
         <>
           {/* One-to-One Meetings */}
           {meetings.length > 0 ? (
             <>
-              <div className="mt-4 text-[10px] font-semibold uppercase tracking-wide text-[var(--fg-3)]">
-                One-to-One Meetings
-              </div>
-              <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {meetings.slice(0, 12).map(item => (
                   <MeetingCard
                     key={item.engagement.id}
