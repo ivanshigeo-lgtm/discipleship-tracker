@@ -138,6 +138,17 @@ export default function PrayerEntryModal({ personId, onClose, onSaved }: { perso
         const json = await res.json()
         if (!res.ok) throw new Error(json.error || 'upload failed')
         mediaUrl = json.url
+        // Transcode webm → MP4 so it plays on every device (falls back to original).
+        if (ext !== 'mp4' && json.path) {
+          try {
+            const tRes = await fetch('/api/video/transcode', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ bucket: 'prayer-media', path: json.path }),
+            })
+            const tJson = await tRes.json()
+            if (tRes.ok && tJson.url) mediaUrl = tJson.url
+          } catch { /* keep the original */ }
+        }
       }
       const { error: insErr } = await addPrayerRequest({
         person_id: personId,

@@ -156,6 +156,21 @@ export default function TestimonyModal({
       return null
     }
 
+    // Step 3: transcode to MP4 so it plays on EVERY device (iPhones can't play
+    // webm). If transcoding is unavailable, fall back to the original upload —
+    // which still plays on the device it was recorded on.
+    if (!contentType.includes('mp4')) {
+      try {
+        const tRes = await fetch('/api/video/transcode', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bucket: 'testimonies', path: urlJson.path }),
+        })
+        const tJson = await tRes.json()
+        if (tRes.ok && tJson.url) return tJson.url as string
+      } catch { /* fall back to the original */ }
+    }
+
     return urlJson.publicUrl as string
   }
 

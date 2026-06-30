@@ -37,5 +37,5 @@ export async function POST(request: NextRequest) {
   }
 
   const { data } = supabase.storage.from('prayer-media').getPublicUrl(path)
-  return NextResponse.json({ url: data.publicUrl })
+  return NextResponse.json({ url: data.publicUrl, path })
 }
