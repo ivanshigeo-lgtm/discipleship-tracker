@@ -25,7 +25,7 @@ import GoogleCalendarConnect from '../../components/GoogleCalendarConnect'
 import MessageCenter from '../../components/MessageCenter'
 import SoapEntryModal from '../../components/journey/SoapEntryModal'
 import SoapCalendarSection from '../../components/SoapCalendarSection'
-import { getSoapJournals, getAllDiscipleshipConnections, getPeople, getLevelSignoffs } from '../../lib/supabaseQueries'
+import { getSoapJournals, getAllDiscipleshipConnections, getPeople, getLevelSignoffs, getAllEngagements, getAllActionItems, getVictoryGroups, getPrayerLifeForPerson, getMyConversations } from '../../lib/supabaseQueries'
 import type { Person, SoapJournal, Stage, DiscipleshipConnection, Engagement } from '../../types/database'
 import EngagementDetailModal from '../../components/EngagementDetailModal'
 import { DashboardSkeleton } from '../../components/Skeleton'
@@ -81,6 +81,7 @@ function CoachSidebar({
   onSignOut,
   onAddPerson,
   soapStreak = 0,
+  badges = {},
 }: {
   active: SectionId
   open: boolean
@@ -91,6 +92,7 @@ function CoachSidebar({
   onSignOut: () => void
   onAddPerson: () => void
   soapStreak?: number
+  badges?: Record<string, { text: string; title: string }>
 }) {
   // close on Escape
   useEffect(() => {
@@ -99,6 +101,9 @@ function CoachSidebar({
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
   }, [open, onClose])
+
+  // Instant hover tooltip (rendered outside the transformed drawer).
+  const [tip, setTip] = useState<{ text: string; x: number; y: number } | null>(null)
 
   const coachCode = profileId.slice(-6).toUpperCase()
 
@@ -163,10 +168,17 @@ function CoachSidebar({
                       }}
                     />
                     <span className="flex-1">{item.label}</span>
-                    {item.id === 'soaps' && soapStreak > 0 && (
-                      <span className="flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold"
-                        style={{ background: 'rgba(251,191,36,.15)', color: '#FBBF24' }}>
-                        ⚡{soapStreak}
+                    {badges[item.id] && (
+                      <span
+                        onMouseEnter={(e) => {
+                          const r = e.currentTarget.getBoundingClientRect()
+                          setTip({ text: badges[item.id].title, x: r.right + 10, y: r.top + r.height / 2 })
+                        }}
+                        onMouseLeave={() => setTip(null)}
+                        className="rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums"
+                        style={{ background: `${item.dot ?? '#5B8DF7'}22`, color: item.dot ?? '#5B8DF7', border: `1px solid ${item.dot ?? '#5B8DF7'}55` }}
+                      >
+                        {badges[item.id].text}
                       </span>
                     )}
                   </button>
@@ -210,6 +222,15 @@ function CoachSidebar({
           </button>
         </div>
       </aside>
+
+      {tip && (
+        <div
+          className="pointer-events-none fixed z-[120] -translate-y-1/2 whitespace-nowrap rounded-lg border border-[var(--line-2)] bg-[var(--indigo)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--fg-1)] shadow-xl"
+          style={{ left: tip.x, top: tip.y }}
+        >
+          {tip.text}
+        </div>
+      )}
     </>
   )
 }
@@ -431,6 +452,46 @@ export default function DiscipleshipTracker() {
     if (!soapsLoaded) loadSoaps()
   }, [soapsLoaded, loadSoaps])
 
+  // Count badges for the sidebar — same data each page shows inside.
+  const [sidebarBadges, setSidebarBadges] = useState<Record<string, { text: string; title: string }>>({})
+  useEffect(() => {
+    if (!profile) return
+    let cancelled = false
+    ;(async () => {
+      const [engRes, aiRes, prayerRes, groupsRes, convRes] = await Promise.all([
+        getAllEngagements(),
+        getAllActionItems(),
+        getPrayerLifeForPerson(profile.id, isAdmin),
+        getVictoryGroups(),
+        getMyConversations(profile.id),
+      ])
+      if (cancelled) return
+      const today = new Date(); today.setHours(0, 0, 0, 0)
+      const in7 = new Date(today); in7.setDate(today.getDate() + 7)
+      const iso = (d: Date) => d.toISOString().split('T')[0]
+      const next7Str = iso(in7)
+      const involved = (e: { created_by_person_id: string | null; person_id: string }) =>
+        isAdmin || e.created_by_person_id === profile.id || e.person_id === profile.id
+      const engs = (engRes.data as { id: string; status: string; follow_up_date: string | null; created_by_person_id: string | null; person_id: string }[]) ?? []
+      const eng7 = engs.filter(e => e.status === 'Pending' && e.follow_up_date && e.follow_up_date <= next7Str && involved(e)).length
+      const engById = new Map(engs.map(e => [e.id, e]))
+      const openPoints = ((aiRes.data as { engagement_id: string; completed: boolean }[]) ?? [])
+        .filter(it => { const e = engById.get(it.engagement_id); return !it.completed && e && involved(e) }).length
+      const prayers = (prayerRes.data as { status: string }[]) ?? []
+      const groups = ((groupsRes.data as { owner_person_id: string | null }[]) ?? []).filter(g => isAdmin || g.owner_person_id === profile.id).length
+      const unread = ((convRes.data as { unreadCount?: number }[]) ?? []).reduce((s, c) => s + (c.unreadCount ?? 0), 0)
+      setSidebarBadges({
+        engagements: { text: `${eng7}`, title: 'Meetings in the next 7 days' },
+        points: { text: `${openPoints}`, title: 'Open action points' },
+        groups: { text: `${groups}`, title: 'Your Grace Groups' },
+        prayer: { text: `${prayers.length}/${prayers.filter(p => p.status === 'Answered').length}`, title: 'Prayers / answered' },
+        messages: { text: `${unread}`, title: 'Unread messages' },
+        soaps: { text: `${currentStreak}/${soapStreak}`, title: 'Current / longest streak (days)' },
+      })
+    })()
+    return () => { cancelled = true }
+  }, [profile, isAdmin, refreshKey, currentStreak, soapStreak])
+
   // ── Guard renders ──────────────────────────────────────────────────────────
   if (loading) {
     return <DashboardSkeleton />
@@ -477,6 +538,7 @@ export default function DiscipleshipTracker() {
         onSignOut={handleSignOut}
         onAddPerson={() => setShowAddPerson(true)}
         soapStreak={soapStreak}
+        badges={sidebarBadges}
       />
 
       {/* Main content */}
