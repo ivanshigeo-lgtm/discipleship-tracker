@@ -11,6 +11,7 @@ type SharedPrayer = {
   is_praise: boolean
   status: string
   answer_notes: string | null
+  media_url: string | null
   created_at: string
   people?: { name: string } | null
 }
@@ -100,6 +101,9 @@ export default function SharedPrayerFeed({
                   </span>
                 </div>
                 <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-[var(--fg-2)]">{p.request}</p>
+                {p.media_url && (
+                  <video src={p.media_url} controls playsInline className="mt-2 w-full rounded-lg" style={{ maxHeight: 280, background: '#000' }} />
+                )}
                 {p.answer_notes && <p className="mt-1 text-xs text-[var(--establish)]">— {p.answer_notes}</p>}
                 {p.person_id !== personId && (
                   <div className="mt-2 flex justify-end">

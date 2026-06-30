@@ -354,8 +354,8 @@ export const getPrayerLifeForPerson = async (personId: string, isAdmin: boolean)
 }
 
 export const addPrayerRequest = async (
-  request: Omit<PrayerRequest, 'id' | 'created_at' | 'updated_at' | 'visibility' | 'is_praise' | 'engagement_id'> &
-    Partial<Pick<PrayerRequest, 'visibility' | 'is_praise' | 'engagement_id'>>
+  request: Omit<PrayerRequest, 'id' | 'created_at' | 'updated_at' | 'visibility' | 'is_praise' | 'engagement_id' | 'media_url'> &
+    Partial<Pick<PrayerRequest, 'visibility' | 'is_praise' | 'engagement_id' | 'media_url'>>
 ) => {
   const { data, error } = await supabase
     .from('prayer_requests')
@@ -1105,7 +1105,7 @@ export const getGroupSharedSoaps = async (personId: string, limit = 20) => {
   return { data, error }
 }
 
-const SHARED_PRAYER_COLS = 'id, person_id, request, is_praise, status, answer_notes, visibility, created_at, people(name)'
+const SHARED_PRAYER_COLS = 'id, person_id, request, is_praise, status, answer_notes, visibility, media_url, created_at, people(name)'
 
 // Prayers/praises a coach's disciples shared with their coach (visibility='coach').
 // ── Per-viewer archive of shared SOAPs (hide from my feed; never deletes) ──────

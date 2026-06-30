@@ -26,6 +26,7 @@ import StarQuadrants from '../../components/journey/StarQuadrants'
 import BadgeCelebration from '../../components/journey/BadgeCelebration'
 import Milestones from '../../components/journey/Milestones'
 import SoapEntryModal from '../../components/journey/SoapEntryModal'
+import PrayerEntryModal from '../../components/journey/PrayerEntryModal'
 import TestimonyModal from '../../components/journey/TestimonyModal'
 import ConstellationRail, { useConstellationFeed } from '../../components/journey/ConstellationRail'
 import StoryMusic from '../../components/journey/StoryMusic'
@@ -134,7 +135,7 @@ export default function MyJourneyPage() {
   const [signingOut, setSigningOut] = useState(false)
   const [dataReady, setDataReady] = useState(false)
   const [demo, setDemo] = useState<DemoPhase>(null)
-  const [activeModal, setActiveModal] = useState<'soap' | 'testimony' | 'coach' | 'message' | 'join-group' | null>(null)
+  const [activeModal, setActiveModal] = useState<'soap' | 'testimony' | 'coach' | 'message' | 'join-group' | 'prayer' | null>(null)
   const [soapEntryDate, setSoapEntryDate] = useState<string | null>(null)
   const [msgCenterOpen, setMsgCenterOpen] = useState(false)
   const [unreadMsgCount, setUnreadMsgCount] = useState(0)
@@ -546,15 +547,20 @@ export default function MyJourneyPage() {
           </p>
 
           {/* today's invitation */}
-          {!journeyData?.hasSoapToday ? (
-            <button type="button" onClick={() => setActiveModal('soap')} className="cn-btn cn-btn-primary mt-4">
-              ✦ Open today&rsquo;s SOAP
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+            {!journeyData?.hasSoapToday ? (
+              <button type="button" onClick={() => setActiveModal('soap')} className="cn-btn cn-btn-primary">
+                ✦ Open today&rsquo;s SOAP
+              </button>
+            ) : (
+              <p className="text-xs font-semibold" style={{ color: 'var(--establish)' }}>
+                ✦ You&rsquo;ve been in the Word today
+              </p>
+            )}
+            <button type="button" onClick={() => setActiveModal('prayer')} className="cn-btn cn-btn-ghost">
+              ✦ Today&rsquo;s Prayer / Praise
             </button>
-          ) : (
-            <p className="mt-4 text-xs font-semibold" style={{ color: 'var(--establish)' }}>
-              ✦ You&rsquo;ve been in the Word today
-            </p>
-          )}
+          </div>
         </section>
 
         {/* Completed Empower but the coach hasn't signed off yet → no toggle to
@@ -613,6 +619,13 @@ export default function MyJourneyPage() {
       </main>
 
       {/* modals */}
+      {activeModal === 'prayer' && profile && (
+        <PrayerEntryModal
+          personId={profile.id}
+          onClose={() => setActiveModal(null)}
+          onSaved={loadData}
+        />
+      )}
       {activeModal === 'soap' && profile && (
         <SoapEntryModal
           personId={profile.id}

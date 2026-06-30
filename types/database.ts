@@ -68,6 +68,7 @@ export type PrayerRequest = {
   visibility: ShareVisibility
   is_praise: boolean
   engagement_id: string | null
+  media_url: string | null
   created_at: string
   updated_at: string
 }
