@@ -34,6 +34,7 @@ import MessageCenter from '../../components/MessageCenter'
 import JoinGroupModal from '../../components/journey/JoinGroupModal'
 import SelfConfirmModal, { type SelfConfirmKind } from '../../components/journey/SelfConfirmModal'
 import JourneyMenu from '../../components/journey/JourneyMenu'
+import EmpoweredCoachmark from '../../components/journey/EmpoweredCoachmark'
 import SoapCalendarSection from '../../components/SoapCalendarSection'
 import SharedSoapFeed from '../../components/SharedSoapFeed'
 import SharedPrayerFeed from '../../components/SharedPrayerFeed'
@@ -444,7 +445,7 @@ export default function MyJourneyPage() {
             className="h-16 w-auto shrink-0 sm:h-24"
           />
           <div className="hidden h-12 w-px bg-[var(--line-2)] sm:block" />
-          <div className="flex flex-1 flex-col items-center gap-2">
+          <div className="relative flex flex-1 flex-col items-center gap-2">
             <h1
               className="text-3xl font-semibold sm:text-4xl"
               style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}
@@ -464,6 +465,10 @@ export default function MyJourneyPage() {
                 </a>
               </div>
             )}
+            <EmpoweredCoachmark
+              personId={profile.id}
+              enabled={Boolean(profile.is_admin) || signoffs.some(s => s.stage === 'Empower' && s.status === 'approved')}
+            />
           </div>
           <div className="hidden h-12 w-px bg-[var(--line-2)] sm:block" />
           <div className="flex shrink-0 flex-col items-end gap-1.5 sm:flex-row sm:items-center sm:gap-3">
@@ -573,44 +578,24 @@ export default function MyJourneyPage() {
           )}
         </section>
 
-        {/* empowered → the dashboard opens; engaged → full circle */}
-        {(levelByStage(levels, 'Empower')?.completed ?? false) && (
+        {/* Completed Empower but the coach hasn't signed off yet → no toggle to
+            point at, so keep an informative note. (Once signed off, the toggle
+            appears and the one-time EmpoweredCoachmark points to it instead.) */}
+        {(levelByStage(levels, 'Empower')?.completed ?? false) &&
+          !(profile.is_admin || signoffs.some(s => s.stage === 'Empower' && s.status === 'approved')) && (
           <section
             className="mt-8 rounded-[var(--r-xl)] border p-6 text-center"
             style={{
-              borderColor: fullCircle ? 'rgba(242,200,121,.4)' : 'rgba(240,114,159,.35)',
-              background: fullCircle
-                ? 'linear-gradient(180deg, rgba(242,200,121,.10) 0%, rgba(20,27,61,.6) 100%)'
-                : 'linear-gradient(180deg, rgba(240,114,159,.10) 0%, rgba(20,27,61,.6) 100%)',
-              boxShadow: fullCircle ? '0 0 48px -16px rgba(242,200,121,.55)' : '0 0 48px -16px rgba(240,114,159,.5)',
+              borderColor: 'rgba(240,114,159,.35)',
+              background: 'linear-gradient(180deg, rgba(240,114,159,.10) 0%, rgba(20,27,61,.6) 100%)',
+              boxShadow: '0 0 48px -16px rgba(240,114,159,.5)',
             }}
           >
-            <p className="cn-label" style={{ color: fullCircle ? 'var(--gold)' : 'var(--empower)' }}>
-              {fullCircle ? 'Full circle' : 'Empowered'}
+            <p className="cn-label" style={{ color: 'var(--empower)' }}>Empowered</p>
+            <p className="mt-2 text-xl italic leading-relaxed" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>
+              You’ve completed Empower. Once your coach signs off, your coach dashboard opens.
             </p>
-            {(() => {
-              const hasDashboard = profile.is_admin || signoffs.some(s => s.stage === 'Empower' && s.status === 'approved')
-              return (
-                <>
-                  <p className="mt-2 text-xl italic leading-relaxed" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>
-                    {fullCircle
-                      ? 'You were engaged — and now a new star is being lit through you.'
-                      : hasDashboard
-                      ? 'Your coach dashboard is open. One thing remains: engage someone new.'
-                      : 'You’ve completed Empower. Once your coach signs off, your coach dashboard opens.'}
-                  </p>
-                  {hasDashboard ? (
-                    <a href="/my-constellations" className="cn-btn cn-btn-primary mt-4 inline-flex">
-                      Open your coach dashboard
-                    </a>
-                  ) : (
-                    <p className="mt-4 text-xs text-[var(--fg-3)]">
-                      Awaiting your coach&rsquo;s Empower sign-off.
-                    </p>
-                  )}
-                </>
-              )
-            })()}
+            <p className="mt-4 text-xs text-[var(--fg-3)]">Awaiting your coach&rsquo;s Empower sign-off.</p>
           </section>
         )}
 

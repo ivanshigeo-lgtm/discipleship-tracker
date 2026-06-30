@@ -354,6 +354,19 @@ body {
   to { transform: translateY(0) scale(1); opacity: 1; }
 }
 
+/* empowered coachmark: rises in, then gently bobs toward the toggle */
+.jy-coach-bob {
+  animation: jy-coach-in 0.45s var(--ease-soft) both, jy-coach-bob 1.8s ease-in-out 0.5s infinite;
+}
+@keyframes jy-coach-in {
+  from { transform: translateY(-8px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes jy-coach-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
 /* margin rails: slow upward drift, faded at the edges */
 .jy-rail-mask {
   mask-image: linear-gradient(to bottom, transparent, black 12%, black 88%, transparent);
