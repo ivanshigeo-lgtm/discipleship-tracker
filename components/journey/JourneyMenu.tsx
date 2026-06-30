@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import {
   getEngagementsForPerson,
+  getAllEngagements,
   getPrayerLifeForPerson,
   addPrayerRequest,
   getPendingLevelSignoffs,
@@ -50,7 +51,7 @@ function FullSection({ title, onClose, children }: { title: string; onClose: () 
         <h2 className="text-lg font-semibold text-[var(--fg-1)]" style={{ fontFamily: 'var(--font-display)' }}>{title}</h2>
         <button type="button" onClick={onClose} className="cn-chip">Close</button>
       </div>
-      <div className="mx-auto max-w-2xl px-4 py-6">{children}</div>
+      <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">{children}</div>
     </div>
   )
 }
@@ -353,7 +354,7 @@ export default function JourneyMenu({
     let cancelled = false
     ;(async () => {
       const [engRes, prayerRes, signoffRes] = await Promise.all([
-        getEngagementsForPerson(personId),
+        getAllEngagements(),
         getPrayerLifeForPerson(personId, isAdmin),
         getPendingLevelSignoffs(personId),
       ])
@@ -361,8 +362,12 @@ export default function JourneyMenu({
       const today = new Date(); today.setHours(0, 0, 0, 0)
       const in7 = new Date(today); in7.setDate(today.getDate() + 7)
       const iso = (d: Date) => d.toISOString().split('T')[0]
-      const eng7 = ((engRes.data as { follow_up_date: string | null; status: string }[]) ?? [])
-        .filter(e => e.status !== 'Completed' && e.follow_up_date && e.follow_up_date >= iso(today) && e.follow_up_date <= iso(in7)).length
+      const next7Str = iso(in7)
+      // Match NeedAttentionSection exactly: Pending, due on/before +7 (incl.
+      // overdue), and either I'm involved or I'm an admin (sees all).
+      const eng7 = ((engRes.data as { follow_up_date: string | null; status: string; person_id: string; created_by_person_id: string | null }[]) ?? [])
+        .filter(e => e.status === 'Pending' && e.follow_up_date && e.follow_up_date <= next7Str
+          && (isAdmin || e.created_by_person_id === personId || e.person_id === personId)).length
       const prayers = (prayerRes.data as { status: string }[]) ?? []
       const prayerTotal = prayers.length
       const prayerAnswered = prayers.filter(p => p.status === 'Answered').length
