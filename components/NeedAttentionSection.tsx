@@ -270,10 +270,17 @@ export default function NeedAttentionSection({
 
     const items: MeetingItem[] = []
 
+    // The meeting list honors the GBC / Mine toggle: GBC (admin) shows the whole
+    // church; Mine shows only meetings you're involved in. Non-admins are always
+    // scoped to "mine".
+    const effectiveScope = isAdmin ? badgeScope : 'mine'
+    const inScope = (e: Engagement) =>
+      effectiveScope === 'gbc' || (!!viewerPersonId && (e.created_by_person_id === viewerPersonId || e.person_id === viewerPersonId))
+
     engagements
       .filter(e => {
         if (e.status !== 'Pending' || !e.follow_up_date) return false
-        if (!involvedInEngagement(e)) return false
+        if (!inScope(e)) return false
         // Show meetings within the next 7 days + anything still overdue
         return e.follow_up_date <= next7Str
       })
@@ -307,7 +314,7 @@ export default function NeedAttentionSection({
     })
 
     return items
-  }, [people, engagements, viewerPersonId, isAdmin])
+  }, [people, engagements, viewerPersonId, isAdmin, badgeScope])
 
   const overdueCount = meetings.filter(m => m.isOverdue).length
   const todayCount = meetings.filter(m => m.isToday).length
