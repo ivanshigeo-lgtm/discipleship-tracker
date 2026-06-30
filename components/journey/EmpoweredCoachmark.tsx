@@ -41,13 +41,12 @@ export default function EmpoweredCoachmark({ personId, enabled, onActiveChange }
           style={{ borderLeft: '8px solid transparent', borderRight: '8px solid transparent', borderBottom: '9px solid var(--empower)' }}
         />
         <div
-          className="rounded-xl border px-4 py-2.5 text-center"
+          className="max-w-[300px] rounded-xl border px-4 py-2.5 text-center"
           style={{
             borderColor: 'var(--empower)',
-            background: '#0E1430',
-            backdropFilter: 'blur(10px)',
-            WebkitBackdropFilter: 'blur(10px)',
-            boxShadow: '0 8px 28px -4px rgba(0,0,0,.7), 0 0 28px -6px rgba(240,114,159,.6)',
+            backgroundColor: '#0B1024',
+            opacity: 1,
+            boxShadow: '0 12px 32px -6px rgba(0,0,0,.85), 0 0 24px -8px rgba(240,114,159,.55)',
           }}
         >
           <p className="text-xs font-bold tracking-wide" style={{ color: 'var(--empower)' }}>✦ You&rsquo;re empowered</p>
