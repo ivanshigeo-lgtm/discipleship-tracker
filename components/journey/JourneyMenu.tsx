@@ -8,6 +8,7 @@ import {
   getConfirmedEngagementIds,
   getPrayerLifeForPerson,
   addPrayerRequest,
+  deletePrayerRequest,
   getPendingLevelSignoffs,
   getCoachSharedPrayers,
   getGroupSharedPrayers,
@@ -100,6 +101,7 @@ function PrayerPanel({ personId, isAdmin, onClose }: { personId: string; isAdmin
   const [text, setText] = useState('')
   const [visibility, setVisibility] = useState<ShareVisibility>('private')
   const [saving, setSaving] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const load = () =>
     getPrayerLifeForPerson(personId, isAdmin).then(({ data }) => {
@@ -116,6 +118,16 @@ function PrayerPanel({ personId, isAdmin, onClose }: { personId: string; isAdmin
     setText('')
     await load()
     setSaving(false)
+  }
+
+  const remove = async (id: string) => {
+    if (!confirm('Delete this prayer request? This cannot be undone.')) return
+    setDeletingId(id)
+    const prev = requests
+    setRequests(rs => rs.filter(r => r.id !== id)) // optimistic
+    const { error } = await deletePrayerRequest(id)
+    if (error) { setRequests(prev); alert('Could not delete. Please try again.') }
+    setDeletingId(null)
   }
 
   return (
@@ -169,12 +181,36 @@ function PrayerPanel({ personId, isAdmin, onClose }: { personId: string; isAdmin
               className="rounded-xl px-3 py-2.5"
               style={{ background: r.is_praise ? 'rgba(242,200,121,.08)' : 'var(--indigo-2)' }}
             >
-              <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: r.is_praise ? 'var(--gold)' : '#9B80FF' }}>
-                {r.is_praise ? '✦ Praise' : '✦ Prayer'}
-              </span>
-              {r.status === 'Answered' && (
-                <span className="ml-2 rounded-full bg-[rgba(54,214,195,.15)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--establish)]">Answered</span>
-              )}
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: r.is_praise ? 'var(--gold)' : '#9B80FF' }}>
+                    {r.is_praise ? '✦ Praise' : '✦ Prayer'}
+                  </span>
+                  {r.status === 'Answered' && (
+                    <span className="ml-2 rounded-full bg-[rgba(54,214,195,.15)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--establish)]">Answered</span>
+                  )}
+                </div>
+                {/* Delete — only your own requests */}
+                {r.person_id === personId && (
+                  <button
+                    type="button"
+                    onClick={() => remove(r.id)}
+                    disabled={deletingId === r.id}
+                    title="Delete"
+                    aria-label="Delete prayer request"
+                    className="shrink-0 rounded-md p-1 text-[var(--fg-3)] transition-colors hover:bg-[rgba(240,114,159,.12)] hover:text-[var(--danger)] disabled:opacity-40"
+                  >
+                    {deletingId === r.id ? (
+                      <span className="block h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                    ) : (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                        <line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" />
+                      </svg>
+                    )}
+                  </button>
+                )}
+              </div>
               <p className="mt-1 text-sm leading-relaxed text-[var(--fg-2)]">{r.request}</p>
               {r.media_url && <video src={r.media_url} controls playsInline className="mt-2 w-full rounded-lg" style={{ maxHeight: 240, background: '#000' }} />}
             </div>
