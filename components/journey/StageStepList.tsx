@@ -1,7 +1,7 @@
 'use client'
 
 import type { JourneyLevel, JourneyStep } from './journeyModel'
-import { STEP_CHECKLIST, STEP_DESCRIPTIONS } from './journeyModel'
+import { STEP_CHECKLIST, STEP_DESCRIPTIONS, JOURNEY_ORDER } from './journeyModel'
 
 /*
  * The list of steps for one stage — shared by the star's hover pop-out and the
@@ -119,15 +119,29 @@ export function SignoffFooter({ level, onRequestSignoff }: { level: JourneyLevel
     )
   }
   if (!level.completed || !onRequestSignoff) return null
+  // Stage complete, not yet requested — congrats + an un-missable, pulsing
+  // "request sign-off" button so the disciple knows to take the next step.
+  const idx = JOURNEY_ORDER.indexOf(level.stage)
+  const next = idx >= 0 && idx < JOURNEY_ORDER.length - 1 ? JOURNEY_ORDER[idx + 1] : null
   return (
-    <button
-      type="button"
-      onClick={() => onRequestSignoff(level.stage)}
-      className="mt-2.5 w-full rounded-lg py-2 text-xs font-bold transition-transform hover:scale-[1.02]"
-      style={{ background: level.color, color: 'var(--void)', boxShadow: `0 0 16px -3px ${level.color}` }}
-    >
-      {isEngage ? 'Request final sign-off →' : 'Request coach sign-off →'}
-    </button>
+    <div className="mt-2.5 rounded-xl border p-3 text-center" style={{ borderColor: `${level.color}66`, background: `${level.color}14` }}>
+      <p className="text-sm font-bold" style={{ color: level.color }}>🎉 You&rsquo;ve completed {level.stage}!</p>
+      <p className="mx-auto mt-1 max-w-[260px] text-[11px] leading-relaxed text-[var(--fg-2)]">
+        {isEngage
+          ? 'One last step — ask your coach to confirm you’ve come full circle.'
+          : next
+          ? `Ask your coach to sign off so ${next} unlocks.`
+          : 'Ask your coach to sign off on this stage.'}
+      </p>
+      <button
+        type="button"
+        onClick={() => onRequestSignoff(level.stage)}
+        className="jy-signoff-pulse mt-2.5 w-full rounded-lg py-2.5 text-sm font-bold"
+        style={{ background: level.color, color: 'var(--void)' }}
+      >
+        ✦ {isEngage ? 'Request final sign-off' : 'Request sign-off from coach'} →
+      </button>
+    </div>
   )
 }
 

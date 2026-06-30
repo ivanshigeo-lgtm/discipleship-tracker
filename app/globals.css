@@ -367,6 +367,16 @@ body {
   50% { transform: translateY(-5px); }
 }
 
+/* "request sign-off" button pulses so it can't be missed */
+.jy-signoff-pulse {
+  animation: jy-signoff-pulse 1.5s ease-in-out infinite;
+}
+@keyframes jy-signoff-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(255,255,255,.5); transform: scale(1); }
+  60% { box-shadow: 0 0 0 10px rgba(255,255,255,0); transform: scale(1.02); }
+  100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); transform: scale(1); }
+}
+
 /* the My Constellations toggle pulses while the coachmark points at it */
 .jy-toggle-glow {
   animation: jy-toggle-glow 1.4s ease-in-out infinite;
