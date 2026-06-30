@@ -124,6 +124,7 @@ export default function MyJourneyPage() {
   const [coach, setCoach] = useState<Person | null>(null)
   const [groups, setGroups] = useState<VictoryGroup[]>([])
   const [pendingGroupIds, setPendingGroupIds] = useState<string[]>([])
+  const [coachmarkActive, setCoachmarkActive] = useState(false)
   const [soapJournals, setSoapJournals] = useState<SoapJournal[]>([])
   const [soapStreak, setSoapStreak] = useState(0)
   const [currentStreak, setCurrentStreak] = useState(0)
@@ -459,7 +460,7 @@ export default function MyJourneyPage() {
                 </span>
                 <a
                   href="/my-constellations"
-                  className="rounded-full px-3 py-1 text-[var(--fg-3)] transition-colors hover:text-[var(--fg-1)]"
+                  className={`rounded-full px-3 py-1 transition-colors hover:text-[var(--fg-1)] ${coachmarkActive ? 'jy-toggle-glow text-[var(--fg-1)]' : 'text-[var(--fg-3)]'}`}
                 >
                   My Constellations
                 </a>
@@ -468,6 +469,7 @@ export default function MyJourneyPage() {
             <EmpoweredCoachmark
               personId={profile.id}
               enabled={Boolean(profile.is_admin) || signoffs.some(s => s.stage === 'Empower' && s.status === 'approved')}
+              onActiveChange={setCoachmarkActive}
             />
           </div>
           <div className="hidden h-12 w-px bg-[var(--line-2)] sm:block" />
@@ -607,37 +609,6 @@ export default function MyJourneyPage() {
           <ConstellationFeedInline items={feedItems} />
         </section>
 
-        {/* weekly insight */}
-        {soapJournals.length >= 3 && (
-          <section className="mt-10">
-            <div className="flex items-center justify-between">
-              <div className="group relative">
-                <div className="cn-label flex cursor-help items-center gap-1.5">
-                  Weekly insight
-                  <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full border border-[var(--line-2)] text-[8px] font-bold text-[var(--fg-3)]">i</span>
-                </div>
-                <div className="pointer-events-none absolute left-0 top-full z-20 mt-1.5 hidden w-64 rounded-lg border border-[var(--line-2)] bg-[var(--indigo)] p-2.5 text-[11px] normal-case leading-relaxed tracking-normal text-[var(--fg-2)] shadow-xl group-hover:block">
-                  A gentle weekly reflection on your time in the Word. Once you&rsquo;ve logged a few SOAP entries this week, tap &ldquo;Gather this week&rdquo; — your guide reads them and sums up what God seems to be saying to you.
-                </div>
-              </div>
-              {!weeklySummary && (
-                <button type="button" onClick={fetchWeeklySummary} disabled={loadingSummary} className="text-xs font-semibold text-[var(--gbm-cobalt-soft)]">
-                  {loadingSummary ? 'Listening…' : 'Gather this week'}
-                </button>
-              )}
-            </div>
-            {weeklySummary && (
-              <div className="cn-card mt-3 p-4">
-                <p className="text-sm leading-relaxed text-[var(--fg-2)]">{weeklySummary.summary}</p>
-                <p className="mt-2 text-xs text-[var(--fg-3)]">From {weeklySummary.journalCount} {weeklySummary.journalCount === 1 ? 'entry' : 'entries'} in the last 7 days</p>
-              </div>
-            )}
-            {!weeklySummary && summaryNote && (
-              <p className="mt-3 text-xs text-[var(--fg-3)]">{summaryNote}</p>
-            )}
-          </section>
-        )}
-
         {/* Shared with your Grace Group */}
         {groups.length > 0 && (
           <section className="mt-10">
@@ -655,6 +626,35 @@ export default function MyJourneyPage() {
             currentStreak={currentStreak}
             onRefresh={loadData}
             onNewEntryForDate={date => { setSoapEntryDate(date); setActiveModal('soap') }}
+            belowSearch={soapJournals.length >= 3 ? (
+              <div>
+                <div className="flex items-center justify-between">
+                  <div className="group relative">
+                    <div className="cn-label flex cursor-help items-center gap-1.5">
+                      Weekly insight
+                      <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full border border-[var(--line-2)] text-[8px] font-bold text-[var(--fg-3)]">i</span>
+                    </div>
+                    <div className="pointer-events-none absolute left-0 top-full z-20 mt-1.5 hidden w-64 rounded-lg border border-[var(--line-2)] bg-[var(--indigo)] p-2.5 text-[11px] normal-case leading-relaxed tracking-normal text-[var(--fg-2)] shadow-xl group-hover:block">
+                      A gentle weekly reflection on your time in the Word. Once you&rsquo;ve logged a few SOAP entries this week, tap &ldquo;Gather this week&rdquo; — your guide reads them and sums up what God seems to be saying to you.
+                    </div>
+                  </div>
+                  {!weeklySummary && (
+                    <button type="button" onClick={fetchWeeklySummary} disabled={loadingSummary} className="text-xs font-semibold text-[var(--gbm-cobalt-soft)]">
+                      {loadingSummary ? 'Listening…' : 'Gather this week'}
+                    </button>
+                  )}
+                </div>
+                {weeklySummary && (
+                  <div className="cn-card mt-3 p-4">
+                    <p className="text-sm leading-relaxed text-[var(--fg-2)]">{weeklySummary.summary}</p>
+                    <p className="mt-2 text-xs text-[var(--fg-3)]">From {weeklySummary.journalCount} {weeklySummary.journalCount === 1 ? 'entry' : 'entries'} in the last 7 days</p>
+                  </div>
+                )}
+                {!weeklySummary && summaryNote && (
+                  <p className="mt-3 text-xs text-[var(--fg-3)]">{summaryNote}</p>
+                )}
+              </div>
+            ) : undefined}
           />
         </section>
 

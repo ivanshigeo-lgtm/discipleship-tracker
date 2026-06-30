@@ -367,6 +367,16 @@ body {
   50% { transform: translateY(-5px); }
 }
 
+/* the My Constellations toggle pulses while the coachmark points at it */
+.jy-toggle-glow {
+  animation: jy-toggle-glow 1.4s ease-in-out infinite;
+  border-radius: 9999px;
+}
+@keyframes jy-toggle-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(240,114,159,.5); }
+  50% { box-shadow: 0 0 0 5px rgba(240,114,159,0); }
+}
+
 /* margin rails: slow upward drift, faded at the edges */
 .jy-rail-mask {
   mask-image: linear-gradient(to bottom, transparent, black 12%, black 88%, transparent);

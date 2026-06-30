@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 // Shown once, the first time someone lands on My Journey as an empowered coach:
 // a little pointer up at the "My Constellations" toggle, so they know the coach
 // dashboard is now theirs. It bobs to draw the eye, then fades away.
-export default function EmpoweredCoachmark({ personId, enabled }: { personId: string; enabled: boolean }) {
+export default function EmpoweredCoachmark({ personId, enabled, onActiveChange }: { personId: string; enabled: boolean; onActiveChange?: (active: boolean) => void }) {
   const [show, setShow] = useState(false)
 
   useEffect(() => {
@@ -24,6 +24,9 @@ export default function EmpoweredCoachmark({ personId, enabled }: { personId: st
     const t = setTimeout(() => setShow(false), 11000)
     return () => clearTimeout(t)
   }, [show])
+
+  // Let the page glow the toggle while the coachmark is up.
+  useEffect(() => { onActiveChange?.(show) }, [show, onActiveChange])
 
   if (!show) return null
 

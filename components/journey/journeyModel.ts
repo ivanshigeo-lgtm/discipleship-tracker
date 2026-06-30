@@ -136,7 +136,8 @@ function stepDone(checklist: StageChecklistItem[], stepId: string, derived: bool
 }
 
 export function computeJourney(d: JourneyData): JourneyLevel[] {
-  const isConnected = d.coach !== null
+  // Admins oversee the whole tree, so their "Your Coach" step counts as done.
+  const isConnected = d.coach !== null || Boolean(d.profile.is_admin)
   const inGroup = d.groups.length > 0
   const leadsGroup =
     d.groups.some(g => g.owner_person_id === d.profile.id) ||
@@ -203,10 +204,12 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
       title: 'Your Coach',
       detail: d.coach
         ? `Walking with ${d.coach.name} — send a greeting or a prayer request`
+        : d.profile.is_admin
+        ? 'You oversee the journey for everyone.'
         : "Enter your coach's code to begin the journey together.",
       completed: stepDone(d.checklist, 'coach', isConnected),
       progress: stepDone(d.checklist, 'coach', isConnected) ? 1 : 0,
-      action: isConnected ? 'message-coach' : 'coach-code',
+      action: d.coach ? 'message-coach' : 'coach-code',
     },
     {
       id: 'group',

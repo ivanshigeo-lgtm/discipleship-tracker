@@ -11,6 +11,7 @@ interface Props {
   currentStreak?: number    // current run
   onRefresh?: () => void
   onNewEntryForDate?: (date: string) => void
+  belowSearch?: ReactNode   // rendered right under the search bar
 }
 
 const DAY_HEADERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
@@ -143,7 +144,7 @@ function shiftMonth(year: number, month: number, delta: number) {
   return { year: y, month: m }
 }
 
-export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, currentStreak = 0, onRefresh, onNewEntryForDate }: Props) {
+export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, currentStreak = 0, onRefresh, onNewEntryForDate, belowSearch }: Props) {
   const today = new Date()
   const todayIso = toLocalIso(today)
 
@@ -390,6 +391,8 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
         onFocus={e => (e.currentTarget.style.borderColor = 'var(--establish, #36D6C3)')}
         onBlur={e => (e.currentTarget.style.borderColor = 'var(--line-2)')}
       />
+
+      {belowSearch && <div style={{ marginTop: '12px' }}>{belowSearch}</div>}
 
       {/* ── AI Insights panel ── */}
       {insightMode && (
