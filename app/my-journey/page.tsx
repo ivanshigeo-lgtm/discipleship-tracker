@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { useAuth } from '../../contexts/AuthContext'
 import LoginPage from '../../components/LoginPage'
 import {
@@ -124,6 +125,8 @@ export default function MyJourneyPage() {
   const [groups, setGroups] = useState<VictoryGroup[]>([])
   const [pendingGroupIds, setPendingGroupIds] = useState<string[]>([])
   const [coachmarkActive, setCoachmarkActive] = useState(false)
+  const [navConst, setNavConst] = useState(false)
+  const router = useRouter()
   const [soapJournals, setSoapJournals] = useState<SoapJournal[]>([])
   const [soapStreak, setSoapStreak] = useState(0)
   const [currentStreak, setCurrentStreak] = useState(0)
@@ -435,13 +438,17 @@ export default function MyJourneyPage() {
                 <span className="rounded-full px-3 py-1" style={{ background: 'var(--gbm-cobalt-bright)', color: '#fff' }}>
                   My Journey
                 </span>
-                <a
+                <button
+                  type="button"
                   id="my-constellations-toggle"
-                  href="/my-constellations"
-                  className={`rounded-full px-3 py-1 transition-colors hover:text-[var(--fg-1)] ${coachmarkActive ? 'jy-toggle-glow text-[var(--fg-1)]' : 'text-[var(--fg-3)]'}`}
+                  disabled={navConst}
+                  onClick={() => { setNavConst(true); router.push('/my-constellations') }}
+                  className={`flex items-center gap-1.5 rounded-full px-3 py-1 transition-colors hover:text-[var(--fg-1)] ${navConst ? 'text-[var(--fg-1)]' : coachmarkActive ? 'jy-toggle-glow text-[var(--fg-1)]' : 'text-[var(--fg-3)]'}`}
+                  style={navConst ? { background: 'var(--gbm-cobalt-bright)', color: '#fff' } : undefined}
                 >
-                  My Constellations
-                </a>
+                  {navConst && <span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />}
+                  {navConst ? 'Opening…' : 'My Constellations'}
+                </button>
               </div>
             )}
             <EmpoweredCoachmark
