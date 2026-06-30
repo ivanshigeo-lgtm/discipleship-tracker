@@ -293,6 +293,14 @@ export default function DiscipleshipTracker() {
   // restore straight into the message-center modal.
   const [sectionRestored, setSectionRestored] = useState(false)
   useEffect(() => {
+    // A ?section= deep-link (e.g. from the My Journey menu) wins over the saved
+    // section, so an empowered person lands exactly where they tapped.
+    const requested = new URLSearchParams(window.location.search).get('section')
+    if (requested && NAV.some(g => g.items.some(i => i.id === requested))) {
+      setActiveSection(requested as SectionId)
+      setSectionRestored(true)
+      return
+    }
     const saved = localStorage.getItem(LAST_SECTION_KEY)
     if (saved && saved !== 'messages' && NAV.some(g => g.items.some(i => i.id === saved))) {
       setActiveSection(saved as SectionId)

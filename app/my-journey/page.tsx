@@ -739,6 +739,7 @@ export default function MyJourneyPage() {
         currentStreak={currentStreak}
         unreadCount={unreadMsgCount}
         isAdmin={Boolean(profile.is_admin)}
+        empowered={Boolean(profile.is_admin) || signoffs.some(s => s.stage === 'Empower' && s.status === 'approved')}
       />
 
       {/* Message Center */}

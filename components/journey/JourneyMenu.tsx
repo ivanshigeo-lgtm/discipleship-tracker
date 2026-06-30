@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   getEngagementsForPerson,
   getAllEngagements,
@@ -11,10 +12,6 @@ import {
 import type { Engagement, PrayerRequest, Stage, ShareVisibility } from '../../types/database'
 import type { JourneyLevel, JourneyStep } from './journeyModel'
 import { StageStepList } from './StageStepList'
-import PrayerWallSection from '../PrayerWallSection'
-import NeedAttentionSection from '../NeedAttentionSection'
-import PointsOfActionSection from '../PointsOfActionSection'
-import EngagementDetailModal from '../EngagementDetailModal'
 
 
 // ─── Content panel (bottom sheet / center modal) ─────────────────────────────
@@ -39,19 +36,6 @@ function Panel({ title, color, onClose, children }: {
         </div>
         <div className="overflow-y-auto px-5 pb-6">{children}</div>
       </div>
-    </div>
-  )
-}
-
-// ─── Full-screen section — a real page (like the coach dashboard), not a sheet ─
-function FullSection({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-[80] overflow-y-auto" style={{ background: 'var(--void)' }}>
-      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--line-2)] px-4 py-3 backdrop-blur-md" style={{ background: 'rgba(6,8,20,.85)' }}>
-        <h2 className="text-lg font-semibold text-[var(--fg-1)]" style={{ fontFamily: 'var(--font-display)' }}>{title}</h2>
-        <button type="button" onClick={onClose} className="cn-chip">Close</button>
-      </div>
-      <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">{children}</div>
     </div>
   )
 }
@@ -324,6 +308,7 @@ export default function JourneyMenu({
   currentStreak = 0,
   unreadCount = 0,
   isAdmin = false,
+  empowered = false,
 }: {
   personId: string
   levels: JourneyLevel[]
@@ -336,16 +321,15 @@ export default function JourneyMenu({
   currentStreak?: number
   unreadCount?: number
   isAdmin?: boolean
+  empowered?: boolean
 }) {
+  const router = useRouter()
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState<PanelKind | null>(null)
   const [panel, setPanel] = useState<PanelKind | null>(null)
   const [supplemental, setSupplemental] = useState<Supplemental | null>(null)
   // Instant hover tooltip for the count badges (custom, not the slow native one).
   const [tip, setTip] = useState<{ text: string; x: number; y: number } | null>(null)
-  // Engagement opened from the full-screen Engagements view.
-  const [detailEngagement, setDetailEngagement] = useState<{ engagement: Engagement; personName: string } | null>(null)
-  const [sectionKey, setSectionKey] = useState(0)
 
   // Counts for the menu badges (fetched when the drawer first opens).
   const [counts, setCounts] = useState<{ eng7: number; prayerTotal: number; prayerAnswered: number; signoffs: number } | null>(null)
@@ -398,6 +382,12 @@ export default function JourneyMenu({
   const handleItem = (id: PanelKind) => {
     setActive(id)
     setOpen(false)
+    // Empowered people are coaches too — send these straight to the real
+    // My Constellations pages rather than a My Journey overlay.
+    if (empowered && (id === 'engagements' || id === 'prayer' || id === 'soaps')) {
+      router.push(`/my-constellations?section=${id}`)
+      return
+    }
     if (id === 'soaps') { onSoaps(); return }
     if (id === 'message') { onMessage(); return }
     setPanel(id)
@@ -546,39 +536,10 @@ export default function JourneyMenu({
           onRequestSignoff={onRequestSignoff}
         />
       )}
-      {/* Full-screen sections — the same components as the coach dashboard */}
-      {panel === 'prayer' && (
-        <FullSection title="Prayer & Praise" onClose={() => setPanel(null)}>
-          <PrayerWallSection viewerPersonId={personId} isAdmin={isAdmin} refreshKey={sectionKey} onChanged={() => setSectionKey(k => k + 1)} />
-        </FullSection>
-      )}
-      {panel === 'engagements' && (
-        <FullSection title="Engagements" onClose={() => setPanel(null)}>
-          <NeedAttentionSection
-            viewerPersonId={personId}
-            isAdmin={isAdmin}
-            refreshKey={sectionKey}
-            onOpenEngagement={(engagement, personName) => setDetailEngagement({ engagement, personName })}
-            onGroupsChanged={() => setSectionKey(k => k + 1)}
-          />
-          <div className="mt-6">
-            <PointsOfActionSection
-              viewerPersonId={personId}
-              isAdmin={isAdmin}
-              refreshKey={sectionKey}
-              onOpenEngagement={(engagement, personName) => setDetailEngagement({ engagement, personName })}
-            />
-          </div>
-        </FullSection>
-      )}
-      {detailEngagement && (
-        <EngagementDetailModal
-          engagement={detailEngagement.engagement}
-          personName={detailEngagement.personName}
-          onClose={() => setDetailEngagement(null)}
-          onChanged={() => setSectionKey(k => k + 1)}
-        />
-      )}
+      {/* Non-empowered disciples get the simple personal panels here; empowered
+          people are routed to the full My Constellations pages instead. */}
+      {panel === 'prayer'      && <PrayerPanel       personId={personId} isAdmin={isAdmin} onClose={() => setPanel(null)} />}
+      {panel === 'engagements' && <EngagementsPanel  personId={personId} onClose={() => setPanel(null)} />}
       {supplemental && <SupplementalPanel material={supplemental} onClose={() => setSupplemental(null)} />}
 
       {/* Instant badge tooltip — rendered outside the (transformed) drawer so
