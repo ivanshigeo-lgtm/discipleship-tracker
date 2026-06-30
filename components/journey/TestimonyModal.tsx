@@ -41,45 +41,6 @@ export default function TestimonyModal({
     }
   }, [recordState])
 
-  // MediaRecorder WebM blobs have no duration metadata, so browsers render black frames.
-  // Fix: seek to 1e100 to force the browser to scan the full blob and determine the real
-  // duration (fires seeked at the actual end), then snap back to 0 and autoplay.
-  // We check duration immediately after attaching listeners because the browser may
-  // have already loaded metadata (and fired durationchange) before this effect ran.
-  useEffect(() => {
-    const video = reviewVideoRef.current
-    if (!video || !recordedObjectUrl) return
-
-    // phase 0 = waiting, 1 = big seek in progress, 2 = done
-    let phase = 0
-
-    const tryFix = () => {
-      if (phase !== 0) return
-      if (isFinite(video.duration)) { phase = 2; return }
-      phase = 1
-      video.currentTime = 1e100
-    }
-
-    const onSeeked = () => {
-      if (phase === 1) {
-        phase = 2
-        video.currentTime = 0
-        video.play().catch(() => {})
-      }
-    }
-
-    video.addEventListener('durationchange', tryFix)
-    video.addEventListener('seeked', onSeeked)
-
-    // Metadata may already be loaded — check immediately
-    if (video.readyState >= 1) tryFix()
-
-    return () => {
-      video.removeEventListener('durationchange', tryFix)
-      video.removeEventListener('seeked', onSeeked)
-    }
-  }, [recordedObjectUrl])
-
   const stopStream = useCallback(() => {
     streamRef.current?.getTracks().forEach(t => t.stop())
     streamRef.current = null
@@ -113,18 +74,18 @@ export default function TestimonyModal({
   const startRecording = () => {
     if (!streamRef.current) return
     chunksRef.current = []
-    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-      ? 'video/webm;codecs=vp9'
-      : MediaRecorder.isTypeSupported('video/webm')
-      ? 'video/webm'
-      : 'video/mp4'
-    const recorder = new MediaRecorder(streamRef.current, { mimeType })
+    // Prefer formats that play back in the recording browser: MP4 (Safari) or
+    // VP8 webm (Chrome/Firefox). VP9 doesn't decode in Safari, which is why
+    // playback was failing.
+    const mimeType =
+      ['video/mp4', 'video/webm;codecs=vp8,opus', 'video/webm'].find(c => MediaRecorder.isTypeSupported(c)) || ''
+    const recorder = new MediaRecorder(streamRef.current, mimeType ? { mimeType } : undefined)
     recorderRef.current = recorder
     recorder.ondataavailable = e => {
       if (e.data.size > 0) chunksRef.current.push(e.data)
     }
     recorder.onstop = () => {
-      const blob = new Blob(chunksRef.current, { type: mimeType })
+      const blob = new Blob(chunksRef.current, { type: recorder.mimeType || mimeType || 'video/webm' })
       const url = URL.createObjectURL(blob)
       setRecordedBlob(blob)
       setRecordedObjectUrl(url)
@@ -180,23 +141,18 @@ export default function TestimonyModal({
       return null
     }
 
-    // Step 2: PUT directly to Supabase signed URL with explicit auth headers
+    // Step 2: upload via the official signed-URL method on the configured client.
+    // (The old manual PUT read process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY, which
+    // isn't set — the anon key is baked into supabaseClient — so auth was empty
+    // and every upload failed.)
     const contentType = blob.type.split(';')[0] || 'video/webm'
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-    const uploadRes = await fetch(urlJson.signedUrl, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': contentType,
-        'apikey': anonKey,
-        'Authorization': `Bearer ${anonKey}`,
-      },
-      body: blob,
-    })
+    const { error: upErr } = await supabase.storage
+      .from('testimonies')
+      .uploadToSignedUrl(urlJson.path, urlJson.token, blob, { contentType })
 
-    if (!uploadRes.ok) {
-      const detail = await uploadRes.text().catch(() => '')
-      console.error('Supabase upload failed:', uploadRes.status, detail)
-      setError(`Upload failed (${uploadRes.status}). Please try again.`)
+    if (upErr) {
+      console.error('Testimony upload failed:', upErr)
+      setError('Upload failed. Please try again.')
       return null
     }
 
