@@ -512,18 +512,18 @@ export default function MyJourneyPage() {
 
           {/* today's invitation */}
           <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-            <button type="button" onClick={() => setActiveModal('soap')} className="cn-btn cn-btn-primary">
+            <button type="button" onClick={() => setActiveModal('soap')} className="cn-btn cn-btn-primary inline-flex items-center gap-2">
               ✦ Today&rsquo;s SOAP
+              {soapStreak > 0 && (
+                <span
+                  className="rounded-full px-2 py-0.5 text-[11px] font-bold"
+                  title={`Longest ${soapStreak}d · current ${currentStreak}d`}
+                  style={{ background: 'rgba(255,255,255,.18)', color: '#fff' }}
+                >
+                  {soapStreak}d best{currentStreak > 0 ? ` · ${currentStreak}d now` : ''}
+                </span>
+              )}
             </button>
-            {soapStreak > 0 && (
-              <span
-                className="rounded-full border px-2.5 py-2 text-[11px] font-bold"
-                title={`Longest ${soapStreak}d · current ${currentStreak}d`}
-                style={{ borderColor: 'rgba(54,214,195,.4)', background: 'rgba(54,214,195,.12)', color: 'var(--establish)' }}
-              >
-                ✦ {soapStreak}d best{currentStreak > 0 ? ` · ${currentStreak}d now` : ''}
-              </span>
-            )}
             <button type="button" onClick={() => setActiveModal('prayer')} className="cn-btn cn-btn-primary">
               ✦ Today&rsquo;s Prayer / Praise
             </button>
