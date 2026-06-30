@@ -27,7 +27,7 @@ import GoogleCalendarConnect from '../../components/GoogleCalendarConnect'
 import MessageCenter from '../../components/MessageCenter'
 import SoapEntryModal from '../../components/journey/SoapEntryModal'
 import SoapCalendarSection from '../../components/SoapCalendarSection'
-import { getSoapJournals, getAllDiscipleshipConnections, getPeople, getLevelSignoffs, getAllEngagements, getAllActionItems, getVictoryGroups, getPrayerLifeForPerson, getMyConversations, getConfirmedEngagementIds } from '../../lib/supabaseQueries'
+import { getSoapJournals, getAllDiscipleshipConnections, getPeople, getLevelSignoffs, getAllEngagements, getAllActionItems, getVictoryGroups, getPrayerLifeForPerson, getMyConversations, getConfirmedEngagementIds, getPendingLevelSignoffs } from '../../lib/supabaseQueries'
 import type { Person, SoapJournal, Stage, DiscipleshipConnection, Engagement } from '../../types/database'
 import EngagementDetailModal from '../../components/EngagementDetailModal'
 import { DashboardSkeleton } from '../../components/Skeleton'
@@ -89,6 +89,7 @@ function CoachSidebar({
   onAddPerson,
   soapStreak = 0,
   badges = {},
+  pendingSignoffs = 0,
 }: {
   active: SectionId
   open: boolean
@@ -100,6 +101,7 @@ function CoachSidebar({
   onAddPerson: () => void
   soapStreak?: number
   badges?: Record<string, { text: string; title: string }>
+  pendingSignoffs?: number
 }) {
   // close on Escape
   useEffect(() => {
@@ -175,6 +177,16 @@ function CoachSidebar({
                       }}
                     />
                     <span className="flex-1">{item.label}</span>
+                    {/* A pending sign-off flashes on My Messages so it can't be missed. */}
+                    {item.id === 'messages' && pendingSignoffs > 0 && (
+                      <span
+                        title={`${pendingSignoffs} sign-off ${pendingSignoffs === 1 ? 'request' : 'requests'} waiting`}
+                        className="jy-signoff-pulse mr-1 rounded-full px-2 py-0.5 text-[10px] font-bold"
+                        style={{ background: 'var(--gold, #F2C879)', color: 'var(--void)' }}
+                      >
+                        ✦ {pendingSignoffs} sign-off
+                      </span>
+                    )}
                     {badges[item.id] && (
                       <span
                         onMouseEnter={(e) => {
@@ -462,9 +474,15 @@ export default function DiscipleshipTracker() {
 
   // Count badges for the sidebar — same data each page shows inside.
   const [sidebarBadges, setSidebarBadges] = useState<Record<string, { text: string; title: string }>>({})
+  const [pendingSignoffs, setPendingSignoffs] = useState(0)
   useEffect(() => {
     if (!profile) return
     let cancelled = false
+    ;(async () => {
+      // Coach-scoped (matches the sign-off inbox inside the Message Center).
+      const soRes = await getPendingLevelSignoffs(profile.id)
+      if (!cancelled) setPendingSignoffs((soRes.data as unknown[] | null)?.length ?? 0)
+    })()
     ;(async () => {
       // The sidebar badges always reflect "Mine" — your own work — never the
       // church-wide GBC view, even for admins. (getPrayerLifeForPerson with
@@ -554,6 +572,7 @@ export default function DiscipleshipTracker() {
         onAddPerson={() => setShowAddPerson(true)}
         soapStreak={soapStreak}
         badges={sidebarBadges}
+        pendingSignoffs={pendingSignoffs}
       />
 
       {/* Main content */}
