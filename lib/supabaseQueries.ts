@@ -144,16 +144,72 @@ export const getEngagementsByPerson = async (personId: string) => {
   return { data, error }
 }
 
-// Every meeting a person is involved in — whether it's WITH them (person_id) or
-// one they RUN (created_by_person_id). One person, both roles: the unified view
-// used by My Journey and the coach dashboard alike.
+// Every meeting a person should see: ones they OWN (created) plus ones they've
+// CONFIRMED being part of. A meeting they were only invited to (not yet
+// confirmed) is NOT here — it lives in getPendingMeetingInvites until they act.
 export const getEngagementsForPerson = async (personId: string) => {
+  const { data: confirmedRows } = await supabase
+    .from('engagement_participants')
+    .select('engagement_id')
+    .eq('person_id', personId)
+    .eq('status', 'confirmed')
+  const ids = (confirmedRows ?? []).map(r => r.engagement_id).filter(Boolean)
+  const orParts = [`created_by_person_id.eq.${personId}`]
+  if (ids.length) orParts.push(`id.in.(${ids.join(',')})`)
   const { data, error } = await supabase
     .from('engagements')
     .select('*')
-    .or(`person_id.eq.${personId},created_by_person_id.eq.${personId}`)
+    .or(orParts.join(','))
     .order('follow_up_date', { ascending: true, nullsFirst: false })
   return { data, error }
+}
+
+// Meetings someone has been invited to but hasn't confirmed/declined yet.
+export const getPendingMeetingInvites = async (personId: string) => {
+  const { data: rows } = await supabase
+    .from('engagement_participants')
+    .select('engagement_id')
+    .eq('person_id', personId)
+    .eq('status', 'invited')
+  const ids = (rows ?? []).map(r => r.engagement_id).filter(Boolean)
+  if (ids.length === 0) return { data: [], error: null }
+  const { data, error } = await supabase
+    .from('engagements')
+    .select('*')
+    .in('id', ids)
+    .order('follow_up_date', { ascending: true, nullsFirst: false })
+  return { data, error }
+}
+
+// All participants of a meeting + their confirm status (for the owner to see
+// who's in and who's confirmed).
+export const getMeetingParticipants = async (engagementId: string) => {
+  const { data, error } = await supabase
+    .from('engagement_participants')
+    .select('person_id, status, people(name)')
+    .eq('engagement_id', engagementId)
+  return { data, error }
+}
+
+// Invite people to a meeting (status 'invited' so they must confirm). The
+// creator never needs an invite — they own it.
+export const addMeetingParticipants = async (engagementId: string, personIds: string[], status: 'invited' | 'confirmed' = 'invited') => {
+  const unique = Array.from(new Set(personIds.filter(Boolean)))
+  if (unique.length === 0) return { error: null }
+  const rows = unique.map(pid => ({ engagement_id: engagementId, person_id: pid, status }))
+  const { error } = await supabase
+    .from('engagement_participants')
+    .upsert(rows, { onConflict: 'engagement_id,person_id', ignoreDuplicates: true })
+  return { error }
+}
+
+export const setMeetingInviteStatus = async (engagementId: string, personId: string, status: 'confirmed' | 'declined') => {
+  const { error } = await supabase
+    .from('engagement_participants')
+    .update({ status })
+    .eq('engagement_id', engagementId)
+    .eq('person_id', personId)
+  return { error }
 }
 
 export const getAllEngagements = () =>
