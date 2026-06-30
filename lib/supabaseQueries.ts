@@ -1133,6 +1133,18 @@ export const unarchiveSoap = async (personId: string, soapJournalId: string) => 
   return { error }
 }
 
+// Prayers/praises a person has authored and shared out (to coach/group/GBC).
+export const getSentPrayers = async (personId: string, limit = 50) => {
+  const { data, error } = await supabase
+    .from('prayer_requests')
+    .select(SHARED_PRAYER_COLS)
+    .eq('created_by_person_id', personId)
+    .neq('visibility', 'private')
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  return { data, error }
+}
+
 // Prayers/praises shared to the whole constellation (GBC).
 export const getConstellationSharedPrayers = async (limit = 30) => {
   const { data, error } = await supabase

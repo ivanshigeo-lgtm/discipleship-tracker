@@ -15,6 +15,7 @@ import {
   getCoachSharedSoaps,
   getGroupSharedSoaps,
   getSharedSoaps,
+  getSentPrayers,
 } from '../../lib/supabaseQueries'
 import MeetingInvites from '../MeetingInvites'
 import NewMeetingModal from '../NewMeetingModal'
@@ -175,6 +176,7 @@ function PrayerPanel({ personId, isAdmin, onClose }: { personId: string; isAdmin
                 <span className="ml-2 rounded-full bg-[rgba(54,214,195,.15)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--establish)]">Answered</span>
               )}
               <p className="mt-1 text-sm leading-relaxed text-[var(--fg-2)]">{r.request}</p>
+              {r.media_url && <video src={r.media_url} controls playsInline className="mt-2 w-full rounded-lg" style={{ maxHeight: 240, background: '#000' }} />}
             </div>
           ))}
         </div>
@@ -287,7 +289,7 @@ function SupplementalPanel({ material, onClose }: { material: Supplemental; onCl
 }
 
 // ─── Nav config ───────────────────────────────────────────────────────────────
-type PanelKind = 'Establish' | 'Equip' | 'Empower' | 'Engage' | 'engagements' | 'message' | 'prayer' | 'soaps' | 'shared-prayers' | 'shared-soaps'
+type PanelKind = 'Establish' | 'Equip' | 'Empower' | 'Engage' | 'engagements' | 'message' | 'prayer' | 'soaps' | 'shared-prayers' | 'shared-soaps' | 'sent'
 const STAGE_KINDS: PanelKind[] = ['Establish', 'Equip', 'Empower', 'Engage']
 
 type NavSection = {
@@ -324,6 +326,12 @@ const NAV: NavSection[] = [
     items: [
       { id: 'shared-prayers', label: 'Prayer Requests', dot: '#9B80FF' },
       { id: 'shared-soaps',   label: 'Shared SOAPs',    dot: '#36D6C3' },
+    ],
+  },
+  {
+    heading: 'Shared by Me',
+    items: [
+      { id: 'sent', label: 'Sent Prayers', dot: '#9B80FF' },
     ],
   },
 ]
@@ -365,6 +373,42 @@ function SharedWithMePanel({ personId, kind, onClose }: { personId: string; kind
       <SharedSoapFeed personId={personId} scope="coach"         title="Shared with Me"      seenKey={seen('coach')} showEmpty />
       <SharedSoapFeed personId={personId} scope="group"         title="Shared with my Group" seenKey={seen('group')} showEmpty />
       <SharedSoapFeed personId={personId} scope="constellation" title="Shared with GBC"      seenKey={seen('constellation')} showEmpty />
+    </FullScreenPanel>
+  )
+}
+
+// ─── Sent by Me — prayers/praises I've shared out ──────────────────────────────
+type SentItem = { id: string; request: string; is_praise: boolean; visibility: string; media_url: string | null; created_at: string }
+function SentPanel({ personId, onClose }: { personId: string; onClose: () => void }) {
+  const [items, setItems] = useState<SentItem[]>([])
+  const [loading, setLoading] = useState(true)
+  useEffect(() => {
+    let cancelled = false
+    getSentPrayers(personId).then(({ data }) => { if (!cancelled) { setItems((data as unknown as SentItem[]) ?? []); setLoading(false) } })
+    return () => { cancelled = true }
+  }, [personId])
+  const scopeLabel = (v: string) => v === 'coach' ? 'To my coach' : v === 'group' ? 'To my group' : v === 'constellation' ? 'To everyone' : v
+  return (
+    <FullScreenPanel title="Sent Prayers" color="#9B80FF" onClose={onClose}>
+      <p className="mb-3 text-xs text-[var(--fg-3)]">Prayers &amp; praises you&rsquo;ve shared out.</p>
+      {loading ? (
+        <div className="flex justify-center py-6"><span className="h-5 w-5 animate-spin rounded-full border-2 border-[#9B80FF] border-t-transparent" /></div>
+      ) : items.length === 0 ? (
+        <p className="text-sm text-[var(--fg-3)]">You haven&rsquo;t shared any prayers or praises yet.</p>
+      ) : (
+        <div className="space-y-2">
+          {items.map(p => (
+            <div key={p.id} className="cn-card p-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: p.is_praise ? 'var(--gold)' : '#9B80FF' }}>{p.is_praise ? '✦ Praise' : '✦ Prayer'}</span>
+                <span className="rounded-full bg-[var(--indigo-2)] px-2 py-0.5 text-[10px] text-[var(--fg-3)]">{scopeLabel(p.visibility)}</span>
+              </div>
+              <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-[var(--fg-2)]">{p.request}</p>
+              {p.media_url && <video src={p.media_url} controls playsInline className="mt-2 w-full rounded-lg" style={{ maxHeight: 280, background: '#000' }} />}
+            </div>
+          ))}
+        </div>
+      )}
     </FullScreenPanel>
   )
 }
@@ -638,6 +682,7 @@ export default function JourneyMenu({
       {panel === 'engagements' && <EngagementsPanel  personId={personId} onClose={() => setPanel(null)} />}
       {panel === 'shared-prayers' && <SharedWithMePanel personId={personId} kind="prayers" onClose={() => setPanel(null)} />}
       {panel === 'shared-soaps'   && <SharedWithMePanel personId={personId} kind="soaps"   onClose={() => setPanel(null)} />}
+      {panel === 'sent'           && <SentPanel         personId={personId} onClose={() => setPanel(null)} />}
       {supplemental && <SupplementalPanel material={supplemental} onClose={() => setSupplemental(null)} />}
 
       {/* Instant badge tooltip — rendered outside the (transformed) drawer so
