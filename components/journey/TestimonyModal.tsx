@@ -43,6 +43,10 @@ export default function TestimonyModal({
   }, [recordState])
 
   const stopStream = useCallback(() => {
+    // Detach the live preview from the stream BEFORE stopping tracks — leaving a
+    // dead srcObject attached has been known to crash the renderer in some
+    // Chromium browsers (e.g. Brave) during teardown.
+    if (liveVideoRef.current) liveVideoRef.current.srcObject = null
     streamRef.current?.getTracks().forEach(t => t.stop())
     streamRef.current = null
     if (timerRef.current) {
@@ -62,7 +66,7 @@ export default function TestimonyModal({
     setError('')
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
         audio: true,
       })
       streamRef.current = stream
@@ -81,7 +85,7 @@ export default function TestimonyModal({
     // so we avoid it here — the server transcodes to mp4 for cross-device anyway.
     const mimeType =
       ['video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'].find(c => MediaRecorder.isTypeSupported(c)) || ''
-    const recorder = new MediaRecorder(streamRef.current, mimeType ? { mimeType } : undefined)
+    const recorder = new MediaRecorder(streamRef.current, { ...(mimeType ? { mimeType } : {}), videoBitsPerSecond: 1_200_000 })
     recorderRef.current = recorder
     recorder.ondataavailable = e => {
       if (e.data.size > 0) chunksRef.current.push(e.data)
@@ -349,13 +353,8 @@ export default function TestimonyModal({
                   src={recordedObjectUrl}
                   controls
                   playsInline
-                  autoPlay
-                  muted
-                  preload="auto"
+                  preload="metadata"
                   className="w-full rounded-lg bg-black"
-                  style={{ minHeight: 200 }}
-                  onLoadedData={e => { setVidDiag(d => `${d} · loaded ${e.currentTarget.videoWidth}×${e.currentTarget.videoHeight}`); e.currentTarget.play().catch(() => {}) }}
-                  onError={e => { const c = e.currentTarget.error; setVidDiag(d => `${d} · PLAYBACK ERROR code ${c?.code} ${c?.message || ''}`) }}
                 />
                 {vidDiag && (
                   <p className="mt-1 text-[10px] leading-snug text-[var(--fg-3)]">{vidDiag}</p>
