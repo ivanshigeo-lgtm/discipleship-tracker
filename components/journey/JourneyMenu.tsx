@@ -11,6 +11,7 @@ import {
   getPendingLevelSignoffs,
 } from '../../lib/supabaseQueries'
 import MeetingInvites from '../MeetingInvites'
+import NewMeetingModal from '../NewMeetingModal'
 import type { Engagement, PrayerRequest, Stage, ShareVisibility } from '../../types/database'
 import type { JourneyLevel, JourneyStep } from './journeyModel'
 import { StageStepList } from './StageStepList'
@@ -179,6 +180,7 @@ function EngagementsPanel({ personId, onClose }: { personId: string; onClose: ()
   const [engagements, setEngagements] = useState<Engagement[]>([])
   const [loading, setLoading] = useState(true)
   const [reloadKey, setReloadKey] = useState(0)
+  const [showNewMeeting, setShowNewMeeting] = useState(false)
 
   useEffect(() => {
     getEngagementsForPerson(personId).then(({ data }) => {
@@ -192,6 +194,18 @@ function EngagementsPanel({ personId, onClose }: { personId: string; onClose: ()
 
   return (
     <Panel title="Engagements" color="#F4B650" onClose={onClose}>
+      <div className="mb-3 flex justify-end">
+        <button
+          type="button"
+          onClick={() => setShowNewMeeting(true)}
+          className="rounded-full border border-[var(--line-2)] px-3 py-1 text-xs font-semibold text-[var(--fg-1)] hover:border-[var(--gbm-cobalt-bright)]"
+        >
+          + New meeting
+        </button>
+      </div>
+      {showNewMeeting && (
+        <NewMeetingModal onClose={() => setShowNewMeeting(false)} onCreated={() => setReloadKey(k => k + 1)} />
+      )}
       <MeetingInvites personId={personId} refreshKey={reloadKey} onChanged={() => setReloadKey(k => k + 1)} />
       {loading ? (
         <div className="flex justify-center py-6">
