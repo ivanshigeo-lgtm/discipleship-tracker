@@ -4,7 +4,7 @@ import { spawn } from 'child_process'
 import { writeFile, readFile, unlink, chmod, copyFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import ffmpegStatic from 'ffmpeg-static'
+import ffmpegInstaller from '@ffmpeg-installer/ffmpeg'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ url: data.publicUrl, transcoded: false })
     }
 
-    const ffmpegPath = ffmpegStatic as unknown as string | null
+    const ffmpegPath = (ffmpegInstaller as unknown as { path?: string }).path
     if (!ffmpegPath) return NextResponse.json({ error: 'ffmpeg unavailable' }, { status: 500 })
 
     const { data: file, error: dErr } = await supabase.storage.from(bucket).download(path)
