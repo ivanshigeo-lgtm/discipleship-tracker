@@ -35,7 +35,6 @@ import JoinGroupModal from '../../components/journey/JoinGroupModal'
 import SelfConfirmModal, { type SelfConfirmKind } from '../../components/journey/SelfConfirmModal'
 import JourneyMenu from '../../components/journey/JourneyMenu'
 import EmpoweredCoachmark from '../../components/journey/EmpoweredCoachmark'
-import WeeklyInsightCard from '../../components/journey/WeeklyInsightCard'
 import SoapCalendarSection from '../../components/SoapCalendarSection'
 import SharedSoapFeed from '../../components/SharedSoapFeed'
 import SharedPrayerFeed from '../../components/SharedPrayerFeed'
@@ -144,9 +143,6 @@ export default function MyJourneyPage() {
   const [selfConfirm, setSelfConfirm] = useState<SelfConfirmKind | null>(null)
   const [selectedJournal, setSelectedJournal] = useState<SoapJournal | null>(null)
   const [processingOcr, setProcessingOcr] = useState(false)
-  const [weeklySummary, setWeeklySummary] = useState<{ summary: string; journalCount: number } | null>(null)
-  const [loadingSummary, setLoadingSummary] = useState(false)
-  const [summaryNote, setSummaryNote] = useState('')
   const feedItems = useConstellationFeed()
 
   useEffect(() => {
@@ -371,25 +367,6 @@ export default function MyJourneyPage() {
     setProcessingOcr(false)
   }
 
-  const fetchWeeklySummary = async () => {
-    if (!profile?.id) return
-    setLoadingSummary(true)
-    setSummaryNote('')
-    try {
-      const res = await fetch('/api/soap/summary', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ personId: profile.id, period: 'week' }),
-      })
-      const data = await res.json()
-      if (data.summary) setWeeklySummary(data)
-      else setSummaryNote(data.error || data.message || 'No SOAP entries to gather from this week yet.')
-    } catch (err) {
-      console.error('Summary error:', err)
-      setSummaryNote('Could not gather your week right now. Please try again.')
-    }
-    setLoadingSummary(false)
-  }
 
   if (loading) {
     return (
@@ -628,16 +605,7 @@ export default function MyJourneyPage() {
             currentStreak={currentStreak}
             onRefresh={loadData}
             onNewEntryForDate={date => { setSoapEntryDate(date); setActiveModal('soap') }}
-            belowSearch={soapJournals.length >= 3 ? (
-              <WeeklyInsightCard
-                summary={weeklySummary?.summary ?? null}
-                journalCount={weeklySummary?.journalCount ?? 0}
-                loading={loadingSummary}
-                note={summaryNote}
-                onGather={fetchWeeklySummary}
-                onClear={() => { setWeeklySummary(null); setSummaryNote('') }}
-              />
-            ) : undefined}
+            personId={profile.id}
           />
         </section>
 

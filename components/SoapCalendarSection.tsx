@@ -13,6 +13,7 @@ interface Props {
   onRefresh?: () => void
   onNewEntryForDate?: (date: string) => void
   belowSearch?: ReactNode   // rendered right under the search bar
+  personId?: string         // whose journals — needed for the weekly summary
 }
 
 const DAY_HEADERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
@@ -145,7 +146,7 @@ function shiftMonth(year: number, month: number, delta: number) {
   return { year: y, month: m }
 }
 
-export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, currentStreak = 0, onRefresh, onNewEntryForDate, belowSearch }: Props) {
+export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, currentStreak = 0, onRefresh, onNewEntryForDate, belowSearch, personId }: Props) {
   const today = new Date()
   const todayIso = toLocalIso(today)
 
@@ -168,8 +169,11 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
   const [modalOcrLoading, setModalOcrLoading] = useState(false)
   const [modalOcrText, setModalOcrText] = useState<string | null>(null)
 
-  // AI Insights — range selection
+  // AI Insights — opens via the button, then two modes: this-week (one tap) and
+  // custom range (pick dates + ask / general summary).
   const [insightMode, setInsightMode] = useState(false)
+  const [aiMode, setAiMode] = useState<'week' | 'range'>('week')
+  const rangeSelecting = insightMode && aiMode === 'range'
   const [rangeStart, setRangeStart] = useState<string | null>(null)
   const [rangeEnd, setRangeEnd] = useState<string | null>(null)
   const [hoverDate, setHoverDate] = useState<string | null>(null)
@@ -177,6 +181,27 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
   const [insightLoading, setInsightLoading] = useState(false)
   const [insightResponse, setInsightResponse] = useState<string | null>(null)
   const [insightError, setInsightError] = useState('')
+  // This-week summary
+  const [weekSummary, setWeekSummary] = useState<{ text: string; count: number } | null>(null)
+  const [weekLoading, setWeekLoading] = useState(false)
+  const [weekError, setWeekError] = useState('')
+
+  const fetchWeekSummary = async () => {
+    if (!personId) return
+    setWeekLoading(true); setWeekError('')
+    try {
+      const res = await fetch('/api/soap/summary', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ personId, period: 'week' }),
+      })
+      const data = await res.json()
+      if (data.summary) setWeekSummary({ text: data.summary, count: data.journalCount ?? 0 })
+      else setWeekError(data.message || data.error || 'No SOAP entries in the last 7 days yet.')
+    } catch {
+      setWeekError('Could not gather your week right now. Please try again.')
+    }
+    setWeekLoading(false)
+  }
 
   const soapMap = useMemo(() => {
     const map = new Map<string, SoapJournal>()
@@ -240,7 +265,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
   function handleDayClick(dateIso: string, hasSoap: boolean, inMonth: boolean) {
     if (!inMonth) return
     if (dateIso > todayIso) return
-    if (insightMode) {
+    if (rangeSelecting) {
       // Range selection: first click = start, second click = end, third = new start
       if (!rangeStart || rangeEnd) {
         setRangeStart(dateIso)
@@ -407,14 +432,35 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
           {/* Panel header */}
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            gap: '10px', flexWrap: 'wrap',
             padding: '14px 16px', borderBottom: '1px solid rgba(54,214,195,.15)',
           }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '15px' }}>✦</span>
+                <span style={{ color: 'var(--fg-1)', fontWeight: 700, fontSize: '14px' }}>AI Insights</span>
+              </div>
+              {/* mode toggle */}
+              <div style={{ display: 'flex', borderRadius: '999px', border: '1px solid var(--line-2)', background: 'var(--indigo, #141B3D)', padding: '2px' }}>
+                {([['week', 'This week'], ['range', 'Custom range']] as const).map(([val, label]) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setAiMode(val)}
+                    style={{
+                      padding: '4px 11px', borderRadius: '999px', border: 'none', cursor: 'pointer',
+                      fontSize: '11px', fontWeight: 600, transition: 'all 150ms ease',
+                      background: aiMode === val ? 'rgba(54,214,195,.18)' : 'transparent',
+                      color: aiMode === val ? 'var(--establish, #36D6C3)' : 'var(--fg-3)',
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '15px' }}>✦</span>
-              <span style={{ color: 'var(--fg-1)', fontWeight: 700, fontSize: '14px' }}>
-                AI Insights
-              </span>
-              {rangeStart && rangeEnd && selectedInsightDates.size > 0 && (
+              {aiMode === 'range' && rangeStart && rangeEnd && selectedInsightDates.size > 0 && (
                 <span style={{
                   padding: '2px 8px', borderRadius: '999px',
                   background: 'rgba(54,214,195,.18)', border: '1px solid rgba(54,214,195,.35)',
@@ -423,27 +469,50 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                   {selectedInsightDates.size} {selectedInsightDates.size === 1 ? 'entry' : 'entries'}
                 </span>
               )}
-              {rangeStart && rangeEnd && (
-                <span style={{ color: 'var(--fg-3)', fontSize: '11px' }}>
-                  {rangeStart} → {rangeEnd}
-                </span>
+              {aiMode === 'range' && rangeStart && rangeEnd && (
+                <span style={{ color: 'var(--fg-3)', fontSize: '11px' }}>{rangeStart} → {rangeEnd}</span>
+              )}
+              {aiMode === 'range' && (rangeStart || rangeEnd) && (
+                <button
+                  onClick={() => { setRangeStart(null); setRangeEnd(null); setHoverDate(null); setInsightResponse(null); setInsightError('') }}
+                  style={{ fontSize: '11px', color: 'var(--fg-3)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
+                >
+                  Clear
+                </button>
               )}
             </div>
-            {(rangeStart || rangeEnd) && (
-              <button
-                onClick={() => { setRangeStart(null); setRangeEnd(null); setHoverDate(null); setInsightResponse(null); setInsightError('') }}
-                style={{
-                  fontSize: '11px', color: 'var(--fg-3)', background: 'none',
-                  border: 'none', cursor: 'pointer', padding: '2px 4px',
-                }}
-              >
-                Clear
-              </button>
-            )}
           </div>
 
           <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {!rangeStart ? (
+            {aiMode === 'week' ? (
+              weekSummary ? (
+                <div style={{ borderRadius: '12px', border: '1px solid rgba(54,214,195,.15)', background: 'rgba(54,214,195,.04)', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <pre style={{ margin: 0, color: 'var(--fg-1)', fontSize: '14px', lineHeight: 1.70, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit' }}>
+                    {cleanInsight(weekSummary.text)}
+                  </pre>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--fg-3)', fontSize: '12px' }}>From {weekSummary.count} {weekSummary.count === 1 ? 'entry' : 'entries'} in the last 7 days</span>
+                    <button onClick={() => { setWeekSummary(null); setWeekError('') }} style={{ fontSize: '12px', color: 'var(--fg-3)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Clear</button>
+                  </div>
+                </div>
+              ) : weekLoading ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0' }}>
+                  <span style={{ display: 'inline-block', width: '16px', height: '16px', borderRadius: '50%', border: '2px solid rgba(54,214,195,.30)', borderTopColor: 'var(--establish, #36D6C3)', animation: 'spin 0.7s linear infinite' }} />
+                  <span style={{ color: 'var(--fg-3)', fontSize: '13px' }}>Gathering your week…</span>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center', textAlign: 'center', padding: '4px 0' }}>
+                  <p style={{ margin: 0, color: 'var(--fg-3)', fontSize: '13px' }}>A gentle reflection on your last 7 days in the Word — one tap.</p>
+                  <button
+                    onClick={fetchWeekSummary}
+                    style={{ padding: '10px 18px', borderRadius: '10px', border: 'none', background: 'var(--establish, #36D6C3)', color: '#0B1027', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Gather this week
+                  </button>
+                  {weekError && <p style={{ margin: 0, color: 'var(--fg-3)', fontSize: '12px' }}>{weekError}</p>}
+                </div>
+              )
+            ) : !rangeStart ? (
               <p style={{ margin: 0, color: 'var(--fg-3)', fontSize: '13px', textAlign: 'center', padding: '8px 0' }}>
                 Click a start date on the calendar below, then an end date.
               </p>
@@ -642,11 +711,11 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                     const isClickable = inMonth && !isFuture
 
                     // Range visual state
-                    const inPreview = insightMode && previewRange && dateIso >= previewRange.lo && dateIso <= previewRange.hi
-                    const isEndpoint = insightMode && (dateIso === rangeStart || dateIso === rangeEnd)
-                    const isInsightSelected = insightMode && selectedInsightDates.has(dateIso)
+                    const inPreview = rangeSelecting && previewRange && dateIso >= previewRange.lo && dateIso <= previewRange.hi
+                    const isEndpoint = rangeSelecting && (dateIso === rangeStart || dateIso === rangeEnd)
+                    const isInsightSelected = rangeSelecting && selectedInsightDates.has(dateIso)
 
-                    const bg = insightMode
+                    const bg = rangeSelecting
                       ? isEndpoint ? 'rgba(54,214,195,.30)'
                         : inPreview ? 'rgba(54,214,195,.12)'
                         : hasSoap && inMonth ? 'rgba(54,214,195,.05)'
@@ -660,15 +729,15 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                         key={dateIso}
                         onClick={() => handleDayClick(dateIso, hasSoap, inMonth)}
                         onMouseEnter={() => {
-                          if (insightMode && rangeStart && !rangeEnd && inMonth && !isFuture)
+                          if (rangeSelecting && rangeStart && !rangeEnd && inMonth && !isFuture)
                             setHoverDate(dateIso)
                         }}
                         onMouseLeave={() => {
-                          if (insightMode) setHoverDate(null)
+                          if (rangeSelecting) setHoverDate(null)
                         }}
                         title={
                           !inMonth || isFuture ? undefined
-                          : insightMode
+                          : rangeSelecting
                             ? !rangeStart ? 'Click to set range start'
                             : !rangeEnd ? 'Click to set range end'
                             : 'Click to start new range'
@@ -696,7 +765,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                           outline: 'none',
                         }}
                         onMouseOver={e => {
-                          if (isClickable && (!insightMode || !rangeStart || rangeEnd))
+                          if (isClickable && (!rangeSelecting || !rangeStart || rangeEnd))
                             e.currentTarget.style.background = 'rgba(54,214,195,.14)'
                         }}
                         onMouseOut={e => {
@@ -727,7 +796,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
             margin: '0 8px 10px', fontSize: '11px', color: 'var(--fg-3)',
             textAlign: 'center',
           }}>
-            {insightMode
+            {rangeSelecting
               ? !rangeStart ? 'Click any date to set range start'
               : !rangeEnd ? 'Now click another date to set range end'
               : `${selectedInsightDates.size} ${selectedInsightDates.size === 1 ? 'entry' : 'entries'} selected — click a date to start a new range`

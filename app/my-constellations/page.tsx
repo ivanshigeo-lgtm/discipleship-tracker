@@ -957,6 +957,7 @@ export default function DiscipleshipTracker() {
                   currentStreak={currentStreak}
                   onRefresh={loadSoaps}
                   onNewEntryForDate={date => { setSoapEntryDate(date); setShowSoapEntry(true) }}
+                  personId={profile.id}
                 />
               )}
               {/* Prayer & praise wall so you can pray over your people while you SOAP */}
