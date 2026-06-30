@@ -323,6 +323,8 @@ export default function JourneyMenu({
   const [active, setActive] = useState<PanelKind | null>(null)
   const [panel, setPanel] = useState<PanelKind | null>(null)
   const [supplemental, setSupplemental] = useState<Supplemental | null>(null)
+  // Instant hover tooltip for the count badges (custom, not the slow native one).
+  const [tip, setTip] = useState<{ text: string; x: number; y: number } | null>(null)
 
   // Counts for the menu badges (fetched when the drawer first opens).
   const [counts, setCounts] = useState<{ eng7: number; prayerTotal: number; prayerAnswered: number; signoffs: number } | null>(null)
@@ -465,8 +467,12 @@ export default function JourneyMenu({
                       if (!b) return null
                       return (
                         <span
-                          title={b.title}
-                          className="ml-1 cursor-help rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums"
+                          onMouseEnter={(e) => {
+                            const r = e.currentTarget.getBoundingClientRect()
+                            setTip({ text: b.title, x: r.right + 10, y: r.top + r.height / 2 })
+                          }}
+                          onMouseLeave={() => setTip(null)}
+                          className="ml-1 rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums"
                           style={{ background: `${item.dot}22`, color: item.dot, border: `1px solid ${item.dot}55` }}
                         >
                           {b.text}
@@ -518,6 +524,17 @@ export default function JourneyMenu({
       {panel === 'prayer'      && <PrayerPanel       personId={personId} isAdmin={isAdmin} onClose={() => setPanel(null)} />}
       {panel === 'engagements' && <EngagementsPanel  personId={personId} onClose={() => setPanel(null)} />}
       {supplemental && <SupplementalPanel material={supplemental} onClose={() => setSupplemental(null)} />}
+
+      {/* Instant badge tooltip — rendered outside the (transformed) drawer so
+          fixed positioning uses real viewport coordinates. */}
+      {tip && (
+        <div
+          className="pointer-events-none fixed z-[120] -translate-y-1/2 whitespace-nowrap rounded-lg border border-[var(--line-2)] bg-[var(--indigo)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--fg-1)] shadow-xl"
+          style={{ left: tip.x, top: tip.y }}
+        >
+          {tip.text}
+        </div>
+      )}
     </>
   )
 }
