@@ -430,52 +430,48 @@ export default function NeedAttentionSection({
 
   return (
     <section className="cn-card mb-6 p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <div className="flex items-center gap-2">
           <h2 className="cn-h3">My Meetings</h2>
           {meetings.length > 0 && (
             <span className="cn-chip !py-0.5 !text-xs">{meetings.length}</span>
           )}
+          {/* Scope the badge totals: whole church vs my groups (admins only). */}
+          {isAdmin && (
+            <div className="ml-1 flex rounded-full border border-[var(--line-2)] bg-[var(--indigo)] p-0.5">
+              {([['gbc', 'GBC'], ['mine', 'Mine']] as const).map(([val, label]) => (
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => setBadgeScope(val)}
+                  className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold transition-all ${badgeScope === val ? 'bg-[var(--gbm-cobalt-bright)] text-[var(--fg-1)]' : 'text-[var(--fg-2)] hover:text-[var(--fg-1)]'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+          {overdueCount > 0 && (
+            <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'rgba(242,114,138,.15)', color: '#F2728A' }}>
+              {overdueCount} overdue
+            </span>
+          )}
+          {todayCount > 0 && (
+            <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'rgba(54,214,195,.15)', color: 'var(--establish)' }}>
+              {todayCount} today
+            </span>
+          )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex flex-col items-center gap-1.5">
-            <MeetingBadges counts={meetingCounts} />
-            {/* Scope the badge totals: whole church vs my groups (admins only). */}
-            {isAdmin && (
-              <div className="flex rounded-full border border-[var(--line-2)] bg-[var(--indigo)] p-0.5">
-                {([['gbc', 'GBC'], ['mine', 'Mine']] as const).map(([val, label]) => (
-                  <button
-                    key={val}
-                    type="button"
-                    onClick={() => setBadgeScope(val)}
-                    className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold transition-all ${badgeScope === val ? 'bg-[var(--gbm-cobalt-bright)] text-[var(--fg-1)]' : 'text-[var(--fg-2)] hover:text-[var(--fg-1)]'}`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            {overdueCount > 0 && (
-              <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'rgba(242,114,138,.15)', color: '#F2728A' }}>
-                {overdueCount} overdue
-              </span>
-            )}
-            {todayCount > 0 && (
-              <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'rgba(54,214,195,.15)', color: 'var(--establish)' }}>
-                {todayCount} today
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="cn-chip"
-            >
-              {isExpanded ? 'Collapse' : 'Expand'}
-            </button>
-          </div>
+        <div className="flex items-center gap-3">
+          <MeetingBadges counts={meetingCounts} />
+          <button
+            type="button"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="cn-chip"
+          >
+            {isExpanded ? 'Collapse' : 'Expand'}
+          </button>
         </div>
       </div>
 
