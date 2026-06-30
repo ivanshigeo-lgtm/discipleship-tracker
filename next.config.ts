@@ -1,7 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Bundle the ffmpeg binary into the transcode function so it can run on Vercel.
+  outputFileTracingIncludes: {
+    "/api/video/transcode": ["./node_modules/ffmpeg-static/ffmpeg"],
+  },
 };
 
 export default nextConfig;
