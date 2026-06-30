@@ -74,11 +74,12 @@ export default function TestimonyModal({
   const startRecording = () => {
     if (!streamRef.current) return
     chunksRef.current = []
-    // Prefer formats that play back in the recording browser: MP4 (Safari) or
-    // VP8 webm (Chrome/Firefox). VP9 doesn't decode in Safari, which is why
-    // playback was failing.
+    // Record VP8 webm where possible (Chrome/Firefox play their own recording
+    // back reliably); fall back to mp4 on Safari (which can't do webm). Chrome's
+    // own mp4 recording can produce a clip that won't preview until finalized,
+    // so we avoid it here — the server transcodes to mp4 for cross-device anyway.
     const mimeType =
-      ['video/mp4', 'video/webm;codecs=vp8,opus', 'video/webm'].find(c => MediaRecorder.isTypeSupported(c)) || ''
+      ['video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'].find(c => MediaRecorder.isTypeSupported(c)) || ''
     const recorder = new MediaRecorder(streamRef.current, mimeType ? { mimeType } : undefined)
     recorderRef.current = recorder
     recorder.ondataavailable = e => {
@@ -86,6 +87,11 @@ export default function TestimonyModal({
     }
     recorder.onstop = () => {
       const blob = new Blob(chunksRef.current, { type: recorder.mimeType || mimeType || 'video/webm' })
+      if (blob.size === 0) {
+        setError('Recording came through empty — please try again.')
+        setRecordState('idle')
+        return
+      }
       const url = URL.createObjectURL(blob)
       setRecordedBlob(blob)
       setRecordedObjectUrl(url)
@@ -341,8 +347,12 @@ export default function TestimonyModal({
                   src={recordedObjectUrl}
                   controls
                   playsInline
-                  preload="metadata"
-                  className="w-full rounded-lg"
+                  autoPlay
+                  muted
+                  preload="auto"
+                  className="w-full rounded-lg bg-black"
+                  style={{ minHeight: 200 }}
+                  onLoadedData={e => { e.currentTarget.play().catch(() => {}) }}
                 />
                 <div className="mt-2 flex gap-2">
                   <button
