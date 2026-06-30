@@ -10,11 +10,13 @@ export default function EmpoweredCoachmark({ personId, enabled, onActiveChange }
 
   useEffect(() => {
     if (!enabled) return
-    const key = `empowered-coachmark-v2-${personId}`
-    if (localStorage.getItem(key)) return
+    // Once per sign-in: sessionStorage resets each new session, and sign-out
+    // clears it, so this re-appears every time you sign in and land here.
+    const key = `empowered-coachmark-${personId}`
+    if (sessionStorage.getItem(key)) return
     const t = setTimeout(() => {
       setShow(true)
-      localStorage.setItem(key, '1') // once ever
+      sessionStorage.setItem(key, '1')
     }, 900)
     return () => clearTimeout(t)
   }, [enabled, personId])

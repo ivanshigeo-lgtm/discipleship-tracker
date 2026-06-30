@@ -192,6 +192,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null)
     setProfile(null)
     setDownline([])
+    // Let one-per-sign-in nudges (e.g. the empowered coachmark) fire again next
+    // time they sign in.
+    try {
+      Object.keys(sessionStorage)
+        .filter(k => k.startsWith('empowered-coachmark'))
+        .forEach(k => sessionStorage.removeItem(k))
+    } catch { /* sessionStorage may be unavailable */ }
     // ...and sign out with LOCAL scope: drops the session from this browser
     // without the slow server round-trip that 'global' makes to revoke every
     // session. The session is gone here, which is what logging out means.
