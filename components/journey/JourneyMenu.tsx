@@ -5,10 +5,12 @@ import { useRouter } from 'next/navigation'
 import {
   getEngagementsForPerson,
   getAllEngagements,
+  getConfirmedEngagementIds,
   getPrayerLifeForPerson,
   addPrayerRequest,
   getPendingLevelSignoffs,
 } from '../../lib/supabaseQueries'
+import MeetingInvites from '../MeetingInvites'
 import type { Engagement, PrayerRequest, Stage, ShareVisibility } from '../../types/database'
 import type { JourneyLevel, JourneyStep } from './journeyModel'
 import { StageStepList } from './StageStepList'
@@ -176,19 +178,21 @@ function PrayerPanel({ personId, isAdmin, onClose }: { personId: string; isAdmin
 function EngagementsPanel({ personId, onClose }: { personId: string; onClose: () => void }) {
   const [engagements, setEngagements] = useState<Engagement[]>([])
   const [loading, setLoading] = useState(true)
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     getEngagementsForPerson(personId).then(({ data }) => {
       if (data) setEngagements(data as Engagement[])
       setLoading(false)
     })
-  }, [personId])
+  }, [personId, reloadKey])
 
   const upcoming = engagements.filter(e => e.status !== 'Completed')
   const past = engagements.filter(e => e.status === 'Completed')
 
   return (
     <Panel title="Engagements" color="#F4B650" onClose={onClose}>
+      <MeetingInvites personId={personId} refreshKey={reloadKey} onChanged={() => setReloadKey(k => k + 1)} />
       {loading ? (
         <div className="flex justify-center py-6">
           <span className="h-5 w-5 animate-spin rounded-full border-2 border-[#F4B650] border-t-transparent" />
@@ -339,21 +343,23 @@ export default function JourneyMenu({
     ;(async () => {
       // Badges always reflect "Mine" — never the church-wide GBC view, even for
       // admins (getPrayerLifeForPerson with isAdmin=false stays scoped to you).
-      const [engRes, prayerRes, signoffRes] = await Promise.all([
+      const [engRes, prayerRes, signoffRes, confirmedRes] = await Promise.all([
         getAllEngagements(),
         getPrayerLifeForPerson(personId, false),
         getPendingLevelSignoffs(personId),
+        getConfirmedEngagementIds(personId),
       ])
       if (cancelled) return
       const today = new Date(); today.setHours(0, 0, 0, 0)
       const in7 = new Date(today); in7.setDate(today.getDate() + 7)
       const iso = (d: Date) => d.toISOString().split('T')[0]
       const next7Str = iso(in7)
-      // "Mine": Pending, due on/before +7 (incl. overdue), and I'm involved
-      // (with me or run by me). No admin/GBC override.
-      const eng7 = ((engRes.data as { follow_up_date: string | null; status: string; person_id: string; created_by_person_id: string | null }[]) ?? [])
+      // "Mine": Pending, due on/before +7 (incl. overdue), that I own (created)
+      // or have confirmed being part of.
+      const confirmed = new Set((confirmedRes.data as string[]) ?? [])
+      const eng7 = ((engRes.data as { id: string; follow_up_date: string | null; status: string; created_by_person_id: string | null }[]) ?? [])
         .filter(e => e.status === 'Pending' && e.follow_up_date && e.follow_up_date <= next7Str
-          && (e.created_by_person_id === personId || e.person_id === personId)).length
+          && (e.created_by_person_id === personId || confirmed.has(e.id))).length
       const prayers = (prayerRes.data as { status: string }[]) ?? []
       const prayerTotal = prayers.length
       const prayerAnswered = prayers.filter(p => p.status === 'Answered').length

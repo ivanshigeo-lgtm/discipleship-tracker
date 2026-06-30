@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getEngagementsByPerson, updateEngagement, deleteEngagement, addEngagement } from '../lib/supabaseQueries'
+import { getEngagementsByPerson, getConfirmedEngagementIds, updateEngagement, deleteEngagement, addEngagement } from '../lib/supabaseQueries'
 import type { Engagement, MeetingType } from '../types/database'
 import { type Recurrence, RECURRENCE_OPTIONS, recurrenceDates, recurrenceLabel } from '../lib/recurrence'
 
@@ -55,7 +55,15 @@ export default function NextStepsList({
         getEngagementsByPerson(personId),
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000))
       ])
-      if (result.data) setEngagements(result.data)
+      let engs = result.data ?? []
+      // You only see meetings you created or have confirmed being part of — even
+      // when looking at someone you co-coach with another leader.
+      if (coachPersonId) {
+        const { data: cids } = await getConfirmedEngagementIds(coachPersonId)
+        const confirmed = new Set(cids ?? [])
+        engs = engs.filter(e => e.created_by_person_id === coachPersonId || confirmed.has(e.id))
+      }
+      setEngagements(engs)
     } catch (err) {
       console.error('NextStepsList load error:', err)
     }

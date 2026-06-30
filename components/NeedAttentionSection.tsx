@@ -6,6 +6,7 @@ import {
   getAllEngagements,
   getVictoryGroups,
   getAllGroupMemberships,
+  getConfirmedEngagementIds,
   updateEngagement,
 } from '../lib/supabaseQueries'
 import type { Person, Stage, Engagement, VictoryGroup } from '../types/database'
@@ -199,6 +200,9 @@ export default function NeedAttentionSection({
     isAdmin || (!!viewerPersonId && (e.created_by_person_id === viewerPersonId || e.person_id === viewerPersonId))
   const [people, setPeople] = useState<Person[]>([])
   const [engagements, setEngagements] = useState<Engagement[]>([])
+  // Engagement ids the viewer has confirmed being part of (their own meetings,
+  // beyond ones they created).
+  const [confirmedIds, setConfirmedIds] = useState<Set<string>>(new Set())
   const [victoryGroups, setVictoryGroups] = useState<VictoryGroup[]>([])
   const [groupMemberships, setGroupMemberships] = useState<{ person_id: string; victory_group_id: string }[]>([])
   const { profile } = useAuth()
@@ -227,6 +231,10 @@ export default function NeedAttentionSection({
       if (peopleResult.error || engagementsResult.error) setLoadError(true)
       if (peopleResult.data) setPeople(peopleResult.data as Person[])
       if (engagementsResult.data) setEngagements(engagementsResult.data as Engagement[])
+      if (viewerPersonId) {
+        const { data: cids } = await getConfirmedEngagementIds(viewerPersonId)
+        setConfirmedIds(new Set(cids ?? []))
+      }
       if (groupsResult.data) setVictoryGroups(groupsResult.data as VictoryGroup[])
       if (membershipsResult.data) setGroupMemberships(membershipsResult.data as { person_id: string; victory_group_id: string }[])
     } catch (err) {
@@ -273,9 +281,11 @@ export default function NeedAttentionSection({
     // The meeting list honors the GBC / Mine toggle: GBC (admin) shows the whole
     // church; Mine shows only meetings you're involved in. Non-admins are always
     // scoped to "mine".
+    // "Mine" = meetings you OWN (created) or have CONFIRMED being part of — never
+    // ones you were only invited to. GBC (admin) shows the whole church.
     const effectiveScope = isAdmin ? badgeScope : 'mine'
     const inScope = (e: Engagement) =>
-      effectiveScope === 'gbc' || (!!viewerPersonId && (e.created_by_person_id === viewerPersonId || e.person_id === viewerPersonId))
+      effectiveScope === 'gbc' || (!!viewerPersonId && (e.created_by_person_id === viewerPersonId || confirmedIds.has(e.id)))
 
     engagements
       .filter(e => {
@@ -314,7 +324,7 @@ export default function NeedAttentionSection({
     })
 
     return items
-  }, [people, engagements, viewerPersonId, isAdmin, badgeScope])
+  }, [people, engagements, viewerPersonId, isAdmin, badgeScope, confirmedIds])
 
   const overdueCount = meetings.filter(m => m.isOverdue).length
   const todayCount = meetings.filter(m => m.isToday).length

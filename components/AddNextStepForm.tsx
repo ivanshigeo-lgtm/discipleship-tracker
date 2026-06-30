@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
-import { addEngagement } from '../lib/supabaseQueries'
+import { useState, useEffect, useMemo } from 'react'
+import { addEngagement, addMeetingParticipants, getPeople } from '../lib/supabaseQueries'
 import { useAuth } from '../contexts/AuthContext'
-import type { MeetingType } from '../types/database'
+import type { MeetingType, Person } from '../types/database'
 import { type Recurrence, RECURRENCE_OPTIONS, recurrenceDates, recurrenceLabel } from '../lib/recurrence'
 
 const MEETING_TYPES: MeetingType[] = ['One2One', 'Making Disciples', 'Coffee', 'Church Community', 'Empowering Leaders']
@@ -34,6 +34,25 @@ export default function AddNextStepForm({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  // "Also invite" — additional people in the meeting. They get an invite and the
+  // meeting shows on their page once they confirm. (The profile person is always
+  // included; the creator owns it.)
+  const [people, setPeople] = useState<Person[]>([])
+  const [inviteeIds, setInviteeIds] = useState<string[]>([])
+  const [inviteSearch, setInviteSearch] = useState('')
+  useEffect(() => {
+    getPeople().then(({ data }) => { if (data) setPeople(data as Person[]) })
+  }, [])
+  const inviteMatches = useMemo(() => {
+    const q = inviteSearch.trim().toLowerCase()
+    if (!q) return []
+    return people
+      .filter(p => p.id !== personId && p.id !== profile?.id && !inviteeIds.includes(p.id))
+      .filter(p => p.name.toLowerCase().includes(q))
+      .slice(0, 6)
+  }, [inviteSearch, people, personId, profile?.id, inviteeIds])
+  const inviteeNames = (id: string) => people.find(p => p.id === id)?.name ?? 'Someone'
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!description) return
@@ -63,6 +82,13 @@ export default function AddNextStepForm({
         setError(insertError.message || 'Failed to add engagement')
         setLoading(false)
         return
+      }
+
+      // Invite everyone in the meeting (the profile person + any extras). They
+      // confirm before it appears on their own engagement page; the creator owns
+      // it and sees it regardless.
+      if (newEngagement) {
+        await addMeetingParticipants(newEngagement.id, [personId, ...inviteeIds], 'invited')
       }
 
       // Sync with Google Calendar if coach has it connected
@@ -98,6 +124,8 @@ export default function AddNextStepForm({
     setMeetingType('')
     setRecurrence('none')
     setRepeatUntil('')
+    setInviteeIds([])
+    setInviteSearch('')
     onAdded()
     setLoading(false)
   }
@@ -159,6 +187,41 @@ export default function AddNextStepForm({
           placeholder="Location..."
           className={`${inputClass} flex-1 min-w-[100px]`}
         />
+      </div>
+
+      {/* Also-invite row — add more people to this meeting */}
+      <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+        <span className="text-xs text-[var(--fg-3)]">With</span>
+        <span className="rounded-full bg-[var(--indigo)] px-2 py-0.5 text-[10px] font-medium text-[var(--fg-2)]">{personName}</span>
+        {inviteeIds.map(id => (
+          <span key={id} className="flex items-center gap-1 rounded-full bg-[rgba(91,141,247,.15)] px-2 py-0.5 text-[10px] font-medium text-[var(--fg-1)]">
+            {inviteeNames(id)}
+            <button type="button" onClick={() => setInviteeIds(prev => prev.filter(x => x !== id))} className="text-[var(--fg-3)] hover:text-[var(--fg-1)]">×</button>
+          </span>
+        ))}
+        <div className="relative">
+          <input
+            type="text"
+            value={inviteSearch}
+            onChange={(e) => setInviteSearch(e.target.value)}
+            placeholder="+ invite someone…"
+            className={`${inputClass} w-36`}
+          />
+          {inviteMatches.length > 0 && (
+            <div className="absolute left-0 top-full z-30 mt-1 w-44 overflow-hidden rounded-lg border border-[var(--line-2)] bg-[var(--indigo)] shadow-lg">
+              {inviteMatches.map(p => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => { setInviteeIds(prev => [...prev, p.id]); setInviteSearch('') }}
+                  className="block w-full px-2.5 py-1.5 text-left text-xs text-[var(--fg-1)] hover:bg-[var(--indigo-2)]"
+                >
+                  {p.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Recurrence row — pick a cadence; disabled until a date is chosen */}

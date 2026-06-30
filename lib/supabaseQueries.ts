@@ -203,6 +203,17 @@ export const addMeetingParticipants = async (engagementId: string, personIds: st
   return { error }
 }
 
+// The engagement ids a person has CONFIRMED being part of — for filtering a
+// shared "all engagements" list down to a person's own meetings.
+export const getConfirmedEngagementIds = async (personId: string) => {
+  const { data, error } = await supabase
+    .from('engagement_participants')
+    .select('engagement_id')
+    .eq('person_id', personId)
+    .eq('status', 'confirmed')
+  return { data: (data ?? []).map(r => r.engagement_id as string), error }
+}
+
 export const setMeetingInviteStatus = async (engagementId: string, personId: string, status: 'confirmed' | 'declined') => {
   const { error } = await supabase
     .from('engagement_participants')

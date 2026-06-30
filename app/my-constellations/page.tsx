@@ -12,6 +12,7 @@ import CoachingPipeline from '../../components/CoachingPipeline'
 import NeedAttentionSection from '../../components/NeedAttentionSection'
 import SignoffRequestsSection from '../../components/SignoffRequestsSection'
 import GroupJoinRequests from '../../components/GroupJoinRequests'
+import MeetingInvites from '../../components/MeetingInvites'
 import SharedSoapFeed from '../../components/SharedSoapFeed'
 import PointsOfActionSection from '../../components/PointsOfActionSection'
 import PrayerWallSection from '../../components/PrayerWallSection'
@@ -25,7 +26,7 @@ import GoogleCalendarConnect from '../../components/GoogleCalendarConnect'
 import MessageCenter from '../../components/MessageCenter'
 import SoapEntryModal from '../../components/journey/SoapEntryModal'
 import SoapCalendarSection from '../../components/SoapCalendarSection'
-import { getSoapJournals, getAllDiscipleshipConnections, getPeople, getLevelSignoffs, getAllEngagements, getAllActionItems, getVictoryGroups, getPrayerLifeForPerson, getMyConversations } from '../../lib/supabaseQueries'
+import { getSoapJournals, getAllDiscipleshipConnections, getPeople, getLevelSignoffs, getAllEngagements, getAllActionItems, getVictoryGroups, getPrayerLifeForPerson, getMyConversations, getConfirmedEngagementIds } from '../../lib/supabaseQueries'
 import type { Person, SoapJournal, Stage, DiscipleshipConnection, Engagement } from '../../types/database'
 import EngagementDetailModal from '../../components/EngagementDetailModal'
 import { DashboardSkeleton } from '../../components/Skeleton'
@@ -461,20 +462,23 @@ export default function DiscipleshipTracker() {
       // The sidebar badges always reflect "Mine" — your own work — never the
       // church-wide GBC view, even for admins. (getPrayerLifeForPerson with
       // isAdmin=false stays scoped to your people + your groups + constellation.)
-      const [engRes, aiRes, prayerRes, groupsRes, convRes] = await Promise.all([
+      const [engRes, aiRes, prayerRes, groupsRes, convRes, confirmedRes] = await Promise.all([
         getAllEngagements(),
         getAllActionItems(),
         getPrayerLifeForPerson(profile.id, false),
         getVictoryGroups(),
         getMyConversations(profile.id),
+        getConfirmedEngagementIds(profile.id),
       ])
       if (cancelled) return
       const today = new Date(); today.setHours(0, 0, 0, 0)
       const in7 = new Date(today); in7.setDate(today.getDate() + 7)
       const iso = (d: Date) => d.toISOString().split('T')[0]
       const next7Str = iso(in7)
-      const involved = (e: { created_by_person_id: string | null; person_id: string }) =>
-        e.created_by_person_id === profile.id || e.person_id === profile.id
+      // "Mine" = meetings you created or have confirmed being part of.
+      const confirmed = new Set((confirmedRes.data as string[]) ?? [])
+      const involved = (e: { id: string; created_by_person_id: string | null }) =>
+        e.created_by_person_id === profile.id || confirmed.has(e.id)
       const engs = (engRes.data as { id: string; status: string; follow_up_date: string | null; created_by_person_id: string | null; person_id: string }[]) ?? []
       const eng7 = engs.filter(e => e.status === 'Pending' && e.follow_up_date && e.follow_up_date <= next7Str && involved(e)).length
       const engById = new Map(engs.map(e => [e.id, e]))
@@ -825,6 +829,13 @@ export default function DiscipleshipTracker() {
               <ErrorBoundary name="GroupJoinRequests">
                 <GroupJoinRequests
                   ownerPersonId={profile.id}
+                  refreshKey={refreshKey}
+                  onChanged={() => setRefreshKey(p => p + 1)}
+                />
+              </ErrorBoundary>
+              <ErrorBoundary name="MeetingInvites">
+                <MeetingInvites
+                  personId={profile.id}
                   refreshKey={refreshKey}
                   onChanged={() => setRefreshKey(p => p + 1)}
                 />
