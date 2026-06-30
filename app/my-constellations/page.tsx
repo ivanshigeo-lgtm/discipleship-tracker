@@ -65,9 +65,14 @@ const NAV: Array<{ heading: string; items: Array<{ id: SectionId; label: string;
     heading: 'Community',
     items: [
       { id: 'groups',   label: 'Groups',       dot: '#F4B650' },
-      { id: 'prayer',   label: 'Prayer Wall',  dot: '#9B80FF' },
       { id: 'messages', label: 'My Messages',  dot: '#7EB3FF' },
-      { id: 'soaps',    label: 'My SOAPs',     dot: '#36D6C3' },
+    ],
+  },
+  {
+    heading: 'My Disciplines',
+    items: [
+      { id: 'prayer',   label: 'My Prayer Wall', dot: '#9B80FF' },
+      { id: 'soaps',    label: 'My SOAPs',       dot: '#36D6C3' },
     ],
   },
 ]
