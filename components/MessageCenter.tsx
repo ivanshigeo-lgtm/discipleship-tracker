@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import MessageSignoffInbox from './MessageSignoffInbox'
 import {
   getMyConversations,
   getOrCreateDM,
@@ -299,6 +300,9 @@ export default function MessageCenter({
             className={`${mobileView === 'list' ? 'flex' : 'hidden'} md:flex w-full flex-col md:w-56 md:shrink-0 border-r border-[var(--line-2)]`}
             style={{ background: 'var(--indigo-2)' }}
           >
+            {/* Sign-off requests — actionable, in the same place as messages */}
+            <MessageSignoffInbox coachId={myPersonId} isOpen={isOpen} />
+
             {/* New conversation form */}
             {showNew && (
               <div className="space-y-2 border-b border-[var(--line-2)] p-3">
