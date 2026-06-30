@@ -738,6 +738,7 @@ export default function MyJourneyPage() {
         soapStreak={soapStreak}
         currentStreak={currentStreak}
         unreadCount={unreadMsgCount}
+        isAdmin={Boolean(profile.is_admin)}
       />
 
       {/* Message Center */}

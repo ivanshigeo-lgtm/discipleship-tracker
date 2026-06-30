@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
-import { getPrayerWallForViewer, getConstellationPrayerRequests, getPeople, addPraise, addPrayerRequest } from '../lib/supabaseQueries'
+import { getPrayerLifeForPerson, getConstellationPrayerRequests, getPeople, addPraise, addPrayerRequest } from '../lib/supabaseQueries'
 import PersonSearchSelect from './PersonSearchSelect'
 import type { PrayerRequest, Person, Stage } from '../types/database'
 
@@ -178,7 +178,7 @@ export default function PrayerWallSection({
     try {
       const [requestsResult, peopleResult] = await Promise.race([
         Promise.all([
-          viewerPersonId ? getPrayerWallForViewer(viewerPersonId, isAdmin) : getConstellationPrayerRequests(),
+          viewerPersonId ? getPrayerLifeForPerson(viewerPersonId, isAdmin) : getConstellationPrayerRequests(),
           getPeople(),
         ]),
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000))

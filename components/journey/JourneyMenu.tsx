@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import {
-  getPrayerRequestsByPerson,
-  getEngagementsByPerson,
+  getEngagementsForPerson,
+  getPrayerLifeForPerson,
   addPrayerRequest,
   getPendingLevelSignoffs,
 } from '../../lib/supabaseQueries'
@@ -80,7 +80,7 @@ const PRAYER_SCOPES: { value: ShareVisibility; label: string }[] = [
   { value: 'constellation', label: 'Everyone' },
 ]
 
-function PrayerPanel({ personId, onClose }: { personId: string; onClose: () => void }) {
+function PrayerPanel({ personId, isAdmin, onClose }: { personId: string; isAdmin: boolean; onClose: () => void }) {
   const [requests, setRequests] = useState<PrayerRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [text, setText] = useState('')
@@ -88,7 +88,7 @@ function PrayerPanel({ personId, onClose }: { personId: string; onClose: () => v
   const [saving, setSaving] = useState(false)
 
   const load = () =>
-    getPrayerRequestsByPerson(personId).then(({ data }) => {
+    getPrayerLifeForPerson(personId, isAdmin).then(({ data }) => {
       if (data) setRequests(data as PrayerRequest[])
       setLoading(false)
     })
@@ -176,7 +176,7 @@ function EngagementsPanel({ personId, onClose }: { personId: string; onClose: ()
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    getEngagementsByPerson(personId).then(({ data }) => {
+    getEngagementsForPerson(personId).then(({ data }) => {
       if (data) setEngagements(data as Engagement[])
       setLoading(false)
     })
@@ -305,6 +305,7 @@ export default function JourneyMenu({
   soapStreak = 0,
   currentStreak = 0,
   unreadCount = 0,
+  isAdmin = false,
 }: {
   personId: string
   levels: JourneyLevel[]
@@ -316,6 +317,7 @@ export default function JourneyMenu({
   soapStreak?: number
   currentStreak?: number
   unreadCount?: number
+  isAdmin?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState<PanelKind | null>(null)
@@ -329,8 +331,8 @@ export default function JourneyMenu({
     let cancelled = false
     ;(async () => {
       const [engRes, prayerRes, signoffRes] = await Promise.all([
-        getEngagementsByPerson(personId),
-        getPrayerRequestsByPerson(personId),
+        getEngagementsForPerson(personId),
+        getPrayerLifeForPerson(personId, isAdmin),
         getPendingLevelSignoffs(personId),
       ])
       if (cancelled) return
@@ -346,7 +348,7 @@ export default function JourneyMenu({
       setCounts({ eng7, prayerTotal, prayerAnswered, signoffs })
     })()
     return () => { cancelled = true }
-  }, [open, counts, personId])
+  }, [open, counts, personId, isAdmin])
 
   // Badge text + hover tooltip per menu item.
   const badgeFor = (id: PanelKind): { text: string; title: string } | null => {
@@ -513,7 +515,7 @@ export default function JourneyMenu({
           onRequestSignoff={onRequestSignoff}
         />
       )}
-      {panel === 'prayer'      && <PrayerPanel       personId={personId} onClose={() => setPanel(null)} />}
+      {panel === 'prayer'      && <PrayerPanel       personId={personId} isAdmin={isAdmin} onClose={() => setPanel(null)} />}
       {panel === 'engagements' && <EngagementsPanel  personId={personId} onClose={() => setPanel(null)} />}
       {supplemental && <SupplementalPanel material={supplemental} onClose={() => setSupplemental(null)} />}
     </>

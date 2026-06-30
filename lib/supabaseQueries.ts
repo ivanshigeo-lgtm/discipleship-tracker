@@ -144,6 +144,18 @@ export const getEngagementsByPerson = async (personId: string) => {
   return { data, error }
 }
 
+// Every meeting a person is involved in — whether it's WITH them (person_id) or
+// one they RUN (created_by_person_id). One person, both roles: the unified view
+// used by My Journey and the coach dashboard alike.
+export const getEngagementsForPerson = async (personId: string) => {
+  const { data, error } = await supabase
+    .from('engagements')
+    .select('*')
+    .or(`person_id.eq.${personId},created_by_person_id.eq.${personId}`)
+    .order('follow_up_date', { ascending: true, nullsFirst: false })
+  return { data, error }
+}
+
 export const getAllEngagements = () =>
   dedup('getAllEngagements', async () => {
     const { data, error } = await supabase
@@ -257,6 +269,21 @@ export const getPrayerWallForViewer = async (viewerPersonId: string, isAdmin: bo
     return false
   })
   return { data: filtered, error: null }
+}
+
+// A person's whole prayer life: their own requests/praises (every visibility,
+// incl. private) PLUS everything they pray over for others (the wall). Deduped.
+// The same set on My Journey and the coach dashboard.
+export const getPrayerLifeForPerson = async (personId: string, isAdmin: boolean) => {
+  const [own, wall] = await Promise.all([
+    getPrayerRequestsByPerson(personId),
+    getPrayerWallForViewer(personId, isAdmin),
+  ])
+  const byId = new Map<string, PrayerRequest>()
+  for (const p of ((own.data as PrayerRequest[]) ?? [])) byId.set(p.id, p)
+  for (const p of ((wall.data as PrayerRequest[]) ?? [])) if (!byId.has(p.id)) byId.set(p.id, p)
+  const merged = Array.from(byId.values()).sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''))
+  return { data: merged, error: own.error || wall.error }
 }
 
 export const addPrayerRequest = async (
