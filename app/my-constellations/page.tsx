@@ -478,7 +478,8 @@ export default function DiscipleshipTracker() {
       const openPoints = ((aiRes.data as { engagement_id: string; completed: boolean }[]) ?? [])
         .filter(it => { const e = engById.get(it.engagement_id); return !it.completed && e && involved(e) }).length
       const prayers = (prayerRes.data as { status: string }[]) ?? []
-      const groups = ((groupsRes.data as { owner_person_id: string | null }[]) ?? []).filter(g => isAdmin || g.owner_person_id === profile.id).length
+      // "Mine" = the groups you own (not all GBC groups, even for admins).
+      const groups = ((groupsRes.data as { owner_person_id: string | null }[]) ?? []).filter(g => g.owner_person_id === profile.id).length
       const unread = ((convRes.data as { unreadCount?: number }[]) ?? []).reduce((s, c) => s + (c.unreadCount ?? 0), 0)
       setSidebarBadges({
         engagements: { text: `${eng7}`, title: 'Meetings in the next 7 days' },
