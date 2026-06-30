@@ -282,7 +282,7 @@ function SupplementalPanel({ material, onClose }: { material: Supplemental; onCl
 }
 
 // ─── Nav config ───────────────────────────────────────────────────────────────
-type PanelKind = 'Establish' | 'Equip' | 'Empower' | 'Engage' | 'engagements' | 'message' | 'prayer' | 'soaps' | 'shared'
+type PanelKind = 'Establish' | 'Equip' | 'Empower' | 'Engage' | 'engagements' | 'message' | 'prayer' | 'soaps' | 'shared-prayers' | 'shared-soaps'
 const STAGE_KINDS: PanelKind[] = ['Establish', 'Equip', 'Empower', 'Engage']
 
 type NavSection = {
@@ -308,23 +308,36 @@ const NAV: NavSection[] = [
     ],
   },
   {
-    heading: 'Spirit',
+    heading: 'My Disciplines',
     items: [
       { id: 'prayer', label: 'Prayer', dot: '#9B80FF' },
       { id: 'soaps',  label: 'SOAPs',  dot: '#36D6C3' },
-      { id: 'shared', label: 'Shared With Me', dot: '#36D6C3' },
+    ],
+  },
+  {
+    heading: 'Shared With Me',
+    items: [
+      { id: 'shared-prayers', label: 'Prayer Requests', dot: '#9B80FF' },
+      { id: 'shared-soaps',   label: 'Shared SOAPs',    dot: '#36D6C3' },
     ],
   },
 ]
 
-// ─── Shared With Me — SOAPs/prayers others have shared (constellation + group) ─
-function SharedWithMePanel({ personId, onClose }: { personId: string; onClose: () => void }) {
+// ─── Shared With Me — prayers / SOAPs others have shared (constellation + group)
+function SharedWithMePanel({ personId, kind, onClose }: { personId: string; kind: 'prayers' | 'soaps'; onClose: () => void }) {
   const feedItems = useConstellationFeed()
+  if (kind === 'prayers') {
+    return (
+      <Panel title="Prayer Requests" color="#9B80FF" onClose={onClose}>
+        <p className="mb-3 text-xs text-[var(--fg-3)]">Prayer requests shared with you.</p>
+        <SharedPrayerFeed personId={personId} scope="group" />
+      </Panel>
+    )
+  }
   return (
-    <Panel title="Shared With Me" color="#36D6C3" onClose={onClose}>
-      <p className="mb-3 text-xs text-[var(--fg-3)]">SOAPs and prayers others have shared with you.</p>
+    <Panel title="Shared SOAPs" color="#36D6C3" onClose={onClose}>
+      <p className="mb-3 text-xs text-[var(--fg-3)]">SOAP reflections shared with you.</p>
       <ConstellationFeedInline items={feedItems} />
-      <SharedPrayerFeed personId={personId} scope="group" />
       <SharedSoapFeed personId={personId} scope="group" />
     </Panel>
   )
@@ -579,7 +592,8 @@ export default function JourneyMenu({
           people are routed to the full My Constellations pages instead. */}
       {panel === 'prayer'      && <PrayerPanel       personId={personId} isAdmin={isAdmin} onClose={() => setPanel(null)} />}
       {panel === 'engagements' && <EngagementsPanel  personId={personId} onClose={() => setPanel(null)} />}
-      {panel === 'shared'      && <SharedWithMePanel personId={personId} onClose={() => setPanel(null)} />}
+      {panel === 'shared-prayers' && <SharedWithMePanel personId={personId} kind="prayers" onClose={() => setPanel(null)} />}
+      {panel === 'shared-soaps'   && <SharedWithMePanel personId={personId} kind="soaps"   onClose={() => setPanel(null)} />}
       {supplemental && <SupplementalPanel material={supplemental} onClose={() => setSupplemental(null)} />}
 
       {/* Instant badge tooltip — rendered outside the (transformed) drawer so
