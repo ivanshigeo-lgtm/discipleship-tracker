@@ -10,7 +10,7 @@ export default function EmpoweredCoachmark({ personId, enabled, onActiveChange }
 
   useEffect(() => {
     if (!enabled) return
-    const key = `empowered-coachmark-${personId}`
+    const key = `empowered-coachmark-v2-${personId}`
     if (localStorage.getItem(key)) return
     const t = setTimeout(() => {
       setShow(true)
@@ -42,8 +42,10 @@ export default function EmpoweredCoachmark({ personId, enabled, onActiveChange }
           className="rounded-xl border px-4 py-2.5 text-center"
           style={{
             borderColor: 'var(--empower)',
-            background: 'rgba(20,27,61,.97)',
-            boxShadow: '0 0 28px -6px rgba(240,114,159,.6)',
+            background: '#0E1430',
+            backdropFilter: 'blur(10px)',
+            WebkitBackdropFilter: 'blur(10px)',
+            boxShadow: '0 8px 28px -4px rgba(0,0,0,.7), 0 0 28px -6px rgba(240,114,159,.6)',
           }}
         >
           <p className="text-xs font-bold tracking-wide" style={{ color: 'var(--empower)' }}>✦ You&rsquo;re empowered</p>
