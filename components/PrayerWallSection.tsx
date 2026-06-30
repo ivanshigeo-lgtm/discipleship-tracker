@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
-import { getPrayerLifeForPerson, getConstellationPrayerRequests, getPeople, addPraise, addPrayerRequest } from '../lib/supabaseQueries'
+import { getPrayerLifeForPerson, getConstellationPrayerRequests, getPeople, addPraise, addPrayerRequest, deletePrayerRequest } from '../lib/supabaseQueries'
 import PersonSearchSelect from './PersonSearchSelect'
 import type { PrayerRequest, Person, Stage } from '../types/database'
 
@@ -25,12 +25,32 @@ type GroupedRequests = {
   requests: PrayerRequest[]
 }
 
+function DeleteBtn({ id, onDelete }: { id: string; onDelete?: (id: string) => void }) {
+  if (!onDelete) return null
+  return (
+    <button
+      type="button"
+      onClick={e => { e.stopPropagation(); onDelete(id) }}
+      title="Delete"
+      aria-label="Delete prayer request"
+      className="shrink-0 rounded p-0.5 text-[var(--fg-3)] opacity-0 transition-colors hover:bg-[rgba(240,114,159,.15)] hover:text-[var(--danger)] group-hover:opacity-100"
+    >
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+        <line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" />
+      </svg>
+    </button>
+  )
+}
+
 function PrayerCard({
   group,
   onClick,
+  onDelete,
 }: {
   group: GroupedRequests
   onClick?: () => void
+  onDelete?: (id: string) => void
 }) {
   const { person, requests } = group
   const stageColor = person ? STAGE_COLORS[person.current_stage] : 'var(--fg-3)'
@@ -75,9 +95,10 @@ function PrayerCard({
           </div>
           <ul className="mt-1.5 space-y-1">
             {requests.map(req => (
-              <li key={req.id} className="flex items-start gap-1.5 text-xs text-[var(--fg-2)]">
+              <li key={req.id} className="group flex items-start gap-1.5 text-xs text-[var(--fg-2)]">
                 <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-[var(--engage)]" />
-                <span className="line-clamp-2">{req.media_url && <span title="Has a video">🎥 </span>}{req.request}</span>
+                <span className="line-clamp-2 flex-1">{req.media_url && <span title="Has a video">🎥 </span>}{req.request}</span>
+                <DeleteBtn id={req.id} onDelete={onDelete} />
               </li>
             ))}
           </ul>
@@ -90,9 +111,11 @@ function PrayerCard({
 function PraiseCard({
   group,
   onClick,
+  onDelete,
 }: {
   group: GroupedRequests
   onClick?: () => void
+  onDelete?: (id: string) => void
 }) {
   const { person, requests } = group
   const stageColor = person ? STAGE_COLORS[person.current_stage] : 'var(--fg-3)'
@@ -139,11 +162,14 @@ function PraiseCard({
           </div>
           <ul className="mt-1.5 space-y-1">
             {requests.map(req => (
-              <li key={req.id} className="text-xs">
-                <span className={req.is_praise ? 'text-[var(--fg-2)]' : 'text-[var(--fg-3)] line-through'}>{req.media_url && <span title="Has a video">🎥 </span>}{req.request}</span>
-                {req.answer_notes && (
-                  <span className="ml-1 text-[var(--establish)]">— {req.answer_notes}</span>
-                )}
+              <li key={req.id} className="group flex items-start gap-1.5 text-xs">
+                <span className="flex-1">
+                  <span className={req.is_praise ? 'text-[var(--fg-2)]' : 'text-[var(--fg-3)] line-through'}>{req.media_url && <span title="Has a video">🎥 </span>}{req.request}</span>
+                  {req.answer_notes && (
+                    <span className="ml-1 text-[var(--establish)]">— {req.answer_notes}</span>
+                  )}
+                </span>
+                <DeleteBtn id={req.id} onDelete={onDelete} />
               </li>
             ))}
           </ul>
@@ -243,6 +269,15 @@ export default function PrayerWallSection({
       }))
       .sort((a, b) => b.requests.length - a.requests.length)
   }, [answeredRequests, peopleById])
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Delete this prayer request? This cannot be undone.')) return
+    const prev = requests
+    setRequests(rs => rs.filter(r => r.id !== id)) // optimistic
+    const { error } = await deletePrayerRequest(id)
+    if (error) { setRequests(prev); alert('Could not delete. Please try again.'); return }
+    onChanged?.()
+  }
 
   const handleAddPraise = async () => {
     if (!praisePersonId || !praiseText.trim()) return
@@ -434,6 +469,7 @@ export default function PrayerWallSection({
                         ? () => onPersonClick(group.person!)
                         : undefined
                     }
+                    onDelete={handleDelete}
                   />
                 ))}
               </div>
@@ -462,6 +498,7 @@ export default function PrayerWallSection({
                         ? () => onPersonClick(group.person!)
                         : undefined
                     }
+                    onDelete={handleDelete}
                   />
                 ))}
               </div>
