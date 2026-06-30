@@ -26,6 +26,7 @@ export default function TestimonyModal({
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null)
   const [recordedObjectUrl, setRecordedObjectUrl] = useState('')
   const [recordSecs, setRecordSecs] = useState(0)
+  const [vidDiag, setVidDiag] = useState('')
 
   const liveVideoRef = useRef<HTMLVideoElement>(null)
   const reviewVideoRef = useRef<HTMLVideoElement>(null)
@@ -95,6 +96,7 @@ export default function TestimonyModal({
       const url = URL.createObjectURL(blob)
       setRecordedBlob(blob)
       setRecordedObjectUrl(url)
+      setVidDiag(`recorded ${(blob.size / 1024 / 1024).toFixed(2)} MB · ${blob.type || 'no type'}`)
       setRecordState('review')
     }
     recorder.start(250)
@@ -352,8 +354,12 @@ export default function TestimonyModal({
                   preload="auto"
                   className="w-full rounded-lg bg-black"
                   style={{ minHeight: 200 }}
-                  onLoadedData={e => { e.currentTarget.play().catch(() => {}) }}
+                  onLoadedData={e => { setVidDiag(d => `${d} · loaded ${e.currentTarget.videoWidth}×${e.currentTarget.videoHeight}`); e.currentTarget.play().catch(() => {}) }}
+                  onError={e => { const c = e.currentTarget.error; setVidDiag(d => `${d} · PLAYBACK ERROR code ${c?.code} ${c?.message || ''}`) }}
                 />
+                {vidDiag && (
+                  <p className="mt-1 text-[10px] leading-snug text-[var(--fg-3)]">{vidDiag}</p>
+                )}
                 <div className="mt-2 flex gap-2">
                   <button
                     type="button"
