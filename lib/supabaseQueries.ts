@@ -1108,6 +1108,31 @@ export const getGroupSharedSoaps = async (personId: string, limit = 20) => {
 const SHARED_PRAYER_COLS = 'id, person_id, request, is_praise, status, answer_notes, visibility, created_at, people(name)'
 
 // Prayers/praises a coach's disciples shared with their coach (visibility='coach').
+// ── Per-viewer archive of shared SOAPs (hide from my feed; never deletes) ──────
+export const getArchivedSoapIds = async (personId: string) => {
+  const { data, error } = await supabase
+    .from('soap_archives')
+    .select('soap_journal_id')
+    .eq('person_id', personId)
+  return { data: (data ?? []).map(r => r.soap_journal_id as string), error }
+}
+
+export const archiveSoap = async (personId: string, soapJournalId: string) => {
+  const { error } = await supabase
+    .from('soap_archives')
+    .upsert({ person_id: personId, soap_journal_id: soapJournalId }, { onConflict: 'person_id,soap_journal_id', ignoreDuplicates: true })
+  return { error }
+}
+
+export const unarchiveSoap = async (personId: string, soapJournalId: string) => {
+  const { error } = await supabase
+    .from('soap_archives')
+    .delete()
+    .eq('person_id', personId)
+    .eq('soap_journal_id', soapJournalId)
+  return { error }
+}
+
 // Prayers/praises shared to the whole constellation (GBC).
 export const getConstellationSharedPrayers = async (limit = 30) => {
   const { data, error } = await supabase
@@ -1132,6 +1157,9 @@ export const getCoachSharedPrayers = async (coachPersonId: string, limit = 30) =
     .select(SHARED_PRAYER_COLS)
     .eq('visibility', 'coach')
     .in('person_id', ids)
+    // Only prayers a disciple AUTHORED and sent up — not the coach's own wall
+    // prayers (which they created for the people they pray for).
+    .neq('created_by_person_id', coachPersonId)
     .order('created_at', { ascending: false })
     .limit(limit)
   return { data, error }
