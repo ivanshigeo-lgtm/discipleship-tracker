@@ -457,24 +457,6 @@ export default function MyJourneyPage() {
             </span>
             <button
               type="button"
-              onClick={() => { setMsgCenterOpen(true); setUnreadMsgCount(0) }}
-              className="relative flex items-center gap-1.5 rounded-full border border-[var(--line-2)] px-3 py-1 text-xs font-medium text-[var(--fg-2)] hover:border-[var(--gbm-cobalt-bright)] hover:text-[var(--fg-1)]"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-              </svg>
-              Messages
-              {unreadMsgCount > 0 && (
-                <span
-                  className="flex h-4 min-w-[1rem] items-center justify-center rounded-full px-1 text-[9px] font-bold"
-                  style={{ background: 'var(--establish)', color: 'var(--void)' }}
-                >
-                  {unreadMsgCount}
-                </span>
-              )}
-            </button>
-            <button
-              type="button"
               disabled={signingOut}
               onClick={async () => {
                 if (signingOut) return
@@ -516,24 +498,6 @@ export default function MyJourneyPage() {
             <h1 className="text-3xl sm:text-4xl" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>
               {profile.name}
             </h1>
-            {soapStreak > 0 && (
-              <span
-                className="rounded-full border px-2.5 py-1 text-[11px] font-bold"
-                title="Longest SOAP streak"
-                style={{ borderColor: 'rgba(54,214,195,.4)', background: 'rgba(54,214,195,.12)', color: 'var(--establish)' }}
-              >
-                ✦ {soapStreak}d best
-              </span>
-            )}
-            {currentStreak > 0 && (
-              <span
-                className="rounded-full border px-2.5 py-1 text-[11px] font-bold"
-                title="Current SOAP streak"
-                style={{ borderColor: 'rgba(244,182,80,.4)', background: 'rgba(244,182,80,.12)', color: '#F4B650' }}
-              >
-                ✦ {currentStreak}d now
-              </span>
-            )}
           </div>
           <p className="mt-1 text-sm text-[var(--fg-3)]">
             {fullCircle ? (
@@ -548,16 +512,19 @@ export default function MyJourneyPage() {
 
           {/* today's invitation */}
           <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-            {!journeyData?.hasSoapToday ? (
-              <button type="button" onClick={() => setActiveModal('soap')} className="cn-btn cn-btn-primary">
-                ✦ Open today&rsquo;s SOAP
-              </button>
-            ) : (
-              <p className="text-xs font-semibold" style={{ color: 'var(--establish)' }}>
-                ✦ You&rsquo;ve been in the Word today
-              </p>
+            <button type="button" onClick={() => setActiveModal('soap')} className="cn-btn cn-btn-primary">
+              ✦ Today&rsquo;s SOAP
+            </button>
+            {soapStreak > 0 && (
+              <span
+                className="rounded-full border px-2.5 py-2 text-[11px] font-bold"
+                title={`Longest ${soapStreak}d · current ${currentStreak}d`}
+                style={{ borderColor: 'rgba(54,214,195,.4)', background: 'rgba(54,214,195,.12)', color: 'var(--establish)' }}
+              >
+                ✦ {soapStreak}d best{currentStreak > 0 ? ` · ${currentStreak}d now` : ''}
+              </span>
             )}
-            <button type="button" onClick={() => setActiveModal('prayer')} className="cn-btn cn-btn-ghost">
+            <button type="button" onClick={() => setActiveModal('prayer')} className="cn-btn cn-btn-primary">
               ✦ Today&rsquo;s Prayer / Praise
             </button>
           </div>
