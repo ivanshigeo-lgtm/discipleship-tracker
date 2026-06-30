@@ -795,9 +795,11 @@ export const upsertGroupAttendance = async (
 
 // ==================== DISCIPLESHIP CONNECTIONS ====================
 export const getDiscipleshipConnections = async (disciplerPersonId: string) => {
+  // Pull each disciple's actual current_stage too, so the Engage steps reflect
+  // real progress (not the often-stale connection status).
   const { data, error } = await supabase
     .from('discipleship_connections')
-    .select('*')
+    .select('*, disciple:people!disciple_person_id(current_stage)')
     .eq('discipler_person_id', disciplerPersonId)
     .order('created_at', { ascending: true })
   return { data, error }

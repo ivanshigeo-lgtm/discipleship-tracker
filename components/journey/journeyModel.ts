@@ -150,9 +150,15 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
    * records the COACH's work and deliberately does not light this quadrant.
    * It stays blank until this disciple engages someone new.
    */
+  // Derive from each disciple's REAL stage, not the (often-stale) connection
+  // status. One2One is the Establish tool, so a disciple in Establish is being
+  // walked through it; one who has moved past Establish (Equip+) has been
+  // established. We also honor the legacy status field as a fallback.
+  const STAGE_RANK: Record<Stage, number> = { Establish: 1, Equip: 2, Empower: 3, Engage: 4 }
+  const rankOf = (c: DiscipleshipConnection) => (c.disciple?.current_stage ? STAGE_RANK[c.disciple.current_stage] : 0)
   const identified = d.disciples.length
-  const started = d.disciples.filter(c => c.status === 'One2One Started' || c.status === 'Actively Discipling').length
-  const discipling = d.disciples.filter(c => c.status === 'Actively Discipling').length
+  const started = d.disciples.filter(c => rankOf(c) >= 1 || c.status === 'One2One Started' || c.status === 'Actively Discipling').length
+  const discipling = d.disciples.filter(c => rankOf(c) >= 2 || c.status === 'Actively Discipling').length
 
   const engage: JourneyStep[] = [
     {
@@ -169,7 +175,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
     {
       id: 'start-one2one',
       title: 'Coach One2One',
-      detail: started > 0 ? 'A new journey has begun' : 'Hear their story. Share yours.',
+      detail: started > 0 ? `You're walking ${started} ${started === 1 ? 'person' : 'people'} through One2One` : 'Hear their story. Share yours.',
       completed: started > 0,
       progress: started > 0 ? 1 : 0,
       action: 'celebrate',
@@ -179,8 +185,8 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
       title: 'Establish Them',
       detail:
         discipling > 0
-          ? 'A new star is being lit through you'
-          : 'Disciple them through their own journey.',
+          ? `${discipling} ${discipling === 1 ? 'person has' : 'people have'} completed Establish through you`
+          : 'Walk a disciple all the way through the Establish stage.',
       completed: discipling > 0,
       progress: discipling > 0 ? 1 : 0,
       action: 'celebrate',

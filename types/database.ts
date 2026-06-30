@@ -150,6 +150,8 @@ export type DiscipleshipConnection = {
   status: 'Identified' | 'One2One Started' | 'Actively Discipling'
   created_at: string
   updated_at: string
+  // The disciple's actual journey stage (joined), for deriving Engage progress.
+  disciple?: { current_stage: Stage } | null
 }
 
 export type SoapJournal = {
