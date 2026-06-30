@@ -5,6 +5,7 @@ import {
   getPrayerRequestsByPerson,
   getEngagementsByPerson,
   addPrayerRequest,
+  getPendingLevelSignoffs,
 } from '../../lib/supabaseQueries'
 import type { Engagement, PrayerRequest, Stage, ShareVisibility } from '../../types/database'
 import type { JourneyLevel, JourneyStep } from './journeyModel'
@@ -302,6 +303,8 @@ export default function JourneyMenu({
   onStepToggle,
   onRequestSignoff,
   soapStreak = 0,
+  currentStreak = 0,
+  unreadCount = 0,
 }: {
   personId: string
   levels: JourneyLevel[]
@@ -311,11 +314,57 @@ export default function JourneyMenu({
   onStepToggle?: (step: JourneyStep) => void
   onRequestSignoff?: (stage: string) => void
   soapStreak?: number
+  currentStreak?: number
+  unreadCount?: number
 }) {
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState<PanelKind | null>(null)
   const [panel, setPanel] = useState<PanelKind | null>(null)
   const [supplemental, setSupplemental] = useState<Supplemental | null>(null)
+
+  // Counts for the menu badges (fetched when the drawer first opens).
+  const [counts, setCounts] = useState<{ eng7: number; prayerTotal: number; prayerAnswered: number; signoffs: number } | null>(null)
+  useEffect(() => {
+    if (!open || counts || !personId) return
+    let cancelled = false
+    ;(async () => {
+      const [engRes, prayerRes, signoffRes] = await Promise.all([
+        getEngagementsByPerson(personId),
+        getPrayerRequestsByPerson(personId),
+        getPendingLevelSignoffs(personId),
+      ])
+      if (cancelled) return
+      const today = new Date(); today.setHours(0, 0, 0, 0)
+      const in7 = new Date(today); in7.setDate(today.getDate() + 7)
+      const iso = (d: Date) => d.toISOString().split('T')[0]
+      const eng7 = ((engRes.data as { follow_up_date: string | null; status: string }[]) ?? [])
+        .filter(e => e.status !== 'Completed' && e.follow_up_date && e.follow_up_date >= iso(today) && e.follow_up_date <= iso(in7)).length
+      const prayers = (prayerRes.data as { status: string }[]) ?? []
+      const prayerTotal = prayers.length
+      const prayerAnswered = prayers.filter(p => p.status === 'Answered').length
+      const signoffs = (signoffRes.data as unknown[] | null)?.length ?? 0
+      setCounts({ eng7, prayerTotal, prayerAnswered, signoffs })
+    })()
+    return () => { cancelled = true }
+  }, [open, counts, personId])
+
+  // Badge text + hover tooltip per menu item.
+  const badgeFor = (id: PanelKind): { text: string; title: string } | null => {
+    if (id === 'Establish' || id === 'Equip' || id === 'Empower' || id === 'Engage') {
+      const lvl = levels.find(l => l.stage === id)
+      if (!lvl) return null
+      const done = lvl.steps.filter(s => s.completed).length
+      return { text: `${done}/${lvl.steps.length}`, title: `${id}: steps completed of total` }
+    }
+    if (id === 'engagements') return { text: `${counts?.eng7 ?? 0}`, title: 'Meetings in the next 7 days' }
+    if (id === 'message') {
+      const so = counts?.signoffs ?? 0
+      return { text: so > 0 ? `${unreadCount}+${so}` : `${unreadCount}`, title: 'New messages + sign-off requests' }
+    }
+    if (id === 'prayer') return { text: `${counts?.prayerTotal ?? 0}/${counts?.prayerAnswered ?? 0}`, title: 'Prayers / answered' }
+    if (id === 'soaps') return { text: `${currentStreak}/${soapStreak}`, title: 'Current streak / longest streak (days)' }
+    return null
+  }
 
   const handleItem = (id: PanelKind) => {
     setActive(id)
@@ -409,14 +458,19 @@ export default function JourneyMenu({
                       }}
                     />
                     <span className={`flex-1 ${isActive ? 'font-medium' : ''}`}>{item.label}</span>
-                    {item.id === 'soaps' && soapStreak > 0 && (
-                      <span
-                        className="ml-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold"
-                        style={{ background: 'rgba(244,182,80,.18)', color: '#F4B650', border: '1px solid rgba(244,182,80,.30)' }}
-                      >
-                        ⚡ {soapStreak}d
-                      </span>
-                    )}
+                    {(() => {
+                      const b = badgeFor(item.id)
+                      if (!b) return null
+                      return (
+                        <span
+                          title={b.title}
+                          className="ml-1 cursor-help rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums"
+                          style={{ background: `${item.dot}22`, color: item.dot, border: `1px solid ${item.dot}55` }}
+                        >
+                          {b.text}
+                        </span>
+                      )
+                    })()}
                   </button>
                 )
               })}

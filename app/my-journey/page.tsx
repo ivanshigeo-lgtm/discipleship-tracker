@@ -736,6 +736,8 @@ export default function MyJourneyPage() {
         onStepToggle={handleStepToggle}
         onRequestSignoff={handleRequestSignoff}
         soapStreak={soapStreak}
+        currentStreak={currentStreak}
+        unreadCount={unreadMsgCount}
       />
 
       {/* Message Center */}
