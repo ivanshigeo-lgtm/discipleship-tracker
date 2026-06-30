@@ -13,6 +13,7 @@ import NeedAttentionSection from '../../components/NeedAttentionSection'
 import SignoffRequestsSection from '../../components/SignoffRequestsSection'
 import GroupJoinRequests from '../../components/GroupJoinRequests'
 import MeetingInvites from '../../components/MeetingInvites'
+import NewMeetingModal from '../../components/NewMeetingModal'
 import SharedSoapFeed from '../../components/SharedSoapFeed'
 import PointsOfActionSection from '../../components/PointsOfActionSection'
 import PrayerWallSection from '../../components/PrayerWallSection'
@@ -277,6 +278,7 @@ export default function DiscipleshipTracker() {
 
   // Add person
   const [showAddPerson, setShowAddPerson] = useState(false)
+  const [showNewMeeting, setShowNewMeeting] = useState(false)
   const [newPersonName, setNewPersonName] = useState('')
 
   // Message center
@@ -808,6 +810,14 @@ export default function DiscipleshipTracker() {
                       </div>
                     )}
                   </div>
+                  {/* New meeting — pick everyone from scratch */}
+                  <button
+                    type="button"
+                    onClick={() => setShowNewMeeting(true)}
+                    className="h-8 rounded-full border border-[var(--line-2)] px-3 text-xs font-semibold text-[var(--fg-1)] hover:border-[var(--gbm-cobalt-bright)]"
+                  >
+                    + New meeting
+                  </button>
                   {/* Add a new person */}
                   <button
                     type="button"
@@ -976,6 +986,14 @@ export default function DiscipleshipTracker() {
           </div>
           <AddPersonForm initialName={newPersonName} onPersonAdded={() => { setRefreshKey(p => p + 1); setShowAddPerson(false); setNewPersonName('') }} />
         </div>
+      )}
+
+      {/* ── New meeting modal ── */}
+      {showNewMeeting && (
+        <NewMeetingModal
+          onClose={() => setShowNewMeeting(false)}
+          onCreated={() => setRefreshKey(p => p + 1)}
+        />
       )}
 
       {/* ── Person Profile modal ── */}
