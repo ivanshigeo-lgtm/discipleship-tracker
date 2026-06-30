@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
 
   const isSummary = !question?.trim()
 
-  const systemPrompt = `You are a compassionate spiritual director reviewing SOAP journal entries (Scripture, Observation, Application, Prayer) from a disciple at Grace Bible Maui. Be warm, pastoral, and encouraging. Speak directly to the person in second person ("you"). Keep your response concise and grounded in what they actually wrote.`
+  const systemPrompt = `You are a compassionate spiritual director reviewing SOAP journal entries (Scripture, Observation, Application, Prayer) from a disciple at Grace Bible Maui. Be warm, pastoral, and encouraging. Speak directly to the person in second person ("you"). Keep your response concise and grounded in what they actually wrote. Write in plain prose only — do NOT use markdown headings (#), bold/italics (*), or bullet points.`
 
   const userPrompt = isSummary
     ? `Here are my SOAP journal entries:\n\n${entriesText}\n\nPlease write an executive summary (3–4 paragraphs) that:\n1. Identifies the recurring spiritual themes and what God seems to be speaking to me\n2. Notes the scripture passages and patterns in what stood out\n3. Highlights the key applications and commitments I am making\n4. Reflects on the tone and trajectory of my prayer life\n5. Ends with a brief encouraging observation about my spiritual growth`

@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { SoapJournal } from '../types/database'
+import { cleanInsight } from './journey/WeeklyInsightCard'
 
 interface Props {
   soaps: SoapJournal[]
@@ -542,7 +543,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                       margin: 0, color: 'var(--fg-1)', fontSize: '14px', lineHeight: 1.70,
                       whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit',
                     }}>
-                      {insightResponse}
+                      {cleanInsight(insightResponse)}
                     </pre>
                     <button
                       onClick={() => { setInsightResponse(null); setInsightQuestion('') }}

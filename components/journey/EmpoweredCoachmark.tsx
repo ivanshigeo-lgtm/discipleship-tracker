@@ -2,16 +2,16 @@
 
 import { useEffect, useState } from 'react'
 
-// Shown once, the first time someone lands on My Journey as an empowered coach:
-// a little pointer up at the "My Constellations" toggle, so they know the coach
-// dashboard is now theirs. It bobs to draw the eye, then fades away.
+// Shown once per sign-in, the first time someone lands on My Journey as an
+// empowered coach: a pointer up at the "My Constellations" toggle so they know
+// the coach dashboard is now theirs. Rendered FIXED at the viewport (anchored to
+// the toggle's real position) so the page's star text never renders over it.
 export default function EmpoweredCoachmark({ personId, enabled, onActiveChange }: { personId: string; enabled: boolean; onActiveChange?: (active: boolean) => void }) {
   const [show, setShow] = useState(false)
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
 
   useEffect(() => {
     if (!enabled) return
-    // Once per sign-in: sessionStorage resets each new session, and sign-out
-    // clears it, so this re-appears every time you sign in and land here.
     const key = `empowered-coachmark-${personId}`
     if (sessionStorage.getItem(key)) return
     const t = setTimeout(() => {
@@ -27,13 +27,31 @@ export default function EmpoweredCoachmark({ personId, enabled, onActiveChange }
     return () => clearTimeout(t)
   }, [show])
 
-  // Let the page glow the toggle while the coachmark is up.
+  // Track the toggle's position so the pointer always sits right under it.
+  useEffect(() => {
+    if (!show) return
+    const measure = () => {
+      const el = document.getElementById('my-constellations-toggle')
+      if (el) {
+        const r = el.getBoundingClientRect()
+        setPos({ x: r.left + r.width / 2, y: r.bottom + 10 })
+      }
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    window.addEventListener('scroll', measure, true)
+    return () => {
+      window.removeEventListener('resize', measure)
+      window.removeEventListener('scroll', measure, true)
+    }
+  }, [show])
+
   useEffect(() => { onActiveChange?.(show) }, [show, onActiveChange])
 
-  if (!show) return null
+  if (!show || !pos) return null
 
   return (
-    <div className="absolute left-1/2 top-full z-[90] mt-2 w-max -translate-x-1/2">
+    <div className="fixed z-[200] -translate-x-1/2" style={{ left: pos.x, top: pos.y }}>
       <div className="jy-coach-bob flex flex-col items-center">
         {/* arrow pointing up at the toggle */}
         <div
@@ -45,7 +63,6 @@ export default function EmpoweredCoachmark({ personId, enabled, onActiveChange }
           style={{
             borderColor: 'var(--empower)',
             backgroundColor: '#0B1024',
-            opacity: 1,
             boxShadow: '0 12px 32px -6px rgba(0,0,0,.85), 0 0 24px -8px rgba(240,114,159,.55)',
           }}
         >

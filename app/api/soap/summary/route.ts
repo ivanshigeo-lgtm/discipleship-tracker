@@ -60,7 +60,9 @@ Please provide a brief, encouraging summary (3-4 sentences) that:
 2. Highlights growth or insights from their observations/applications
 3. Offers a gentle word of encouragement for their spiritual journey
 
-Keep the tone warm and pastoral, like a caring mentor. Be specific to what they actually wrote - reference their actual scriptures or observations when possible.`,
+Keep the tone warm and pastoral, like a caring mentor. Be specific to what they actually wrote - reference their actual scriptures or observations when possible.
+
+Write in plain, warm prose only. Do NOT use any markdown — no headings (#), bold/italics (*), bullet points, or a title line. Just a few flowing sentences.`,
         },
       ],
     })
