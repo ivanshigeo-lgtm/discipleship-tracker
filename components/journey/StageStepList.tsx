@@ -26,12 +26,14 @@ export function StepRow({
   const toggleable = !locked && !!STEP_CHECKLIST[step.id] && !!onToggle
   const actionable =
     !locked &&
+    // message-coach and testimony stay clickable even when complete — so you can
+    // always (re)record or watch your 2-min miracle, or message your coach.
     (step.action === 'message-coach' ||
+      step.action === 'testimony' ||
       (!step.completed &&
         (step.action === 'coach-code' ||
           step.action === 'join-group' ||
           step.action === 'soap' ||
-          step.action === 'testimony' ||
           step.action === 'self-confirm')))
 
   const boxStyle = step.completed
@@ -82,6 +84,8 @@ export function StepRow({
               ? 'Join →'
               : step.action === 'self-confirm'
               ? 'Mark it →'
+              : step.action === 'testimony'
+              ? (step.completed ? 'Watch / re-record →' : 'Record →')
               : '→'}
           </span>
         )}

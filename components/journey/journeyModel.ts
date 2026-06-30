@@ -27,7 +27,7 @@ export const E_VERSES: Record<Stage, { text: string; ref: string }> = {
 export const E_TAGLINES: Record<Stage, string> = {
   Engage: 'Go — engage someone new, as you were once engaged.',
   Establish: 'Put down roots — in church, in the Word, in the faith.',
-  Equip: 'Be sharpened to serve, lead, and tell your story.',
+  Equip: 'Be sharpened to serve, lead, and share your 2-minute miracle.',
   Empower: 'The light you received becomes light you give.',
 }
 
@@ -46,7 +46,7 @@ export const STEP_CHECKLIST: Record<string, { stage: Stage; label: string; categ
   one2one: { stage: 'Establish', label: 'Completed One2One', category: 'Tool' },
   'church-community': { stage: 'Establish', label: 'Completed Church Community', category: 'Tool' },
   'making-disciples': { stage: 'Equip', label: 'Completed Making Disciples', category: 'Tool' },
-  testimony: { stage: 'Equip', label: 'Shared Their Story', category: 'Action Step' },
+  testimony: { stage: 'Equip', label: 'Shared Their 2min Miracle', category: 'Action Step' },
   'empowering-leaders': { stage: 'Empower', label: 'Completed Empowering Leaders', category: 'Tool' },
 }
 
@@ -60,7 +60,7 @@ export const STEP_DESCRIPTIONS: Record<string, string> = {
   one2one: 'Walk the One2One booklet with your coach — the foundations of following Jesus.',
   'church-community': 'Learn what it means to belong to the body of Christ.',
   'making-disciples': 'Journey through the Making Disciples booklet — learn to help others follow Jesus.',
-  testimony: 'Prepare and share your two-minute testimony — your story becomes light for others.',
+  testimony: 'Record your two-minute miracle — your story becomes light for others.',
   'empowering-leaders': 'Be equipped to raise up and release new leaders.',
   identify: 'Look around your world — Start a conversation, Ask questions, Listen, Tell your story.',
   'start-one2one': 'Begin walking someone through One2One, as you were walked through it.',
@@ -289,10 +289,10 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
     },
     {
       id: 'testimony',
-      title: 'Your Story',
+      title: 'Your 2min Miracle',
       detail: hasTestimony
-        ? 'Your two-minute testimony shines in the constellation.'
-        : 'Record or write your two-minute testimony — your story becomes light for others.',
+        ? 'Your two-minute miracle shines in the constellation.'
+        : 'Record your two-minute miracle — your story becomes light for others.',
       completed: stepDone(d.checklist, 'testimony', hasTestimony),
       progress: stepDone(d.checklist, 'testimony', hasTestimony) ? 1 : 0,
       action: 'testimony',

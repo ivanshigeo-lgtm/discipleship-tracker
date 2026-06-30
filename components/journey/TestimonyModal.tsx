@@ -264,12 +264,12 @@ export default function TestimonyModal({
         className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-[var(--r-xl)] border border-[var(--line-2)] bg-[var(--indigo)] p-6"
         style={{ boxShadow: 'var(--elev-2)' }}
       >
-        <div className="cn-label" style={{ color: 'var(--equip)' }}>Equip · your story</div>
+        <div className="cn-label" style={{ color: 'var(--equip)' }}>Equip · your 2min miracle</div>
         <h2 className="mt-1 text-2xl" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>
-          Tell your story
+          Your 2min Miracle
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-[var(--fg-2)]">
-          Two minutes: who you were, how you met Jesus, who you&rsquo;re becoming. Your story will shine
+          Two minutes: who you were, how you met Jesus, who you&rsquo;re becoming. Your miracle will shine
           in the constellation for anyone to find.
         </p>
 
