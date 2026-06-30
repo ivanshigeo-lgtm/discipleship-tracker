@@ -337,9 +337,11 @@ export default function JourneyMenu({
     if (!open || counts || !personId) return
     let cancelled = false
     ;(async () => {
+      // Badges always reflect "Mine" — never the church-wide GBC view, even for
+      // admins (getPrayerLifeForPerson with isAdmin=false stays scoped to you).
       const [engRes, prayerRes, signoffRes] = await Promise.all([
         getAllEngagements(),
-        getPrayerLifeForPerson(personId, isAdmin),
+        getPrayerLifeForPerson(personId, false),
         getPendingLevelSignoffs(personId),
       ])
       if (cancelled) return
@@ -347,11 +349,11 @@ export default function JourneyMenu({
       const in7 = new Date(today); in7.setDate(today.getDate() + 7)
       const iso = (d: Date) => d.toISOString().split('T')[0]
       const next7Str = iso(in7)
-      // Match NeedAttentionSection exactly: Pending, due on/before +7 (incl.
-      // overdue), and either I'm involved or I'm an admin (sees all).
+      // "Mine": Pending, due on/before +7 (incl. overdue), and I'm involved
+      // (with me or run by me). No admin/GBC override.
       const eng7 = ((engRes.data as { follow_up_date: string | null; status: string; person_id: string; created_by_person_id: string | null }[]) ?? [])
         .filter(e => e.status === 'Pending' && e.follow_up_date && e.follow_up_date <= next7Str
-          && (isAdmin || e.created_by_person_id === personId || e.person_id === personId)).length
+          && (e.created_by_person_id === personId || e.person_id === personId)).length
       const prayers = (prayerRes.data as { status: string }[]) ?? []
       const prayerTotal = prayers.length
       const prayerAnswered = prayers.filter(p => p.status === 'Answered').length

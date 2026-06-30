@@ -458,10 +458,13 @@ export default function DiscipleshipTracker() {
     if (!profile) return
     let cancelled = false
     ;(async () => {
+      // The sidebar badges always reflect "Mine" — your own work — never the
+      // church-wide GBC view, even for admins. (getPrayerLifeForPerson with
+      // isAdmin=false stays scoped to your people + your groups + constellation.)
       const [engRes, aiRes, prayerRes, groupsRes, convRes] = await Promise.all([
         getAllEngagements(),
         getAllActionItems(),
-        getPrayerLifeForPerson(profile.id, isAdmin),
+        getPrayerLifeForPerson(profile.id, false),
         getVictoryGroups(),
         getMyConversations(profile.id),
       ])
@@ -471,7 +474,7 @@ export default function DiscipleshipTracker() {
       const iso = (d: Date) => d.toISOString().split('T')[0]
       const next7Str = iso(in7)
       const involved = (e: { created_by_person_id: string | null; person_id: string }) =>
-        isAdmin || e.created_by_person_id === profile.id || e.person_id === profile.id
+        e.created_by_person_id === profile.id || e.person_id === profile.id
       const engs = (engRes.data as { id: string; status: string; follow_up_date: string | null; created_by_person_id: string | null; person_id: string }[]) ?? []
       const eng7 = engs.filter(e => e.status === 'Pending' && e.follow_up_date && e.follow_up_date <= next7Str && involved(e)).length
       const engById = new Map(engs.map(e => [e.id, e]))
