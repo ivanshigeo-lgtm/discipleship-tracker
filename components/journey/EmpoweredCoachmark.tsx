@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 // Shown once per sign-in, the first time someone lands on My Journey as an
 // empowered coach: a pointer up at the "My Constellations" toggle so they know
@@ -9,6 +10,8 @@ import { useEffect, useState } from 'react'
 export default function EmpoweredCoachmark({ personId, enabled, onActiveChange }: { personId: string; enabled: boolean; onActiveChange?: (active: boolean) => void }) {
   const [show, setShow] = useState(false)
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
 
   useEffect(() => {
     if (!enabled) return
@@ -48,10 +51,12 @@ export default function EmpoweredCoachmark({ personId, enabled, onActiveChange }
 
   useEffect(() => { onActiveChange?.(show) }, [show, onActiveChange])
 
-  if (!show || !pos) return null
+  if (!show || !pos || !mounted) return null
 
-  return (
-    <div className="fixed z-[200] -translate-x-1/2" style={{ left: pos.x, top: pos.y }}>
+  // Portal to <body> so no transformed/positioned ancestor in the header can
+  // trap it behind the page's star content.
+  return createPortal(
+    <div className="fixed z-[300] -translate-x-1/2" style={{ left: pos.x, top: pos.y }}>
       <div className="jy-coach-bob flex flex-col items-center">
         {/* arrow pointing up at the toggle */}
         <div
@@ -79,6 +84,7 @@ export default function EmpoweredCoachmark({ personId, enabled, onActiveChange }
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
