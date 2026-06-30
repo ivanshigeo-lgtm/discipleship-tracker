@@ -9,12 +9,17 @@ import {
   getPrayerLifeForPerson,
   addPrayerRequest,
   getPendingLevelSignoffs,
+  getCoachSharedPrayers,
+  getGroupSharedPrayers,
+  getConstellationSharedPrayers,
+  getCoachSharedSoaps,
+  getGroupSharedSoaps,
+  getSharedSoaps,
 } from '../../lib/supabaseQueries'
 import MeetingInvites from '../MeetingInvites'
 import NewMeetingModal from '../NewMeetingModal'
 import SharedSoapFeed from '../SharedSoapFeed'
 import SharedPrayerFeed from '../SharedPrayerFeed'
-import { ConstellationFeedInline, useConstellationFeed } from './ConstellationRail'
 import type { Engagement, PrayerRequest, Stage, ShareVisibility } from '../../types/database'
 import type { JourneyLevel, JourneyStep } from './journeyModel'
 import { StageStepList } from './StageStepList'
@@ -323,23 +328,44 @@ const NAV: NavSection[] = [
   },
 ]
 
-// ─── Shared With Me — prayers / SOAPs others have shared (constellation + group)
+// ─── Full-screen scrolling page (opened from the menu, scrolled to top) ─────────
+function FullScreenPanel({ title, color, onClose, children }: { title: string; color: string; onClose: () => void; children: React.ReactNode }) {
+  return (
+    <div className="fixed inset-0 z-[80] overflow-y-auto" style={{ background: 'var(--void)' }}>
+      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--line-2)] px-4 py-3 backdrop-blur-md" style={{ background: 'rgba(6,8,20,.9)' }}>
+        <h2 className="text-lg font-semibold" style={{ color, fontFamily: 'var(--font-display)' }}>{title}</h2>
+        <button type="button" onClick={onClose} className="cn-chip">Close</button>
+      </div>
+      <div className="mx-auto max-w-2xl px-4 py-6">{children}</div>
+    </div>
+  )
+}
+
+// ─── Shared With Me — three scoped boxes (me / group / GBC) with unread badges ──
 function SharedWithMePanel({ personId, kind, onClose }: { personId: string; kind: 'prayers' | 'soaps'; onClose: () => void }) {
-  const feedItems = useConstellationFeed()
+  const seen = (scope: string) => `shared-seen-${kind}-${scope}-${personId}`
+  const close = () => {
+    try {
+      const now = new Date().toISOString()
+      ;(['coach', 'group', 'constellation'] as const).forEach(s => localStorage.setItem(seen(s), now))
+    } catch { /* localStorage unavailable */ }
+    onClose()
+  }
   if (kind === 'prayers') {
     return (
-      <Panel title="Prayer Requests" color="#9B80FF" onClose={onClose}>
-        <p className="mb-3 text-xs text-[var(--fg-3)]">Prayer requests shared with you.</p>
-        <SharedPrayerFeed personId={personId} scope="group" />
-      </Panel>
+      <FullScreenPanel title="Prayer Requests" color="#9B80FF" onClose={close}>
+        <SharedPrayerFeed personId={personId} scope="coach"         title="Shared with Me"      seenKey={seen('coach')} showEmpty />
+        <SharedPrayerFeed personId={personId} scope="group"         title="Shared with my Group" seenKey={seen('group')} showEmpty />
+        <SharedPrayerFeed personId={personId} scope="constellation" title="Shared with GBC"      seenKey={seen('constellation')} showEmpty />
+      </FullScreenPanel>
     )
   }
   return (
-    <Panel title="Shared SOAPs" color="#36D6C3" onClose={onClose}>
-      <p className="mb-3 text-xs text-[var(--fg-3)]">SOAP reflections shared with you.</p>
-      <ConstellationFeedInline items={feedItems} />
-      <SharedSoapFeed personId={personId} scope="group" />
-    </Panel>
+    <FullScreenPanel title="Shared SOAPs" color="#36D6C3" onClose={close}>
+      <SharedSoapFeed personId={personId} scope="coach"         title="Shared with Me"      seenKey={seen('coach')} showEmpty />
+      <SharedSoapFeed personId={personId} scope="group"         title="Shared with my Group" seenKey={seen('group')} showEmpty />
+      <SharedSoapFeed personId={personId} scope="constellation" title="Shared with GBC"      seenKey={seen('constellation')} showEmpty />
+    </FullScreenPanel>
   )
 }
 
@@ -380,18 +406,26 @@ export default function JourneyMenu({
   const [tip, setTip] = useState<{ text: string; x: number; y: number } | null>(null)
 
   // Counts for the menu badges (fetched when the drawer first opens).
-  const [counts, setCounts] = useState<{ eng7: number; prayerTotal: number; prayerAnswered: number; signoffs: number } | null>(null)
+  const [counts, setCounts] = useState<{ eng7: number; prayerTotal: number; prayerAnswered: number; signoffs: number; sharedPrayers: number; sharedSoaps: number } | null>(null)
+  // Refetch counts on each fresh open so unread badges reflect what's been viewed.
+  useEffect(() => { if (!open) setCounts(null) }, [open])
   useEffect(() => {
     if (!open || counts || !personId) return
     let cancelled = false
     ;(async () => {
       // Badges always reflect "Mine" — never the church-wide GBC view, even for
       // admins (getPrayerLifeForPerson with isAdmin=false stays scoped to you).
-      const [engRes, prayerRes, signoffRes, confirmedRes] = await Promise.all([
+      const [engRes, prayerRes, signoffRes, confirmedRes, cp, gp, xp, cs, gs, xs] = await Promise.all([
         getAllEngagements(),
         getPrayerLifeForPerson(personId, false),
         getPendingLevelSignoffs(personId),
         getConfirmedEngagementIds(personId),
+        getCoachSharedPrayers(personId),
+        getGroupSharedPrayers(personId),
+        getConstellationSharedPrayers(),
+        getCoachSharedSoaps(personId),
+        getGroupSharedSoaps(personId),
+        getSharedSoaps(20),
       ])
       if (cancelled) return
       const today = new Date(); today.setHours(0, 0, 0, 0)
@@ -408,7 +442,14 @@ export default function JourneyMenu({
       const prayerTotal = prayers.length
       const prayerAnswered = prayers.filter(p => p.status === 'Answered').length
       const signoffs = (signoffRes.data as unknown[] | null)?.length ?? 0
-      setCounts({ eng7, prayerTotal, prayerAnswered, signoffs })
+      // Unread shared material = items newer than the per-scope "seen" timestamp.
+      const unread = (data: unknown, kind: string, scope: string) => {
+        const seen = localStorage.getItem(`shared-seen-${kind}-${scope}-${personId}`) ?? '0'
+        return ((data as { created_at?: string }[]) ?? []).filter(i => (i.created_at ?? '') > seen).length
+      }
+      const sharedPrayers = unread(cp.data, 'prayers', 'coach') + unread(gp.data, 'prayers', 'group') + unread(xp.data, 'prayers', 'constellation')
+      const sharedSoaps = unread(cs.data, 'soaps', 'coach') + unread(gs.data, 'soaps', 'group') + unread(xs.data, 'soaps', 'constellation')
+      setCounts({ eng7, prayerTotal, prayerAnswered, signoffs, sharedPrayers, sharedSoaps })
     })()
     return () => { cancelled = true }
   }, [open, counts, personId, isAdmin])
@@ -428,6 +469,9 @@ export default function JourneyMenu({
     }
     if (id === 'prayer') return { text: `${counts?.prayerTotal ?? 0}/${counts?.prayerAnswered ?? 0}`, title: 'Prayers / answered' }
     if (id === 'soaps') return { text: `${currentStreak}/${soapStreak}`, title: 'Current streak / longest streak (days)' }
+    // Shared sections show a notification badge only when there's unread material.
+    if (id === 'shared-prayers') { const n = counts?.sharedPrayers ?? 0; return n > 0 ? { text: `${n} new`, title: 'New prayer requests shared with you' } : null }
+    if (id === 'shared-soaps')   { const n = counts?.sharedSoaps ?? 0; return n > 0 ? { text: `${n} new`, title: 'New SOAPs shared with you' } : null }
     return null
   }
 

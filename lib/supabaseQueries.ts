@@ -1108,6 +1108,17 @@ export const getGroupSharedSoaps = async (personId: string, limit = 20) => {
 const SHARED_PRAYER_COLS = 'id, person_id, request, is_praise, status, answer_notes, visibility, created_at, people(name)'
 
 // Prayers/praises a coach's disciples shared with their coach (visibility='coach').
+// Prayers/praises shared to the whole constellation (GBC).
+export const getConstellationSharedPrayers = async (limit = 30) => {
+  const { data, error } = await supabase
+    .from('prayer_requests')
+    .select(SHARED_PRAYER_COLS)
+    .eq('visibility', 'constellation')
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  return { data, error }
+}
+
 export const getCoachSharedPrayers = async (coachPersonId: string, limit = 30) => {
   const { data: conns, error: connErr } = await supabase
     .from('discipleship_connections')

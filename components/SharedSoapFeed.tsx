@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getCoachSharedSoaps, getGroupSharedSoaps } from '../lib/supabaseQueries'
+import { getCoachSharedSoaps, getGroupSharedSoaps, getSharedSoaps } from '../lib/supabaseQueries'
 
 type SharedSoap = {
   id: string
@@ -16,36 +16,58 @@ type SharedSoap = {
 
 /*
  * A feed of SOAP journals shared to a scope:
- *  · scope="coach" — entries the coach's disciples shared with their coach.
- *  · scope="group" — entries fellow Grace Group members shared with the group.
+ *  · scope="coach"         — entries the coach's disciples shared with them.
+ *  · scope="group"         — entries fellow Grace Group members shared.
+ *  · scope="constellation" — entries shared with everyone (GBC).
+ * Optionally tracks "unread" against a localStorage timestamp (seenKey).
  */
 export default function SharedSoapFeed({
   personId,
   scope,
   refreshKey,
+  title,
+  subtitle,
+  seenKey,
+  showEmpty = false,
 }: {
   personId: string
-  scope: 'coach' | 'group'
+  scope: 'coach' | 'group' | 'constellation'
   refreshKey?: number
+  title?: string
+  subtitle?: string
+  seenKey?: string
+  showEmpty?: boolean
 }) {
   const [items, setItems] = useState<SharedSoap[]>([])
   const [loading, setLoading] = useState(true)
   const [collapsed, setCollapsed] = useState(false)
+  const [unread, setUnread] = useState(0)
 
   useEffect(() => {
     let cancelled = false
-    const fetcher = scope === 'coach' ? getCoachSharedSoaps : getGroupSharedSoaps
-    fetcher(personId).then(({ data }) => {
-      if (!cancelled) { setItems((data as unknown as SharedSoap[]) ?? []); setLoading(false) }
+    const p =
+      scope === 'coach' ? getCoachSharedSoaps(personId)
+      : scope === 'group' ? getGroupSharedSoaps(personId)
+      : getSharedSoaps(20)
+    Promise.resolve(p).then(({ data }) => {
+      if (cancelled) return
+      const list = (data as unknown as SharedSoap[]) ?? []
+      setItems(list)
+      setLoading(false)
+      if (seenKey) {
+        const lastSeen = localStorage.getItem(seenKey) ?? '0'
+        setUnread(list.filter(i => (i.created_at ?? '') > lastSeen).length)
+      }
     })
     return () => { cancelled = true }
-  }, [personId, scope, refreshKey])
+  }, [personId, scope, refreshKey, seenKey])
 
-  const title = scope === 'coach' ? 'Shared with you' : 'From your Grace Group'
-  const subtitle =
-    scope === 'coach'
-      ? 'SOAP reflections your disciples chose to share with you'
-      : 'SOAP reflections your group has shared'
+  const T = title ?? (scope === 'coach' ? 'Shared with you' : scope === 'group' ? 'From your Grace Group' : 'From the constellation')
+  const S = subtitle ?? (
+    scope === 'coach' ? 'SOAP reflections your disciples chose to share with you'
+    : scope === 'group' ? 'SOAP reflections your group has shared'
+    : 'SOAP reflections shared with everyone'
+  )
 
   if (loading) {
     return (
@@ -54,42 +76,51 @@ export default function SharedSoapFeed({
       </div>
     )
   }
-  if (items.length === 0) return null
+  if (items.length === 0 && !showEmpty) return null
 
   return (
     <section className="cn-card mb-6 p-4">
       <div className="flex items-center gap-3">
-        <h2 className="cn-h3">{title}</h2>
+        <h2 className="cn-h3">{T}</h2>
         <span className="cn-chip !py-0.5 !text-xs">{items.length}</span>
-        <button type="button" onClick={() => setCollapsed(c => !c)} className="ml-auto cn-chip">
-          {collapsed ? 'Expand' : 'Collapse'}
-        </button>
+        {unread > 0 && (
+          <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: 'var(--gbm-cobalt-bright)', color: '#fff' }}>
+            {unread} new
+          </span>
+        )}
+        {items.length > 0 && (
+          <button type="button" onClick={() => setCollapsed(c => !c)} className="ml-auto cn-chip">
+            {collapsed ? 'Expand' : 'Collapse'}
+          </button>
+        )}
       </div>
-      {collapsed ? null : (
-      <>
-      <p className="mb-4 mt-1 text-sm text-[var(--fg-2)]">{subtitle}</p>
-      <div className="space-y-2">
-        {items.map(s => {
-          const body = (s.summary || s.ocr_text || '').trim()
-          return (
-            <div key={s.id} className="rounded-xl border border-[var(--line-1)] bg-[var(--indigo-2)] p-3">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-semibold text-[var(--fg-1)]">{s.people?.name ?? 'A disciple'}</span>
-                <span className="shrink-0 text-[11px] text-[var(--fg-3)]">
-                  {s.journal_date
-                    ? new Date(s.journal_date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-                    : ''}
-                </span>
-              </div>
-              {s.scripture_reference && (
-                <p className="mt-0.5 text-xs font-medium" style={{ color: 'var(--establish)' }}>{s.scripture_reference}</p>
-              )}
-              {body && <p className="mt-1 line-clamp-4 whitespace-pre-wrap text-sm leading-relaxed text-[var(--fg-2)]">{body}</p>}
-            </div>
-          )
-        })}
-      </div>
-      </>
+      {items.length === 0 ? (
+        <p className="mt-1 text-sm text-[var(--fg-3)]">Nothing shared here yet.</p>
+      ) : collapsed ? null : (
+        <>
+          <p className="mb-4 mt-1 text-sm text-[var(--fg-2)]">{S}</p>
+          <div className="space-y-2">
+            {items.map(s => {
+              const body = (s.summary || s.ocr_text || '').trim()
+              return (
+                <div key={s.id} className="rounded-xl border border-[var(--line-1)] bg-[var(--indigo-2)] p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-semibold text-[var(--fg-1)]">{s.people?.name ?? 'A disciple'}</span>
+                    <span className="shrink-0 text-[11px] text-[var(--fg-3)]">
+                      {s.journal_date
+                        ? new Date(s.journal_date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                        : ''}
+                    </span>
+                  </div>
+                  {s.scripture_reference && (
+                    <p className="mt-0.5 text-xs font-medium" style={{ color: 'var(--establish)' }}>{s.scripture_reference}</p>
+                  )}
+                  {body && <p className="mt-1 line-clamp-4 whitespace-pre-wrap text-sm leading-relaxed text-[var(--fg-2)]">{body}</p>}
+                </div>
+              )
+            })}
+          </div>
+        </>
       )}
     </section>
   )
