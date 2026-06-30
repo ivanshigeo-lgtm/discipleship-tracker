@@ -27,7 +27,7 @@ import BadgeCelebration from '../../components/journey/BadgeCelebration'
 import Milestones from '../../components/journey/Milestones'
 import SoapEntryModal from '../../components/journey/SoapEntryModal'
 import TestimonyModal from '../../components/journey/TestimonyModal'
-import ConstellationRail, { ConstellationFeedInline, useConstellationFeed } from '../../components/journey/ConstellationRail'
+import ConstellationRail, { useConstellationFeed } from '../../components/journey/ConstellationRail'
 import StoryMusic from '../../components/journey/StoryMusic'
 import MessageCoachModal from '../../components/journey/MessageCoachModal'
 import MessageCenter from '../../components/MessageCenter'
@@ -36,8 +36,6 @@ import SelfConfirmModal, { type SelfConfirmKind } from '../../components/journey
 import JourneyMenu from '../../components/journey/JourneyMenu'
 import EmpoweredCoachmark from '../../components/journey/EmpoweredCoachmark'
 import SoapCalendarSection from '../../components/SoapCalendarSection'
-import SharedSoapFeed from '../../components/SharedSoapFeed'
-import SharedPrayerFeed from '../../components/SharedPrayerFeed'
 import SignoffNotice from '../../components/journey/SignoffNotice'
 
 const INTRO_KEY = 'journey_intro_seen'
@@ -583,18 +581,8 @@ export default function MyJourneyPage() {
         {/* lights you carry */}
         <Milestones badges={badges} />
 
-        {/* shared lights inline (small screens) */}
-        <section className="mt-10">
-          <ConstellationFeedInline items={feedItems} />
-        </section>
-
-        {/* Shared with your Grace Group */}
-        {groups.length > 0 && (
-          <section className="mt-10">
-            <SharedPrayerFeed personId={profile.id} scope="group" />
-            <SharedSoapFeed personId={profile.id} scope="group" />
-          </section>
-        )}
+        {/* "Shared With Me" (constellation + grace group) moved into the side
+            menu — see the Spirit section of JourneyMenu. */}
 
         {/* SOAP journal calendar */}
         <section className="mt-10">

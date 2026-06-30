@@ -12,6 +12,9 @@ import {
 } from '../../lib/supabaseQueries'
 import MeetingInvites from '../MeetingInvites'
 import NewMeetingModal from '../NewMeetingModal'
+import SharedSoapFeed from '../SharedSoapFeed'
+import SharedPrayerFeed from '../SharedPrayerFeed'
+import { ConstellationFeedInline, useConstellationFeed } from './ConstellationRail'
 import type { Engagement, PrayerRequest, Stage, ShareVisibility } from '../../types/database'
 import type { JourneyLevel, JourneyStep } from './journeyModel'
 import { StageStepList } from './StageStepList'
@@ -279,7 +282,7 @@ function SupplementalPanel({ material, onClose }: { material: Supplemental; onCl
 }
 
 // ─── Nav config ───────────────────────────────────────────────────────────────
-type PanelKind = 'Establish' | 'Equip' | 'Empower' | 'Engage' | 'engagements' | 'message' | 'prayer' | 'soaps'
+type PanelKind = 'Establish' | 'Equip' | 'Empower' | 'Engage' | 'engagements' | 'message' | 'prayer' | 'soaps' | 'shared'
 const STAGE_KINDS: PanelKind[] = ['Establish', 'Equip', 'Empower', 'Engage']
 
 type NavSection = {
@@ -309,9 +312,23 @@ const NAV: NavSection[] = [
     items: [
       { id: 'prayer', label: 'Prayer', dot: '#9B80FF' },
       { id: 'soaps',  label: 'SOAPs',  dot: '#36D6C3' },
+      { id: 'shared', label: 'Shared With Me', dot: '#36D6C3' },
     ],
   },
 ]
+
+// ─── Shared With Me — SOAPs/prayers others have shared (constellation + group) ─
+function SharedWithMePanel({ personId, onClose }: { personId: string; onClose: () => void }) {
+  const feedItems = useConstellationFeed()
+  return (
+    <Panel title="Shared With Me" color="#36D6C3" onClose={onClose}>
+      <p className="mb-3 text-xs text-[var(--fg-3)]">SOAPs and prayers others have shared with you.</p>
+      <ConstellationFeedInline items={feedItems} />
+      <SharedPrayerFeed personId={personId} scope="group" />
+      <SharedSoapFeed personId={personId} scope="group" />
+    </Panel>
+  )
+}
 
 // ─── Main export ──────────────────────────────────────────────────────────────
 export default function JourneyMenu({
@@ -562,6 +579,7 @@ export default function JourneyMenu({
           people are routed to the full My Constellations pages instead. */}
       {panel === 'prayer'      && <PrayerPanel       personId={personId} isAdmin={isAdmin} onClose={() => setPanel(null)} />}
       {panel === 'engagements' && <EngagementsPanel  personId={personId} onClose={() => setPanel(null)} />}
+      {panel === 'shared'      && <SharedWithMePanel personId={personId} onClose={() => setPanel(null)} />}
       {supplemental && <SupplementalPanel material={supplemental} onClose={() => setSupplemental(null)} />}
 
       {/* Instant badge tooltip — rendered outside the (transformed) drawer so
