@@ -108,6 +108,9 @@ export type JourneyData = {
   profile: Person
   coach: Person | null
   groups: VictoryGroup[]
+  /* true if this person OWNS (leads) a Grace Group — ownership is independent of
+     membership, so an owner who isn't a listed member still counts. */
+  ownsGroup?: boolean
   soapStreak: number
   soapCount: number
   hasSoapToday: boolean
@@ -140,6 +143,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
   const isConnected = d.coach !== null || Boolean(d.profile.is_admin)
   const inGroup = d.groups.length > 0
   const leadsGroup =
+    Boolean(d.ownsGroup) ||
     d.groups.some(g => g.owner_person_id === d.profile.id) ||
     checklistDone(d.checklist, 'Empower', 'Lead a Grace Group')
   const hasTestimony = Boolean(d.profile.testimony_text || d.profile.testimony_video_url)

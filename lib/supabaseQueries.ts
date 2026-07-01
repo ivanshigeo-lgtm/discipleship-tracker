@@ -1036,6 +1036,16 @@ export const getMyGroups = async (personId: string) => {
   return { data, error }
 }
 
+// Groups this person OWNS (leads), independent of membership — the owner of a
+// group may not be listed as a member of it.
+export const getGroupsOwnedByPerson = async (personId: string) => {
+  const { data, error } = await supabase
+    .from('victory_groups')
+    .select('id')
+    .eq('owner_person_id', personId)
+  return { data, error }
+}
+
 // ==================== MY JOURNEY ====================
 export const getSharedSoaps = async (limit = 12) => {
   const { data, error } = await supabase

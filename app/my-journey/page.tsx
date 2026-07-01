@@ -7,6 +7,7 @@ import LoginPage from '../../components/LoginPage'
 import {
   getMyCoach,
   getMyGroups,
+  getGroupsOwnedByPerson,
   getSoapJournals,
   getSoapStreak,
   getStageChecklistItems,
@@ -123,6 +124,7 @@ export default function MyJourneyPage() {
   const { user, profile, loading, signOut } = useAuth()
   const [coach, setCoach] = useState<Person | null>(null)
   const [groups, setGroups] = useState<VictoryGroup[]>([])
+  const [ownsGroup, setOwnsGroup] = useState(false)
   const [pendingGroupIds, setPendingGroupIds] = useState<string[]>([])
   const [coachmarkActive, setCoachmarkActive] = useState(false)
   const [navConst, setNavConst] = useState(false)
@@ -178,7 +180,7 @@ export default function MyJourneyPage() {
 
   const loadData = useCallback(async () => {
     if (!profile?.id) return
-    const [coachRes, groupsRes, journalsRes, streakRes, checklistRes, disciplesRes, signoffsRes] = await Promise.all([
+    const [coachRes, groupsRes, journalsRes, streakRes, checklistRes, disciplesRes, signoffsRes, ownedRes] = await Promise.all([
       getMyCoach(profile.id),
       getMyGroups(profile.id),
       getSoapJournals(profile.id, 365),
@@ -186,7 +188,9 @@ export default function MyJourneyPage() {
       getStageChecklistItems(profile.id),
       getDiscipleshipConnections(profile.id),
       getLevelSignoffs(profile.id),
+      getGroupsOwnedByPerson(profile.id),
     ])
+    setOwnsGroup(((ownedRes.data as unknown[] | null)?.length ?? 0) > 0)
     if (coachRes.data?.discipler) setCoach(coachRes.data.discipler as Person)
     if (disciplesRes.data) setMyDisciples(disciplesRes.data as DiscipleshipConnection[])
     if (groupsRes.data) {
@@ -245,6 +249,7 @@ export default function MyJourneyPage() {
             profile,
             coach,
             groups,
+            ownsGroup,
             soapStreak,
             soapCount: soapJournals.length,
             hasSoapToday: soapJournals.some(j => j.journal_date === new Date().toISOString().split('T')[0]),
@@ -253,7 +258,7 @@ export default function MyJourneyPage() {
             signoffs,
           }
         : null,
-    [profile, coach, groups, soapStreak, soapJournals, checklistItems, myDisciples, signoffs]
+    [profile, coach, groups, ownsGroup, soapStreak, soapJournals, checklistItems, myDisciples, signoffs]
   )
 
   const levels = useMemo(() => (journeyData ? computeJourney(journeyData) : []), [journeyData])
