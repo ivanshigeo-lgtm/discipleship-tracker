@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
-import { getPrayerLifeForPerson, getConstellationPrayerRequests, getPeople, addPraise, addPrayerRequest, deletePrayerRequest } from '../lib/supabaseQueries'
+import { getPrayerLifeForPerson, getConstellationPrayerRequests, getPeople, addPraise, addPrayerRequest, deletePrayerRequest, markPrayerAnswered } from '../lib/supabaseQueries'
 import PersonSearchSelect from './PersonSearchSelect'
 import type { PrayerRequest, Person, Stage } from '../types/database'
 
@@ -43,14 +43,33 @@ function DeleteBtn({ id, onDelete }: { id: string; onDelete?: (id: string) => vo
   )
 }
 
+function AnswerBtn({ id, onAnswer }: { id: string; onAnswer?: (id: string) => void }) {
+  if (!onAnswer) return null
+  return (
+    <button
+      type="button"
+      onClick={e => { e.stopPropagation(); onAnswer(id) }}
+      title="Mark answered"
+      aria-label="Mark prayer answered"
+      className="shrink-0 rounded p-0.5 text-[var(--fg-3)] opacity-0 transition-colors hover:bg-[rgba(54,214,195,.15)] hover:text-[var(--establish)] group-hover:opacity-100"
+    >
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="20 6 9 17 4 12" />
+      </svg>
+    </button>
+  )
+}
+
 function PrayerCard({
   group,
   onClick,
   onDelete,
+  onAnswer,
 }: {
   group: GroupedRequests
   onClick?: () => void
   onDelete?: (id: string) => void
+  onAnswer?: (id: string) => void
 }) {
   const { person, requests } = group
   const stageColor = person ? STAGE_COLORS[person.current_stage] : 'var(--fg-3)'
@@ -98,6 +117,7 @@ function PrayerCard({
               <li key={req.id} className="group flex items-start gap-1.5 text-xs text-[var(--fg-2)]">
                 <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-[var(--engage)]" />
                 <span className="line-clamp-2 flex-1">{req.media_url && <span title="Has a video">🎥 </span>}{req.request}</span>
+                <AnswerBtn id={req.id} onAnswer={onAnswer} />
                 <DeleteBtn id={req.id} onDelete={onDelete} />
               </li>
             ))}
@@ -276,6 +296,16 @@ export default function PrayerWallSection({
     setRequests(rs => rs.filter(r => r.id !== id)) // optimistic
     const { error } = await deletePrayerRequest(id)
     if (error) { setRequests(prev); alert('Could not delete. Please try again.'); return }
+    onChanged?.()
+  }
+
+  const handleAnswer = async (id: string) => {
+    const prev = requests
+    const today = new Date().toISOString().split('T')[0]
+    // optimistic — moves it from the Prayer Wall to the Praise Wall
+    setRequests(rs => rs.map(r => (r.id === id ? { ...r, status: 'Answered' as const, answered_date: today } : r)))
+    const { error } = await markPrayerAnswered(id)
+    if (error) { setRequests(prev); alert('Could not mark answered. Please try again.'); return }
     onChanged?.()
   }
 
@@ -470,6 +500,7 @@ export default function PrayerWallSection({
                         : undefined
                     }
                     onDelete={handleDelete}
+                    onAnswer={handleAnswer}
                   />
                 ))}
               </div>
