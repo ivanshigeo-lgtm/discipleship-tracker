@@ -28,7 +28,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [downline, setDownline] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
 
-  const fetchProfile = async (userId: string, retries = 2): Promise<boolean> => {
+  const fetchProfile = async (userId: string, email?: string | null, retries = 2): Promise<boolean> => {
     console.log('Fetching profile for auth user:', userId, `(attempt ${3 - retries}/2)`)
 
     try {
@@ -50,7 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error('Profile fetch error:', error)
         if (retries > 0) {
           await new Promise(r => setTimeout(r, 500))
-          return fetchProfile(userId, retries - 1)
+          return fetchProfile(userId, email, retries - 1)
         }
         return false
       }
@@ -71,6 +71,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         return true
       } else {
+        // No profile linked to this auth id. This happens when a person record
+        // is deleted + recreated after the user already signed up (the new
+        // record starts unlinked). Safely relink by matching the user's OWN
+        // confirmed email to an unlinked person record with the same email — a
+        // user can only ever match their own email, so this can't reach anyone
+        // else's account.
+        if (email) {
+          const { data: byEmail } = await supabase
+            .from('people')
+            .select('*')
+            .ilike('email', email)
+            .is('auth_user_id', null)
+            .limit(1)
+          const match = byEmail?.[0] as Person | undefined
+          if (match) {
+            await supabase
+              .from('people')
+              .update({ auth_user_id: userId, updated_at: new Date().toISOString() })
+              .eq('id', match.id)
+            const linked = { ...match, auth_user_id: userId } as Person
+            console.log('Auto-relinked profile by email:', match.id)
+            setProfile(linked)
+            try {
+              const { data: downlineData } = await supabase.rpc('get_downline', { coach_person_id: linked.id })
+              if (downlineData) setDownline(downlineData.map((d: { person_id: string }) => d.person_id))
+            } catch (downlineErr) {
+              console.error('Downline fetch error:', downlineErr)
+            }
+            return true
+          }
+        }
         console.log('No profile found for user')
         setProfile(null)
         setDownline([])
@@ -80,7 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('Profile fetch exception:', err)
       if (retries > 0) {
         await new Promise(r => setTimeout(r, 500))
-        return fetchProfile(userId, retries - 1)
+        return fetchProfile(userId, email, retries - 1)
       }
       return false
     }
@@ -89,7 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshProfile = async () => {
     if (user) {
       try {
-        await fetchProfile(user.id)
+        await fetchProfile(user.id, user.email)
       } catch (err) {
         console.error('Refresh profile error:', err)
       }
@@ -108,7 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (session?.user) {
           // Fetch profile in background - don't block
-          fetchProfile(session.user.id)
+          fetchProfile(session.user.id, session.user.email)
         }
       } catch (err) {
         console.error('Auth init error:', err)
@@ -125,7 +156,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(session?.user ?? null)
         if (session?.user) {
           try {
-            await fetchProfile(session.user.id)
+            await fetchProfile(session.user.id, session.user.email)
           } catch (err) {
             console.error('Profile fetch in auth state change failed:', err)
           }
@@ -145,7 +176,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const { data: { session } } = await supabase.auth.getSession()
           if (session?.user && !profile) {
             console.log('Session exists but no profile - fetching...')
-            await fetchProfile(session.user.id)
+            await fetchProfile(session.user.id, session.user.email)
           }
         } catch (err) {
           console.error('Visibility check error:', err)
