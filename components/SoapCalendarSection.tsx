@@ -165,6 +165,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
 
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [selectedEntryIdx, setSelectedEntryIdx] = useState(0)
+  const [rotating, setRotating] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [ocrLoading, setOcrLoading] = useState(false)
   const [ocrResult, setOcrResult] = useState<string | null>(null)
@@ -1058,6 +1059,25 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                   alt="SOAP journal entry"
                   style={{ width: '100%', borderRadius: '10px', display: 'block', objectFit: 'cover' }}
                 />
+                <button
+                  onClick={async () => {
+                    if (!selectedEntry || rotating) return
+                    setRotating(true)
+                    try {
+                      await fetch('/api/soap/rotate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ journalId: selectedEntry.id, degrees: 90 }) })
+                      onRefresh?.()
+                    } finally { setRotating(false) }
+                  }}
+                  disabled={rotating}
+                  style={{
+                    alignSelf: 'flex-start', padding: '5px 12px', borderRadius: '8px',
+                    border: '1px solid var(--line-2)', background: 'transparent',
+                    color: 'var(--fg-2)', fontSize: '12px', fontWeight: 600, cursor: rotating ? 'default' : 'pointer',
+                  }}
+                  title="Rotate this photo 90° (fixes sideways/upside-down pages)"
+                >
+                  {rotating ? 'Rotating…' : '⟲ Rotate 90°'}
+                </button>
                 {!displayOcrText && (
                   <button
                     onClick={async () => {
