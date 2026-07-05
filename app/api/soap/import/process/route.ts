@@ -33,7 +33,7 @@ type Row = {
   import_seq: number | null
 }
 
-type Segment = { date: string | null; scripture: string | null; text: string; isContinuation: boolean }
+type Segment = { date: string | null; writtenYear: number | null; scripture: string | null; text: string; isContinuation: boolean }
 
 const words = (t: string | null) =>
   (t || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean)
@@ -99,8 +99,9 @@ function isGoodRead(r: ReadResult): boolean {
   return r.segments.some(s => s.date) || textLen >= 150
 }
 
-// Read a photo and split it into one segment per dated entry.
-async function analyze(image: string | Buffer, year: number): Promise<ReadResult> {
+// Read a photo and split it into one segment per dated entry. prevDate (if known)
+// is the most recent dated entry before this photo, used to disambiguate sloppy digits.
+async function analyze(image: string | Buffer, year: number, prevDate?: string | null): Promise<ReadResult> {
   const { text } = await generateText({
     model: anthropic(VISION_MODEL),
     // Sonnet 5 runs adaptive thinking by default when the param is omitted —
@@ -119,11 +120,14 @@ Read in natural order: the LEFT page top-to-bottom first, then the RIGHT page to
 
 Split into SEGMENTS — one segment per distinct dated entry. IMPORTANT: an entry frequently CONTINUES from the left page onto the right page (or from the bottom of one column to the top of the next). A page break, column break, or new page is NOT a new entry. Start a new segment ONLY where a NEW DATE is written or an unmistakable new entry begins. Keep a continued entry as ONE segment under its date.
 
-For each segment give: month (1-12) and day (1-31) if a date is written for it (year is ${year}), else null; the scripture reference or null; and the full transcribed text.
+For each segment give: month (1-12) and day (1-31) if a date is written for it, else null; the YEAR only if one is actually written on the page (e.g. "Jan 1, 2023" -> 2023), else null; the scripture reference or null; and the full transcribed text.
+
+DATES ARE CHRONOLOGICAL: entries run in date order down the page and across photos.${prevDate ? ` The most recent dated entry before this photo was ${prevDate}.` : ''} When a handwritten digit is ambiguous (a sloppy 2 can look like 7, 1 like 7, 3 like 5), pick the reading consistent with the surrounding dates — e.g. between "Jan 1" and "Jan 3", an ambiguous day is 2, not 7.
+
 If the VERY FIRST segment has no date and continues from a previous photo (begins mid-thought), set is_continuation true for that first segment only.
 
 Respond ONLY with JSON:
-{"segments":[{"month":1-12|null,"day":1-31|null,"scripture":"Book C:V"|null,"text":"...","is_continuation":true|false}]}`,
+{"segments":[{"month":1-12|null,"day":1-31|null,"year":YYYY|null,"scripture":"Book C:V"|null,"text":"...","is_continuation":true|false}]}`,
         },
       ],
     }],
@@ -131,10 +135,11 @@ Respond ONLY with JSON:
   try {
     // Extract the first {...} object — robust to ```json fences / leading text.
     const m = text.match(/\{[\s\S]*\}/)
-    const parsed = JSON.parse(m ? m[0] : text) as { segments?: Array<{ month?: number | null; day?: number | null; scripture?: string | null; text?: string; is_continuation?: boolean }> }
+    const parsed = JSON.parse(m ? m[0] : text) as { segments?: Array<{ month?: number | null; day?: number | null; year?: number | null; scripture?: string | null; text?: string; is_continuation?: boolean }> }
     const segs = (parsed.segments ?? [])
       .map((s, i) => ({
         date: toDate(year, s.month, s.day),
+        writtenYear: Number.isInteger(s.year) && (s.year as number) >= 1990 && (s.year as number) <= 2100 ? (s.year as number) : null,
         scripture: s.scripture ?? null,
         text: (s.text || '').trim(),
         isContinuation: i === 0 && s.is_continuation === true,
@@ -142,7 +147,7 @@ Respond ONLY with JSON:
       .filter(s => s.text.length > 0)
     if (segs.length) return { segments: segs, parseOk: true }
   } catch { /* fall through */ }
-  return { segments: [{ date: null, scripture: null, text: text.slice(0, 4000), isContinuation: false }], parseOk: false }
+  return { segments: [{ date: null, writtenYear: null, scripture: null, text: text.slice(0, 4000), isContinuation: false }], parseOk: false }
 }
 
 export async function POST(request: NextRequest) {
@@ -153,12 +158,15 @@ export async function POST(request: NextRequest) {
   // Already-created entries in this batch: dedup context + continuation anchor.
   const { data: doneRows } = await supabase
     .from('soap_journals')
-    .select('id, person_id, photo_url, photo_urls, ocr_text, journal_date, import_seq')
+    .select('id, person_id, photo_url, photo_urls, ocr_text, journal_date, import_seq, date_precision')
     .eq('import_batch_id', batchId)
     .eq('source', 'imported')
     .not('ocr_text', 'is', null)
     .order('import_seq', { ascending: true })
-  const processed = (doneRows as Row[]) ?? []
+  const processed = (doneRows as (Row & { date_precision: string })[]) ?? []
+  // Chronology hint for ambiguous handwritten digits: the last real (day-precision)
+  // date filed so far. Same hint for every photo in the slice (reads run concurrently).
+  const prevDate = [...processed].reverse().find(r => r.date_precision === 'day')?.journal_date ?? null
   const seenTexts: string[][] = processed.map(r => words(r.ocr_text))
   let current: { id: string; ocr_text: string; photo_urls: string[] } | null =
     processed.length
@@ -179,6 +187,8 @@ export async function POST(request: NextRequest) {
   const pending = (pendingRows as Row[]) ?? []
 
   const counts = { processed: 0, dated: 0, undated: 0, merged: 0, duplicates: 0 }
+  // Written-year vs selected-year mismatch tally (warn-only; filing still uses `yr`).
+  const writtenYearCounts = new Map<number, number>()
 
   // Phase A — READ the pages concurrently (the slow AI part). Bounded per call so
   // we stay under maxDuration; the client loops until nothing remains.
@@ -194,7 +204,7 @@ export async function POST(request: NextRequest) {
     try {
       let photoUrl = photo.photo_url
       // 1) Read upright first.
-      let best = await analyze(photoUrl, yr)
+      let best = await analyze(photoUrl, yr, prevDate)
       let bestDeg = 0
       let origBuf: Buffer | null = null
       if (!isGoodRead(best)) {
@@ -204,7 +214,7 @@ export async function POST(request: NextRequest) {
         if (origBuf) {
           for (const deg of [90, 180, 270]) {
             const rotated = await sharp(origBuf).rotate(deg).jpeg({ quality: 85 }).toBuffer()
-            const r = await analyze(rotated, yr)
+            const r = await analyze(rotated, yr, prevDate)
             if (readScore(r) > readScore(best)) { best = r; bestDeg = deg }
             // A clean dated read at this angle is definitive — stop trialing.
             if (isGoodRead(r) && r.segments.some(s => s.date)) break
@@ -231,6 +241,9 @@ export async function POST(request: NextRequest) {
     const photoSeq = photo.import_seq ?? 0
     for (let si = 0; si < segments.length; si++) {
       const seg = segments[si]
+      if (seg.writtenYear && seg.writtenYear !== yr) {
+        writtenYearCounts.set(seg.writtenYear, (writtenYearCounts.get(seg.writtenYear) ?? 0) + 1)
+      }
       const w = words(seg.text)
 
       // Duplicate entry (same page shot twice → near-identical text)?
@@ -277,5 +290,13 @@ export async function POST(request: NextRequest) {
     .eq('import_batch_id', batchId)
     .is('ocr_text', null)
 
-  return NextResponse.json({ ...counts, remaining: remaining ?? 0 })
+  // Most-seen written year that disagrees with the selected year (warn-only).
+  let yearMismatchCount = 0
+  let writtenYear: number | null = null
+  for (const [y, n] of writtenYearCounts) {
+    yearMismatchCount += n
+    if (writtenYear === null || n > (writtenYearCounts.get(writtenYear) ?? 0)) writtenYear = y
+  }
+
+  return NextResponse.json({ ...counts, remaining: remaining ?? 0, yearMismatchCount, writtenYear })
 }

@@ -50,6 +50,10 @@ export default function SoapImportModal({
   const [uploadTotal, setUploadTotal] = useState(0)
   const [remaining, setRemaining] = useState(0)
   const [stats, setStats] = useState<Stats>({ dated: 0, undated: 0, merged: 0, duplicates: 0 })
+  const [yearWarning, setYearWarning] = useState<{ written: number; count: number } | null>(null)
+  const [moving, setMoving] = useState(false)
+  const [movedTo, setMovedTo] = useState<number | null>(null)
+  const [batchId, setBatchId] = useState('')
   const [error, setError] = useState('')
 
   const busy = phase === 'uploading' || phase === 'processing'
@@ -58,6 +62,7 @@ export default function SoapImportModal({
     if (!files.length || busy) return
     setError('')
     const batchId = crypto.randomUUID()
+    setBatchId(batchId)
 
     // ── Phase 1: order by capture time, drop exact dupes, upload + create rows ──
     setPhase('uploading')
@@ -103,6 +108,7 @@ export default function SoapImportModal({
     // ── Phase 2: server does OCR + dating + merging + dedup (survives close) ──
     setPhase('processing')
     const totals: Stats = { dated: 0, undated: 0, merged: 0, duplicates: 0 }
+    let mismatches = 0
     // Loop the resumable processor until nothing is left.
     for (let guard = 0; guard < 200; guard++) {
       try {
@@ -118,6 +124,11 @@ export default function SoapImportModal({
         totals.merged += j.merged || 0
         totals.duplicates += j.duplicates || 0
         setStats({ ...totals })
+        // Pages carrying a written year that disagrees with the selected year.
+        if (j.yearMismatchCount > 0 && j.writtenYear) {
+          mismatches += j.yearMismatchCount
+          setYearWarning({ written: j.writtenYear, count: mismatches })
+        }
         setRemaining(j.remaining ?? 0)
         onImported() // refresh the calendar as entries fill in
         if ((j.remaining ?? 0) <= 0) break
@@ -129,6 +140,29 @@ export default function SoapImportModal({
 
     setPhase('done')
     onImported()
+  }
+
+  // One-tap remedy for a wrong year pick: re-file the whole batch under the
+  // year written on the pages, keeping each entry's month/day.
+  const moveYear = async (toYear: number) => {
+    if (moving || !batchId) return
+    setMoving(true)
+    setError('')
+    try {
+      const res = await fetch('/api/soap/import/move-year', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batchId, toYear }),
+      })
+      const j = await res.json()
+      if (!res.ok) throw new Error(j.error || 'move failed')
+      setMovedTo(toYear)
+      setYearWarning(null)
+      onImported()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'move failed')
+    }
+    setMoving(false)
   }
 
   return (
@@ -147,6 +181,30 @@ export default function SoapImportModal({
           out <strong>every dated entry — even several on one photo</strong> — filing each on its own
           date. Entries that span pages are merged, and duplicates are skipped.
         </p>
+
+        {yearWarning && (
+          <div className="mt-4 rounded-xl border p-3" style={{ borderColor: 'var(--warning)' }}>
+            <p className="text-sm font-semibold" style={{ color: 'var(--warning)' }}>
+              ⚠️ These pages look like {yearWarning.written}, not {year}
+            </p>
+            <p className="mt-1 text-xs text-[var(--fg-2)]">
+              {yearWarning.count} entr{yearWarning.count === 1 ? 'y has' : 'ies have'} &ldquo;{yearWarning.written}&rdquo; written on the
+              page, but this import files everything under {year}.
+              {phase === 'done' ? ' You can move the whole batch in one tap:' : ' When the import finishes you can move the whole batch in one tap.'}
+            </p>
+            {phase === 'done' && (
+              <button type="button" onClick={() => moveYear(yearWarning.written)} disabled={moving}
+                className="cn-btn cn-btn-primary mt-2 w-full disabled:opacity-50">
+                {moving ? 'Moving…' : `Move all to ${yearWarning.written}`}
+              </button>
+            )}
+          </div>
+        )}
+        {movedTo && (
+          <p className="mt-4 text-sm font-semibold" style={{ color: 'var(--establish)' }}>
+            ✓ Batch moved to {movedTo}.
+          </p>
+        )}
 
         {phase === 'done' ? (
           <div className="mt-5 rounded-xl border border-[var(--line-2)] p-4 text-center">
