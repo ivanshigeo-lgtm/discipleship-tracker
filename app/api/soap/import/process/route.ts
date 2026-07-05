@@ -88,12 +88,17 @@ async function analyze(photoUrl: string, year: number): Promise<{ segments: Segm
         { type: 'image', image: photoUrl },
         {
           type: 'text',
-          text: `This photo shows one or two handwritten notebook pages. It may contain SEVERAL separate SOAP journal entries (Scripture, Observation, Application, Prayer), each usually starting with its own date.
-First, check orientation: if the handwriting is sideways or upside-down, give the CLOCKWISE rotation in degrees needed to make it upright (90, 180, or 270); use 0 if it is already upright.
-Read everything in natural reading order: the LEFT page top-to-bottom first, then the RIGHT page top-to-bottom.
-Split the content into SEGMENTS — one segment per distinct entry. A new segment begins wherever a new date appears or a clearly new entry starts.
-For each segment give: month (1-12) and day (1-31) if a date is written for it (the year is ${year}), otherwise null; the scripture reference or null; and the full transcribed text of that segment.
-If the VERY FIRST segment has no date and appears to continue from a previous page (begins mid-thought), set is_continuation true for that first segment only.
+          text: `This photo shows one or two handwritten notebook pages with SOAP journal entries (Scripture, Observation, Application, Prayer), each usually starting with its own date.
+
+ORIENTATION FIRST: Look at which way the handwriting runs. If the lines of text are NOT horizontal-and-upright, give the CLOCKWISE rotation in degrees to make them upright: 90 if the page is turned a quarter-turn counter-clockwise (text runs bottom-to-top), 270 if turned clockwise (text runs top-to-bottom), 180 if upside-down. Use 0 ONLY if the text is already upright and readable left-to-right.
+
+Then read in natural order: the LEFT page top-to-bottom first, then the RIGHT page top-to-bottom.
+
+Split into SEGMENTS — one segment per distinct dated entry. IMPORTANT: an entry frequently CONTINUES from the left page onto the right page (or from the bottom of one column to the top of the next). A page break, column break, or new page is NOT a new entry. Start a new segment ONLY where a NEW DATE is written or an unmistakable new entry begins. Keep a continued entry as ONE segment under its date.
+
+For each segment give: month (1-12) and day (1-31) if a date is written for it (year is ${year}), else null; the scripture reference or null; and the full transcribed text.
+If the VERY FIRST segment has no date and continues from a previous photo (begins mid-thought), set is_continuation true for that first segment only.
+
 Respond ONLY with JSON:
 {"rotation":0|90|180|270,"segments":[{"month":1-12|null,"day":1-31|null,"scripture":"Book C:V"|null,"text":"...","is_continuation":true|false}]}`,
         },
@@ -159,11 +164,18 @@ export async function POST(request: NextRequest) {
   const analyzed = await mapPool(slice, 5, async (photo) => {
     if (!photo.photo_url) return null
     try {
-      const { segments, rotation } = await analyze(photo.photo_url, yr)
       let photoUrl = photo.photo_url
-      if (rotation) {
-        const rotated = await rotateStored(photoUrl, photo.person_id, rotation)
-        if (rotated) photoUrl = rotated
+      const first = await analyze(photoUrl, yr)
+      let segments = first.segments
+      // If the page was sideways, the first read is unreliable — rotate the image
+      // upright and READ IT AGAIN so dates/structure are detected correctly.
+      if (first.rotation) {
+        const rotated = await rotateStored(photoUrl, photo.person_id, first.rotation)
+        if (rotated) {
+          photoUrl = rotated
+          const reread = await analyze(rotated, yr)
+          if (reread.segments.length) segments = reread.segments
+        }
       }
       return { photo, segments, photoUrl }
     } catch (e) {
