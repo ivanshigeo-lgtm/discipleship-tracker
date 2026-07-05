@@ -3,6 +3,9 @@ import { createClient } from '@supabase/supabase-js'
 import { anthropic } from '@ai-sdk/anthropic'
 import { generateText } from 'ai'
 
+export const runtime = 'nodejs'
+export const maxDuration = 120 // decade-wide Sonnet questions can take a minute
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -59,7 +62,11 @@ export async function POST(request: NextRequest) {
     : `Here are my SOAP journal entries:\n\n${entriesText}\n\nMy question: ${question}\n\nPlease answer based on what I actually wrote in these entries.`
 
   const { text } = await generateText({
-    model: anthropic('claude-haiku-4-5-20251001'),
+    // Sonnet 5 — this is a Thread (cross-entry pattern finding over ranges up
+    // to a full decade). Adaptive thinking stays on: pattern questions benefit,
+    // and the UI already shows a spinner. Haiku stays on per-entry Moments.
+    model: anthropic('claude-sonnet-5'),
+    maxOutputTokens: 8000, // headroom for thinking + a thorough answer
     system: systemPrompt,
     prompt: userPrompt,
   })
