@@ -37,6 +37,10 @@ export async function POST(request: NextRequest) {
     photoUrl = journal.photo_url
   }
 
+  if (!photoUrl) {
+    return NextResponse.json({ error: 'No photo to process' }, { status: 400 })
+  }
+
   const { text } = await generateText({
     model: anthropic('claude-haiku-4-5-20251001'),
     messages: [
