@@ -57,7 +57,8 @@ export async function POST(request: NextRequest) {
       await supabase.from('soap_journals').update({ photo_url: newUrl, photo_urls: newUrls.length ? newUrls : row.photo_urls, updated_at: new Date().toISOString() }).eq('id', row.id)
     }
 
-    return NextResponse.json({ ok: true, rotated: Object.keys(urlMap).length })
+    const newPrimary = (journal.photo_url && urlMap[journal.photo_url]) || Object.values(urlMap)[0] || null
+    return NextResponse.json({ ok: true, rotated: Object.keys(urlMap).length, url: newPrimary })
   } catch (e) {
     console.error('Rotate error:', e)
     return NextResponse.json({ error: e instanceof Error ? e.message : 'rotate failed' }, { status: 500 })

@@ -922,6 +922,43 @@ export const updateSoapJournal = async (
   return { data, error }
 }
 
+export const deleteSoapJournal = async (id: string) => {
+  const { error } = await supabase.from('soap_journals').delete().eq('id', id)
+  return { error }
+}
+
+// The imported entry immediately before this one (by page order) — the likely
+// "start" of a left→right entry that got split.
+export const getPrevImportedEntry = async (personId: string, importSeq: number) => {
+  const { data, error } = await supabase
+    .from('soap_journals')
+    .select('*')
+    .eq('person_id', personId)
+    .eq('source', 'imported')
+    .lt('import_seq', importSeq)
+    .order('import_seq', { ascending: false })
+    .limit(1)
+  return { data: data?.[0] ?? null, error }
+}
+
+// Merge one entry's text/photos into another, then delete the merged-away entry.
+export const mergeSoapEntries = async (intoId: string, fromEntry: SoapJournal) => {
+  const { data: into } = await supabase.from('soap_journals').select('*').eq('id', intoId).single()
+  if (!into) return { error: { message: 'Target entry not found' } }
+  const target = into as SoapJournal
+  const mergedText = [target.ocr_text, fromEntry.ocr_text].filter(Boolean).join('\n\n')
+  const mergedPhotos = Array.from(new Set([
+    ...(target.photo_urls ?? (target.photo_url ? [target.photo_url] : [])),
+    ...(fromEntry.photo_urls ?? (fromEntry.photo_url ? [fromEntry.photo_url] : [])),
+  ]))
+  const { error: upErr } = await supabase.from('soap_journals')
+    .update({ ocr_text: mergedText, photo_urls: mergedPhotos, updated_at: new Date().toISOString() })
+    .eq('id', intoId)
+  if (upErr) return { error: upErr }
+  const { error: delErr } = await supabase.from('soap_journals').delete().eq('id', fromEntry.id)
+  return { error: delErr }
+}
+
 export const getSoapStreak = async (personId: string) => {
   const { data, error } = await supabase
     .from('soap_journals')
