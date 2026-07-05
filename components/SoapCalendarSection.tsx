@@ -452,6 +452,25 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
   }
   const canFlipBack = safePhotoIdx > 0 || readingIdx > 0
   const canFlipFwd = safePhotoIdx < entryPhotos.length - 1 || (readingIdx >= 0 && readingIdx < readingOrder.length - 1)
+
+  // Two-phase page-turn: rotate the current page away, swap at 90°, rotate the
+  // new page in. Keyframes live in globals.css (pageOutFwd / pageInFwd / …).
+  const [flipAnim, setFlipAnim] = useState<'out-fwd' | 'in-fwd' | 'out-back' | 'in-back' | null>(null)
+  const animateFlip = (dir: 1 | -1) => {
+    if (flipAnim) return
+    if (dir === 1 ? !canFlipFwd : !canFlipBack) return
+    setFlipAnim(dir === 1 ? 'out-fwd' : 'out-back')
+    setTimeout(() => {
+      flipPage(dir)
+      setFlipAnim(dir === 1 ? 'in-fwd' : 'in-back')
+      setTimeout(() => setFlipAnim(null), 170)
+    }, 160)
+  }
+  const flipAnimation =
+    flipAnim === 'out-fwd' ? 'pageOutFwd 160ms ease-in forwards' :
+    flipAnim === 'in-fwd' ? 'pageInFwd 170ms ease-out forwards' :
+    flipAnim === 'out-back' ? 'pageOutBack 160ms ease-in forwards' :
+    flipAnim === 'in-back' ? 'pageInBack 170ms ease-out forwards' : undefined
   const isSearching = searchQuery.trim().length > 0
 
   // Header label: "Apr – Jun 2026" or across year boundary "Dec 2025 – Feb 2026"
@@ -1205,13 +1224,13 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                   <img
                     src={entryPhotos[safePhotoIdx] ?? selectedEntry.photo_url}
                     alt="SOAP journal entry"
-                    style={{ width: '100%', borderRadius: '10px', display: 'block', objectFit: 'cover' }}
+                    style={{ width: '100%', borderRadius: '10px', display: 'block', objectFit: 'cover', animation: flipAnimation }}
                   />
                   {/* Flip through the journal: this entry's pages, then prev/next entries */}
                   {canFlipBack && (
                     <button
                       type="button"
-                      onClick={() => flipPage(-1)}
+                      onClick={() => animateFlip(-1)}
                       title={safePhotoIdx > 0 ? 'Previous page' : 'Previous entry'}
                       style={{
                         position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)',
@@ -1224,7 +1243,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                   {canFlipFwd && (
                     <button
                       type="button"
-                      onClick={() => flipPage(1)}
+                      onClick={() => animateFlip(1)}
                       title={safePhotoIdx < entryPhotos.length - 1 ? 'Next page' : 'Next entry'}
                       style={{
                         position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)',

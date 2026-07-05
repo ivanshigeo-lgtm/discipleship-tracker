@@ -417,3 +417,21 @@ body {
     animation-duration: 0.01s;
   }
 }
+
+/* Journal page-flip (SoapCalendarSection photo reader) */
+@keyframes pageOutFwd {
+  from { transform: perspective(1200px) rotateY(0deg); filter: brightness(1); }
+  to   { transform: perspective(1200px) rotateY(-90deg); filter: brightness(0.7); }
+}
+@keyframes pageInFwd {
+  from { transform: perspective(1200px) rotateY(90deg); filter: brightness(0.7); }
+  to   { transform: perspective(1200px) rotateY(0deg); filter: brightness(1); }
+}
+@keyframes pageOutBack {
+  from { transform: perspective(1200px) rotateY(0deg); filter: brightness(1); }
+  to   { transform: perspective(1200px) rotateY(90deg); filter: brightness(0.7); }
+}
+@keyframes pageInBack {
+  from { transform: perspective(1200px) rotateY(-90deg); filter: brightness(0.7); }
+  to   { transform: perspective(1200px) rotateY(0deg); filter: brightness(1); }
+}
