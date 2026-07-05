@@ -43,6 +43,16 @@ export default function SoapDateReviewModal({
     advance()
   }
 
+  // Keep it under the year as "misc" and stop asking about it.
+  const ignore = async () => {
+    if (!current || saving) return
+    setSaving(true)
+    const { error } = await updateSoapJournal(current.id, { date_reviewed: true })
+    setSaving(false)
+    if (error) { alert('Could not save. Please try again.'); return }
+    advance()
+  }
+
   if (!current) return null
 
   return (
@@ -86,13 +96,19 @@ export default function SoapDateReviewModal({
         </div>
 
         <div className="mt-4 flex gap-2">
-          <button type="button" onClick={advance} disabled={saving} className="cn-btn cn-btn-ghost flex-1 disabled:opacity-50">
+          <button type="button" onClick={ignore} disabled={saving} className="cn-btn cn-btn-ghost flex-1 disabled:opacity-50" title={`Keep under ${year} as misc — don't ask again`}>
+            Ignore
+          </button>
+          <button type="button" onClick={advance} disabled={saving} className="cn-btn cn-btn-ghost flex-1 disabled:opacity-50" title="Skip for now — ask again later">
             Skip
           </button>
           <button type="button" onClick={save} disabled={saving || !date} className="cn-btn cn-btn-primary flex-1 disabled:opacity-50">
             {saving ? 'Saving…' : idx + 1 < entries.length ? 'Save & next' : 'Save & finish'}
           </button>
         </div>
+        <p className="mt-2 text-center text-[10px] text-[var(--fg-3)]">
+          Ignore keeps it under {year} as misc (still searchable) and stops asking.
+        </p>
         <button type="button" onClick={onClose} className="mt-2 w-full text-center text-[11px] text-[var(--fg-3)] underline">
           Close{savedCount > 0 ? ` (${savedCount} dated)` : ''}
         </button>

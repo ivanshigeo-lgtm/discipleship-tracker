@@ -174,9 +174,10 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
   const [showImport, setShowImport] = useState(false)
   const [showDateReview, setShowDateReview] = useState(false)
 
-  // OCR'd imported pages that still have no real date → "needs a date" review.
+  // OCR'd imported pages that still have no real date and haven't been ignored →
+  // "needs a date" review.
   const undatedImports = useMemo(
-    () => soaps.filter(s => s.date_precision === 'year' && s.source === 'imported' && s.ocr_text),
+    () => soaps.filter(s => s.date_precision === 'year' && s.source === 'imported' && s.ocr_text && !s.date_reviewed),
     [soaps]
   )
   // Imported pages not yet processed by the server (e.g. the app closed mid-import).

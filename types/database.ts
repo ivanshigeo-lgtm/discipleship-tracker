@@ -172,6 +172,9 @@ export type SoapJournal = {
   source?: 'manual' | 'imported'
   import_batch_id?: string | null
   import_seq?: number | null
+  // Set when an undated import is intentionally left under its year ("misc"),
+  // so it drops out of the "needs a date" review.
+  date_reviewed?: boolean
   // All page photos for a multi-page entry (a SOAP that spans notebook pages).
   // photo_url stays the first page for backward compatibility.
   photo_urls?: string[] | null
