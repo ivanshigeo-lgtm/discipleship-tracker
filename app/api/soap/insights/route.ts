@@ -18,22 +18,31 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'journalIds required' }, { status: 400 })
   }
 
-  const { data: journals, error } = await supabase
-    .from('soap_journals')
-    .select('journal_date, ocr_text, scripture_reference')
-    .in('id', journalIds)
-    .order('journal_date', { ascending: true })
-
-  if (error || !journals?.length) {
+  // Fetch in id-chunks: Supabase caps responses at 1,000 rows, and decade-wide
+  // ranges now select ~2,000 entries at once.
+  type J = { journal_date: string; ocr_text: string | null; scripture_reference: string | null }
+  const journals: J[] = []
+  for (let i = 0; i < journalIds.length; i += 500) {
+    const { data, error } = await supabase
+      .from('soap_journals')
+      .select('journal_date, ocr_text, scripture_reference')
+      .in('id', journalIds.slice(i, i + 500))
+    if (error) return NextResponse.json({ error: 'Could not fetch entries' }, { status: 500 })
+    journals.push(...((data ?? []) as J[]))
+  }
+  journals.sort((a, b) => a.journal_date.localeCompare(b.journal_date))
+  if (!journals.length) {
     return NextResponse.json({ error: 'Could not fetch entries' }, { status: 500 })
   }
 
-  const entriesText = journals
-    .filter(j => j.ocr_text)
+  // Keep the prompt inside the model's context on huge ranges: clip each
+  // entry's text so the total stays under ~400K chars (~110K tokens).
+  const withText = journals.filter(j => j.ocr_text)
+  const perEntry = Math.max(200, Math.floor(400_000 / Math.max(1, withText.length)))
+  const entriesText = withText
     .map(j => {
-      const lines = [`--- ${j.journal_date}${j.scripture_reference ? ` (${j.scripture_reference})` : ''} ---`]
-      lines.push(j.ocr_text!)
-      return lines.join('\n')
+      const body = j.ocr_text!.length > perEntry ? j.ocr_text!.slice(0, perEntry) + '…' : j.ocr_text!
+      return [`--- ${j.journal_date}${j.scripture_reference ? ` (${j.scripture_reference})` : ''} ---`, body].join('\n')
     })
     .join('\n\n')
 
@@ -55,5 +64,5 @@ export async function POST(request: NextRequest) {
     prompt: userPrompt,
   })
 
-  return NextResponse.json({ response: text, entryCount: journals.filter(j => j.ocr_text).length })
+  return NextResponse.json({ response: text, entryCount: withText.length })
 }
