@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 import { SoapJournal } from '../types/database'
 import { cleanInsight } from './journey/WeeklyInsightCard'
 import SoapImportModal from './journey/SoapImportModal'
+import SoapDateReviewModal from './journey/SoapDateReviewModal'
 
 interface Props {
   soaps: SoapJournal[]
@@ -170,6 +171,13 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
   const [modalOcrLoading, setModalOcrLoading] = useState(false)
   const [modalOcrText, setModalOcrText] = useState<string | null>(null)
   const [showImport, setShowImport] = useState(false)
+  const [showDateReview, setShowDateReview] = useState(false)
+
+  // Imported pages that still have no real date, for the "needs a date" review.
+  const undatedImports = useMemo(
+    () => soaps.filter(s => s.date_precision === 'year' && s.source === 'imported'),
+    [soaps]
+  )
 
   // AI Insights — opens via the button, then two modes: this-week (one tap) and
   // custom range (pick dates + ask / general summary).
@@ -388,6 +396,21 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
           </button>
           {!insightMode && (
             <>
+              {undatedImports.length > 0 && (
+                <button
+                  onClick={() => setShowDateReview(true)}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '6px',
+                    padding: '8px 14px', borderRadius: '10px',
+                    border: '1px solid rgba(244,182,80,.5)', background: 'rgba(244,182,80,.12)',
+                    color: 'var(--gold, #F4B650)', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+                    flexShrink: 0,
+                  }}
+                  title="Assign dates to imported pages that had none"
+                >
+                  🗓 {undatedImports.length} need a date
+                </button>
+              )}
               <button
                 onClick={() => setShowImport(true)}
                 style={{
@@ -1132,6 +1155,14 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
           personId={personId}
           onClose={() => setShowImport(false)}
           onImported={() => onRefresh?.()}
+        />
+      )}
+
+      {showDateReview && undatedImports.length > 0 && (
+        <SoapDateReviewModal
+          entries={undatedImports}
+          onClose={() => setShowDateReview(false)}
+          onUpdated={() => onRefresh?.()}
         />
       )}
     </>
