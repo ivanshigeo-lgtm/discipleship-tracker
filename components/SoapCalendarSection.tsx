@@ -186,6 +186,12 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
     () => soaps.filter(s => s.source === 'imported' && !s.ocr_text),
     [soaps]
   )
+  // The self-driving chain claims photos as it reads them; a claim in the last
+  // 7 min means the server is actively importing — show progress, not a CTA.
+  const importActive = useMemo(
+    () => pendingImports.some(s => s.processing_started_at && Date.now() - new Date(s.processing_started_at).getTime() < 7 * 60 * 1000),
+    [pendingImports]
+  )
   const [resuming, setResuming] = useState(false)
 
   const resumeImport = async () => {
@@ -438,18 +444,22 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
             <>
               {pendingImports.length > 0 && (
                 <button
-                  onClick={resumeImport}
-                  disabled={resuming}
+                  onClick={importActive ? undefined : resumeImport}
+                  disabled={resuming || importActive}
                   style={{
                     display: 'inline-flex', alignItems: 'center', gap: '6px',
                     padding: '8px 14px', borderRadius: '10px',
                     border: '1px solid var(--gbm-cobalt-bright)', background: 'rgba(91,141,247,.12)',
                     color: 'var(--gbm-cobalt-bright)', fontSize: '13px', fontWeight: 600,
-                    cursor: resuming ? 'default' : 'pointer', flexShrink: 0, opacity: resuming ? 0.6 : 1,
+                    cursor: resuming || importActive ? 'default' : 'pointer', flexShrink: 0, opacity: resuming ? 0.6 : 1,
                   }}
-                  title="Finish reading pages from an interrupted import"
+                  title={importActive
+                    ? 'The server is reading your pages — no action needed'
+                    : 'Finish reading pages from an interrupted import'}
                 >
-                  {resuming ? '⟳ Finishing…' : `⟳ Finish import (${pendingImports.length})`}
+                  {importActive
+                    ? `⟳ Importing… ${pendingImports.length} left`
+                    : resuming ? '⟳ Finishing…' : `⟳ Finish import (${pendingImports.length})`}
                 </button>
               )}
               {undatedImports.length > 0 && (

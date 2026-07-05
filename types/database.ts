@@ -178,6 +178,9 @@ export type SoapJournal = {
   // All page photos for a multi-page entry (a SOAP that spans notebook pages).
   // photo_url stays the first page for backward compatibility.
   photo_urls?: string[] | null
+  // Worker claim on a pending import photo; a recent timestamp means the
+  // self-driving import chain is actively reading this page.
+  processing_started_at?: string | null
 }
 
 export type LevelSignoff = {
