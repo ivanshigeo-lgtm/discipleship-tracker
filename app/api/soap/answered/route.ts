@@ -23,7 +23,8 @@ export async function GET(request: NextRequest) {
     supabase
       .from('prayer_scan_items')
       .select('journal_id', { count: 'exact', head: true })
-      .eq('person_id', personId),
+      .eq('person_id', personId)
+      .eq('kind', 'none'), // one marker row per scanned journal = exact progress
     supabase
       .from('soap_journals')
       .select('id', { count: 'exact', head: true })

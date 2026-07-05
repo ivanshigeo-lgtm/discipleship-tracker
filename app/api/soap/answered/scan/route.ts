@@ -41,6 +41,18 @@ const firstJson = (text: string) => {
   return JSON.parse(m ? m[0] : text)
 }
 
+// Supabase caps every response at 1,000 rows — page through to get them all.
+async function fetchAll<T>(page: (from: number, to: number) => PromiseLike<{ data: unknown }>): Promise<T[]> {
+  const out: T[] = []
+  for (let from = 0; ; from += 1000) {
+    const { data } = await page(from, from + 999)
+    const batch = (data ?? []) as T[]
+    out.push(...batch)
+    if (batch.length < 1000) break
+  }
+  return out
+}
+
 // ── Pass 1: extract petitions + evidence from a chunk of entries ──
 async function extractChunk(entries: EntryLite[], personId: string): Promise<number> {
   const numbered = entries
@@ -69,17 +81,16 @@ ${numbered}`,
   })
   const parsed = firstJson(text) as { items?: Array<{ index?: number; kind?: string; quote?: string; topic?: string }> }
   const rows: Array<{ person_id: string; journal_id: string; kind: string; quote: string | null; topic: string | null; item_date: string }> = []
-  const covered = new Set<number>()
   for (const it of parsed.items ?? []) {
     const i = Number(it.index)
     const e = entries[i]
     if (!e || (it.kind !== 'petition' && it.kind !== 'evidence') || !it.quote) continue
-    covered.add(i)
     rows.push({ person_id: personId, journal_id: e.id, kind: it.kind, quote: it.quote.slice(0, 400), topic: it.topic?.slice(0, 80) ?? null, item_date: e.journal_date })
   }
-  // Mark every entry in the chunk as scanned — 'none' rows are the progress marker.
-  entries.forEach((e, i) => {
-    if (!covered.has(i)) rows.push({ person_id: personId, journal_id: e.id, kind: 'none', quote: null, topic: null, item_date: e.journal_date })
+  // Every entry gets a 'none' marker row — that makes "scanned" an exact count
+  // (one marker per journal) regardless of how many petitions it also produced.
+  entries.forEach(e => {
+    rows.push({ person_id: personId, journal_id: e.id, kind: 'none', quote: null, topic: null, item_date: e.journal_date })
   })
   const { error } = await supabase.from('prayer_scan_items').insert(rows)
   if (error) throw new Error(error.message)
@@ -88,14 +99,26 @@ ${numbered}`,
 
 // ── Pass 2: pair petitions with later evidence ──
 async function matchPhase(personId: string): Promise<number> {
-  const { data: items } = await supabase
-    .from('prayer_scan_items')
-    .select('journal_id, kind, quote, topic, item_date')
-    .eq('person_id', personId)
-    .neq('kind', 'none')
-    .order('item_date', { ascending: true })
-  const petitions = (items ?? []).filter(i => i.kind === 'petition')
-  const evidence = (items ?? []).filter(i => i.kind === 'evidence')
+  type Item = { journal_id: string; kind: string; quote: string; topic: string | null; item_date: string }
+  const items = await fetchAll<Item>((from, to) =>
+    supabase
+      .from('prayer_scan_items')
+      .select('journal_id, kind, quote, topic, item_date')
+      .eq('person_id', personId)
+      .neq('kind', 'none')
+      .order('item_date', { ascending: true })
+      .range(from, to)
+  )
+  // Re-scanned entries can leave duplicate extractions — keep one per quote.
+  const seen = new Set<string>()
+  const deduped = items.filter(i => {
+    const k = `${i.journal_id}|${i.kind}|${i.quote}`
+    if (seen.has(k)) return false
+    seen.add(k)
+    return true
+  })
+  const petitions = deduped.filter(i => i.kind === 'petition')
+  const evidence = deduped.filter(i => i.kind === 'evidence')
   if (!petitions.length || !evidence.length) return 0
 
   const pList = petitions.map((p, i) => `P${i} | ${p.item_date} | ${p.topic} | ${p.quote}`).join('\n')
@@ -166,13 +189,19 @@ export async function POST(request: NextRequest) {
   const { personId, hop = 0 } = await request.json()
   if (!personId) return NextResponse.json({ error: 'personId required' }, { status: 400 })
 
-  // Entries with text that haven't been scanned yet (diffed in JS — id lists are small).
-  const [{ data: entryRows }, { data: scannedRows }] = await Promise.all([
-    supabase.from('soap_journals').select('id, journal_date, ocr_text').eq('person_id', personId).not('ocr_text', 'is', null),
-    supabase.from('prayer_scan_items').select('journal_id').eq('person_id', personId),
+  // Entries with text that haven't been scanned yet, diffed in JS. Both sides
+  // MUST be paginated — Supabase silently caps any single response at 1,000
+  // rows, which would truncate the scanned-set and re-scan entries forever.
+  const [entryRows, scannedRows] = await Promise.all([
+    fetchAll<EntryLite>((from, to) =>
+      supabase.from('soap_journals').select('id, journal_date, ocr_text').eq('person_id', personId).not('ocr_text', 'is', null).order('id').range(from, to)
+    ),
+    fetchAll<{ journal_id: string }>((from, to) =>
+      supabase.from('prayer_scan_items').select('journal_id').eq('person_id', personId).order('id').range(from, to)
+    ),
   ])
-  const scanned = new Set((scannedRows ?? []).map(r => r.journal_id))
-  const unscanned = ((entryRows ?? []) as EntryLite[])
+  const scanned = new Set(scannedRows.map(r => r.journal_id))
+  const unscanned = entryRows
     .filter(e => !scanned.has(e.id) && (e.ocr_text || '').trim().length > 40)
     .sort((a, b) => a.journal_date.localeCompare(b.journal_date))
 
