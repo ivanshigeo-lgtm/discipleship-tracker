@@ -109,10 +109,11 @@ async function matchPhase(personId: string): Promise<number> {
       .order('item_date', { ascending: true })
       .range(from, to)
   )
-  // Re-scanned entries can leave duplicate extractions — keep one per quote.
+  // Dedupe by kind+quote alone: re-scans and near-identical entries can carry
+  // the same sentence under different journal ids — one is enough to match on.
   const seen = new Set<string>()
   const deduped = items.filter(i => {
-    const k = `${i.journal_id}|${i.kind}|${i.quote}`
+    const k = `${i.kind}|${i.quote}`
     if (seen.has(k)) return false
     seen.add(k)
     return true
