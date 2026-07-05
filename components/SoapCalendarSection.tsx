@@ -442,6 +442,19 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
           </button>
           {!insightMode && (
             <>
+              <a
+                href="/answered"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '5px',
+                  padding: '7px 13px', borderRadius: '10px',
+                  border: '1px solid var(--line-2)', background: 'transparent',
+                  color: 'var(--fg-2)', fontSize: '12px', fontWeight: 600,
+                  letterSpacing: '0.01em', flexShrink: 0, textDecoration: 'none',
+                }}
+                title="Prayers whose answers you later wrote down"
+              >
+                🙏 Answered
+              </a>
               {pendingImports.length > 0 && (
                 <button
                   onClick={importActive ? undefined : resumeImport}
