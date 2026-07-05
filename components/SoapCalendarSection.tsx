@@ -164,6 +164,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
   })
 
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  const [selectedEntryIdx, setSelectedEntryIdx] = useState(0)
   const [searchQuery, setSearchQuery] = useState('')
   const [ocrLoading, setOcrLoading] = useState(false)
   const [ocrResult, setOcrResult] = useState<string | null>(null)
@@ -241,11 +242,17 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
     setWeekLoading(false)
   }
 
+  // A day can hold MULTIPLE entries (e.g. two SOAP passages that day), so group
+  // them per date. Undated imports (date_precision='year') stay off the calendar
+  // day-dots; they surface in search and the "needs a date" review instead.
   const soapMap = useMemo(() => {
-    const map = new Map<string, SoapJournal>()
-    // Undated imports (date_precision='year') are parked on Jan 1 — keep them off
-    // the calendar day-dots; they surface in search and the year view instead.
-    for (const s of soaps) if (s.date_precision !== 'year') map.set(s.journal_date, s)
+    const map = new Map<string, SoapJournal[]>()
+    for (const s of soaps) {
+      if (s.date_precision === 'year') continue
+      const arr = map.get(s.journal_date)
+      if (arr) arr.push(s)
+      else map.set(s.journal_date, [s])
+    }
     return map
   }, [soaps])
 
@@ -321,6 +328,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
     }
     if (hasSoap) {
       setSelectedDate(prev => prev === dateIso ? null : dateIso)
+      setSelectedEntryIdx(0)
       setOcrResult(null)
     } else {
       onNewEntryForDate?.(dateIso)
@@ -339,8 +347,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
 
   async function runInsight(question?: string) {
     const ids = Array.from(selectedInsightDates)
-      .map(d => soapMap.get(d)?.id)
-      .filter(Boolean) as string[]
+      .flatMap(d => (soapMap.get(d) ?? []).map(e => e.id))
     if (!ids.length) return
     setInsightLoading(true)
     setInsightResponse(null)
@@ -360,7 +367,8 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
     setInsightLoading(false)
   }
 
-  const selectedEntry = selectedDate ? soapMap.get(selectedDate) ?? null : null
+  const selectedDayEntries = selectedDate ? soapMap.get(selectedDate) ?? [] : []
+  const selectedEntry = selectedDayEntries[selectedEntryIdx] ?? selectedDayEntries[0] ?? null
   const displayOcrText = ocrResult ?? selectedEntry?.ocr_text ?? null
   const isSearching = searchQuery.trim().length > 0
 
@@ -792,7 +800,8 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                 {/* Day cells */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px' }}>
                   {days.map(({ dateIso, dayNum, inMonth }) => {
-                    const hasSoap = soapMap.has(dateIso)
+                    const soapCount = soapMap.get(dateIso)?.length ?? 0
+                    const hasSoap = soapCount > 0
                     const isSelected = selectedDate === dateIso
                     const isToday = dateIso === todayIso
                     const isFuture = dateIso > todayIso
@@ -862,12 +871,16 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                       >
                         <span>{dayNum}</span>
                         {hasSoap && inMonth && !isInsightSelected && !isEndpoint && (
-                          <span style={{
-                            width: '4px', height: '4px', borderRadius: '50%',
-                            background: 'var(--establish, #36D6C3)',
-                            boxShadow: '0 0 4px var(--establish, #36D6C3)',
-                            flexShrink: 0,
-                          }} />
+                          soapCount > 1 ? (
+                            <span style={{ fontSize: '8px', lineHeight: 1, fontWeight: 700, color: 'var(--establish, #36D6C3)' }}>●{soapCount}</span>
+                          ) : (
+                            <span style={{
+                              width: '4px', height: '4px', borderRadius: '50%',
+                              background: 'var(--establish, #36D6C3)',
+                              boxShadow: '0 0 4px var(--establish, #36D6C3)',
+                              flexShrink: 0,
+                            }} />
+                          )
                         )}
                         {(isInsightSelected || isEndpoint) && (
                           <span style={{ fontSize: '9px', color: 'var(--establish, #36D6C3)', lineHeight: 1, fontWeight: 700 }}>✓</span>
@@ -972,6 +985,27 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
           background: 'var(--indigo, #141B3D)', overflow: 'hidden',
           boxShadow: '0 0 24px rgba(54,214,195,.08)',
         }}>
+          {/* Switcher when this day holds more than one entry */}
+          {selectedDayEntries.length > 1 && (
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', padding: '12px 16px 0' }}>
+              <span style={{ fontSize: '11px', color: 'var(--fg-3)' }}>{selectedDayEntries.length} entries this day:</span>
+              {selectedDayEntries.map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => { setSelectedEntryIdx(i); setOcrResult(null) }}
+                  style={{
+                    padding: '3px 11px', borderRadius: '999px', fontSize: '12px', fontWeight: 600, cursor: 'pointer',
+                    border: `1px solid ${i === selectedEntryIdx ? 'var(--establish, #36D6C3)' : 'var(--line-2)'}`,
+                    background: i === selectedEntryIdx ? 'rgba(54,214,195,.15)' : 'transparent',
+                    color: i === selectedEntryIdx ? 'var(--establish, #36D6C3)' : 'var(--fg-2)',
+                  }}
+                >
+                  {i + 1}
+                </button>
+              ))}
+            </div>
+          )}
           <div style={{
             display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
             gap: '12px', padding: '16px 16px 12px', borderBottom: '1px solid var(--line-2)',
