@@ -31,9 +31,12 @@ export default function SoapDateReviewModal({
     setDate(entries[idx]?.journal_date ?? '')
   }, [idx, entries])
 
-  const advance = () => {
+  // `justChanged` matters on the last entry: state set in the same click (setDirty)
+  // hasn't committed yet, so without it the closing refresh gets skipped and the
+  // dashboard keeps showing an entry that no longer needs a date.
+  const advance = (justChanged = false) => {
     if (idx + 1 < entries.length) setIdx(idx + 1)
-    else { if (dirty || savedCount) onUpdated(); onClose() }
+    else { if (justChanged || dirty || savedCount) onUpdated(); onClose() }
   }
 
   const save = async () => {
@@ -43,7 +46,7 @@ export default function SoapDateReviewModal({
     setSaving(false)
     if (error) { alert('Could not save the date. Please try again.'); return }
     setSavedCount(c => c + 1); setDirty(true)
-    advance()
+    advance(true)
   }
 
   const ignore = async () => {
@@ -53,7 +56,7 @@ export default function SoapDateReviewModal({
     setSaving(false)
     if (error) { alert('Could not save. Please try again.'); return }
     setDirty(true)
-    advance()
+    advance(true)
   }
 
   // Rotate the page; degrees are clockwise (270 = 90° counter-clockwise).
@@ -80,7 +83,7 @@ export default function SoapDateReviewModal({
     setSaving(false)
     if (error) { alert('Could not delete. Please try again.'); return }
     setDirty(true)
-    advance()
+    advance(true)
   }
 
   // Merge this page into the previous entry (a left→right continuation).
@@ -94,7 +97,7 @@ export default function SoapDateReviewModal({
     setSaving(false)
     if (error) { alert('Could not merge. Please try again.'); return }
     setDirty(true)
-    advance()
+    advance(true)
   }
 
   if (!current) return null
@@ -152,7 +155,7 @@ export default function SoapDateReviewModal({
           <button type="button" onClick={ignore} disabled={saving} className="cn-btn cn-btn-ghost flex-1 disabled:opacity-50" title={`Keep under ${year} as misc — don't ask again`}>
             Ignore
           </button>
-          <button type="button" onClick={advance} disabled={saving} className="cn-btn cn-btn-ghost flex-1 disabled:opacity-50" title="Skip for now">
+          <button type="button" onClick={() => advance()} disabled={saving} className="cn-btn cn-btn-ghost flex-1 disabled:opacity-50" title="Skip for now">
             Skip
           </button>
           <button type="button" onClick={save} disabled={saving || !date} className="cn-btn cn-btn-primary flex-1 disabled:opacity-50">
