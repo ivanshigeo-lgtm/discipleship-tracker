@@ -178,12 +178,13 @@ export default function MyJourneyPage() {
     return () => { supabase.removeChannel(channel) }
   }, [profile?.id, msgCenterOpen, loadUnreadCount])
 
+  // Light data the STAR needs — kept off the big SOAP history so the star paints
+  // fast. Soaps (hundreds of rows) load separately below.
   const loadData = useCallback(async () => {
     if (!profile?.id) return
-    const [coachRes, groupsRes, journalsRes, streakRes, checklistRes, disciplesRes, signoffsRes, ownedRes] = await Promise.all([
+    const [coachRes, groupsRes, streakRes, checklistRes, disciplesRes, signoffsRes, ownedRes] = await Promise.all([
       getMyCoach(profile.id),
       getMyGroups(profile.id),
-      getSoapJournals(profile.id), // all history, so imported past years show on the calendar
       getSoapStreak(profile.id),
       getStageChecklistItems(profile.id),
       getDiscipleshipConnections(profile.id),
@@ -200,7 +201,6 @@ export default function MyJourneyPage() {
       setGroups(rows.filter(g => g.status !== 'pending').map(g => g.victory_groups).filter(Boolean))
       setPendingGroupIds(rows.filter(g => g.status === 'pending').map(g => g.victory_group_id))
     }
-    if (journalsRes.data) setSoapJournals(journalsRes.data as SoapJournal[])
     if (streakRes.streak !== undefined) setSoapStreak(streakRes.streak)
     if (streakRes.current !== undefined) setCurrentStreak(streakRes.current)
     if (checklistRes.data) setChecklistItems(checklistRes.data as StageChecklistItem[])
@@ -208,9 +208,22 @@ export default function MyJourneyPage() {
     setDataReady(true)
   }, [profile?.id])
 
+  // The full SOAP history (large) loads on its own so it never blocks the star.
+  const loadSoaps = useCallback(async () => {
+    if (!profile?.id) return
+    const { data } = await getSoapJournals(profile.id)
+    if (data) setSoapJournals(data as SoapJournal[])
+  }, [profile?.id])
+
   useEffect(() => {
     loadData()
-  }, [loadData])
+    loadSoaps()
+  }, [loadData, loadSoaps])
+
+  // Reload SOAP data (+ streak) after an import/edit/rotate.
+  const refreshSoaps = useCallback(async () => {
+    await Promise.all([loadSoaps(), loadData()])
+  }, [loadSoaps, loadData])
 
   // Re-fetch only checklist items when the coach updates them on their side
   const refreshChecklist = useCallback(async () => {
@@ -576,7 +589,7 @@ export default function MyJourneyPage() {
             onNewEntry={() => { setSoapEntryDate(null); setActiveModal('soap') }}
             soapStreak={soapStreak}
             currentStreak={currentStreak}
-            onRefresh={loadData}
+            onRefresh={refreshSoaps}
             onNewEntryForDate={date => { setSoapEntryDate(date); setActiveModal('soap') }}
             personId={profile.id}
           />
