@@ -18,6 +18,11 @@ const supabase = createClient(
 // dated entry, filed on its real date. Handles cross-photo continuation and
 // duplicate pages.
 
+// Vision model for reading handwriting. Sonnet 5 has the same high-res vision
+// as Opus at ~40% of the price; swap to 'claude-opus-4-8' (or 'claude-fable-5',
+// also enabled on this key) if read quality ever needs a step up.
+const VISION_MODEL = 'claude-sonnet-5'
+
 type Row = {
   id: string
   person_id: string
@@ -64,61 +69,48 @@ function toDate(year: number, month: unknown, day: unknown): string | null {
   return null
 }
 
-// Rotate a stored photo (clockwise) and return the new public url.
-async function rotateStored(url: string, personId: string, deg: number): Promise<string | null> {
+// Upload an already-rotated jpeg buffer, returning the new public url.
+async function uploadRotated(rotated: Buffer, personId: string): Promise<string | null> {
   try {
-    const res = await fetch(url)
-    if (!res.ok) return null
-    const buf = Buffer.from(await res.arrayBuffer())
-    const rotated = await sharp(buf).rotate(deg).jpeg({ quality: 85 }).toBuffer()
     const path = `${personId}/${Date.now()}-${Math.round(Math.random() * 1e6)}-air.jpg`
     // Blob upload (binary-safe) — a raw Buffer gets corrupted by the storage
     // client on Vercel.
-    const { error } = await supabase.storage.from('soap-photos').upload(path, new Blob([rotated], { type: 'image/jpeg' }), { contentType: 'image/jpeg', upsert: false })
+    const { error } = await supabase.storage.from('soap-photos').upload(path, new Blob([new Uint8Array(rotated)], { type: 'image/jpeg' }), { contentType: 'image/jpeg', upsert: false })
     if (error) return null
     return supabase.storage.from('soap-photos').getPublicUrl(path).data.publicUrl
   } catch { return null }
 }
 
-// Dedicated orientation check — far more reliable than asking during OCR, because
-// vision models can READ sideways text and so don't "notice" the rotation. We ask
-// a concrete spatial question and map the answer to a clockwise fix (270 = 90° CCW).
-async function detectOrientation(photoUrl: string): Promise<number> {
-  try {
-    const { text } = await generateText({
-      model: anthropic('claude-haiku-4-5-20251001'),
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'image', image: photoUrl },
-          {
-            type: 'text',
-            text: `This is a photo of a handwritten page that may have been taken rotated. Ignore what it says. Look only at how the handwriting is oriented and decide which edge of the IMAGE the TOP of the writing sits on — where the first lines begin and where the letters point "up".
-Answer with EXACTLY one lowercase word: top, bottom, left, or right.
-- "top" = the writing is already upright and readable normally.
-- "right" = the page is turned so the top of the text runs along the RIGHT edge (you'd tilt your head right to read it).
-- "left" = the top of the text runs along the LEFT edge.
-- "bottom" = the page is upside-down.`,
-          },
-        ],
-      }],
-    })
-    const a = text.toLowerCase()
-    if (a.includes('bottom')) return 180
-    if (a.includes('right')) return 270 // top-of-writing on the right → rotate 90° counter-clockwise
-    if (a.includes('left')) return 90   // top-of-writing on the left → rotate 90° clockwise
-    return 0
-  } catch { return 0 }
+type ReadResult = { segments: Segment[]; parseOk: boolean }
+
+// How "clean" a read is. A parsed JSON reply with dated segments beats everything;
+// a garbled read typically fails to parse or produces short/undated junk.
+function readScore(r: ReadResult): number {
+  const dated = r.segments.filter(s => s.date).length
+  const textLen = r.segments.reduce((n, s) => n + s.text.length, 0)
+  return (r.parseOk ? 10000 : 0) + dated * 5000 + Math.min(textLen, 4000)
 }
 
-// Read an (already upright) photo and split it into one segment per dated entry.
-async function analyze(photoUrl: string, year: number): Promise<Segment[]> {
+// Is the upright read good enough to skip rotation entirely? A dated entry, or a
+// parsed undated one with real text (continuation pages legitimately have no date).
+function isGoodRead(r: ReadResult): boolean {
+  if (!r.parseOk) return false
+  const textLen = r.segments.reduce((n, s) => n + s.text.length, 0)
+  return r.segments.some(s => s.date) || textLen >= 150
+}
+
+// Read a photo and split it into one segment per dated entry.
+async function analyze(image: string | Buffer, year: number): Promise<ReadResult> {
   const { text } = await generateText({
-    model: anthropic('claude-haiku-4-5-20251001'),
+    model: anthropic(VISION_MODEL),
+    // Sonnet 5 runs adaptive thinking by default when the param is omitted —
+    // OCR doesn't need it, and thinking tokens count against the output limit.
+    providerOptions: { anthropic: { thinking: { type: 'disabled' } } },
+    maxOutputTokens: 8000, // two dense notebook pages of transcription fit comfortably
     messages: [{
       role: 'user',
       content: [
-        { type: 'image', image: photoUrl },
+        { type: 'image', image },
         {
           type: 'text',
           text: `This photo shows one or two handwritten notebook pages with SOAP journal entries (Scripture, Observation, Application, Prayer), each usually starting with its own date.
@@ -148,9 +140,9 @@ Respond ONLY with JSON:
         isContinuation: i === 0 && s.is_continuation === true,
       }))
       .filter(s => s.text.length > 0)
-    if (segs.length) return segs
+    if (segs.length) return { segments: segs, parseOk: true }
   } catch { /* fall through */ }
-  return [{ date: null, scripture: null, text: text.slice(0, 4000), isContinuation: false }]
+  return { segments: [{ date: null, scripture: null, text: text.slice(0, 4000), isContinuation: false }], parseOk: false }
 }
 
 export async function POST(request: NextRequest) {
@@ -190,21 +182,42 @@ export async function POST(request: NextRequest) {
 
   // Phase A — READ the pages concurrently (the slow AI part). Bounded per call so
   // we stay under maxDuration; the client loops until nothing remains.
-  const slice = pending.slice(0, 40)
+  //
+  // Orientation is VERIFY-DON'T-GUESS: read at 0° first and keep that read if it's
+  // clean — asking the model "is this rotated?" up front over-rotated upright pages
+  // (every garbled/undated entry in the 109-photo test came from a wrongly-rotated
+  // page). Only when the upright read is genuinely bad do we try 90/180/270 and
+  // keep whichever reads cleanest.
+  const slice = pending.slice(0, 20)
   const analyzed = await mapPool(slice, 5, async (photo) => {
     if (!photo.photo_url) return null
     try {
       let photoUrl = photo.photo_url
-      // 1) Straighten the page FIRST (dedicated orientation check), so the read
-      //    happens on an upright image and dates/structure are detected properly.
-      const deg = await detectOrientation(photoUrl)
-      if (deg) {
-        const rotated = await rotateStored(photoUrl, photo.person_id, deg)
-        if (rotated) photoUrl = rotated
+      // 1) Read upright first.
+      let best = await analyze(photoUrl, yr)
+      let bestDeg = 0
+      let origBuf: Buffer | null = null
+      if (!isGoodRead(best)) {
+        // 2) Upright read is bad — trial-rotate in memory and re-read.
+        const res = await fetch(photoUrl)
+        if (res.ok) origBuf = Buffer.from(await res.arrayBuffer())
+        if (origBuf) {
+          for (const deg of [90, 180, 270]) {
+            const rotated = await sharp(origBuf).rotate(deg).jpeg({ quality: 85 }).toBuffer()
+            const r = await analyze(rotated, yr)
+            if (readScore(r) > readScore(best)) { best = r; bestDeg = deg }
+            // A clean dated read at this angle is definitive — stop trialing.
+            if (isGoodRead(r) && r.segments.some(s => s.date)) break
+          }
+        }
       }
-      // 2) Read the upright page.
-      const segments = await analyze(photoUrl, yr)
-      return { photo, segments, photoUrl }
+      // 3) Persist the winning rotation (if any) so review shows the page upright.
+      if (bestDeg && origBuf) {
+        const rotated = await sharp(origBuf).rotate(bestDeg).jpeg({ quality: 85 }).toBuffer()
+        const rotatedUrl = await uploadRotated(rotated, photo.person_id)
+        if (rotatedUrl) photoUrl = rotatedUrl
+      }
+      return { photo, segments: best.segments, photoUrl }
     } catch (e) {
       console.error('Import analyze error on photo', photo.id, e)
       return null // stays pending; retried on a later call
