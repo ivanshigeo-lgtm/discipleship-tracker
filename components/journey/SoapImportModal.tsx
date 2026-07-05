@@ -109,8 +109,10 @@ export default function SoapImportModal({
     setPhase('processing')
     const totals: Stats = { dated: 0, undated: 0, merged: 0, duplicates: 0 }
     let mismatches = 0
-    // Loop the resumable processor until nothing is left.
-    for (let guard = 0; guard < 200; guard++) {
+    // Kick the server-side processor. It chains itself until the batch is done,
+    // so this loop is mostly a progress watcher — it only does real work if the
+    // server chain ever drops the baton (then a call claims photos and revives it).
+    for (let guard = 0; guard < 400; guard++) {
       try {
         const res = await fetch('/api/soap/import/process', {
           method: 'POST',
@@ -132,6 +134,8 @@ export default function SoapImportModal({
         setRemaining(j.remaining ?? 0)
         onImported() // refresh the calendar as entries fill in
         if ((j.remaining ?? 0) <= 0) break
+        // Server chain holds the claims — wait before checking in again.
+        if (!j.processed) await new Promise(r => setTimeout(r, 8000))
       } catch (e) {
         setError(e instanceof Error ? e.message : 'processing failed')
         break
@@ -255,8 +259,8 @@ export default function SoapImportModal({
                   {remaining > 0 ? ` · ${remaining} to go` : ''}
                 </p>
                 <p className="mt-2 text-[11px] font-semibold" style={{ color: 'var(--establish)' }}>
-                  ✓ Your pages are saved. You can leave this screen — if it pauses, reopen and tap
-                  &ldquo;Finish import&rdquo; to complete it.
+                  ✓ Your pages are saved and the server is reading them on its own — you can close
+                  the app. Come back anytime to watch progress.
                 </p>
               </div>
             )}

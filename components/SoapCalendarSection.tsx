@@ -195,7 +195,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
     const batches = Array.from(new Set(pendingImports.map(s => s.import_batch_id).filter(Boolean))) as string[]
     for (const batchId of batches) {
       const year = Number((pendingImports.find(s => s.import_batch_id === batchId)?.journal_date ?? '').slice(0, 4)) || new Date().getFullYear()
-      for (let guard = 0; guard < 200; guard++) {
+      for (let guard = 0; guard < 400; guard++) {
         try {
           const res = await fetch('/api/soap/import/process', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -203,6 +203,8 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
           })
           const j = await res.json()
           if (!res.ok || (j.remaining ?? 0) <= 0) break
+          // Server self-chains once kicked; poll gently instead of hammering.
+          if (!j.processed) await new Promise(r => setTimeout(r, 8000))
         } catch { break }
       }
     }
