@@ -445,3 +445,16 @@ body {
   from { transform: rotateY(-89deg); filter: brightness(0.75); }
   to   { transform: rotateY(0deg); filter: brightness(1); }
 }
+
+/* Corner-peel page turn (v3): bottom-right corner lifts first and leads the
+   sheet over the spine — the corner-led asymmetry reads as paper peeling. */
+@keyframes pagePeelAway {
+  0%   { transform: rotateY(0deg) rotateX(0deg) rotateZ(0deg); filter: brightness(1); }
+  30%  { transform: rotateY(-22deg) rotateX(9deg) rotateZ(-5deg); filter: brightness(0.96); }
+  100% { transform: rotateY(-102deg) rotateX(5deg) rotateZ(-3deg); filter: brightness(0.72); }
+}
+@keyframes pagePeelBack {
+  0%   { transform: rotateY(-102deg) rotateX(5deg) rotateZ(-3deg); filter: brightness(0.72); }
+  70%  { transform: rotateY(-22deg) rotateX(9deg) rotateZ(-5deg); filter: brightness(0.96); }
+  100% { transform: rotateY(0deg) rotateX(0deg) rotateZ(0deg); filter: brightness(1); }
+}

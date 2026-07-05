@@ -468,11 +468,11 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
     if (!target) return
     if (dir === 1) {
       commitPage(target)
-      setTurn({ url: currentUrl, anim: 'pageTurnAway 340ms ease-in forwards' })
-      setTimeout(() => setTurn(null), 360)
+      setTurn({ url: currentUrl, anim: 'pagePeelAway 420ms cubic-bezier(.5,.08,.75,.6) forwards' })
+      setTimeout(() => setTurn(null), 440)
     } else {
-      setTurn({ url: target.url, anim: 'pageTurnBack 340ms ease-out forwards' })
-      setTimeout(() => { commitPage(target); setTurn(null) }, 345)
+      setTurn({ url: target.url, anim: 'pagePeelBack 420ms cubic-bezier(.22,.7,.4,1) forwards' })
+      setTimeout(() => { commitPage(target); setTurn(null) }, 425)
     }
   }
   const isSearching = searchQuery.trim().length > 0
