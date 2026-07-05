@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { addSoapJournal } from '../../lib/supabaseQueries'
+import { prepareImage } from '../../lib/prepareImage'
 import type { ShareVisibility } from '../../types/database'
 
 const SCOPES: { value: ShareVisibility; label: string; hint: string }[] = [
@@ -93,11 +94,14 @@ export default function SoapEntryModal({
     setCameraError('')
   }
 
-  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.files?.[0]
+    if (!raw) return
+    // Bake in orientation (portrait/landscape) + shrink, so it displays and OCRs upright.
+    const blob = await prepareImage(raw)
+    const file = new File([blob], `soap-photo-${Date.now()}.jpg`, { type: 'image/jpeg' })
     setPhoto(file)
-    setPhotoPreview(URL.createObjectURL(file))
+    setPhotoPreview(URL.createObjectURL(blob))
   }
 
   const removePhoto = () => {

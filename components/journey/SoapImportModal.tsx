@@ -3,9 +3,11 @@
 import { useState } from 'react'
 import exifr from 'exifr'
 import { addSoapJournal } from '../../lib/supabaseQueries'
+import { prepareImage } from '../../lib/prepareImage'
 
 const CURRENT_YEAR = new Date().getFullYear()
 const YEARS = Array.from({ length: 30 }, (_, i) => CURRENT_YEAR - i)
+const SEC_PER_PAGE = 4 // rough server OCR time per page, for the estimate
 
 // Order pages by when the photo was actually taken (fixes reverse-selection).
 async function captureTime(file: File): Promise<number> {
@@ -15,28 +17,6 @@ async function captureTime(file: File): Promise<number> {
     if (d instanceof Date && !isNaN(d.getTime())) return d.getTime()
   } catch { /* no EXIF */ }
   return file.lastModified || 0
-}
-
-// Shrink a phone photo before upload — handwriting stays legible at ~1600px, but
-// the file gets 5–10× smaller, so uploads (and OCR) are much faster. Respects
-// EXIF orientation so sideways photos aren't rotated.
-async function compress(file: File, maxDim = 1600, quality = 0.82): Promise<Blob> {
-  try {
-    const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
-    const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height))
-    const w = Math.round(bitmap.width * scale)
-    const h = Math.round(bitmap.height * scale)
-    const canvas = document.createElement('canvas')
-    canvas.width = w
-    canvas.height = h
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return file
-    ctx.drawImage(bitmap, 0, 0, w, h)
-    const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, 'image/jpeg', quality))
-    return blob && blob.size < file.size ? blob : file
-  } catch {
-    return file
-  }
 }
 
 // Run tasks with limited concurrency (parallel uploads without hammering).
@@ -92,7 +72,7 @@ export default function SoapImportModal({
     let uploadedCount = 0
     await pool(ordered, 5, async (file, idx) => {
       try {
-        const blob = await compress(file)
+        const blob = await prepareImage(file)
         const form = new FormData()
         form.append('file', new File([blob], `page-${idx}.jpg`, { type: 'image/jpeg' }))
         form.append('personId', personId)
@@ -208,13 +188,16 @@ export default function SoapImportModal({
 
             {phase === 'processing' && (
               <div className="mt-4 rounded-xl border border-[var(--line-2)] p-3">
-                <p className="text-sm font-semibold text-[var(--fg-1)]">Reading your pages on our servers…</p>
+                <p className="text-sm font-semibold text-[var(--fg-1)]">
+                  Reading your pages on our servers…{remaining > 0 ? ` about ${Math.max(1, Math.ceil((remaining * SEC_PER_PAGE) / 60))} min left` : ' almost done'}
+                </p>
                 <p className="mt-1 text-xs text-[var(--fg-2)]">
                   {stats.dated + stats.undated} filed{stats.merged ? ` · ${stats.merged} merged` : ''}{stats.duplicates ? ` · ${stats.duplicates} duplicate skipped` : ''}
                   {remaining > 0 ? ` · ${remaining} to go` : ''}
                 </p>
                 <p className="mt-2 text-[11px] font-semibold" style={{ color: 'var(--establish)' }}>
-                  ✓ Safe to close — this finishes on its own, even if you leave.
+                  ✓ Your pages are saved. You can leave this screen — if it pauses, reopen and tap
+                  &ldquo;Finish import&rdquo; to complete it.
                 </p>
               </div>
             )}
