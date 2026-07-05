@@ -165,6 +165,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
 
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [selectedEntryIdx, setSelectedEntryIdx] = useState(0)
+  const [photoIdx, setPhotoIdx] = useState(0) // which page of the entry's photos is showing
   const [rotating, setRotating] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [ocrLoading, setOcrLoading] = useState(false)
@@ -266,6 +267,20 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
     return map
   }, [soaps])
 
+  // Journal reading order: every dated entry with a photo, oldest→newest (date,
+  // then page sequence within the day) — lets the photo viewer flip page by
+  // page through the physical notebooks, across entry boundaries.
+  const readingOrder = useMemo(() => {
+    return soaps
+      .filter(s => s.date_precision !== 'year' && (s.photo_url || s.photo_urls?.length))
+      .slice()
+      .sort((a, b) =>
+        a.journal_date.localeCompare(b.journal_date) ||
+        ((a.import_seq ?? Number.MAX_SAFE_INTEGER) - (b.import_seq ?? Number.MAX_SAFE_INTEGER)) ||
+        a.created_at.localeCompare(b.created_at)
+      )
+  }, [soaps])
+
   // Three calendar months: base, base+1, base+2
   const calendarMonths = useMemo(() => {
     return [0, 1, 2].map(offset => {
@@ -363,6 +378,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
     if (hasSoap) {
       setSelectedDate(prev => prev === dateIso ? null : dateIso)
       setSelectedEntryIdx(0)
+      setPhotoIdx(0)
       setOcrResult(null)
     } else {
       onNewEntryForDate?.(dateIso)
@@ -404,6 +420,38 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
   const selectedDayEntries = selectedDate ? soapMap.get(selectedDate) ?? [] : []
   const selectedEntry = selectedDayEntries[selectedEntryIdx] ?? selectedDayEntries[0] ?? null
   const displayOcrText = ocrResult ?? selectedEntry?.ocr_text ?? null
+
+  // Page-flip reading: photos of this entry, this entry's place in the journal,
+  // and flip handlers that continue into the previous/next entry at the ends.
+  const entryPhotos = selectedEntry
+    ? (selectedEntry.photo_urls?.length ? selectedEntry.photo_urls : selectedEntry.photo_url ? [selectedEntry.photo_url] : [])
+    : []
+  const safePhotoIdx = Math.min(photoIdx, Math.max(0, entryPhotos.length - 1))
+  const readingIdx = selectedEntry ? readingOrder.findIndex(s => s.id === selectedEntry.id) : -1
+
+  const openEntryForReading = (entry: SoapJournal, page: 'first' | 'last') => {
+    const day = soapMap.get(entry.journal_date) ?? []
+    setSelectedDate(entry.journal_date)
+    setSelectedEntryIdx(Math.max(0, day.findIndex(e => e.id === entry.id)))
+    setOcrResult(null)
+    const photos = entry.photo_urls?.length ? entry.photo_urls : entry.photo_url ? [entry.photo_url] : []
+    setPhotoIdx(page === 'last' ? Math.max(0, photos.length - 1) : 0)
+  }
+
+  const flipPage = (dir: 1 | -1) => {
+    if (!selectedEntry) return
+    if (dir === 1) {
+      if (safePhotoIdx < entryPhotos.length - 1) { setPhotoIdx(safePhotoIdx + 1); return }
+      const next = readingIdx >= 0 ? readingOrder[readingIdx + 1] : undefined
+      if (next) openEntryForReading(next, 'first')
+    } else {
+      if (safePhotoIdx > 0) { setPhotoIdx(safePhotoIdx - 1); return }
+      const prev = readingIdx >= 0 ? readingOrder[readingIdx - 1] : undefined
+      if (prev) openEntryForReading(prev, 'last')
+    }
+  }
+  const canFlipBack = safePhotoIdx > 0 || readingIdx > 0
+  const canFlipFwd = safePhotoIdx < entryPhotos.length - 1 || (readingIdx >= 0 && readingIdx < readingOrder.length - 1)
   const isSearching = searchQuery.trim().length > 0
 
   // Header label: "Apr – Jun 2026" or across year boundary "Dec 2025 – Feb 2026"
@@ -1094,7 +1142,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                 <button
                   key={i}
                   type="button"
-                  onClick={() => { setSelectedEntryIdx(i); setOcrResult(null) }}
+                  onClick={() => { setSelectedEntryIdx(i); setPhotoIdx(0); setOcrResult(null) }}
                   style={{
                     padding: '3px 11px', borderRadius: '999px', fontSize: '12px', fontWeight: 600, cursor: 'pointer',
                     border: `1px solid ${i === selectedEntryIdx ? 'var(--establish, #36D6C3)' : 'var(--line-2)'}`,
@@ -1152,12 +1200,50 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
           <div style={{ padding: '16px' }}>
             {selectedEntry.photo_url ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={selectedEntry.photo_url}
-                  alt="SOAP journal entry"
-                  style={{ width: '100%', borderRadius: '10px', display: 'block', objectFit: 'cover' }}
-                />
+                <div style={{ position: 'relative' }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={entryPhotos[safePhotoIdx] ?? selectedEntry.photo_url}
+                    alt="SOAP journal entry"
+                    style={{ width: '100%', borderRadius: '10px', display: 'block', objectFit: 'cover' }}
+                  />
+                  {/* Flip through the journal: this entry's pages, then prev/next entries */}
+                  {canFlipBack && (
+                    <button
+                      type="button"
+                      onClick={() => flipPage(-1)}
+                      title={safePhotoIdx > 0 ? 'Previous page' : 'Previous entry'}
+                      style={{
+                        position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)',
+                        width: '36px', height: '36px', borderRadius: '50%', border: '1px solid rgba(255,255,255,.25)',
+                        background: 'rgba(11,16,39,.62)', color: '#fff', fontSize: '20px', lineHeight: 1,
+                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}
+                    >‹</button>
+                  )}
+                  {canFlipFwd && (
+                    <button
+                      type="button"
+                      onClick={() => flipPage(1)}
+                      title={safePhotoIdx < entryPhotos.length - 1 ? 'Next page' : 'Next entry'}
+                      style={{
+                        position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)',
+                        width: '36px', height: '36px', borderRadius: '50%', border: '1px solid rgba(255,255,255,.25)',
+                        background: 'rgba(11,16,39,.62)', color: '#fff', fontSize: '20px', lineHeight: 1,
+                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}
+                    >›</button>
+                  )}
+                  {entryPhotos.length > 1 && (
+                    <span style={{
+                      position: 'absolute', bottom: '8px', right: '8px', padding: '2px 8px',
+                      borderRadius: '999px', background: 'rgba(11,16,39,.70)', color: '#fff',
+                      fontSize: '11px', fontWeight: 600,
+                    }}>
+                      Page {safePhotoIdx + 1} of {entryPhotos.length}
+                    </span>
+                  )}
+                </div>
                 <button
                   onClick={async () => {
                     if (!selectedEntry || rotating) return
