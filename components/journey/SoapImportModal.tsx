@@ -1,12 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { addSoapJournal } from '../../lib/supabaseQueries'
+import { addSoapJournal, updateSoapJournal } from '../../lib/supabaseQueries'
 
 const CURRENT_YEAR = new Date().getFullYear()
 const YEARS = Array.from({ length: 30 }, (_, i) => CURRENT_YEAR - i)
 
-type Progress = { done: number; total: number; dated: number; undated: number; failed: number }
+type Progress = { done: number; total: number; dated: number; undated: number; merged: number; failed: number }
 
 // Bulk-import handwritten SOAP journals for a chosen year: multi-select photos →
 // upload each → OCR + detect the written month/day → file on that date, or under
@@ -32,8 +32,12 @@ export default function SoapImportModal({
     setBusy(true)
     setError('')
     const batchId = crypto.randomUUID()
-    const p: Progress = { done: 0, total: files.length, dated: 0, undated: 0, failed: 0 }
+    const p: Progress = { done: 0, total: files.length, dated: 0, undated: 0, merged: 0, failed: 0 }
     setProgress({ ...p })
+
+    // The entry currently being built — so pages that CONTINUE it (no date, pick
+    // up mid-thought) get appended instead of becoming separate entries.
+    let current: { id: string; ocr_text: string; photo_urls: string[] } | null = null
 
     for (const file of files) {
       try {
@@ -44,31 +48,51 @@ export default function SoapImportModal({
         const upRes = await fetch('/api/soap/upload', { method: 'POST', body: form })
         const upJson = await upRes.json()
         if (!upRes.ok) throw new Error(upJson.error || 'upload failed')
+        const url = upJson.url as string
 
-        // 2. create the entry, filed under the year until OCR finds a date
-        const { data: row, error: insErr } = await addSoapJournal({
-          person_id: personId,
-          journal_date: `${year}-01-01`,
-          photo_url: upJson.url,
-          ocr_text: null,
-          scripture_reference: null,
-          summary: null,
-          visibility: 'private',
-          date_precision: 'year',
-          source: 'imported',
-          import_batch_id: batchId,
-        })
-        if (insErr || !row) throw new Error(insErr?.message || 'save failed')
-
-        // 3. OCR + detect the month/day within the chosen year
+        // 2. OCR + classify (new entry vs continuation) — no DB write yet
         const ocrRes = await fetch('/api/soap/ocr', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ journalId: (row as { id: string }).id, importYear: year }),
+          body: JSON.stringify({ imageUrl: url, importYear: year }),
         })
-        const ocrJson = await ocrRes.json().catch(() => ({}))
-        if (ocrRes.ok && ocrJson.detected_date) p.dated++
-        else p.undated++
+        const ocr = await ocrRes.json().catch(() => ({} as Record<string, unknown>))
+        const ocrText = (ocr.ocr_text as string) || ''
+        const detectedDate = (ocr.detected_date as string | null) ?? null
+        const startsNew = ocr.starts_new !== false
+
+        if (!current || startsNew) {
+          // 3a. NEW entry — dated if a date was read, else filed under the year
+          const { data: row, error: insErr } = await addSoapJournal({
+            person_id: personId,
+            journal_date: detectedDate || `${year}-01-01`,
+            photo_url: url,
+            photo_urls: [url],
+            ocr_text: ocrText || null,
+            scripture_reference: (ocr.scripture_reference as string) || null,
+            summary: null,
+            visibility: 'private',
+            date_precision: detectedDate ? 'day' : 'year',
+            source: 'imported',
+            import_batch_id: batchId,
+          })
+          if (insErr || !row) throw new Error(insErr?.message || 'save failed')
+          current = { id: (row as { id: string }).id, ocr_text: ocrText, photo_urls: [url] }
+          if (detectedDate) p.dated++
+          else p.undated++
+        } else {
+          // 3b. CONTINUATION — append this page to the current entry, same date
+          const mergedText = [current.ocr_text, ocrText].filter(Boolean).join('\n\n')
+          const mergedPhotos = [...current.photo_urls, url]
+          const { error: updErr } = await updateSoapJournal(current.id, {
+            ocr_text: mergedText,
+            photo_urls: mergedPhotos,
+          })
+          if (updErr) throw new Error(updErr.message)
+          current.ocr_text = mergedText
+          current.photo_urls = mergedPhotos
+          p.merged++
+        }
       } catch {
         p.failed++
       }
@@ -93,15 +117,17 @@ export default function SoapImportModal({
           Bring a year to light
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-[var(--fg-2)]">
-          Pick a year, choose the photos of those pages, and we&rsquo;ll read each one — filing it on
-          the date written on the page, or under the year if there&rsquo;s no date.
+          Pick a year, choose the photos <strong>in page order</strong>, and we&rsquo;ll read each one —
+          filing it on the date written on the page, or under the year if there&rsquo;s no date. A page
+          that continues the previous entry is merged into it, on the same date.
         </p>
 
         {done ? (
           <div className="mt-5 rounded-xl border border-[var(--line-2)] p-4 text-center">
-            <p className="text-lg font-bold" style={{ color: 'var(--establish)' }}>✦ Imported {done.dated + done.undated} pages</p>
+            <p className="text-lg font-bold" style={{ color: 'var(--establish)' }}>✦ Imported {done.dated + done.undated} entries</p>
             <p className="mt-1 text-sm text-[var(--fg-2)]">
               {done.dated} placed on their date · {done.undated} filed under {year}
+              {done.merged > 0 ? ` · ${done.merged} continuation page${done.merged === 1 ? '' : 's'} merged` : ''}
               {done.failed > 0 ? ` · ${done.failed} failed` : ''}
             </p>
             <button type="button" onClick={onClose} className="cn-btn cn-btn-primary mt-4">Done</button>
@@ -143,7 +169,8 @@ export default function SoapImportModal({
                   <div className="h-full rounded-full transition-all" style={{ width: `${(progress.done / progress.total) * 100}%`, background: 'var(--establish)' }} />
                 </div>
                 <p className="mt-1.5 text-xs text-[var(--fg-3)]">
-                  Reading {progress.done}/{progress.total} — {progress.dated} dated, {progress.undated} filed under {year}
+                  Reading {progress.done}/{progress.total} pages — {progress.dated} dated, {progress.undated} under {year}
+                  {progress.merged > 0 ? `, ${progress.merged} merged` : ''}
                 </p>
               </div>
             )}

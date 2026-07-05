@@ -171,6 +171,9 @@ export type SoapJournal = {
   date_precision?: 'day' | 'year'
   source?: 'manual' | 'imported'
   import_batch_id?: string | null
+  // All page photos for a multi-page entry (a SOAP that spans notebook pages).
+  // photo_url stays the first page for backward compatibility.
+  photo_urls?: string[] | null
 }
 
 export type LevelSignoff = {

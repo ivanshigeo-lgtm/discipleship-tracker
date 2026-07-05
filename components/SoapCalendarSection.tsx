@@ -1099,12 +1099,20 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
             <div style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
               {modalEntry.photo_url && (
                 <>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={modalEntry.photo_url}
-                    alt="SOAP journal entry"
-                    style={{ width: '100%', borderRadius: '12px', display: 'block' }}
-                  />
+                  {/* All pages for a multi-page (continuation) entry */}
+                  {(modalEntry.photo_urls?.length ? modalEntry.photo_urls : [modalEntry.photo_url]).map((u, i, arr) => (
+                    <div key={i}>
+                      {arr.length > 1 && (
+                        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--fg-3)', marginBottom: '4px' }}>Page {i + 1} of {arr.length}</div>
+                      )}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={u}
+                        alt={`SOAP journal page ${i + 1}`}
+                        style={{ width: '100%', borderRadius: '12px', display: 'block' }}
+                      />
+                    </div>
+                  ))}
                   {!(modalOcrText ?? modalEntry.ocr_text) && (
                     <button
                       onClick={async () => {
