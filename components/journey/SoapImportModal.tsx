@@ -49,6 +49,8 @@ export default function SoapImportModal({
   const [uploaded, setUploaded] = useState(0)
   const [uploadTotal, setUploadTotal] = useState(0)
   const [remaining, setRemaining] = useState(0)
+  const [pagesRead, setPagesRead] = useState(0)
+  const [pagesPerMin, setPagesPerMin] = useState<number | null>(null)
   const [stats, setStats] = useState<Stats>({ dated: 0, undated: 0, merged: 0, duplicates: 0 })
   const [yearWarning, setYearWarning] = useState<{ written: number; count: number } | null>(null)
   const [moving, setMoving] = useState(false)
@@ -109,6 +111,10 @@ export default function SoapImportModal({
     setPhase('processing')
     const totals: Stats = { dated: 0, undated: 0, merged: 0, duplicates: 0 }
     let mismatches = 0
+    const totalPages = ordered.length
+    const readStart = Date.now()
+    setPagesRead(0)
+    setRemaining(totalPages)
     // Kick the server-side processor. It chains itself until the batch is done,
     // so this loop is mostly a progress watcher — it only does real work if the
     // server chain ever drops the baton (then a call claims photos and revives it).
@@ -131,9 +137,15 @@ export default function SoapImportModal({
           mismatches += j.yearMismatchCount
           setYearWarning({ written: j.writtenYear, count: mismatches })
         }
-        setRemaining(j.remaining ?? 0)
+        const rem = j.remaining ?? 0
+        setRemaining(rem)
+        // Live reading meter: pages read + measured pace (for the ETA).
+        const read = Math.max(0, totalPages - rem)
+        setPagesRead(read)
+        const mins = (Date.now() - readStart) / 60000
+        if (read > 0 && mins > 0.15) setPagesPerMin(read / mins)
         onImported() // refresh the calendar as entries fill in
-        if ((j.remaining ?? 0) <= 0) break
+        if (rem <= 0) break
         // Server chain holds the claims — wait before checking in again.
         if (!j.processed) await new Promise(r => setTimeout(r, 8000))
       } catch (e) {
@@ -251,12 +263,19 @@ export default function SoapImportModal({
 
             {phase === 'processing' && (
               <div className="mt-4 rounded-xl border border-[var(--line-2)] p-3">
-                <p className="text-sm font-semibold text-[var(--fg-1)]">
-                  Reading your pages on our servers…{remaining > 0 ? ` about ${Math.max(1, Math.ceil((remaining * SEC_PER_PAGE) / 60))} min left` : ' almost done'}
+                {/* Reading meter — same shape as the upload bar above it. */}
+                <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--indigo-2)]">
+                  <div className="h-full rounded-full transition-all" style={{ width: `${uploadTotal ? (pagesRead / uploadTotal) * 100 : 0}%`, background: 'var(--gbm-cobalt-bright)' }} />
+                </div>
+                <p className="mt-1.5 text-sm font-semibold text-[var(--fg-1)]">
+                  Reading {pagesRead}/{uploadTotal} pages…
+                  {remaining > 0
+                    ? ` ~${Math.max(1, Math.ceil(pagesPerMin ? remaining / pagesPerMin : (remaining * SEC_PER_PAGE) / 60))} min left`
+                    : ' almost done'}
                 </p>
                 <p className="mt-1 text-xs text-[var(--fg-2)]">
+                  {pagesPerMin ? `${pagesPerMin.toFixed(1)} pages/min · ` : ''}
                   {stats.dated + stats.undated} filed{stats.merged ? ` · ${stats.merged} merged` : ''}{stats.duplicates ? ` · ${stats.duplicates} duplicate skipped` : ''}
-                  {remaining > 0 ? ` · ${remaining} to go` : ''}
                 </p>
                 <p className="mt-2 text-[11px] font-semibold" style={{ color: 'var(--establish)' }}>
                   ✓ Your pages are saved and the server is reading them on its own — you can close
