@@ -7,7 +7,7 @@ import { prepareImage } from '../../lib/prepareImage'
 
 const CURRENT_YEAR = new Date().getFullYear()
 const YEARS = Array.from({ length: 30 }, (_, i) => CURRENT_YEAR - i)
-const SEC_PER_PAGE = 4 // rough server OCR time per page, for the estimate
+const SEC_PER_PAGE = 1.5 // rough server OCR time per page (read ~5 at a time), for the estimate
 
 // Order pages by when the photo was actually taken (fixes reverse-selection).
 async function captureTime(file: File): Promise<number> {

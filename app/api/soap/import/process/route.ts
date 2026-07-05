@@ -41,6 +41,20 @@ function similarity(a: string[], b: string[]): number {
   return inter / (sa.size + sb.size - inter)
 }
 
+// Run fn over items with limited concurrency, returning results in input order.
+async function mapPool<T, R>(items: T[], concurrency: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length)
+  let next = 0
+  const runner = async () => {
+    while (next < items.length) {
+      const i = next++
+      results[i] = await fn(items[i])
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => runner()))
+  return results
+}
+
 function toDate(year: number, month: unknown, day: unknown): string | null {
   const m = Number(month), d = Number(day)
   if (Number.isInteger(m) && m >= 1 && m <= 12 && Number.isInteger(d) && d >= 1 && d <= 31 &&
@@ -138,66 +152,71 @@ export async function POST(request: NextRequest) {
   const pending = (pendingRows as Row[]) ?? []
 
   const counts = { processed: 0, dated: 0, undated: 0, merged: 0, duplicates: 0 }
-  const started = Date.now()
 
-  for (const photo of pending) {
-    if (Date.now() - started > 230_000) break // resume on the next call
-    if (!photo.photo_url) continue
+  // Phase A — READ the pages concurrently (the slow AI part). Bounded per call so
+  // we stay under maxDuration; the client loops until nothing remains.
+  const slice = pending.slice(0, 40)
+  const analyzed = await mapPool(slice, 5, async (photo) => {
+    if (!photo.photo_url) return null
     try {
       const { segments, rotation } = await analyze(photo.photo_url, yr)
-      // Fix a sideways/upside-down page before filing it.
       let photoUrl = photo.photo_url
       if (rotation) {
         const rotated = await rotateStored(photoUrl, photo.person_id, rotation)
         if (rotated) photoUrl = rotated
       }
-      const photoSeq = photo.import_seq ?? 0
+      return { photo, segments, photoUrl }
+    } catch (e) {
+      console.error('Import analyze error on photo', photo.id, e)
+      return null // stays pending; retried on a later call
+    }
+  })
 
-      for (let si = 0; si < segments.length; si++) {
-        const seg = segments[si]
-        const w = words(seg.text)
+  // Phase B — PERSIST in page order (continuation-aware; fast DB ops).
+  for (const item of analyzed) {
+    if (!item) continue
+    const { photo, segments, photoUrl } = item
+    const photoSeq = photo.import_seq ?? 0
+    for (let si = 0; si < segments.length; si++) {
+      const seg = segments[si]
+      const w = words(seg.text)
 
-        // Duplicate entry (same page shot twice → near-identical text)?
-        if (w.length && seenTexts.some(s => similarity(w, s) > 0.85)) { counts.duplicates++; continue }
+      // Duplicate entry (same page shot twice → near-identical text)?
+      if (w.length && seenTexts.some(s => similarity(w, s) > 0.85)) { counts.duplicates++; continue }
 
-        if (seg.isContinuation && current) {
-          const mergedText = [current.ocr_text, seg.text].filter(Boolean).join('\n\n')
-          const mergedPhotos = Array.from(new Set([...current.photo_urls, photoUrl]))
-          await supabase.from('soap_journals').update({ ocr_text: mergedText, photo_urls: mergedPhotos, updated_at: new Date().toISOString() }).eq('id', current.id)
-          current.ocr_text = mergedText
-          current.photo_urls = mergedPhotos
+      if (seg.isContinuation && current) {
+        const mergedText = [current.ocr_text, seg.text].filter(Boolean).join('\n\n')
+        const mergedPhotos = Array.from(new Set([...current.photo_urls, photoUrl]))
+        await supabase.from('soap_journals').update({ ocr_text: mergedText, photo_urls: mergedPhotos, updated_at: new Date().toISOString() }).eq('id', current.id)
+        current.ocr_text = mergedText
+        current.photo_urls = mergedPhotos
+        seenTexts.push(w)
+        counts.merged++
+      } else {
+        const { data: created } = await supabase.from('soap_journals').insert({
+          person_id: photo.person_id,
+          journal_date: seg.date || `${yr}-01-01`,
+          date_precision: seg.date ? 'day' : 'year',
+          ocr_text: seg.text,
+          scripture_reference: seg.scripture,
+          photo_url: photoUrl,
+          photo_urls: [photoUrl],
+          visibility: 'private',
+          source: 'imported',
+          import_batch_id: batchId,
+          import_seq: photoSeq * 1000 + si,
+          updated_at: new Date().toISOString(),
+        }).select('id').single()
+        if (created) {
+          current = { id: (created as { id: string }).id, ocr_text: seg.text, photo_urls: [photoUrl] }
           seenTexts.push(w)
-          counts.merged++
-        } else {
-          const { data: created } = await supabase.from('soap_journals').insert({
-            person_id: photo.person_id,
-            journal_date: seg.date || `${yr}-01-01`,
-            date_precision: seg.date ? 'day' : 'year',
-            ocr_text: seg.text,
-            scripture_reference: seg.scripture,
-            photo_url: photoUrl,
-            photo_urls: [photoUrl],
-            visibility: 'private',
-            source: 'imported',
-            import_batch_id: batchId,
-            import_seq: photoSeq * 1000 + si,
-            updated_at: new Date().toISOString(),
-          }).select('id').single()
-          if (created) {
-            current = { id: (created as { id: string }).id, ocr_text: seg.text, photo_urls: [photoUrl] }
-            seenTexts.push(w)
-            if (seg.date) counts.dated++; else counts.undated++
-          }
+          if (seg.date) counts.dated++; else counts.undated++
         }
       }
-
-      // The placeholder photo row has been expanded into per-entry rows.
-      await supabase.from('soap_journals').delete().eq('id', photo.id)
-      counts.processed++
-    } catch (e) {
-      console.error('Import process error on photo', photo.id, e)
-      // leave the placeholder pending so a later call retries it
     }
+    // The placeholder photo row has been expanded into per-entry rows.
+    await supabase.from('soap_journals').delete().eq('id', photo.id)
+    counts.processed++
   }
 
   const { count: remaining } = await supabase
