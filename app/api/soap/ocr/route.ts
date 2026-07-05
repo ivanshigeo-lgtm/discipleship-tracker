@@ -9,7 +9,9 @@ const supabase = createClient(
 )
 
 export async function POST(request: NextRequest) {
-  const { journalId } = await request.json()
+  // importYear (optional): when set, also detect the month/day written on the
+  // page and file the entry on that date within importYear.
+  const { journalId, importYear } = await request.json()
 
   if (!journalId) {
     return NextResponse.json({ error: 'journalId required' }, { status: 400 })
@@ -45,12 +47,15 @@ export async function POST(request: NextRequest) {
 
 Please extract:
 1. The full text exactly as written (preserve line breaks)
-2. The scripture reference mentioned (e.g., "John 3:16" or "Psalm 23:1-6")
+2. The scripture reference mentioned (e.g., "John 3:16" or "Psalm 23:1-6")${importYear ? `
+3. The date written on the page — the MONTH and DAY only (the year is known to be ${importYear}). Look for any date near the top, like "March 3", "3/3", "Mar 3rd", "Wed 3/3". Return numeric month (1-12) and day (1-31), or null if no date is clearly written.` : ''}
 
 Respond in this exact JSON format:
 {
   "ocr_text": "the full transcribed text here",
-  "scripture_reference": "Book Chapter:Verse" or null if not found
+  "scripture_reference": "Book Chapter:Verse" or null if not found${importYear ? `,
+  "month": 1-12 or null,
+  "day": 1-31 or null` : ''}
 }
 
 Only respond with the JSON, no other text.`,
@@ -60,7 +65,7 @@ Only respond with the JSON, no other text.`,
     ],
   })
 
-  let parsed: { ocr_text: string; scripture_reference: string | null }
+  let parsed: { ocr_text: string; scripture_reference: string | null; month?: number | null; day?: number | null }
   try {
     // Strip markdown code fences if the model wrapped its response
     const clean = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
@@ -69,13 +74,33 @@ Only respond with the JSON, no other text.`,
     parsed = { ocr_text: text, scripture_reference: null }
   }
 
+  const update: Record<string, unknown> = {
+    ocr_text: parsed.ocr_text,
+    scripture_reference: parsed.scripture_reference,
+    updated_at: new Date().toISOString(),
+  }
+
+  // If importing and a valid month/day was detected, file the entry on that day.
+  let detectedDate: string | null = null
+  if (importYear) {
+    const y = Number(importYear)
+    const m = Number(parsed.month)
+    const d = Number(parsed.day)
+    const valid =
+      Number.isInteger(m) && m >= 1 && m <= 12 &&
+      Number.isInteger(d) && d >= 1 && d <= 31 &&
+      // reject impossible days (e.g. Feb 30) by round-tripping through Date
+      new Date(Date.UTC(y, m - 1, d)).getUTCMonth() === m - 1
+    if (valid) {
+      detectedDate = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+      update.journal_date = detectedDate
+      update.date_precision = 'day'
+    }
+  }
+
   const { error: updateError } = await supabase
     .from('soap_journals')
-    .update({
-      ocr_text: parsed.ocr_text,
-      scripture_reference: parsed.scripture_reference,
-      updated_at: new Date().toISOString(),
-    })
+    .update(update)
     .eq('id', journalId)
 
   if (updateError) {
@@ -85,5 +110,6 @@ Only respond with the JSON, no other text.`,
   return NextResponse.json({
     ocr_text: parsed.ocr_text,
     scripture_reference: parsed.scripture_reference,
+    detected_date: detectedDate,
   })
 }

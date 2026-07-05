@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { SoapJournal } from '../types/database'
 import { cleanInsight } from './journey/WeeklyInsightCard'
+import SoapImportModal from './journey/SoapImportModal'
 
 interface Props {
   soaps: SoapJournal[]
@@ -168,6 +169,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
   const [modalEntry, setModalEntry] = useState<SoapJournal | null>(null)
   const [modalOcrLoading, setModalOcrLoading] = useState(false)
   const [modalOcrText, setModalOcrText] = useState<string | null>(null)
+  const [showImport, setShowImport] = useState(false)
 
   // AI Insights — opens via the button, then two modes: this-week (one tap) and
   // custom range (pick dates + ask / general summary).
@@ -205,7 +207,9 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
 
   const soapMap = useMemo(() => {
     const map = new Map<string, SoapJournal>()
-    for (const s of soaps) map.set(s.journal_date, s)
+    // Undated imports (date_precision='year') are parked on Jan 1 — keep them off
+    // the calendar day-dots; they surface in search and the year view instead.
+    for (const s of soaps) if (s.date_precision !== 'year') map.set(s.journal_date, s)
     return map
   }, [soaps])
 
@@ -383,20 +387,37 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
             ✦ {insightMode ? 'Exit AI' : 'AI Insights'}
           </button>
           {!insightMode && (
-            <button
-              onClick={onNewEntry}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: '6px',
-                padding: '8px 16px', borderRadius: '10px', border: 'none',
-                background: 'var(--establish, #36D6C3)', color: '#0B1027',
-                fontSize: '13px', fontWeight: 700, cursor: 'pointer',
-                letterSpacing: '0.01em', flexShrink: 0, transition: 'opacity 150ms ease',
-              }}
-              onMouseOver={e => (e.currentTarget.style.opacity = '0.85')}
-              onMouseOut={e => (e.currentTarget.style.opacity = '1')}
-            >
-              + New entry
-            </button>
+            <>
+              <button
+                onClick={() => setShowImport(true)}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '6px',
+                  padding: '8px 14px', borderRadius: '10px',
+                  border: '1px solid var(--line-2)', background: 'transparent',
+                  color: 'var(--fg-2)', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+                  flexShrink: 0, transition: 'opacity 150ms ease',
+                }}
+                onMouseOver={e => (e.currentTarget.style.opacity = '0.75')}
+                onMouseOut={e => (e.currentTarget.style.opacity = '1')}
+                title="Upload past handwritten journals for a year"
+              >
+                ⬆ Import
+              </button>
+              <button
+                onClick={onNewEntry}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '6px',
+                  padding: '8px 16px', borderRadius: '10px', border: 'none',
+                  background: 'var(--establish, #36D6C3)', color: '#0B1027',
+                  fontSize: '13px', fontWeight: 700, cursor: 'pointer',
+                  letterSpacing: '0.01em', flexShrink: 0, transition: 'opacity 150ms ease',
+                }}
+                onMouseOver={e => (e.currentTarget.style.opacity = '0.85')}
+                onMouseOut={e => (e.currentTarget.style.opacity = '1')}
+              >
+                + New entry
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -1104,6 +1125,14 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
             </div>
           </div>
         </div>
+      )}
+
+      {showImport && personId && (
+        <SoapImportModal
+          personId={personId}
+          onClose={() => setShowImport(false)}
+          onImported={() => onRefresh?.()}
+        />
       )}
     </>
   )

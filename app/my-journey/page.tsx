@@ -183,7 +183,7 @@ export default function MyJourneyPage() {
     const [coachRes, groupsRes, journalsRes, streakRes, checklistRes, disciplesRes, signoffsRes, ownedRes] = await Promise.all([
       getMyCoach(profile.id),
       getMyGroups(profile.id),
-      getSoapJournals(profile.id, 365),
+      getSoapJournals(profile.id), // all history, so imported past years show on the calendar
       getSoapStreak(profile.id),
       getStageChecklistItems(profile.id),
       getDiscipleshipConnections(profile.id),

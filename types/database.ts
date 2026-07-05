@@ -165,6 +165,12 @@ export type SoapJournal = {
   visibility: ShareVisibility
   created_at: string
   updated_at: string
+  // Bulk-import fields (default on the DB; optional here so normal creation
+  // paths don't have to set them). date_precision='year' = undated import filed
+  // under the year (journal_date = YYYY-01-01), excluded from calendar day-dots.
+  date_precision?: 'day' | 'year'
+  source?: 'manual' | 'imported'
+  import_batch_id?: string | null
 }
 
 export type LevelSignoff = {
