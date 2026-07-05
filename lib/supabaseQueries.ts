@@ -871,18 +871,33 @@ export const deleteDiscipleshipConnection = async (id: string) => {
 
 // ==================== SOAP JOURNALS ====================
 export const getSoapJournals = async (personId: string, limit?: number) => {
-  let query = supabase
-    .from('soap_journals')
-    .select('*')
-    .eq('person_id', personId)
-    .order('journal_date', { ascending: false })
-
+  // Supabase caps every response at 1,000 rows. With a decade imported
+  // (~2,000 entries) a single select silently truncates at ~March 2024 —
+  // page through unless the caller asked for an explicit smaller limit.
   if (limit) {
-    query = query.limit(limit)
+    const { data, error } = await supabase
+      .from('soap_journals')
+      .select('*')
+      .eq('person_id', personId)
+      .order('journal_date', { ascending: false })
+      .limit(limit)
+    return { data, error }
   }
 
-  const { data, error } = await query
-  return { data, error }
+  const all: SoapJournal[] = []
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase
+      .from('soap_journals')
+      .select('*')
+      .eq('person_id', personId)
+      .order('journal_date', { ascending: false })
+      .order('id', { ascending: false }) // stable tiebreak so pages don't overlap
+      .range(from, from + 999)
+    if (error) return { data: all.length ? all : null, error }
+    all.push(...(data ?? []))
+    if (!data || data.length < 1000) break
+  }
+  return { data: all, error: null }
 }
 
 export const getSoapJournalByDate = async (personId: string, date: string) => {
