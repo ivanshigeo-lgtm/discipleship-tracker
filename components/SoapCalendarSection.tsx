@@ -173,11 +173,39 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
   const [showImport, setShowImport] = useState(false)
   const [showDateReview, setShowDateReview] = useState(false)
 
-  // Imported pages that still have no real date, for the "needs a date" review.
+  // OCR'd imported pages that still have no real date → "needs a date" review.
   const undatedImports = useMemo(
-    () => soaps.filter(s => s.date_precision === 'year' && s.source === 'imported'),
+    () => soaps.filter(s => s.date_precision === 'year' && s.source === 'imported' && s.ocr_text),
     [soaps]
   )
+  // Imported pages not yet processed by the server (e.g. the app closed mid-import).
+  const pendingImports = useMemo(
+    () => soaps.filter(s => s.source === 'imported' && !s.ocr_text),
+    [soaps]
+  )
+  const [resuming, setResuming] = useState(false)
+
+  const resumeImport = async () => {
+    if (resuming) return
+    setResuming(true)
+    // Finish each unfinished batch by looping the resumable processor.
+    const batches = Array.from(new Set(pendingImports.map(s => s.import_batch_id).filter(Boolean))) as string[]
+    for (const batchId of batches) {
+      const year = Number((pendingImports.find(s => s.import_batch_id === batchId)?.journal_date ?? '').slice(0, 4)) || new Date().getFullYear()
+      for (let guard = 0; guard < 200; guard++) {
+        try {
+          const res = await fetch('/api/soap/import/process', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ batchId, year }),
+          })
+          const j = await res.json()
+          if (!res.ok || (j.remaining ?? 0) <= 0) break
+        } catch { break }
+      }
+    }
+    setResuming(false)
+    onRefresh?.()
+  }
 
   // AI Insights — opens via the button, then two modes: this-week (one tap) and
   // custom range (pick dates + ask / general summary).
@@ -396,6 +424,22 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
           </button>
           {!insightMode && (
             <>
+              {pendingImports.length > 0 && (
+                <button
+                  onClick={resumeImport}
+                  disabled={resuming}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '6px',
+                    padding: '8px 14px', borderRadius: '10px',
+                    border: '1px solid var(--gbm-cobalt-bright)', background: 'rgba(91,141,247,.12)',
+                    color: 'var(--gbm-cobalt-bright)', fontSize: '13px', fontWeight: 600,
+                    cursor: resuming ? 'default' : 'pointer', flexShrink: 0, opacity: resuming ? 0.6 : 1,
+                  }}
+                  title="Finish reading pages from an interrupted import"
+                >
+                  {resuming ? '⟳ Finishing…' : `⟳ Finish import (${pendingImports.length})`}
+                </button>
+              )}
               {undatedImports.length > 0 && (
                 <button
                   onClick={() => setShowDateReview(true)}
