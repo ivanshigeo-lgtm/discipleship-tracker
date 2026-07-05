@@ -17,11 +17,38 @@ async function captureTime(file: File): Promise<number> {
   return file.lastModified || 0
 }
 
-// Hash the bytes so an identical file selected twice is skipped up front.
-async function fileHash(file: File): Promise<string> {
-  const buf = await file.arrayBuffer()
-  const digest = await crypto.subtle.digest('SHA-256', buf)
-  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('')
+// Shrink a phone photo before upload — handwriting stays legible at ~1600px, but
+// the file gets 5–10× smaller, so uploads (and OCR) are much faster. Respects
+// EXIF orientation so sideways photos aren't rotated.
+async function compress(file: File, maxDim = 1600, quality = 0.82): Promise<Blob> {
+  try {
+    const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
+    const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height))
+    const w = Math.round(bitmap.width * scale)
+    const h = Math.round(bitmap.height * scale)
+    const canvas = document.createElement('canvas')
+    canvas.width = w
+    canvas.height = h
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return file
+    ctx.drawImage(bitmap, 0, 0, w, h)
+    const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, 'image/jpeg', quality))
+    return blob && blob.size < file.size ? blob : file
+  } catch {
+    return file
+  }
+}
+
+// Run tasks with limited concurrency (parallel uploads without hammering).
+async function pool<T>(items: T[], concurrency: number, worker: (item: T, index: number) => Promise<void>) {
+  let next = 0
+  const runner = async () => {
+    while (next < items.length) {
+      const i = next++
+      await worker(items[i], i)
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, runner))
 }
 
 type Phase = 'idle' | 'uploading' | 'processing' | 'done'
@@ -56,23 +83,18 @@ export default function SoapImportModal({
     setPhase('uploading')
     const timed = await Promise.all(files.map(async f => ({ f, t: await captureTime(f) })))
     timed.sort((a, b) => a.t - b.t || a.f.name.localeCompare(b.f.name, undefined, { numeric: true }))
-
-    const seen = new Set<string>()
-    const ordered: File[] = []
-    for (const { f } of timed) {
-      const h = await fileHash(f).catch(() => '')
-      if (h && seen.has(h)) continue // identical file already queued
-      if (h) seen.add(h)
-      ordered.push(f)
-    }
+    const ordered = timed.map(t => t.f) // duplicates are caught server-side by OCR text
     setUploadTotal(ordered.length)
     setUploaded(0)
 
-    let seq = 0
-    for (const file of ordered) {
+    // Compress + upload several at once; import_seq = capture-time order (index),
+    // preserved even though uploads finish out of order.
+    let uploadedCount = 0
+    await pool(ordered, 5, async (file, idx) => {
       try {
+        const blob = await compress(file)
         const form = new FormData()
-        form.append('file', file)
+        form.append('file', new File([blob], `page-${idx}.jpg`, { type: 'image/jpeg' }))
         form.append('personId', personId)
         const upRes = await fetch('/api/soap/upload', { method: 'POST', body: form })
         const upJson = await upRes.json()
@@ -89,14 +111,14 @@ export default function SoapImportModal({
           date_precision: 'year',
           source: 'imported',
           import_batch_id: batchId,
-          import_seq: seq,
+          import_seq: idx,
         })
       } catch {
         // skip a failed upload; the rest still import
       }
-      seq++
-      setUploaded(seq)
-    }
+      uploadedCount++
+      setUploaded(uploadedCount)
+    })
 
     // ── Phase 2: server does OCR + dating + merging + dedup (survives close) ──
     setPhase('processing')
