@@ -42,7 +42,11 @@ export async function POST(request: NextRequest) {
   }
 
   const { text } = await generateText({
-    model: anthropic('claude-haiku-4-5-20251001'),
+    // Sonnet 5 for handwriting — same model as the bulk import (validated
+    // word-perfect on real journals); Haiku misread enough to garble entries.
+    model: anthropic('claude-sonnet-5'),
+    // OCR doesn't need thinking; Sonnet 5 defaults to adaptive when omitted.
+    providerOptions: { anthropic: { thinking: { type: 'disabled' } } },
     messages: [
       {
         role: 'user',
