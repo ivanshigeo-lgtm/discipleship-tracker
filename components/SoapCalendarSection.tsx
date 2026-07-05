@@ -295,6 +295,30 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
     return set
   }, [rangeStart, rangeEnd, soapMap])
 
+  // Years that actually contain entries — powers the one-tap range chips (a
+  // decade of data made click-the-calendar range picking painful).
+  const dataYears = useMemo(() => {
+    const ys = new Set<number>()
+    for (const s of soaps) {
+      const y = Number(s.journal_date.slice(0, 4))
+      if (y > 1990) ys.add(y)
+    }
+    return Array.from(ys).sort()
+  }, [soaps])
+
+  const localToday = () => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }
+
+  const applyRange = (lo: string, hi: string) => {
+    setRangeStart(lo)
+    setRangeEnd(hi)
+    setHoverDate(null)
+    setInsightResponse(null)
+    setInsightError('')
+  }
+
   const searchResults = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
     if (!q) return []
@@ -635,20 +659,68 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                   {weekError && <p style={{ margin: 0, color: 'var(--fg-3)', fontSize: '12px' }}>{weekError}</p>}
                 </div>
               )
-            ) : !rangeStart ? (
-              <p style={{ margin: 0, color: 'var(--fg-3)', fontSize: '13px', textAlign: 'center', padding: '8px 0' }}>
-                Click a start date on the calendar below, then an end date.
-              </p>
-            ) : !rangeEnd ? (
-              <p style={{ margin: 0, color: 'var(--establish, #36D6C3)', fontSize: '13px', textAlign: 'center', padding: '8px 0' }}>
-                Start: {rangeStart} — now click an end date on the calendar below.
-              </p>
-            ) : selectedInsightDates.size === 0 ? (
-              <p style={{ margin: 0, color: 'var(--fg-3)', fontSize: '13px', textAlign: 'center', padding: '8px 0' }}>
-                No SOAP entries found in that date range.
-              </p>
             ) : (
               <>
+                {/* Direct range picker — type dates or one-tap a year; no calendar scrolling */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <input
+                      type="date"
+                      value={rangeStart ?? ''}
+                      max={rangeEnd ?? undefined}
+                      onChange={e => { setRangeStart(e.target.value || null); setInsightResponse(null); setInsightError('') }}
+                      style={{ padding: '7px 10px', borderRadius: '10px', border: '1px solid var(--line-2)', background: 'var(--indigo, #141B3D)', color: 'var(--fg-1)', fontSize: '13px', colorScheme: 'dark' }}
+                    />
+                    <span style={{ color: 'var(--fg-3)', fontSize: '13px' }}>→</span>
+                    <input
+                      type="date"
+                      value={rangeEnd ?? ''}
+                      min={rangeStart ?? undefined}
+                      onChange={e => { setRangeEnd(e.target.value || null); setInsightResponse(null); setInsightError('') }}
+                      style={{ padding: '7px 10px', borderRadius: '10px', border: '1px solid var(--line-2)', background: 'var(--indigo, #141B3D)', color: 'var(--fg-1)', fontSize: '13px', colorScheme: 'dark' }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                    {[
+                      ['Last 30 days', () => { const d = new Date(); d.setDate(d.getDate() - 30); applyRange(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`, localToday()) }] as const,
+                      ...dataYears.map(y => [`${y}`, () => applyRange(`${y}-01-01`, `${y}-12-31`)] as const),
+                      ['Everything', () => { if (dataYears.length) applyRange(`${dataYears[0]}-01-01`, localToday()) }] as const,
+                    ].map(([label, apply]) => {
+                      const active =
+                        (label === 'Everything' && dataYears.length > 0 && rangeStart === `${dataYears[0]}-01-01` && rangeEnd === localToday()) ||
+                        (/^\d{4}$/.test(label) && rangeStart === `${label}-01-01` && rangeEnd === `${label}-12-31`)
+                      return (
+                        <button
+                          key={label}
+                          type="button"
+                          onClick={apply}
+                          style={{
+                            padding: '4px 10px', borderRadius: '999px', cursor: 'pointer',
+                            border: `1px solid ${active ? 'rgba(54,214,195,.45)' : 'var(--line-2)'}`,
+                            background: active ? 'rgba(54,214,195,.15)' : 'transparent',
+                            color: active ? 'var(--establish, #36D6C3)' : 'var(--fg-3)',
+                            fontSize: '11px', fontWeight: 600, transition: 'all 150ms ease',
+                          }}
+                        >
+                          {label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {!rangeStart || !rangeEnd ? (
+                  <p style={{ margin: 0, color: 'var(--fg-3)', fontSize: '13px', textAlign: 'center', padding: '4px 0' }}>
+                    {rangeStart
+                      ? `Start: ${rangeStart} — now pick an end date (or tap the calendar below).`
+                      : 'Pick dates above, tap a year, or click start & end on the calendar below.'}
+                  </p>
+                ) : selectedInsightDates.size === 0 ? (
+                  <p style={{ margin: 0, color: 'var(--fg-3)', fontSize: '13px', textAlign: 'center', padding: '4px 0' }}>
+                    No SOAP entries found in that date range.
+                  </p>
+                ) : (
+                  <>
                 {/* Action buttons */}
                 {!insightLoading && !insightResponse && (
                   <button
@@ -748,6 +820,8 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                       Ask another question
                     </button>
                   </div>
+                )}
+                  </>
                 )}
               </>
             )}
