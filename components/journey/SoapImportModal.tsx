@@ -143,8 +143,9 @@ export default function SoapImportModal({
           Bring a year to light
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-[var(--fg-2)]">
-          Pick a year and choose the photos. We order them by when each was taken, read each page,
-          file it on its date (or under the year), merge pages that continue an entry, and skip duplicates.
+          Pick a year and choose the photos. We order them by capture time, read each page, and split
+          out <strong>every dated entry — even several on one photo</strong> — filing each on its own
+          date. Entries that span pages are merged, and duplicates are skipped.
         </p>
 
         {phase === 'done' ? (
