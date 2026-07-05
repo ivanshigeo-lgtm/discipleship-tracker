@@ -886,13 +886,16 @@ export const getSoapJournals = async (personId: string, limit?: number) => {
 }
 
 export const getSoapJournalByDate = async (personId: string, date: string) => {
+  // A day can now hold multiple entries (imports split multi-entry photos), so
+  // return the first rather than assuming exactly one.
   const { data, error } = await supabase
     .from('soap_journals')
     .select('*')
     .eq('person_id', personId)
     .eq('journal_date', date)
-    .maybeSingle()
-  return { data, error }
+    .order('created_at', { ascending: true })
+    .limit(1)
+  return { data: data?.[0] ?? null, error }
 }
 
 export const addSoapJournal = async (
