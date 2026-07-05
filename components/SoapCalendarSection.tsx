@@ -421,56 +421,60 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
   const selectedEntry = selectedDayEntries[selectedEntryIdx] ?? selectedDayEntries[0] ?? null
   const displayOcrText = ocrResult ?? selectedEntry?.ocr_text ?? null
 
-  // Page-flip reading: photos of this entry, this entry's place in the journal,
-  // and flip handlers that continue into the previous/next entry at the ends.
+  // Page-flip reading. The journal's PHYSICAL pages: flatten every entry's
+  // photos in reading order and collapse consecutive repeats of the same photo
+  // (one photo can hold several entries — that's still ONE page to flip).
   const entryPhotos = selectedEntry
     ? (selectedEntry.photo_urls?.length ? selectedEntry.photo_urls : selectedEntry.photo_url ? [selectedEntry.photo_url] : [])
     : []
   const safePhotoIdx = Math.min(photoIdx, Math.max(0, entryPhotos.length - 1))
-  const readingIdx = selectedEntry ? readingOrder.findIndex(s => s.id === selectedEntry.id) : -1
 
-  const openEntryForReading = (entry: SoapJournal, page: 'first' | 'last') => {
-    const day = soapMap.get(entry.journal_date) ?? []
-    setSelectedDate(entry.journal_date)
-    setSelectedEntryIdx(Math.max(0, day.findIndex(e => e.id === entry.id)))
+  const readingPages = useMemo(() => {
+    const pages: { id: string; date: string; url: string; photoIdx: number }[] = []
+    for (const e of readingOrder) {
+      const ps = e.photo_urls?.length ? e.photo_urls : e.photo_url ? [e.photo_url] : []
+      ps.forEach((u, i) => {
+        if (pages.length && pages[pages.length - 1].url === u) return // same physical page
+        pages.push({ id: e.id, date: e.journal_date, url: u, photoIdx: i })
+      })
+    }
+    return pages
+  }, [readingOrder])
+
+  // Where the shown photo sits in the physical-page sequence. If this entry's
+  // page was collapsed into an earlier entry's identical photo, find it by URL.
+  const currentUrl = entryPhotos[safePhotoIdx]
+  let pageIdx = selectedEntry ? readingPages.findIndex(p => p.id === selectedEntry.id && p.photoIdx === safePhotoIdx) : -1
+  if (pageIdx < 0 && currentUrl) pageIdx = readingPages.findIndex(p => p.url === currentUrl)
+  const canFlipBack = pageIdx > 0
+  const canFlipFwd = pageIdx >= 0 && pageIdx < readingPages.length - 1
+
+  const commitPage = (page: { id: string; date: string; photoIdx: number }) => {
+    const day = soapMap.get(page.date) ?? []
+    setSelectedDate(page.date)
+    setSelectedEntryIdx(Math.max(0, day.findIndex(e => e.id === page.id)))
     setOcrResult(null)
-    const photos = entry.photo_urls?.length ? entry.photo_urls : entry.photo_url ? [entry.photo_url] : []
-    setPhotoIdx(page === 'last' ? Math.max(0, photos.length - 1) : 0)
+    setPhotoIdx(page.photoIdx)
   }
 
-  const flipPage = (dir: 1 | -1) => {
-    if (!selectedEntry) return
+  // Page-turn animation: the incoming page lies flat underneath while a sheet
+  // pivots on the spine (left edge). Forward: commit at once, the old sheet
+  // turns away over it. Back: the previous sheet un-turns over the current
+  // one, committing when it lands. Keyframes in globals.css.
+  const [turn, setTurn] = useState<{ url: string; anim: string } | null>(null)
+  const animateFlip = (dir: 1 | -1) => {
+    if (turn || pageIdx < 0) return
+    const target = readingPages[pageIdx + dir]
+    if (!target) return
     if (dir === 1) {
-      if (safePhotoIdx < entryPhotos.length - 1) { setPhotoIdx(safePhotoIdx + 1); return }
-      const next = readingIdx >= 0 ? readingOrder[readingIdx + 1] : undefined
-      if (next) openEntryForReading(next, 'first')
+      commitPage(target)
+      setTurn({ url: currentUrl, anim: 'pageTurnAway 340ms ease-in forwards' })
+      setTimeout(() => setTurn(null), 360)
     } else {
-      if (safePhotoIdx > 0) { setPhotoIdx(safePhotoIdx - 1); return }
-      const prev = readingIdx >= 0 ? readingOrder[readingIdx - 1] : undefined
-      if (prev) openEntryForReading(prev, 'last')
+      setTurn({ url: target.url, anim: 'pageTurnBack 340ms ease-out forwards' })
+      setTimeout(() => { commitPage(target); setTurn(null) }, 345)
     }
   }
-  const canFlipBack = safePhotoIdx > 0 || readingIdx > 0
-  const canFlipFwd = safePhotoIdx < entryPhotos.length - 1 || (readingIdx >= 0 && readingIdx < readingOrder.length - 1)
-
-  // Two-phase page-turn: rotate the current page away, swap at 90°, rotate the
-  // new page in. Keyframes live in globals.css (pageOutFwd / pageInFwd / …).
-  const [flipAnim, setFlipAnim] = useState<'out-fwd' | 'in-fwd' | 'out-back' | 'in-back' | null>(null)
-  const animateFlip = (dir: 1 | -1) => {
-    if (flipAnim) return
-    if (dir === 1 ? !canFlipFwd : !canFlipBack) return
-    setFlipAnim(dir === 1 ? 'out-fwd' : 'out-back')
-    setTimeout(() => {
-      flipPage(dir)
-      setFlipAnim(dir === 1 ? 'in-fwd' : 'in-back')
-      setTimeout(() => setFlipAnim(null), 170)
-    }, 160)
-  }
-  const flipAnimation =
-    flipAnim === 'out-fwd' ? 'pageOutFwd 160ms ease-in forwards' :
-    flipAnim === 'in-fwd' ? 'pageInFwd 170ms ease-out forwards' :
-    flipAnim === 'out-back' ? 'pageOutBack 160ms ease-in forwards' :
-    flipAnim === 'in-back' ? 'pageInBack 170ms ease-out forwards' : undefined
   const isSearching = searchQuery.trim().length > 0
 
   // Header label: "Apr – Jun 2026" or across year boundary "Dec 2025 – Feb 2026"
@@ -1219,19 +1223,34 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
           <div style={{ padding: '16px' }}>
             {selectedEntry.photo_url ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div style={{ position: 'relative' }}>
+                <div style={{ position: 'relative', perspective: '1400px' }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={entryPhotos[safePhotoIdx] ?? selectedEntry.photo_url}
                     alt="SOAP journal entry"
-                    style={{ width: '100%', borderRadius: '10px', display: 'block', objectFit: 'cover', animation: flipAnimation }}
+                    style={{ width: '100%', borderRadius: '10px', display: 'block', objectFit: 'cover' }}
                   />
-                  {/* Flip through the journal: this entry's pages, then prev/next entries */}
+                  {/* The turning sheet: pivots on the spine (left edge) above the flat page */}
+                  {turn && (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={turn.url}
+                      alt=""
+                      aria-hidden
+                      style={{
+                        position: 'absolute', inset: 0, width: '100%', height: '100%',
+                        borderRadius: '10px', objectFit: 'cover', transformOrigin: 'left center',
+                        animation: turn.anim, boxShadow: '12px 0 28px rgba(0,0,0,.45)',
+                        willChange: 'transform',
+                      }}
+                    />
+                  )}
+                  {/* Flip through the journal: one tap per physical page */}
                   {canFlipBack && (
                     <button
                       type="button"
                       onClick={() => animateFlip(-1)}
-                      title={safePhotoIdx > 0 ? 'Previous page' : 'Previous entry'}
+                      title="Previous page"
                       style={{
                         position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)',
                         width: '36px', height: '36px', borderRadius: '50%', border: '1px solid rgba(255,255,255,.25)',
@@ -1244,7 +1263,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                     <button
                       type="button"
                       onClick={() => animateFlip(1)}
-                      title={safePhotoIdx < entryPhotos.length - 1 ? 'Next page' : 'Next entry'}
+                      title="Next page"
                       style={{
                         position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)',
                         width: '36px', height: '36px', borderRadius: '50%', border: '1px solid rgba(255,255,255,.25)',
@@ -1253,13 +1272,13 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                       }}
                     >›</button>
                   )}
-                  {entryPhotos.length > 1 && (
+                  {pageIdx >= 0 && readingPages.length > 1 && (
                     <span style={{
                       position: 'absolute', bottom: '8px', right: '8px', padding: '2px 8px',
                       borderRadius: '999px', background: 'rgba(11,16,39,.70)', color: '#fff',
                       fontSize: '11px', fontWeight: 600,
                     }}>
-                      Page {safePhotoIdx + 1} of {entryPhotos.length}
+                      Page {pageIdx + 1} of {readingPages.length}
                     </span>
                   )}
                 </div>

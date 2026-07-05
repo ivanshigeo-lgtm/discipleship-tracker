@@ -435,3 +435,13 @@ body {
   from { transform: perspective(1200px) rotateY(-90deg); filter: brightness(0.7); }
   to   { transform: perspective(1200px) rotateY(0deg); filter: brightness(1); }
 }
+
+/* Spine-pivot page turn (v2 — replaces the card-flip look) */
+@keyframes pageTurnAway {
+  from { transform: rotateY(0deg); filter: brightness(1); }
+  to   { transform: rotateY(-89deg); filter: brightness(0.75); }
+}
+@keyframes pageTurnBack {
+  from { transform: rotateY(-89deg); filter: brightness(0.75); }
+  to   { transform: rotateY(0deg); filter: brightness(1); }
+}
