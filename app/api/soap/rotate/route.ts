@@ -39,7 +39,9 @@ export async function POST(request: NextRequest) {
       const buf = Buffer.from(await res.arrayBuffer())
       const rotated = await sharp(buf).rotate(deg).jpeg({ quality: 85 }).toBuffer()
       const path = `${journal.person_id}/${Date.now()}-${Math.round(Math.random() * 1e6)}-rot.jpg`
-      const { error: upErr } = await supabase.storage.from('soap-photos').upload(path, rotated, { contentType: 'image/jpeg', upsert: false })
+      // Upload as a Blob (binary-safe); a raw Node Buffer gets mangled through
+      // UTF-8 by the storage client on Vercel, corrupting the JPEG.
+      const { error: upErr } = await supabase.storage.from('soap-photos').upload(path, new Blob([rotated], { type: 'image/jpeg' }), { contentType: 'image/jpeg', upsert: false })
       if (upErr) continue
       urlMap[old] = supabase.storage.from('soap-photos').getPublicUrl(path).data.publicUrl
     }

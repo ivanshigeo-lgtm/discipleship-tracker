@@ -72,14 +72,47 @@ async function rotateStored(url: string, personId: string, deg: number): Promise
     const buf = Buffer.from(await res.arrayBuffer())
     const rotated = await sharp(buf).rotate(deg).jpeg({ quality: 85 }).toBuffer()
     const path = `${personId}/${Date.now()}-${Math.round(Math.random() * 1e6)}-air.jpg`
-    const { error } = await supabase.storage.from('soap-photos').upload(path, rotated, { contentType: 'image/jpeg', upsert: false })
+    // Blob upload (binary-safe) — a raw Buffer gets corrupted by the storage
+    // client on Vercel.
+    const { error } = await supabase.storage.from('soap-photos').upload(path, new Blob([rotated], { type: 'image/jpeg' }), { contentType: 'image/jpeg', upsert: false })
     if (error) return null
     return supabase.storage.from('soap-photos').getPublicUrl(path).data.publicUrl
   } catch { return null }
 }
 
-// Read a photo, detect if it's rotated, and split it into one segment per dated entry.
-async function analyze(photoUrl: string, year: number): Promise<{ segments: Segment[]; rotation: number }> {
+// Dedicated orientation check — far more reliable than asking during OCR, because
+// vision models can READ sideways text and so don't "notice" the rotation. We ask
+// a concrete spatial question and map the answer to a clockwise fix (270 = 90° CCW).
+async function detectOrientation(photoUrl: string): Promise<number> {
+  try {
+    const { text } = await generateText({
+      model: anthropic('claude-haiku-4-5-20251001'),
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', image: photoUrl },
+          {
+            type: 'text',
+            text: `This is a photo of a handwritten page that may have been taken rotated. Ignore what it says. Look only at how the handwriting is oriented and decide which edge of the IMAGE the TOP of the writing sits on — where the first lines begin and where the letters point "up".
+Answer with EXACTLY one lowercase word: top, bottom, left, or right.
+- "top" = the writing is already upright and readable normally.
+- "right" = the page is turned so the top of the text runs along the RIGHT edge (you'd tilt your head right to read it).
+- "left" = the top of the text runs along the LEFT edge.
+- "bottom" = the page is upside-down.`,
+          },
+        ],
+      }],
+    })
+    const a = text.toLowerCase()
+    if (a.includes('bottom')) return 180
+    if (a.includes('right')) return 270 // top-of-writing on the right → rotate 90° counter-clockwise
+    if (a.includes('left')) return 90   // top-of-writing on the left → rotate 90° clockwise
+    return 0
+  } catch { return 0 }
+}
+
+// Read an (already upright) photo and split it into one segment per dated entry.
+async function analyze(photoUrl: string, year: number): Promise<Segment[]> {
   const { text } = await generateText({
     model: anthropic('claude-haiku-4-5-20251001'),
     messages: [{
@@ -90,9 +123,7 @@ async function analyze(photoUrl: string, year: number): Promise<{ segments: Segm
           type: 'text',
           text: `This photo shows one or two handwritten notebook pages with SOAP journal entries (Scripture, Observation, Application, Prayer), each usually starting with its own date.
 
-ORIENTATION FIRST: Look at which way the handwriting runs. If the lines of text are NOT horizontal-and-upright, give the CLOCKWISE rotation in degrees to make them upright: 90 if the page is turned a quarter-turn counter-clockwise (text runs bottom-to-top), 270 if turned clockwise (text runs top-to-bottom), 180 if upside-down. Use 0 ONLY if the text is already upright and readable left-to-right.
-
-Then read in natural order: the LEFT page top-to-bottom first, then the RIGHT page top-to-bottom.
+Read in natural order: the LEFT page top-to-bottom first, then the RIGHT page top-to-bottom.
 
 Split into SEGMENTS — one segment per distinct dated entry. IMPORTANT: an entry frequently CONTINUES from the left page onto the right page (or from the bottom of one column to the top of the next). A page break, column break, or new page is NOT a new entry. Start a new segment ONLY where a NEW DATE is written or an unmistakable new entry begins. Keep a continued entry as ONE segment under its date.
 
@@ -100,15 +131,15 @@ For each segment give: month (1-12) and day (1-31) if a date is written for it (
 If the VERY FIRST segment has no date and continues from a previous photo (begins mid-thought), set is_continuation true for that first segment only.
 
 Respond ONLY with JSON:
-{"rotation":0|90|180|270,"segments":[{"month":1-12|null,"day":1-31|null,"scripture":"Book C:V"|null,"text":"...","is_continuation":true|false}]}`,
+{"segments":[{"month":1-12|null,"day":1-31|null,"scripture":"Book C:V"|null,"text":"...","is_continuation":true|false}]}`,
         },
       ],
     }],
   })
   try {
-    const clean = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
-    const parsed = JSON.parse(clean) as { rotation?: number; segments?: Array<{ month?: number | null; day?: number | null; scripture?: string | null; text?: string; is_continuation?: boolean }> }
-    const rot = [90, 180, 270].includes(Number(parsed.rotation)) ? Number(parsed.rotation) : 0
+    // Extract the first {...} object — robust to ```json fences / leading text.
+    const m = text.match(/\{[\s\S]*\}/)
+    const parsed = JSON.parse(m ? m[0] : text) as { segments?: Array<{ month?: number | null; day?: number | null; scripture?: string | null; text?: string; is_continuation?: boolean }> }
     const segs = (parsed.segments ?? [])
       .map((s, i) => ({
         date: toDate(year, s.month, s.day),
@@ -117,10 +148,9 @@ Respond ONLY with JSON:
         isContinuation: i === 0 && s.is_continuation === true,
       }))
       .filter(s => s.text.length > 0)
-    if (segs.length) return { segments: segs, rotation: rot }
+    if (segs.length) return segs
   } catch { /* fall through */ }
-  // Fallback: whole photo as one undated entry so nothing is lost.
-  return { segments: [{ date: null, scripture: null, text: text.slice(0, 4000), isContinuation: false }], rotation: 0 }
+  return [{ date: null, scripture: null, text: text.slice(0, 4000), isContinuation: false }]
 }
 
 export async function POST(request: NextRequest) {
@@ -165,18 +195,15 @@ export async function POST(request: NextRequest) {
     if (!photo.photo_url) return null
     try {
       let photoUrl = photo.photo_url
-      const first = await analyze(photoUrl, yr)
-      let segments = first.segments
-      // If the page was sideways, the first read is unreliable — rotate the image
-      // upright and READ IT AGAIN so dates/structure are detected correctly.
-      if (first.rotation) {
-        const rotated = await rotateStored(photoUrl, photo.person_id, first.rotation)
-        if (rotated) {
-          photoUrl = rotated
-          const reread = await analyze(rotated, yr)
-          if (reread.segments.length) segments = reread.segments
-        }
+      // 1) Straighten the page FIRST (dedicated orientation check), so the read
+      //    happens on an upright image and dates/structure are detected properly.
+      const deg = await detectOrientation(photoUrl)
+      if (deg) {
+        const rotated = await rotateStored(photoUrl, photo.person_id, deg)
+        if (rotated) photoUrl = rotated
       }
+      // 2) Read the upright page.
+      const segments = await analyze(photoUrl, yr)
       return { photo, segments, photoUrl }
     } catch (e) {
       console.error('Import analyze error on photo', photo.id, e)
