@@ -61,7 +61,7 @@ export default function SoapEntryModal({
     setCameraError('')
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 960 } },
+        video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1440 } },
         audio: false,
       })
       streamRef.current = stream
@@ -211,36 +211,42 @@ export default function SoapEntryModal({
           />
 
           {cameraOpen ? (
-            /* Live camera preview */
-            <div className="overflow-hidden rounded-xl border border-[var(--line-2)] bg-black">
+            /* Full-screen camera — fills the screen and reflows to landscape so
+               you can turn the phone sideways to fit both notebook pages. */
+            <div className="fixed inset-0 z-[300] bg-black">
               <video
                 ref={videoRef}
                 autoPlay
                 playsInline
                 muted
-                className="w-full"
-                style={{ minHeight: 200, display: 'block' }}
+                className="h-full w-full object-contain"
               />
-              <div className="flex items-center justify-between gap-3 p-3">
+              {/* Hint — shown in portrait only */}
+              <div className="pointer-events-none absolute inset-x-0 top-0 p-4 text-center text-xs font-medium text-white/80 landscape:hidden">
+                Turn your phone sideways to fit both notebook pages
+              </div>
+              {/* Controls: bottom bar in portrait, right-side rail in landscape */}
+              <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 bg-gradient-to-t from-black/70 to-transparent p-5
+                              landscape:inset-x-auto landscape:inset-y-0 landscape:right-0 landscape:h-full landscape:w-32 landscape:flex-col landscape:bg-gradient-to-l">
                 <button
                   type="button"
                   onClick={cancelCamera}
-                  className="rounded-lg border border-[var(--line-2)] px-4 py-2 text-xs text-[var(--fg-2)] transition-colors hover:border-[var(--fg-3)]"
+                  className="rounded-lg border border-white/30 px-4 py-2 text-xs font-medium text-white/90"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={takePhoto}
-                  className="flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-lg"
+                  className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-white shadow-lg"
                   aria-label="Take photo"
                 >
-                  <span className="h-9 w-9 rounded-full border-4 border-[var(--establish)]" />
+                  <span className="h-12 w-12 rounded-full border-4 border-[var(--establish)]" />
                 </button>
                 <button
                   type="button"
                   onClick={() => { cancelCamera(); fileInputRef.current?.click() }}
-                  className="rounded-lg border border-[var(--line-2)] px-4 py-2 text-xs text-[var(--fg-2)] transition-colors hover:border-[var(--fg-3)]"
+                  className="rounded-lg border border-white/30 px-4 py-2 text-xs font-medium text-white/90"
                 >
                   Library
                 </button>
