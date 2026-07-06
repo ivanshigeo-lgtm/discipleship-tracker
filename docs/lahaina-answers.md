@@ -190,7 +190,13 @@ Being cried FOR was the healing. Why pastors hide: protecting the spouse, not
 wanting to relive it, confidentiality. Keeper line: "I was carrying many
 things alone that I didn't need to be carrying alone."
 
-## Q8 — The Jesus Prayer — when and where — *pending*
+## Q8 — The Jesus Prayer — when and where (ANSWERED 2026-07-05)
+
+"I don't remember. I don't have context."
+
+**Ghostwriter notes:** DO NOT FABRICATE a scene for this. If used at all,
+present the note as it is: seven words at the bottom of a retreat page,
+context lost. The forgetting is itself honest texture.
 
 ## Q9 — What changed "cure it" into "embrace it" — *pending*
 
