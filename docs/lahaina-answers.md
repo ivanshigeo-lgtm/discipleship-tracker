@@ -326,3 +326,26 @@ baptisms (covered across Q2/Q8/Q11) · Q14 the exchange, holes in His hands.
 Source material for the chapter drafts: this file + lahaina-interview.md +
 the Lahaina journal thread (scripts/lahaina-entries.txt) + Aʻaliʻi Village
 pitch deck (user's Desktop).
+
+---
+
+# NEW MATERIAL — miracle stories volunteered 2026-07-06 (PHOTOS EXIST)
+
+## The boat run (stub — needs detail)
+"When we couldn't get supplies to Lahaina by our caravan, we got it there by
+boat." User HAS PHOTOS of the event. Follow-ups needed: why was the caravan
+blocked (road closures?), whose boat, what was carried, where did they land,
+who received it, was it prayed about first (answered-prayer framing?).
+Likely home: Chapter 2 (Everyone's Town / relief arc).
+
+## The bathroom that stood (stub — needs detail; extraordinary)
+"A woman walked into a bathroom during the fires and prayed in the bathroom
+that night. It was the only structure standing once in the morning." User HAS
+PHOTOS. Follow-ups needed: who is she (relationship to church?), where was
+the bathroom (public? her home?), why was she there during the fire, her own
+words about that night, when did she discover it was the only structure
+standing, what happened to her after. Possible chapter anchor (miracles amid
+the ashes) or the opening image of Chapter 7 (The Banyan Tree / the exchange).
+
+Photos for both = first real content for the Work-illustrations feature
+(already on the build list): user's own images placed in his own story.
