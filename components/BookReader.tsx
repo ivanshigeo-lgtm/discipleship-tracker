@@ -463,6 +463,31 @@ export default function BookReader({ personId, bookId }: { personId: string; boo
     }
   }, [personId, bookId])
 
+  // Copy a chapter as clean text: current edits applied, deleted paragraphs
+  // omitted, interview gap markers left out, markdown markers stripped.
+  const [copiedChapter, setCopiedChapter] = useState<string | null>(null)
+  const copyChapter = (startIdx: number) => {
+    const head = blocks[startIdx]
+    if (head.kind !== 'chapter') return
+    const parts: string[] = [head.text]
+    for (let i = startIdx + 1; i < blocks.length; i++) {
+      const b = blocks[i]
+      if (b.kind === 'chapter' || b.kind === 'h1') break
+      if (b.kind === 'chtitle') { parts.push(b.text); continue }
+      if (b.kind !== 'p') continue
+      const ov = edits[paraKey(b.text)]
+      if (ov?.deleted) continue
+      const text = (ov?.text ?? b.text)
+        .replace(/\*\*([^*]+)\*\*/g, '$1')
+        .replace(/\*([^*]+)\*/g, '$1')
+      parts.push(text)
+    }
+    navigator.clipboard.writeText(parts.join('\n\n')).then(() => {
+      setCopiedChapter(head.text)
+      setTimeout(() => setCopiedChapter(c => (c === head.text ? null : c)), 2000)
+    })
+  }
+
   const chapters = useMemo(
     () => blocks.filter(b => b.kind === 'chapter') as { kind: 'chapter'; text: string; id?: string }[],
     [blocks]
@@ -528,6 +553,19 @@ export default function BookReader({ personId, bookId }: { personId: string; boo
                             placeholder={`e.g. "Make this chapter tighter" or "Shift the emphasis from the money to the people" — applies only to ${b.text}.`}
                             onApply={ins => sweep(ins, b.text)}
                           />
+                          <button
+                            type="button"
+                            onClick={() => copyChapter(i)}
+                            title={`Copy ${b.text} as text (with your edits applied)`}
+                            className="flex h-7 items-center justify-center rounded-full px-2.5 text-[11px] font-semibold"
+                            style={{
+                              border: `1px solid ${copiedChapter === b.text ? 'rgba(54,214,195,.5)' : 'var(--line-2)'}`,
+                              background: 'var(--indigo)',
+                              color: copiedChapter === b.text ? 'var(--establish)' : 'var(--fg-3)',
+                            }}
+                          >
+                            {copiedChapter === b.text ? '✓ Copied' : '📋 Copy'}
+                          </button>
                         </div>
                       </div>
                     )
