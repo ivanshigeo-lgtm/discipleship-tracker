@@ -77,7 +77,51 @@ born). The studio resident (lost parents + home) may connect to Q10's widow.
 
 ## Q3 — One gift from the $300k — *pending*
 
-## Q4 — "In my loss" — what was YOUR loss? — *pending*
+## Q4 — "In my loss" — what was YOUR loss? (ANSWERED 2026-07-05 — verbatim)
+
+"Maui is a small place. And although I didn't live in Lahaina, I spent many
+weekends there with my wife on dates, with my kids at the beach, with friends
+surfing when I was in high school. Lahaina was place that I loved and have
+many memories there. My daughter's experience will explain my loss well. After
+the fire we spent 3-4 months sitting with people who lost everything. We
+allowed people to sleep in the church and also slept in it ourselves for
+security. We turned the church into a place that received donations and
+allowed people to come and get whatever they needed for free. During this time
+we prayed with many and sat with them through their loss and sorrow. We did
+everything we could to help. Homes of people in the church were open and we
+housed many people in the early stages of the fires for many nights. And when
+summer came to a close, my daughter had to fly up to Spokane. She said that
+the counsellor called anyone from Hawaii to do a peer group support to help
+with anyone who suffered from the fires. It was the first time that my
+daughter cried uncontrollably for the first time since the fires happened.
+When she told me about this event she realized that because she saw the
+magnitude of the loss of others, she felt no permission to grieve herself.
+She lost a place she loved. A place she had her proms at. Went to the beach
+with her friends often. Shopped with family and friends. Ate there at favorite
+restaurants and had many memories there. Lahaina was a part of her childhood.
+Her adolescence and a part of her life. But she felt no right to grieve when
+she was constantly with people who lived and worked there all their lives.
+When she was up in college, she was the one who was the closest to the
+disaster and people for the first time asked how she was doing. She finally
+felt permission to grieve the loss of a town that she loved. The same thing
+happened to me many months later. I was with a group of pastors at a peer
+support retreat and we were sharing stories of people we helped, many funerals
+that we had done, being on high tilt for 6-12 months of going through the
+stages of Rescue, relief, recovery. I was sharing that I was at a funeral and
+was talking to someone who had lost their father and was almost joking with
+them like I was at a party, and realized that something in me was broken. I
+later realized that I was suffering from compassion fatigue and needed to take
+time to rest. At the retreat I shared that with other pastors and broke down
+realizing that I needed help myself. It was a very healing time for all of us."
+
+**Ghostwriter notes:** THE chapter theme — "no permission to grieve": the
+helper's grief that waits behind everyone whose loss was "bigger." Daughter in
+Spokane (peer group → first uncontrollable tears; proms/beach/restaurants =
+her adolescence) mirrors father at the pastors' retreat (joking at a funeral →
+"something in me was broken" → compassion fatigue → breaking down among
+peers). SUBSTANTIALLY ANSWERS Q6 as well (the oil running dry = the funeral
+moment + the retreat confession). New scenes: sleeping in the church for
+security; church as free store; Rescue → Relief → Recovery framing.
 
 ## Q5 — Where "beauty past the ashes" came from — *pending*
 
