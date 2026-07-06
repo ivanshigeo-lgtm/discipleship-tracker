@@ -21,7 +21,59 @@ sometimes the date lags as I catch up."
   refusing to break the discipline, catching up through Jeremiah from inside
   the aftermath — is its own chapter theme: the sequence never breaks.
 
-## Q2 — August 8 / the day it turned — *pending*
+## Q2 — August 8 / the day it turned (ANSWERED 2026-07-05 — verbatim)
+
+"it was the morning of August 8th, the night before Maui was on fire. Kula
+suffered the greatest wildfire it ever had in it's history. Kihei was evacuated
+and many people in a standstill as the fire moved from upcountry down to Kihei
+and stopped only 20yrds from the Kihei district. There was a red glow across
+the clouds that evening and the smell of smoke that was coming across west
+maui mountains and many people were saying that wildfires in Lahaina were
+burning down major structures, but no one knew how bad it was until the
+morning. My friend who was a helicopter pilot sent me a video of an aerial
+view of lahaina completely gone with smoke rising from the ashes of a once
+beautiful historical town that gave the west side it's allure to 25% of Maui's
+tourist industry. I couldn't beleive my eyes and immediately knew we needed to
+do something. We opened our church for donations and started helping in the
+best way we could. By resourcing our first responders with meals. As we put
+our hands to work, we began to hear what was needed by our first responders.
+Water, medical supplies, food, gas. We let our community know and started
+collecting truckloads of supplies. We heard stories of people losing
+everything. One family's father worked for a boat that was sunk and burnt, the
+mother worked for a school that was burnt to the ground, their home was
+destroyed and the kids school no longer existed. Just one of those things
+would be tragic. This family had suffered four major tradgedies in one
+evening. On top of that many people lost family members on top of losing all
+of their material possessions. We began to use our congregation to get as much
+money out to people as we could. We didn't need red tape or a process to
+protect ourselves from fraud. We had the speed of relationships. The speed of
+trust. We were able to write out over 100k of checks to our community in
+checks of $500 through people in our congregation who personally knew those
+who suffered lose. We knew it was nothing compared to what they lost and
+didn't know how they would respond, but to our suprise, our church members
+came back with reports that everyone received the checks with gratitude and
+with tears of appreciation. I heard stories of influencers who were posting
+and receiving many hundreds of thousands and many people said we needed to do
+the same. I prayed and God told me that these influencers were raising money
+for us and we would end up receiving it if we didn't get distracted and just
+kept helping the community. We didn't have enough, but we continued to give
+and as we did, more funds kept pouring in. We ended up giving over 1000
+families $500 each and cleared 500k dollars in the first couple months. But
+the needs soon changed from food and water and gas to housing. We received
+more donations and as more capital flowed in for the need of housing, we were
+able to give to churches to set up feeding kitchens, to rebuild their church
+structures, to help entreprenuers purchase tools and equipment to begin
+operating again and to help locals rebuild their homes. By the end of 2 years
+we were able to give over 1.2 million dollars away. Everything that we
+recieved. We also built a small studio that a lahaina resident was able to
+live in that lost her parents, and her home."
+
+**Ghostwriter notes:** "Speed of relationships. Speed of trust." = chapter
+title. Final total $1.2M over 2 years (journal's Aug 8 snapshot said 700-800k).
+The influencer moment — God: "they're raising money for us; don't get
+distracted" — is the answered-prayer engine of the chapter. Partially answers
+Q3 (four-tragedy family; tearful $500 checks) and Q13 (the studio = something
+born). The studio resident (lost parents + home) may connect to Q10's widow.
 
 ## Q3 — One gift from the $300k — *pending*
 
