@@ -20,17 +20,21 @@ const supabase = createClient(
 
 export async function POST(request: NextRequest) {
   // Optional `chapter` (the heading text, e.g. "Chapter 3" or "Epilogue")
-  // scopes the sweep to that chapter's paragraphs only.
-  const { personId, instruction, chapter } = await request.json()
+  // scopes the sweep to that chapter's paragraphs only. Optional `bookId`
+  // targets a database-drafted book instead of the static manuscript.
+  const { personId, instruction, chapter, bookId } = await request.json()
   if (!personId || !instruction) {
     return NextResponse.json({ error: 'personId and instruction required' }, { status: 400 })
   }
 
-  // Load the deployed manuscript + the author's current overlays.
+  // Load the manuscript (static file, or assembled from book_chapters) + overlays.
   const origin = process.env.VERCEL_PROJECT_PRODUCTION_URL
     ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
     : request.nextUrl.origin
-  const md = await fetch(`${origin}/book/manuscript.md`).then(r => r.text())
+  const md = bookId
+    ? await fetch(`${origin}/api/books/manuscript?bookId=${bookId}`).then(r => r.json()).then(j => j.md as string)
+    : await fetch(`${origin}/book/manuscript.md`).then(r => r.text())
+  if (!md) return NextResponse.json({ error: 'manuscript not found' }, { status: 404 })
   const { data: editRows } = await supabase
     .from('book_edits')
     .select('block_key, edited_text, deleted')

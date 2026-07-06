@@ -38,6 +38,7 @@ export default function BookInterviewPage() {
   const [draft, setDraft] = useState('')
   const [photos, setPhotos] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
+  const [drafting, setDrafting] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [listening, setListening] = useState(false)
   const recRef = useRef<SpeechRec | null>(null)
@@ -243,9 +244,36 @@ export default function BookInterviewPage() {
               ✦ The ghostwriter has enough to begin writing.
             </p>
             <p className="mt-1 text-xs leading-relaxed text-[var(--fg-2)]">
-              Keep answering if more comes to you — every memory makes the book truer. Drafting from
-              here in the app is coming next; for now your answers are saved and ready.
+              Keep answering if more comes to you — every memory makes the book truer. Or hand it to
+              the ghostwriter now: it plans the chapters, then writes them one by one. Unanswered
+              questions become marked gaps you can fill later, right in the draft.
             </p>
+            <button
+              type="button"
+              disabled={drafting}
+              onClick={async () => {
+                if (drafting) return
+                setDrafting(true)
+                try {
+                  const res = await fetch('/api/books/draft', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ bookId }),
+                  })
+                  if (res.ok) { window.location.href = '/books'; return }
+                } catch { /* fall through */ }
+                setDrafting(false)
+              }}
+              className="cn-btn cn-btn-primary mt-3 disabled:opacity-60"
+            >
+              {drafting ? 'Handing your answers to the ghostwriter…' : '✍️ Write my draft'}
+            </button>
+            {drafting && (
+              <p className="mt-2 text-xs text-[var(--fg-3)]">
+                Planning the chapters — you&rsquo;ll land on your bookshelf where the progress shows live.
+                The whole draft takes 15–30 minutes; you can close the app.
+              </p>
+            )}
           </div>
         )}
       </div>

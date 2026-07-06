@@ -21,20 +21,26 @@ export async function GET(request: NextRequest) {
 
   const { data: books, error } = await supabase
     .from('books')
-    .select('id, title, premise, status, created_at')
+    .select('id, title, premise, status, outline, created_at')
     .eq('person_id', personId)
     .order('created_at', { ascending: false })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   const withProgress = await Promise.all(
     (books ?? []).map(async b => {
-      const { data: qs } = await supabase
-        .from('book_questions')
-        .select('id, answer, photo_urls')
-        .eq('book_id', b.id)
+      const [{ data: qs }, { count: chapterCount }] = await Promise.all([
+        supabase.from('book_questions').select('id, answer, photo_urls').eq('book_id', b.id),
+        supabase.from('book_chapters').select('id', { count: 'exact', head: true }).eq('book_id', b.id),
+      ])
       const total = qs?.length ?? 0
       const answered = (qs ?? []).filter(q => (q.answer && q.answer.trim()) || (q.photo_urls?.length ?? 0) > 0).length
-      return { ...b, totalQuestions: total, answeredQuestions: answered }
+      return {
+        id: b.id, title: b.title, premise: b.premise, status: b.status, created_at: b.created_at,
+        totalQuestions: total,
+        answeredQuestions: answered,
+        chaptersWritten: chapterCount ?? 0,
+        plannedChapters: Array.isArray(b.outline) ? (b.outline as unknown[]).length : null,
+      }
     })
   )
   return NextResponse.json({ books: withProgress })
