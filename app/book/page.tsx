@@ -77,12 +77,36 @@ function EditablePara({ original, edit, onCommit }: {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(current ?? original)
   const [busy, setBusy] = useState(false)
+  const [aiAsk, setAiAsk] = useState('')
+  const [aiBusy, setAiBusy] = useState(false)
+  const [beforeAi, setBeforeAi] = useState<string | null>(null)
 
   const commit = async (action: { save?: string; delete?: boolean; restore?: boolean }) => {
     setBusy(true)
     await onCommit(key, original, action)
     setBusy(false)
     setEditing(false)
+  }
+
+  // "Ask the ghostwriter" — rewrite the CURRENT draft text per the instruction;
+  // result lands in the textarea (nothing saved until Save).
+  const askAi = async () => {
+    if (!aiAsk.trim() || aiBusy) return
+    setAiBusy(true)
+    try {
+      const res = await fetch('/api/book/rewrite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paragraph: draft, instruction: aiAsk.trim() }),
+      })
+      const j = await res.json()
+      if (res.ok && j.rewritten) {
+        setBeforeAi(draft)
+        setDraft(j.rewritten)
+        setAiAsk('')
+      }
+    } catch { /* leave draft untouched */ }
+    setAiBusy(false)
   }
 
   if (edit?.deleted && !editing) {
@@ -106,6 +130,36 @@ function EditablePara({ original, edit, onCommit }: {
           className="w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-3 py-2.5 text-[15px] leading-[1.8] text-[var(--fg-1)]"
           autoFocus
         />
+        {/* Ask the ghostwriter — instruction in, rewritten paragraph lands above */}
+        <div className="mt-2 flex items-center gap-2">
+          <input
+            type="text"
+            value={aiAsk}
+            onChange={e => setAiAsk(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') askAi() }}
+            placeholder="Ask AI — e.g. “shorter and punchier”, “add that the smoke smelled like burnt sugar cane”"
+            disabled={aiBusy}
+            className="min-w-0 flex-1 rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-3 py-2 text-[13px] text-[var(--fg-1)] placeholder:text-[var(--fg-3)]"
+          />
+          <button
+            type="button"
+            onClick={askAi}
+            disabled={!aiAsk.trim() || aiBusy}
+            className="cn-btn cn-btn-ghost flex-shrink-0 disabled:opacity-50"
+            style={{ borderColor: 'rgba(54,214,195,.45)', color: 'var(--establish)' }}
+          >
+            {aiBusy ? 'Rewriting…' : '✨ Rewrite'}
+          </button>
+        </div>
+        {beforeAi !== null && (
+          <button
+            type="button"
+            onClick={() => { setDraft(beforeAi); setBeforeAi(null) }}
+            className="mt-1.5 text-xs text-[var(--fg-3)] underline"
+          >
+            Undo AI rewrite
+          </button>
+        )}
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <button type="button" disabled={busy || !draft.trim()} onClick={() => commit({ save: draft.trim() })} className="cn-btn cn-btn-primary disabled:opacity-50">
             {busy ? 'Saving…' : 'Save'}
