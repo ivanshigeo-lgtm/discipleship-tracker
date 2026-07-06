@@ -123,7 +123,46 @@ peers). SUBSTANTIALLY ANSWERS Q6 as well (the oil running dry = the funeral
 moment + the retreat confession). New scenes: sleeping in the church for
 security; church as free store; Rescue → Relief → Recovery framing.
 
-## Q5 — Where "beauty past the ashes" came from — *pending*
+## Q5 — Where "beauty past the ashes" came from (ANSWERED 2026-07-05 — verbatim)
+
+"It was Isaiah 61 beauty for ashes, but there was a banyan tree in lahaina
+town. One of it's landmarks and where many tourists would take photos. During
+the fire everything burned down and was black. including the banyan tree. It
+had been a symbol of lahaina for over 100yrs and next to the harbor. This tree
+was one that many looked at and wondered if there was any hope that it would
+ever survive and live after the fire was over. Many months later, the first
+shoots of green appeared on the tree. The roots had gone down deep enough to
+continue to give it water even when everything around it was dry and scorched.
+To Lahaina it was a symbol of hope that if this tree could rise from the
+ashes, the town could also one day come back to life. To me it represented the
+truth that God would bring beauty from ashes the oil of joy for mourning the
+garment of praise for a spirit of heaviness that we would become trees of
+righteousness that planting of the Lord that He would be glorified. The key in
+the passage was the exchange. He would give us _____ for _____. This meant
+that our ashes had value to God. Our mourning had value. Our heaviness had
+value. Most want to medicate those things away. Hide those things. Heal from
+those things. But God said, don't medicate those things away. But embrace
+those things. And give those things to Him and he would exchange them for his
+treasures. This became a truth to me when I learned from grief counselling
+that trauma never heals. It changes the depth that we feel. And that the same
+receptors in our brains that allow us to feel pain also allow us to feel joy
+and that studies show that people who lived with the most joy were also the
+ones who felt the greatest pain in life. Those that try to medicate pain also
+take away their ability to feel joy in an equal and opposite way. When I
+learned that, I realized that pain and suffering was something that I didn't
+want to hide from, but something I wanted to lean into and embrace and give to
+God so that in the same measure I was able to feel pain, that He would allow
+me to feel joy and to give that joy to others."
+
+**Ghostwriter notes:** The banyan tree = the book's central image (and likely
+cover): 100+ yr landmark, burned black, green shoots months later, "roots deep
+enough to find water when everything around was scorched" — the town's hope
+symbol AND the Isaiah 61 sermon in living wood. SUBSTANTIALLY ANSWERS Q9: the
+"cure it → embrace it" shift came from grief counseling — trauma never heals,
+it changes the depth we feel; pain and joy share receptors; medicating pain
+amputates joy. The EXCHANGE ("He gives ___ for ___; our ashes have value") is
+the book's theology. Chapter structure suggestion: each chapter an exchange —
+beauty/ashes, oil of joy/mourning, garment of praise/heaviness.
 
 ## Q6 — The night the oil ran dry — *pending*
 
