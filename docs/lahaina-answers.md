@@ -166,7 +166,29 @@ beauty/ashes, oil of joy/mourning, garment of praise/heaviness.
 
 ## Q6 — The night the oil ran dry — *pending*
 
-## Q7 — The wall coming down with Joce — *pending*
+## Q7 — The wall coming down with Joce (ANSWERED 2026-07-05 — verbatim)
+
+"During that retreat, they gave us opportunity for free counselling for the
+pastors and the wives. I was sharing with the counsellor what was going on in
+my life and as I was sharing, my wife began to cry. She is normally very
+unemotional and I can count on my hand how many times I've seen her cry. At
+our wedding when her father gave her to me. At her father's funeral. So to see
+her cry as I was sharing was very puzzling to me. I thought that I hurt her,
+or that she was going through something herself. But she shared that she
+didn't know what I was going through and felt broken for me. It was deeply
+healing for me to see her cry because of her care for me. In ministry I
+experience so many heavy things and many times I don't tell my wife because
+they are burdens I don't want her to carry and I also don't want to relive
+things that i've experienced and also many things are confidential, but that
+experience was one that was healing and I realized that I was carrying many
+things alone that I didn't need to be carrying alone."
+
+**Ghostwriter notes:** The scene: retreat counseling session, wife crying as
+he shares — only the third time he's seen her cry (wedding handoff, her
+father's funeral, this). He assumed he'd hurt her; she "felt broken for me."
+Being cried FOR was the healing. Why pastors hide: protecting the spouse, not
+wanting to relive it, confidentiality. Keeper line: "I was carrying many
+things alone that I didn't need to be carrying alone."
 
 ## Q8 — The Jesus Prayer — when and where — *pending*
 
