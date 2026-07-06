@@ -550,6 +550,21 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
               >
                 🙏 Answered
               </a>
+              {personId === '2aa35958-9057-44bd-aaf2-bd12a4cf9ecd' && (
+                <a
+                  href="/book"
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '5px',
+                    padding: '7px 13px', borderRadius: '10px',
+                    border: '1px solid var(--line-2)', background: 'transparent',
+                    color: 'var(--fg-2)', fontSize: '12px', fontWeight: 600,
+                    letterSpacing: '0.01em', flexShrink: 0, textDecoration: 'none',
+                  }}
+                  title="Your book draft — read it and add the missing memories"
+                >
+                  📖 Book
+                </a>
+              )}
               {pendingImports.length > 0 && (
                 <button
                   onClick={importActive ? undefined : resumeImport}
