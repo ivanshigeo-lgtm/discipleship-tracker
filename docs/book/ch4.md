@@ -1,0 +1,46 @@
+Chapter 4
+No Permission to Grieve
+
+There is a grief that waits.
+
+It does not come when the thing happens. It stands off to the side and lets everyone else go first, because it has decided, without ever saying so out loud, that it has no right to be in the room. It looks around at all the people who lost more, and it steps back. It tells itself that its own loss is small, that the others have earned their tears and it has not, that the honest thing to do is to keep helping and let the ones who really suffered do the weeping. And so it waits. Sometimes for months. Sometimes longer than that.
+
+I did not have a name for that grief until my daughter taught me one.
+
+I have told you already about those first months, the sanctuary turned into a shelter, the sitting with people in their sorrow for three and four months at a stretch. My daughter was in the middle of all of it with us. She is a Maui kid. Lahaina was not a news story to her any more than it was to me. It was part of her childhood and part of her adolescence, the way a place gets woven into a young person's life without them ever deciding to let it in. She had her proms there. She went to the beach there with her friends, over and over, the way you do when you are young and the water is close and the afternoon is long. She shopped there with family. She ate at the restaurants she loved. When I say Lahaina was hers, I do not mean she owned a piece of it. I mean it owned a piece of her, the piece where a person keeps the ordinary good days that a life is actually built out of.
+
+And when it burned, she did not cry.
+
+She worked instead. She was surrounded, all summer, by people who had lost everything. People who had lived in Lahaina their whole lives. People who worked there, whose jobs and homes and family members were gone in a single night. Next to a loss like that, what was hers? A place she liked to go on the weekend. Some memories. She looked at the magnitude of what the people around her were carrying, and she made the calculation that grief makes when it decides it is not welcome. She told herself she had no right. Who was she to weep over restaurants and proms when the person beside her had buried somebody? So she folded her own loss up small and put it away and kept helping, because helping was allowed and grieving was not.
+
+She felt no permission to grieve.
+
+I want to sit on that phrase, because I think it is one of the quiet epidemics of a disaster, and almost nobody counts it. When something terrible happens to a community, everyone measures. They measure without meaning to. They line their loss up against the loss next to them and they rank it, and if it comes out smaller they disqualify it. The man whose house survived will not grieve in front of the man whose house is gone. The volunteer will not grieve in front of the victim. The one who lost a home will not grieve in front of the one who lost a person. Everybody defers upward to a bigger sorrow, and because everybody defers, a whole layer of grief never gets grieved at all. It just gets swallowed and carried, quietly, by people who have decided they are the helpers and not the hurt.
+
+My daughter carried hers all the way to the mainland.
+
+When summer ended she had to fly up to Spokane. She was starting school, thousands of miles from the island, from the smoke, from the people she had spent all those months serving. And at the school there was a counselor who did a simple thing. The counselor called together anyone from Hawaii, any student who had come from the islands, to sit in a peer support group and talk about the fires. Just a circle of people who had come from the same wounded place, in a city where nobody else could really understand what they had left behind.
+
+And in that circle, for the first time since Lahaina burned, my daughter cried. Not the way you cry at a sad movie. She cried uncontrollably. It came up out of her from somewhere she had kept sealed all summer, and it would not stop.
+
+When she told me about it afterward, she had figured out why. It was not the group that broke something open in her, exactly. It was that for the first time she was somewhere she had permission. Up in Spokane she was no longer the smallest loss in the room. She was, in that circle, the one who had been closest to the disaster. The others had watched it from far away. She had lived at the edge of it, had been in the middle of the response, had smelled the smoke settle over her own island. And so, for the first time, people turned to her and asked how she was doing. Not how the victims were doing. Not how the relief was going. How she was. And the moment somebody asked, the grief she had been refusing all summer finally understood it was allowed, and it came.
+
+She grieved a town she loved. She let herself, at last, lose Lahaina — the proms and the beach and the restaurants and the whole geography of her growing up. She had lost it in August with everyone else. But she did not get to feel it until September, in a college counselor's office two thousand miles away, when someone gave her the permission she had refused to give herself.
+
+I have thought about that circle in Spokane many times. Because my daughter is not unusual. She is the rule. All over Maui there were people exactly like her, standing one rung down from a bigger grief and deciding that meant they had no grief of their own. Some of them were in my church. Some of them opened their homes and gave away everything they had and never once sat down to mourn what they themselves had lost, because they were too busy tending losses they judged to be larger. A whole island of helpers, and helping had become the reason none of them wept. You cannot grieve and carry a truckload of supplies at the same time. You cannot grieve and hand a family the keys to your spare room. So the grief waited, the way it always waits, standing off to the side, telling itself it had no right to be in the room.
+
+I know this is true because it happened to me.
+
+It happened later than it happened to my daughter — many months later, and in a very different room. And I am not going to tell you the whole of that here, because it belongs to the next part of this book, and it deserves to be told slowly and in its right place. But I will name it now, plainly, because a man who is writing a chapter called "No Permission to Grieve" has no business pretending he was the exception. I was not the exception. I was the clearest case of it I know.
+
+I was the pastor. I was the one who opened the church, who wrote the checks, who slept on the floor for security, who sat with the families in their sorrow and prayed and did the next thing and then the next thing after that. And a pastor, of all people, tells himself he has no permission. Everyone in front of me had lost more than I had. That was simply true. My house did not burn. I did not have to bury anyone that night. Next to the four-tragedy family, next to the widows I will tell you about, next to the person who lost a mother or a father or a child, what claim did I have on grief? None that I could see. So I did the same thing my daughter did. I folded it up small and put it away and kept working, and I told myself that was strength.
+
+It was not strength. It was a grief that was waiting. And it waited a long time, and it cost me more than I knew, and the day it finally caught up with me I discovered that something in me had broken while I wasn't looking. That is the story of the next chapter, and I will not get ahead of it.
+
+But I want to leave you here with the thing my daughter taught me, because it is smaller than the theology I have promised you and just as important. Grief is not a competition. There is no line, and there is no rank, and there is no rule that says the person who lost more gets to weep and the person who lost less has to stay dry-eyed and useful. That rule is a lie, and it is a cruel one, because it does its worst work on the most faithful people — on the helpers, the servants, the ones who show up. It convinces exactly the people who are pouring themselves out that they are the ones with no right to be poured into.
+
+Even Jesus, standing outside a grave He was about to open, standing there knowing He would raise the dead man back to life inside the hour, did not tell Himself He had no permission. He wept. The shortest verse in the Bible is the sound of God giving Himself leave to grieve a loss He was already about to reverse. If He wept at a grave He was about to empty, then no one who is still standing in the smoke has to pretend they are fine.
+
+My daughter did not get her permission from a sermon. She got it from a stranger in a circle in Spokane who turned to her and asked how she was doing. Sometimes that is all it takes. Sometimes the whole gift you can give a person carrying a hidden grief is to stop asking about the disaster and ask about them. To look at the helper and see, underneath the help, a person who lost something too, and who has been waiting all this time for someone to notice.
+
+She waited until September. I waited longer than that. But the grief was never going to disappear because we refused to feel it. It was only going to wait. It always waits. And it does not go away until you let it come.
