@@ -19,7 +19,9 @@ const supabase = createClient(
 // on /book with a teal marker and can be individually restored.
 
 export async function POST(request: NextRequest) {
-  const { personId, instruction } = await request.json()
+  // Optional `chapter` (the heading text, e.g. "Chapter 3" or "Epilogue")
+  // scopes the sweep to that chapter's paragraphs only.
+  const { personId, instruction, chapter } = await request.json()
   if (!personId || !instruction) {
     return NextResponse.json({ error: 'personId and instruction required' }, { status: 400 })
   }
@@ -35,21 +37,30 @@ export async function POST(request: NextRequest) {
     .eq('person_id', personId)
   const overlays = new Map((editRows ?? []).map(e => [e.block_key, e]))
 
-  // The paragraph universe, as the reader sees it right now.
-  const paras = parseManuscript(md)
-    .filter((b): b is { kind: 'p'; text: string } => b.kind === 'p')
-    .map(b => {
-      const ov = overlays.get(paraKey(b.text))
-      return {
-        original: b.text,
-        current: ov ? (ov.deleted ? null : ov.edited_text) : b.text,
-      }
+  // The paragraph universe, as the reader sees it right now — each paragraph
+  // tagged with the chapter it belongs to.
+  let currentChapter = ''
+  const paras: { original: string; current: string | null; chapter: string }[] = []
+  for (const b of parseManuscript(md)) {
+    if (b.kind === 'chapter') { currentChapter = b.text; continue }
+    if (b.kind !== 'p') continue
+    const ov = overlays.get(paraKey(b.text))
+    paras.push({
+      original: b.text,
+      current: ov ? (ov.deleted ? null : ov.edited_text) : b.text,
+      chapter: currentChapter,
     })
+  }
 
+  const inScope = (p: { chapter: string }) => !chapter || p.chapter === chapter
   const numbered = paras
-    .map((p, i) => (p.current === null ? null : `[P${i}] ${p.current}`))
+    .map((p, i) => (p.current === null || !inScope(p) ? null : `[P${i}] ${p.current}`))
     .filter(Boolean)
     .join('\n\n')
+  if (!numbered) return NextResponse.json({ error: 'No paragraphs found in that scope.' }, { status: 400 })
+  const scopeLine = chapter
+    ? `He is giving you ONE editorial instruction to apply across ${chapter} ONLY. Below are that chapter's paragraphs`
+    : `He is giving you ONE editorial instruction to apply across the WHOLE manuscript. Below are the book's paragraphs`
 
   const { text } = await generateText({
     model: anthropic('claude-opus-4-8'),
@@ -57,7 +68,7 @@ export async function POST(request: NextRequest) {
     maxOutputTokens: 24000,
     messages: [{
       role: 'user',
-      content: `You are the ghostwriter of "Beauty Past the Ashes," Pastor Jonavan Asato's memoir of the Lahaina fires. He is giving you ONE editorial instruction to apply across the WHOLE manuscript. Below are the book's paragraphs, numbered [P0], [P1], ...
+      content: `You are the ghostwriter of "Beauty Past the Ashes," Pastor Jonavan Asato's memoir of the Lahaina fires. ${scopeLine}, numbered [P#].
 
 HIS INSTRUCTION:
 ${String(instruction).slice(0, 3000)}
@@ -89,7 +100,7 @@ ${numbered}`,
   let deleted = 0
   for (const ed of parsed.edits ?? []) {
     const para = paras[Number(ed.p)]
-    if (!para || para.current === null) continue
+    if (!para || para.current === null || !inScope(para)) continue
     const isDelete = ed.action === 'delete'
     if (!isDelete && (typeof ed.text !== 'string' || !ed.text.trim())) continue
     const { error } = await supabase

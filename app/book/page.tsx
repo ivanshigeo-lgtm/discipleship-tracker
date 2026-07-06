@@ -164,6 +164,66 @@ function Inline({ text }: { text: string }) {
   )
 }
 
+// One instruction swept over a scope (whole book, or one chapter).
+function SweepPanel({ triggerLabel, scopeNote, placeholder, compact, onApply }: {
+  triggerLabel: string
+  scopeNote: string
+  placeholder: string
+  compact?: boolean
+  onApply: (instruction: string) => Promise<string>
+}) {
+  const [open, setOpen] = useState(false)
+  const [ask, setAsk] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [result, setResult] = useState<string | null>(null)
+
+  const run = async () => {
+    if (!ask.trim() || busy) return
+    setBusy(true)
+    setResult(null)
+    const msg = await onApply(ask.trim())
+    setResult(msg)
+    setAsk('')
+    setBusy(false)
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={compact ? 'flex h-7 w-7 items-center justify-center rounded-full text-[13px] opacity-60 hover:opacity-100' : 'text-sm font-semibold'}
+        style={compact ? { border: '1px solid var(--line-2)', background: 'var(--indigo)' } : { color: 'var(--establish)' }}
+        title={triggerLabel}
+      >
+        {compact ? '🪄' : `🪄 ${triggerLabel}`}
+      </button>
+    )
+  }
+
+  return (
+    <div className={compact ? 'mt-2 w-full rounded-xl border border-[var(--line-2)] bg-[var(--indigo)] p-3' : ''}>
+      <div className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--establish)' }}>{scopeNote}</div>
+      <textarea
+        value={ask}
+        onChange={e => setAsk(e.target.value)}
+        rows={3}
+        disabled={busy}
+        placeholder={placeholder}
+        className="mt-2 w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-3 py-2.5 text-sm leading-relaxed text-[var(--fg-1)] placeholder:text-[var(--fg-3)]"
+      />
+      <div className="mt-2 flex items-center gap-2">
+        <button type="button" onClick={run} disabled={!ask.trim() || busy} className="cn-btn cn-btn-primary disabled:opacity-50">
+          {busy ? 'Sweeping…' : 'Apply'}
+        </button>
+        <button type="button" onClick={() => { setOpen(false); setResult(null) }} disabled={busy} className="cn-btn cn-btn-ghost">Close</button>
+      </div>
+      {busy && <p className="mt-2 text-xs text-[var(--fg-3)]">The ghostwriter is reading — this can take a minute. Stay on this page.</p>}
+      {result && <p className="mt-2 text-sm" style={{ color: 'var(--establish)' }}>{result}</p>}
+    </div>
+  )
+}
+
 type SpeechRec = { start: () => void; stop: () => void; continuous: boolean; interimResults: boolean; lang: string; onresult: ((e: unknown) => void) | null; onend: (() => void) | null }
 
 function GapCard({ question, markerKey, saved, savedPhotos, personId, onSave }: {
@@ -381,36 +441,26 @@ export default function BookPage() {
     })
   }, [])
 
-  // Whole-book edit: one instruction swept across every paragraph.
-  const [globalOpen, setGlobalOpen] = useState(false)
-  const [globalAsk, setGlobalAsk] = useState('')
-  const [globalBusy, setGlobalBusy] = useState(false)
-  const [globalResult, setGlobalResult] = useState<string | null>(null)
-
-  const runGlobalEdit = async () => {
-    if (!globalAsk.trim() || globalBusy) return
-    setGlobalBusy(true)
-    setGlobalResult(null)
+  // One instruction swept over a scope; results land as ordinary paragraph
+  // overlays (teal markers, individually restorable).
+  const sweep = useCallback(async (instruction: string, chapter?: string): Promise<string> => {
     try {
       const res = await fetch('/api/book/global-edit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ personId: AUTHOR_PERSON_ID, instruction: globalAsk.trim() }),
+        body: JSON.stringify({ personId: AUTHOR_PERSON_ID, instruction, chapter }),
       })
       const j = await res.json()
-      if (!res.ok) { setGlobalResult(j.error || 'Something went wrong — try again.'); setGlobalBusy(false); return }
-      // Reload overlays so the changes appear with their teal markers.
+      if (!res.ok) return j.error || 'Something went wrong — try again.'
       const e = await fetch(`/api/book/edit?personId=${AUTHOR_PERSON_ID}`).then(r => r.json())
       const emap: Record<string, EditState> = {}
       for (const ed of e.edits ?? []) emap[ed.block_key] = { text: ed.edited_text, deleted: ed.deleted }
       setEdits(emap)
-      setGlobalResult(`Done — ${j.replaced} paragraph${j.replaced === 1 ? '' : 's'} reworded, ${j.deleted} removed. ${j.note || ''} Review the teal markers below; restore any you disagree with.`)
-      setGlobalAsk('')
+      return `Done — ${j.replaced} paragraph${j.replaced === 1 ? '' : 's'} reworded, ${j.deleted} removed. ${j.note || ''} Review the teal markers; restore any you disagree with.`
     } catch {
-      setGlobalResult('Network hiccup — the edit may still be running. Refresh in a minute.')
+      return 'Network hiccup — the edit may still be running. Refresh in a minute.'
     }
-    setGlobalBusy(false)
-  }
+  }, [])
 
   const chapters = useMemo(
     () => blocks.filter(b => b.kind === 'chapter') as { kind: 'chapter'; text: string; id?: string }[],
@@ -451,35 +501,12 @@ export default function BookPage() {
           <>
             {/* Whole-book edit */}
             <div className="mt-5 rounded-xl border border-[var(--line-2)] bg-[var(--indigo)] p-3">
-              {!globalOpen ? (
-                <button type="button" onClick={() => setGlobalOpen(true)} className="text-sm font-semibold" style={{ color: 'var(--establish)' }}>
-                  🪄 Whole-book edit — tell the ghostwriter one thing to change everywhere
-                </button>
-              ) : (
-                <>
-                  <div className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--establish)' }}>Whole-book edit</div>
-                  <textarea
-                    value={globalAsk}
-                    onChange={e => setGlobalAsk(e.target.value)}
-                    rows={3}
-                    disabled={globalBusy}
-                    placeholder={'e.g. "Take out the parts about people sleeping in the church — I don\'t want readers to think we were an official shelter."'}
-                    className="mt-2 w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-3 py-2.5 text-sm leading-relaxed text-[var(--fg-1)] placeholder:text-[var(--fg-3)]"
-                  />
-                  <div className="mt-2 flex items-center gap-2">
-                    <button type="button" onClick={runGlobalEdit} disabled={!globalAsk.trim() || globalBusy} className="cn-btn cn-btn-primary disabled:opacity-50">
-                      {globalBusy ? 'Sweeping the whole book…' : 'Apply everywhere'}
-                    </button>
-                    <button type="button" onClick={() => { setGlobalOpen(false); setGlobalResult(null) }} disabled={globalBusy} className="cn-btn cn-btn-ghost">Close</button>
-                  </div>
-                  {globalBusy && (
-                    <p className="mt-2 text-xs text-[var(--fg-3)]">The ghostwriter is reading all ~22,000 words — this takes a minute or two. Stay on this page.</p>
-                  )}
-                  {globalResult && (
-                    <p className="mt-2 text-sm" style={{ color: 'var(--establish)' }}>{globalResult}</p>
-                  )}
-                </>
-              )}
+              <SweepPanel
+                triggerLabel="Whole-book edit — tell the ghostwriter one thing to change everywhere"
+                scopeNote="Whole-book edit"
+                placeholder={'e.g. "Take out the parts about people sleeping in the church — I don\'t want readers to think we were an official shelter."'}
+                onApply={ins => sweep(ins)}
+              />
             </div>
 
             {/* chapter quick-nav */}
@@ -499,7 +526,20 @@ export default function BookPage() {
                   case 'h2':
                     return <h2 key={i} className="mt-8 text-lg font-bold text-[var(--fg-1)]"><Inline text={b.text} /></h2>
                   case 'chapter':
-                    return <div key={i} id={b.id} className="cn-label mt-12 scroll-mt-6" style={{ color: 'var(--establish)' }}>{b.text}</div>
+                    return (
+                      <div key={i} id={b.id} className="mt-12 scroll-mt-6">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="cn-label" style={{ color: 'var(--establish)' }}>{b.text}</span>
+                          <SweepPanel
+                            compact
+                            triggerLabel={`Edit all of ${b.text} with one instruction`}
+                            scopeNote={`Chapter edit — ${b.text} only`}
+                            placeholder={`e.g. "Make this chapter tighter" or "Shift the emphasis from the money to the people" — applies only to ${b.text}.`}
+                            onApply={ins => sweep(ins, b.text)}
+                          />
+                        </div>
+                      </div>
+                    )
                   case 'chtitle':
                     return <h2 key={i} className="mt-1 text-2xl" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}><Inline text={b.text} /></h2>
                   case 'hr':
