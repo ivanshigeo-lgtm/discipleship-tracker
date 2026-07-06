@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useAuth } from '../../contexts/AuthContext'
 import { Starfield } from '../../components/journey/StarPrimitives'
 import { prepareImage } from '../../lib/prepareImage'
+import { Block, paraKey, parseManuscript } from '../../lib/bookParse'
 
 // Book draft preview. Renders the manuscript with the author's
 // [FOR THE INTERVIEW: ...] gaps as cards carrying a 🎤 — tap, talk (or use
@@ -13,56 +14,6 @@ import { prepareImage } from '../../lib/prepareImage'
 // The draft belongs to its author — only their account sees it.
 const AUTHOR_PERSON_ID = '2aa35958-9057-44bd-aaf2-bd12a4cf9ecd'
 
-type Block =
-  | { kind: 'h1' | 'h2' | 'chapter' | 'chtitle' | 'hr' | 'p'; text: string; id?: string }
-  | { kind: 'gap'; question: string; markerKey: string }
-
-// Stable content hash: gap answers and paragraph edits survive redeploys for
-// as long as the underlying text stands (a revision retires them naturally).
-const hashOf = (s: string) => {
-  let h = 5381
-  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0
-  return (h >>> 0).toString(36)
-}
-const hashKey = (s: string) => 'gap-' + hashOf(s)
-const paraKey = (s: string) => 'p-' + hashOf(s)
-
-const CHAPTER_RE = /^(Chapter\s+(\w+)|Epilogue.*)$/
-
-function parseManuscript(md: string): Block[] {
-  const blocks: Block[] = []
-  let prevWasChapter = false
-  for (const raw of md.split(/\n\s*\n/)) {
-    const b = raw.trim()
-    if (!b) continue
-    const gap = b.match(/\[FOR THE INTERVIEW:\s*([\s\S]*?)\]/)
-    if (gap) {
-      const q = gap[1].trim()
-      blocks.push({ kind: 'gap', question: q, markerKey: hashKey(q) })
-      prevWasChapter = false
-      continue
-    }
-    if (b === '---') { blocks.push({ kind: 'hr', text: '' }); prevWasChapter = false; continue }
-    if (b.startsWith('# ')) { blocks.push({ kind: 'h1', text: b.slice(2) }); prevWasChapter = false; continue }
-    if (b.startsWith('## ')) { blocks.push({ kind: 'h2', text: b.slice(3) }); prevWasChapter = false; continue }
-    // "Chapter One\nThe Speed of Trust" arrives as one block with a newline.
-    const lines = b.split('\n').map(l => l.trim())
-    if (CHAPTER_RE.test(lines[0]) && lines[0].length < 40) {
-      blocks.push({ kind: 'chapter', text: lines[0], id: lines[0].toLowerCase().replace(/[^a-z0-9]+/g, '-') })
-      if (lines[1]) blocks.push({ kind: 'chtitle', text: lines.slice(1).join(' ') })
-      prevWasChapter = true
-      continue
-    }
-    if (prevWasChapter && b.length < 60 && !/[.!?]$/.test(b)) {
-      blocks.push({ kind: 'chtitle', text: b })
-      prevWasChapter = false
-      continue
-    }
-    blocks.push({ kind: 'p', text: b })
-    prevWasChapter = false
-  }
-  return blocks
-}
 
 type EditState = { text: string | null; deleted: boolean }
 
@@ -430,6 +381,37 @@ export default function BookPage() {
     })
   }, [])
 
+  // Whole-book edit: one instruction swept across every paragraph.
+  const [globalOpen, setGlobalOpen] = useState(false)
+  const [globalAsk, setGlobalAsk] = useState('')
+  const [globalBusy, setGlobalBusy] = useState(false)
+  const [globalResult, setGlobalResult] = useState<string | null>(null)
+
+  const runGlobalEdit = async () => {
+    if (!globalAsk.trim() || globalBusy) return
+    setGlobalBusy(true)
+    setGlobalResult(null)
+    try {
+      const res = await fetch('/api/book/global-edit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ personId: AUTHOR_PERSON_ID, instruction: globalAsk.trim() }),
+      })
+      const j = await res.json()
+      if (!res.ok) { setGlobalResult(j.error || 'Something went wrong — try again.'); setGlobalBusy(false); return }
+      // Reload overlays so the changes appear with their teal markers.
+      const e = await fetch(`/api/book/edit?personId=${AUTHOR_PERSON_ID}`).then(r => r.json())
+      const emap: Record<string, EditState> = {}
+      for (const ed of e.edits ?? []) emap[ed.block_key] = { text: ed.edited_text, deleted: ed.deleted }
+      setEdits(emap)
+      setGlobalResult(`Done — ${j.replaced} paragraph${j.replaced === 1 ? '' : 's'} reworded, ${j.deleted} removed. ${j.note || ''} Review the teal markers below; restore any you disagree with.`)
+      setGlobalAsk('')
+    } catch {
+      setGlobalResult('Network hiccup — the edit may still be running. Refresh in a minute.')
+    }
+    setGlobalBusy(false)
+  }
+
   const chapters = useMemo(
     () => blocks.filter(b => b.kind === 'chapter') as { kind: 'chapter'; text: string; id?: string }[],
     [blocks]
@@ -467,6 +449,39 @@ export default function BookPage() {
           <p className="mt-10 text-center text-sm text-[var(--fg-3)]">Opening your draft…</p>
         ) : (
           <>
+            {/* Whole-book edit */}
+            <div className="mt-5 rounded-xl border border-[var(--line-2)] bg-[var(--indigo)] p-3">
+              {!globalOpen ? (
+                <button type="button" onClick={() => setGlobalOpen(true)} className="text-sm font-semibold" style={{ color: 'var(--establish)' }}>
+                  🪄 Whole-book edit — tell the ghostwriter one thing to change everywhere
+                </button>
+              ) : (
+                <>
+                  <div className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--establish)' }}>Whole-book edit</div>
+                  <textarea
+                    value={globalAsk}
+                    onChange={e => setGlobalAsk(e.target.value)}
+                    rows={3}
+                    disabled={globalBusy}
+                    placeholder={'e.g. "Take out the parts about people sleeping in the church — I don\'t want readers to think we were an official shelter."'}
+                    className="mt-2 w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-3 py-2.5 text-sm leading-relaxed text-[var(--fg-1)] placeholder:text-[var(--fg-3)]"
+                  />
+                  <div className="mt-2 flex items-center gap-2">
+                    <button type="button" onClick={runGlobalEdit} disabled={!globalAsk.trim() || globalBusy} className="cn-btn cn-btn-primary disabled:opacity-50">
+                      {globalBusy ? 'Sweeping the whole book…' : 'Apply everywhere'}
+                    </button>
+                    <button type="button" onClick={() => { setGlobalOpen(false); setGlobalResult(null) }} disabled={globalBusy} className="cn-btn cn-btn-ghost">Close</button>
+                  </div>
+                  {globalBusy && (
+                    <p className="mt-2 text-xs text-[var(--fg-3)]">The ghostwriter is reading all ~22,000 words — this takes a minute or two. Stay on this page.</p>
+                  )}
+                  {globalResult && (
+                    <p className="mt-2 text-sm" style={{ color: 'var(--establish)' }}>{globalResult}</p>
+                  )}
+                </>
+              )}
+            </div>
+
             {/* chapter quick-nav */}
             <div className="mt-5 flex flex-wrap gap-1.5">
               {chapters.map(c => (
