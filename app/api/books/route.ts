@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { anthropic } from '@ai-sdk/anthropic'
 import { generateText } from 'ai'
+import { normalizeDials, dialsSummary } from '../../../lib/bookForms'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -52,14 +53,22 @@ const firstJson = (text: string) => {
 }
 
 export async function POST(request: NextRequest) {
-  const { personId, title, premise } = await request.json()
+  const { personId, title, premise, dials: rawDials } = await request.json()
   if (!personId || !title?.trim()) {
     return NextResponse.json({ error: 'personId and title required' }, { status: 400 })
   }
+  const dials = normalizeDials(rawDials)
 
   const { data: book, error: bookErr } = await supabase
     .from('books')
-    .insert({ person_id: personId, title: title.trim().slice(0, 200), premise: (premise ?? '').trim().slice(0, 2000), status: 'generating' })
+    .insert({
+      person_id: personId,
+      title: title.trim().slice(0, 200),
+      premise: (premise ?? '').trim().slice(0, 2000),
+      status: 'generating',
+      form: dials.form, lens: dials.lens, lens_detail: dials.lensDetail,
+      duration: dials.duration, addons: dials.addons, voice: dials.voice,
+    })
     .select('id')
     .single()
   if (bookErr || !book) return NextResponse.json({ error: bookErr?.message ?? 'could not create book' }, { status: 500 })
@@ -104,6 +113,10 @@ export async function POST(request: NextRequest) {
 
 BOOK TITLE: ${title}
 PREMISE (author's words): ${premise || '(none given — infer from the title and the journals)'}
+
+THE BOOK'S FORM AND SETTINGS — shape your questions for exactly this kind of book:
+${dialsSummary(dials)}
+(For a devotional: hunt for the days' raw material — the moments, verses, and turns that become daily readings. For teaching: hunt for the principles and the stories that earn them. For letters: hunt for what the recipient must know and the memories that carry it. For testimony: hunt for complete answered-story arcs.)
 
 RULES:
 - 10 to 14 questions, ordered.

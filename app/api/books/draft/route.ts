@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { anthropic } from '@ai-sdk/anthropic'
 import { generateText } from 'ai'
 import { gatherCorpus } from '../../../../lib/bookCorpus'
+import { normalizeDials, dialsSummary, BookDials } from '../../../../lib/bookForms'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -55,10 +56,14 @@ export async function POST(request: NextRequest) {
 
   const { data: book } = await supabase
     .from('books')
-    .select('id, person_id, title, premise, status, outline')
+    .select('id, person_id, title, premise, status, outline, form, lens, lens_detail, duration, addons, voice')
     .eq('id', bookId)
     .single()
   if (!book) return NextResponse.json({ error: 'book not found' }, { status: 404 })
+  const dials: BookDials = normalizeDials({
+    form: book.form, lens: book.lens, lensDetail: book.lens_detail,
+    duration: book.duration, addons: book.addons, voice: book.voice,
+  })
 
   const { data: qa } = await supabase
     .from('book_questions')
@@ -84,12 +89,17 @@ export async function POST(request: NextRequest) {
       maxOutputTokens: 6000,
       messages: [{
         role: 'user',
-        content: `You are ghostwriting a book from a person's journals and a completed interview. Plan the book now — chapters only, no writing.
+        content: `You are ghostwriting a book from a person's journals and a completed interview. Plan the book now — units only, no writing.
 
 BOOK TITLE: ${book.title}
 PREMISE: ${book.premise || '(infer from title, interview, and journals)'}
 
-Plan 5 to 9 chapters that use the strongest material. Each chapter: a short evocative title + a 2-3 sentence brief naming exactly which interview answers and journal threads it draws on, and what it must NOT touch (assigned elsewhere). The final chapter should land the book's central truth.
+THE BOOK'S FORM AND SETTINGS:
+${dialsSummary(dials)}
+
+${dials.form === 'devotional'
+  ? `Plan the ${dials.duration ?? 30} days as WEEKLY VOLUMES: one planning unit covers about 6-7 consecutive days. For each unit give a title (the week's theme) and a brief listing each day's theme + scripture + which journal/interview material it draws on. Total days across all units must equal ${dials.duration ?? 30}.`
+  : 'Plan 5 to 9 units (chapters/lessons/stories/letters per the form) that use the strongest material. Each unit: a short evocative title + a 2-3 sentence brief naming exactly which interview answers and journal threads it draws on, and what it must NOT touch (assigned elsewhere). The final unit should land the book’s central truth.'}
 
 Respond ONLY with JSON:
 {"chapters":[{"title":"...","brief":"..."}]}
@@ -135,9 +145,13 @@ ${corpus}`,
     maxOutputTokens: 20000,
     messages: [{
       role: 'user',
-      content: `You are ghostwriting "${book.title}". Write CHAPTER ${n + 1} of ${outline.length} — "${target.title}" — now.
+      content: `You are ghostwriting "${book.title}". Write UNIT ${n + 1} of ${outline.length} — "${target.title}" — now.
 
-CHAPTER BRIEF: ${target.brief}
+THE BOOK'S FORM AND SETTINGS — this unit must be exactly this kind of writing:
+${dialsSummary(dials)}
+${dials.form === 'devotional' ? 'Write EVERY day in this unit\'s brief, each formatted as: **Day <number> — <title>** on its own line, then the scripture reference and verse text in italics, then the reflection, then the prayer (and challenge/question if the settings call for them). Number days continuously across the whole book.' : ''}
+
+UNIT BRIEF: ${target.brief}
 
 FULL BOOK OUTLINE:
 ${outline.map((c, i) => `${i + 1}. ${c.title} — ${c.brief}`).join('\n')}

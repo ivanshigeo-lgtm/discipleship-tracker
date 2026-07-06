@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { anthropic } from '@ai-sdk/anthropic'
 import { generateText } from 'ai'
+import { normalizeDials, scanKeyOf, dialsSummary } from '../../../../lib/bookForms'
 
 export const runtime = 'nodejs'
 export const maxDuration = 120
@@ -18,12 +19,15 @@ const supabase = createClient(
 export async function GET(request: NextRequest) {
   const personId = request.nextUrl.searchParams.get('personId')
   if (!personId) return NextResponse.json({ error: 'personId required' }, { status: 400 })
+  // Most recent scan, whatever its dials were.
   const { data } = await supabase
     .from('book_suggestions')
-    .select('suggestions, created_at')
+    .select('suggestions, created_at, scan_key')
     .eq('person_id', personId)
-    .single()
-  return NextResponse.json({ suggestions: data?.suggestions ?? null, createdAt: data?.created_at ?? null })
+    .order('created_at', { ascending: false })
+    .limit(1)
+  const row = data?.[0]
+  return NextResponse.json({ suggestions: row?.suggestions ?? null, createdAt: row?.created_at ?? null, scanKey: row?.scan_key ?? null })
 }
 
 const firstJson = (text: string) => {
@@ -32,8 +36,10 @@ const firstJson = (text: string) => {
 }
 
 export async function POST(request: NextRequest) {
-  const { personId } = await request.json()
+  const { personId, dials: rawDials } = await request.json()
   if (!personId) return NextResponse.json({ error: 'personId required' }, { status: 400 })
+  const dials = normalizeDials(rawDials)
+  const scanKey = scanKeyOf(dials)
 
   // Sample the corpus across its whole span: oldest-first and newest-first
   // pages, stride-sampled so every season is represented.
@@ -64,15 +70,18 @@ export async function POST(request: NextRequest) {
       role: 'user',
       content: `You are a ghostwriter scanning a person's journal entries (sampled across their whole span below) to pitch them BOOKS that are already hiding in their own pages.
 
-Suggest 5-6 books. Rules:
+THE AUTHOR HAS SET THESE DIALS — every pitch must honor them:
+${dialsSummary(dials)}
+
+Suggest 4-6 books of exactly that form. Rules:
 - Each must be grounded in material you can actually see in the entries — themes that recur, seasons with weight, events, people, arcs.
 - title: evocative, specific to THEIR material (not generic).
 - premise: 1-2 sentences, second person ("Your...").
 - hook: the proof — a short verbatim quote from their entries WITH its date, chosen to make them feel seen.
-- Prefer variety: a testimony book, a season/event book, a people book, a lessons book, etc., as the material allows.
+- fit: ONE honest sentence on how well the visible material supports this book at the requested form/length — like an editor, not a vending machine (e.g. "Your journals hold ~40 strong days on this — a 30-day devotional would be dense and true; 90 would run thin.").
 
 Respond ONLY with JSON:
-{"suggestions":[{"title":"...","premise":"...","hook":"\\"...\\" — from your journal, <date>"}]}
+{"suggestions":[{"title":"...","premise":"...","hook":"\\"...\\" — from your journal, <date>","fit":"..."}]}
 
 JOURNAL SAMPLE:
 ${corpus}`,
@@ -80,15 +89,21 @@ ${corpus}`,
   })
 
   try {
-    const parsed = firstJson(text) as { suggestions?: Array<{ title?: string; premise?: string; hook?: string }> }
+    const parsed = firstJson(text) as { suggestions?: Array<{ title?: string; premise?: string; hook?: string; fit?: string }> }
     const suggestions = (parsed.suggestions ?? [])
       .filter(s => s.title?.trim())
       .slice(0, 6)
-      .map(s => ({ title: s.title!.trim().slice(0, 150), premise: (s.premise ?? '').trim().slice(0, 500), hook: (s.hook ?? '').trim().slice(0, 400) }))
+      .map(s => ({
+        title: s.title!.trim().slice(0, 150),
+        premise: (s.premise ?? '').trim().slice(0, 500),
+        hook: (s.hook ?? '').trim().slice(0, 400),
+        fit: (s.fit ?? '').trim().slice(0, 400),
+        dials,
+      }))
     if (!suggestions.length) throw new Error('no suggestions')
     await supabase.from('book_suggestions').upsert(
-      { person_id: personId, suggestions, created_at: new Date().toISOString() },
-      { onConflict: 'person_id' }
+      { person_id: personId, scan_key: scanKey, suggestions, created_at: new Date().toISOString() },
+      { onConflict: 'person_id,scan_key' }
     )
     return NextResponse.json({ suggestions })
   } catch {
