@@ -172,7 +172,38 @@ beauty/ashes, oil of joy/mourning, garment of praise/heaviness.
 
 ## Q9 — What changed "cure it" into "embrace it" — *pending*
 
-## Q10 — The widow — *pending*
+## Q10 — The widow(s) (ANSWERED 2026-07-05 — verbatim)
+
+"There were two widows in our church. One lost her husband when pregnant with
+her last child to the war in afghanistan. It was his last tour then they had
+plans to enjoy the rest of their lives with their three children. He never
+came back. Another was a man in one of my small groups. He loved to run and he
+left his wife and two young boys never to return. I got a call at 1130pm that
+he was at the bottom of the hill where I live and had been hit by a drunk
+driver. When I got there the wife was at the scene and the police said he had
+been killed on impact. I needed to let his young boys know that their father
+had passed and that they would not see him again. the young boy kept asking
+'Why?' and I had no answer, and just held him and cried. Both were women who I
+always felt compassion for and looked at them as victims but when lahaina
+happened these two women rose up as heros. They both housed complete strangers
+for many nights. One of these women housed over 40 people and she had no
+husband and was taking care of her own kids. When I asked them how they could
+do what they were doing, and they responded with the same answer. We
+experienced and know what it is like to experience loss. How can we not be
+there for these people who experienced the same thing. It showed me that all
+people look the same from the outside, but we are all not the same. There was
+an incredible strength that was produced inside of them because of the pain
+and suffering that they went through. And I realized that God was producing
+the same strength in our church and in my life. And in our community of Maui."
+
+**Ghostwriter notes:** TWO widows, not one — a structural gift: the war widow
+(Afghanistan, pregnant on his last tour, three kids) and the runner's widow
+(drunk driver, 11:30pm call at the bottom of Jonavan's own hill, telling the
+boys, the unanswerable "Why?"). Arc: he saw them as victims → Lahaina revealed
+them as heroes (one housed 40+ strangers alone). Their identical answer — "we
+know loss; how can we not be there" — is the LIVED PROOF of Q5's exchange
+theology and feeds Q13 (pain → capacity to love, the Brené Brown sermon note).
+"All people look the same from the outside, but we are all not the same."
 
 ## Q11 — The rebuild, honestly, now — *pending*
 
