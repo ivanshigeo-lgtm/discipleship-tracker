@@ -884,18 +884,30 @@ export const getSoapJournals = async (personId: string, limit?: number) => {
     return { data, error }
   }
 
+  // Count first, then fetch every page IN PARALLEL — with a decade imported
+  // (~2,000 rows, MBs of text) sequential pages made the journey page crawl.
+  const { count, error: countErr } = await supabase
+    .from('soap_journals')
+    .select('id', { count: 'exact', head: true })
+    .eq('person_id', personId)
+  if (countErr) return { data: null, error: countErr }
+
+  const pages = Math.max(1, Math.ceil((count ?? 0) / 1000))
+  const results = await Promise.all(
+    Array.from({ length: pages }, (_, i) =>
+      supabase
+        .from('soap_journals')
+        .select('*')
+        .eq('person_id', personId)
+        .order('journal_date', { ascending: false })
+        .order('id', { ascending: false }) // stable tiebreak so pages don't overlap
+        .range(i * 1000, i * 1000 + 999)
+    )
+  )
   const all: SoapJournal[] = []
-  for (let from = 0; ; from += 1000) {
-    const { data, error } = await supabase
-      .from('soap_journals')
-      .select('*')
-      .eq('person_id', personId)
-      .order('journal_date', { ascending: false })
-      .order('id', { ascending: false }) // stable tiebreak so pages don't overlap
-      .range(from, from + 999)
-    if (error) return { data: all.length ? all : null, error }
-    all.push(...(data ?? []))
-    if (!data || data.length < 1000) break
+  for (const r of results) {
+    if (r.error) return { data: all.length ? all : null, error: r.error }
+    all.push(...((r.data as SoapJournal[]) ?? []))
   }
   return { data: all, error: null }
 }
