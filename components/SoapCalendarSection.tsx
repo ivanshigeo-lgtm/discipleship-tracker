@@ -174,6 +174,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
   const [modalOcrLoading, setModalOcrLoading] = useState(false)
   const [modalOcrText, setModalOcrText] = useState<string | null>(null)
   const [showImport, setShowImport] = useState(false)
+  const [premiumOpen, setPremiumOpen] = useState(false)
   const [showDateReview, setShowDateReview] = useState(false)
 
   // OCR'd imported pages that still have no real date and haven't been ignored →
@@ -516,55 +517,22 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <button
-            onClick={() => {
-              if (insightMode) { exitInsightMode(); return }
-              setInsightMode(true)
-              setSelectedDate(null)
-              setSearchQuery('')
-            }}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: '5px',
-              padding: '7px 13px', borderRadius: '10px',
-              border: `1px solid ${insightMode ? 'rgba(54,214,195,.50)' : 'var(--line-2)'}`,
-              background: insightMode ? 'rgba(54,214,195,.12)' : 'transparent',
-              color: insightMode ? 'var(--establish, #36D6C3)' : 'var(--fg-2)',
-              fontSize: '12px', fontWeight: 600, cursor: 'pointer',
-              letterSpacing: '0.01em', flexShrink: 0, transition: 'all 150ms ease',
-            }}
-          >
-            ✦ {insightMode ? 'Exit AI' : 'AI Insights'}
-          </button>
+          {insightMode && (
+            <button
+              onClick={exitInsightMode}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '5px',
+                padding: '7px 13px', borderRadius: '10px',
+                border: '1px solid rgba(54,214,195,.50)', background: 'rgba(54,214,195,.12)',
+                color: 'var(--establish, #36D6C3)', fontSize: '12px', fontWeight: 600,
+                cursor: 'pointer', letterSpacing: '0.01em', flexShrink: 0,
+              }}
+            >
+              ✦ Exit AI
+            </button>
+          )}
           {!insightMode && (
             <>
-              <a
-                href="/answered"
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: '5px',
-                  padding: '7px 13px', borderRadius: '10px',
-                  border: '1px solid var(--line-2)', background: 'transparent',
-                  color: 'var(--fg-2)', fontSize: '12px', fontWeight: 600,
-                  letterSpacing: '0.01em', flexShrink: 0, textDecoration: 'none',
-                }}
-                title="Prayers whose answers you later wrote down"
-              >
-                🙏 Answered
-              </a>
-              {personId === '2aa35958-9057-44bd-aaf2-bd12a4cf9ecd' && (
-                <a
-                  href="/books"
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', gap: '5px',
-                    padding: '7px 13px', borderRadius: '10px',
-                    border: '1px solid var(--line-2)', background: 'transparent',
-                    color: 'var(--fg-2)', fontSize: '12px', fontWeight: 600,
-                    letterSpacing: '0.01em', flexShrink: 0, textDecoration: 'none',
-                  }}
-                  title="Your books — start one, answer the interview, edit the draft"
-                >
-                  📖 Books
-                </a>
-              )}
               {pendingImports.length > 0 && (
                 <button
                   onClick={importActive ? undefined : resumeImport}
@@ -600,21 +568,60 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                   🗓 {undatedImports.length} need a date
                 </button>
               )}
-              <button
-                onClick={() => setShowImport(true)}
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: '6px',
-                  padding: '8px 14px', borderRadius: '10px',
-                  border: '1px solid var(--line-2)', background: 'transparent',
-                  color: 'var(--fg-2)', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
-                  flexShrink: 0, transition: 'opacity 150ms ease',
-                }}
-                onMouseOver={e => (e.currentTarget.style.opacity = '0.75')}
-                onMouseOut={e => (e.currentTarget.style.opacity = '1')}
-                title="Upload past handwritten journals for a year"
-              >
-                ⬆ Import
-              </button>
+              {/* Premium menu: AI Insights, Answered, Books, Import */}
+              <div style={{ position: 'relative', flexShrink: 0 }}>
+                <button
+                  onClick={() => setPremiumOpen(o => !o)}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '5px',
+                    padding: '8px 14px', borderRadius: '10px',
+                    border: `1px solid ${premiumOpen ? 'rgba(244,182,80,.5)' : 'var(--line-2)'}`,
+                    background: premiumOpen ? 'rgba(244,182,80,.10)' : 'transparent',
+                    color: premiumOpen ? '#F4B650' : 'var(--fg-2)', fontSize: '13px', fontWeight: 600,
+                    cursor: 'pointer', letterSpacing: '0.01em', transition: 'all 150ms ease',
+                  }}
+                  title="Premium — insights, answered prayers, books, imports"
+                >
+                  ✦ Premium {premiumOpen ? '▴' : '▾'}
+                </button>
+                {premiumOpen && (
+                  <>
+                    <div onClick={() => setPremiumOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 90 }} />
+                    <div style={{
+                      position: 'absolute', right: 0, top: 'calc(100% + 6px)', zIndex: 91,
+                      minWidth: '230px', borderRadius: '14px', overflow: 'hidden',
+                      border: '1px solid var(--line-2)', background: 'var(--indigo, #141B3D)',
+                      boxShadow: 'var(--elev-2, 0 12px 40px rgba(0,0,0,.5))',
+                    }}>
+                      {[
+                        { label: '✦ AI Insights', desc: 'Summaries & questions over any date range', onClick: () => { setPremiumOpen(false); setInsightMode(true); setSelectedDate(null); setSearchQuery('') } },
+                        { label: '🙏 Answered', desc: 'Prayers whose answers you later wrote down', href: '/answered' },
+                        ...(personId === '2aa35958-9057-44bd-aaf2-bd12a4cf9ecd'
+                          ? [{ label: '📖 Books', desc: 'Start a book, answer the interview, edit drafts', href: '/books' }]
+                          : []),
+                        { label: '⬆ Import', desc: 'Bring in past handwritten journals', onClick: () => { setPremiumOpen(false); setShowImport(true) } },
+                      ].map(item => {
+                        const inner = (
+                          <>
+                            <div style={{ color: 'var(--fg-1)', fontSize: '13px', fontWeight: 600 }}>{item.label}</div>
+                            <div style={{ color: 'var(--fg-3)', fontSize: '11px', marginTop: '2px' }}>{item.desc}</div>
+                          </>
+                        )
+                        const itemStyle: React.CSSProperties = {
+                          display: 'block', width: '100%', textAlign: 'left', padding: '11px 14px',
+                          background: 'transparent', border: 'none', borderBottom: '1px solid var(--line-2)',
+                          cursor: 'pointer', textDecoration: 'none',
+                        }
+                        return 'href' in item && item.href ? (
+                          <a key={item.label} href={item.href} style={itemStyle}>{inner}</a>
+                        ) : (
+                          <button key={item.label} onClick={item.onClick} style={itemStyle}>{inner}</button>
+                        )
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
               <button
                 onClick={onNewEntry}
                 style={{
