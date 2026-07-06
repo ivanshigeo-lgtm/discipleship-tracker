@@ -293,4 +293,36 @@ doubling).
 
 ## Q13 — What was born (Genesis 3:16) — *pending*
 
-## Q14 — The one thing the reader must believe — *pending*
+## Q14 — The one thing the reader must believe (ANSWERED 2026-07-05 — verbatim; the book's closing page)
+
+"Pain never leaves you the same. The holes in Jesus' hands were there for
+Thomas to touch and they will be there when we see Him. Pain changes us by
+increasing our capacity to love. In the same way a mother loves a child it
+gave birth to, and the way Jesus loves us, suffering increases our capacity
+to feel. Initially we feel deep pain. But if we embrace that pain instead of
+medicating it, we have something to give to God. And He wants it. He promises
+that if we give him our ashes, He will give us beauty. If we give him our
+heaviness He will exchange it for garments of praise. Most try to medicate it
+away, and when they get rid of it, they have nothing to exchange with God.
+The exchange is that in the same way that pain increases our capacity to feel
+pain, it also increases our capacity to feel joy, love and grace. This is why
+our pain has great value. But we need to bring it to the correct exchange. We
+need to bring it to God."
+
+---
+
+# INTERVIEW COMPLETE — 2026-07-05
+
+All 14 questions answered or covered in a single night:
+Q1 dates resolved (catch-up journaling) · Q2 Aug 8 + speed of trust + $1.2M
+· Q3 covered in Q2 (four-tragedy family, tearful checks) · Q4 no permission
+to grieve (daughter/father mirror) · Q5 banyan + the exchange · Q6 covered in
+Q4 (compassion fatigue, the funeral) · Q7 Joce's tears · Q8 Jesus Prayer
+(meditation tool; corpus recovered the thread) · Q9 covered in Q5 (trauma
+changes depth of feeling) · Q10 two widows, victims → heroes · Q11/Q12 mayor
+prayer ledger + honest costs · Q13 what was born: Aʻaliʻi Village, leaders,
+baptisms (covered across Q2/Q8/Q11) · Q14 the exchange, holes in His hands.
+
+Source material for the chapter drafts: this file + lahaina-interview.md +
+the Lahaina journal thread (scripts/lahaina-entries.txt) + Aʻaliʻi Village
+pitch deck (user's Desktop).
