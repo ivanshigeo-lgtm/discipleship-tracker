@@ -194,9 +194,19 @@ things alone that I didn't need to be carrying alone."
 
 "I don't remember. I don't have context."
 
-**Ghostwriter notes:** DO NOT FABRICATE a scene for this. If used at all,
-present the note as it is: seven words at the bottom of a retreat page,
-context lost. The forgetting is itself honest texture.
+**UPDATED after reviewing the full page + corpus thread:** "That prayer was
+just a tool to use in meditation and to find solace in crisis. Brings back
+really good memories." Corpus context recovered: the prayer PREDATES the fire
+(Dec 2022 "mercy for me, my kids and my kids' kids"; Jan 16 2023 P-line
+through Ezekiel), and at the HIM retreat it was taught within the
+Solitude/Support/Silence/Stress framework as the breath-prayer for stress.
+Book framing: mercy was already in his mouth before the fire came.
+
+**BONUS — new answered prayer spotted live while re-reading (2026-07-05):**
+Aug 23, 2023: "P- God, please give me wisdom in this" (sonship, mentorship,
+raising leaders) → 2025-26: church leadership multiplying, monthly baptisms
+doubling, Grace Groups launching. Jonavan: "currently God is doing just that.
+incredible." Feeds Q13 (what was born) + candidate pair for /answered.
 
 ## Q9 — What changed "cure it" into "embrace it" — *pending*
 
