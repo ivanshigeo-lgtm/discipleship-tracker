@@ -552,7 +552,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
               </a>
               {personId === '2aa35958-9057-44bd-aaf2-bd12a4cf9ecd' && (
                 <a
-                  href="/book"
+                  href="/books"
                   style={{
                     display: 'inline-flex', alignItems: 'center', gap: '5px',
                     padding: '7px 13px', borderRadius: '10px',
@@ -560,9 +560,9 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                     color: 'var(--fg-2)', fontSize: '12px', fontWeight: 600,
                     letterSpacing: '0.01em', flexShrink: 0, textDecoration: 'none',
                   }}
-                  title="Your book draft — read it and add the missing memories"
+                  title="Your books — start one, answer the interview, edit the draft"
                 >
-                  📖 Book
+                  📖 Books
                 </a>
               )}
               {pendingImports.length > 0 && (
