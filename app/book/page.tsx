@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useAuth } from '../../contexts/AuthContext'
 import { Starfield } from '../../components/journey/StarPrimitives'
+import { prepareImage } from '../../lib/prepareImage'
 
 // Book draft preview. Renders the manuscript with the author's
 // [FOR THE INTERVIEW: ...] gaps as cards carrying a 🎤 — tap, talk (or use
@@ -76,19 +77,46 @@ function Inline({ text }: { text: string }) {
 
 type SpeechRec = { start: () => void; stop: () => void; continuous: boolean; interimResults: boolean; lang: string; onresult: ((e: unknown) => void) | null; onend: (() => void) | null }
 
-function GapCard({ question, markerKey, saved, onSave }: {
+function GapCard({ question, markerKey, saved, savedPhotos, personId, onSave }: {
   question: string
   markerKey: string
   saved: string | null
-  onSave: (markerKey: string, question: string, answer: string) => Promise<void>
+  savedPhotos: string[]
+  personId: string
+  onSave: (markerKey: string, question: string, answer: string, photoUrls: string[]) => Promise<void>
 }) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState(saved ?? '')
+  const [photos, setPhotos] = useState<string[]>(savedPhotos)
+  const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [listening, setListening] = useState(false)
   const recRef = useRef<SpeechRec | null>(null)
+  const fileRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => { setDraft(saved ?? '') }, [saved])
+  useEffect(() => { setPhotos(savedPhotos) }, [savedPhotos])
+
+  const attachFiles = async (files: FileList | null) => {
+    if (!files?.length || uploading) return
+    setUploading(true)
+    const added: string[] = []
+    for (const file of Array.from(files).slice(0, 12 - photos.length)) {
+      try {
+        // Compress images the same way journal photos are; other files go as-is.
+        const blob = file.type.startsWith('image/') ? await prepareImage(file) : file
+        const form = new FormData()
+        form.append('file', new File([blob], file.name.replace(/\.[^.]+$/, '') + (file.type.startsWith('image/') ? '.jpg' : ''), { type: file.type.startsWith('image/') ? 'image/jpeg' : file.type }))
+        form.append('personId', personId)
+        const res = await fetch('/api/soap/upload', { method: 'POST', body: form })
+        const j = await res.json()
+        if (res.ok && j.url) added.push(j.url)
+      } catch { /* skip failed file; the rest continue */ }
+    }
+    setPhotos(p => [...p, ...added])
+    setUploading(false)
+    if (fileRef.current) fileRef.current.value = ''
+  }
 
   const speechAvailable = typeof window !== 'undefined' &&
     Boolean((window as unknown as Record<string, unknown>).webkitSpeechRecognition || (window as unknown as Record<string, unknown>).SpeechRecognition)
@@ -115,34 +143,46 @@ function GapCard({ question, markerKey, saved, onSave }: {
   }
 
   const save = async () => {
-    if (!draft.trim() || saving) return
+    if ((!draft.trim() && photos.length === 0) || saving) return
     setSaving(true)
-    await onSave(markerKey, question, draft.trim())
+    await onSave(markerKey, question, draft.trim(), photos)
     setSaving(false)
     setOpen(false)
   }
 
+  const hasContent = Boolean(saved) || savedPhotos.length > 0
+
   return (
-    <div className="my-5 rounded-xl border p-4" style={{ borderColor: saved ? 'rgba(54,214,195,.45)' : 'var(--warning)', background: saved ? 'rgba(54,214,195,.06)' : 'rgba(255,255,255,.03)' }}>
+    <div className="my-5 rounded-xl border p-4" style={{ borderColor: hasContent ? 'rgba(54,214,195,.45)' : 'var(--warning)', background: hasContent ? 'rgba(54,214,195,.06)' : 'rgba(255,255,255,.03)' }}>
       <div className="flex items-start gap-3">
         <button
           type="button"
           onClick={() => setOpen(o => !o)}
-          title={saved ? 'Edit your answer' : 'Answer this — talk or type'}
+          title={hasContent ? 'Edit your answer' : 'Answer this — talk, type, or attach a photo'}
           className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-xl"
-          style={{ border: `1px solid ${saved ? 'rgba(54,214,195,.5)' : 'var(--warning)'}`, background: saved ? 'rgba(54,214,195,.15)' : 'rgba(255,180,80,.12)' }}
+          style={{ border: `1px solid ${hasContent ? 'rgba(54,214,195,.5)' : 'var(--warning)'}`, background: hasContent ? 'rgba(54,214,195,.15)' : 'rgba(255,180,80,.12)' }}
         >
-          {saved ? '✓' : '🎤'}
+          {hasContent ? '✓' : '🎤'}
         </button>
         <div className="min-w-0 flex-1">
-          <div className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: saved ? 'var(--establish)' : 'var(--warning)' }}>
-            {saved ? 'You answered — the next draft will weave it in' : 'The book needs your memory here'}
+          <div className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: hasContent ? 'var(--establish)' : 'var(--warning)' }}>
+            {hasContent ? 'You answered — the next draft will weave it in' : 'The book needs your memory here'}
           </div>
           <p className="mt-1 text-sm leading-relaxed text-[var(--fg-2)]">{question}</p>
           {saved && !open && (
             <p className="mt-2 border-l-2 pl-3 text-sm italic text-[var(--fg-2)]" style={{ borderColor: 'var(--establish)' }}>
               {saved.length > 220 ? saved.slice(0, 220) + '…' : saved}
             </p>
+          )}
+          {savedPhotos.length > 0 && !open && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {savedPhotos.map(u => (
+                <a key={u} href={u} target="_blank" rel="noreferrer">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={u} alt="attached memory" className="h-16 w-16 rounded-lg object-cover" style={{ border: '1px solid rgba(54,214,195,.35)' }} />
+                </a>
+              ))}
+            </div>
           )}
         </div>
       </div>
@@ -157,7 +197,25 @@ function GapCard({ question, markerKey, saved, onSave }: {
             className="w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-3 py-2.5 text-sm leading-relaxed text-[var(--fg-1)]"
             autoFocus
           />
-          <div className="mt-2 flex items-center gap-2">
+          {photos.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {photos.map(u => (
+                <div key={u} className="relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={u} alt="attachment" className="h-16 w-16 rounded-lg object-cover" style={{ border: '1px solid var(--line-2)' }} />
+                  <button
+                    type="button"
+                    onClick={() => setPhotos(p => p.filter(x => x !== u))}
+                    title="Remove"
+                    className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold"
+                    style={{ background: 'var(--danger)', color: '#fff' }}
+                  >✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+          <input ref={fileRef} type="file" accept="image/*,.pdf" multiple hidden onChange={e => attachFiles(e.target.files)} />
+          <div className="mt-2 flex flex-wrap items-center gap-2">
             {speechAvailable && (
               <button type="button" onClick={toggleListen}
                 className="cn-btn cn-btn-ghost"
@@ -165,7 +223,10 @@ function GapCard({ question, markerKey, saved, onSave }: {
                 {listening ? '■ Stop listening' : '🎤 Listen'}
               </button>
             )}
-            <button type="button" onClick={save} disabled={!draft.trim() || saving} className="cn-btn cn-btn-primary disabled:opacity-50">
+            <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading || photos.length >= 12} className="cn-btn cn-btn-ghost disabled:opacity-50">
+              {uploading ? 'Uploading…' : '📎 Add photo'}
+            </button>
+            <button type="button" onClick={save} disabled={(!draft.trim() && photos.length === 0) || saving || uploading} className="cn-btn cn-btn-primary disabled:opacity-50">
               {saving ? 'Saving…' : 'Save answer'}
             </button>
             <button type="button" onClick={() => setOpen(false)} className="cn-btn cn-btn-ghost">Close</button>
@@ -179,7 +240,7 @@ function GapCard({ question, markerKey, saved, onSave }: {
 export default function BookPage() {
   const { profile, loading } = useAuth()
   const [blocks, setBlocks] = useState<Block[]>([])
-  const [answers, setAnswers] = useState<Record<string, string>>({})
+  const [answers, setAnswers] = useState<Record<string, { answer: string; photos: string[] }>>({})
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
@@ -189,19 +250,19 @@ export default function BookPage() {
       fetch(`/api/book/input?personId=${profile.id}`).then(r => r.json()),
     ]).then(([md, j]) => {
       setBlocks(parseManuscript(md))
-      const map: Record<string, string> = {}
-      for (const i of j.inputs ?? []) map[i.marker_key] = i.answer
+      const map: Record<string, { answer: string; photos: string[] }> = {}
+      for (const i of j.inputs ?? []) map[i.marker_key] = { answer: i.answer, photos: i.photo_urls ?? [] }
       setAnswers(map)
       setReady(true)
     })
   }, [profile?.id])
 
-  const onSave = useCallback(async (markerKey: string, question: string, answer: string) => {
-    setAnswers(a => ({ ...a, [markerKey]: answer }))
+  const onSave = useCallback(async (markerKey: string, question: string, answer: string, photoUrls: string[]) => {
+    setAnswers(a => ({ ...a, [markerKey]: { answer, photos: photoUrls } }))
     await fetch('/api/book/input', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ personId: AUTHOR_PERSON_ID, markerKey, question, answer }),
+      body: JSON.stringify({ personId: AUTHOR_PERSON_ID, markerKey, question, answer, photoUrls }),
     })
   }, [])
 
@@ -210,7 +271,7 @@ export default function BookPage() {
     [blocks]
   )
   const gaps = useMemo(() => blocks.filter(b => b.kind === 'gap') as Extract<Block, { kind: 'gap' }>[], [blocks])
-  const answered = gaps.filter(g => answers[g.markerKey]).length
+  const answered = gaps.filter(g => answers[g.markerKey] && (answers[g.markerKey].answer || answers[g.markerKey].photos.length)).length
 
   if (loading) return <div className="min-h-screen bg-[var(--void)]" />
   if (!profile || profile.id !== AUTHOR_PERSON_ID) {
@@ -265,7 +326,17 @@ export default function BookPage() {
                   case 'hr':
                     return <hr key={i} className="mt-10 border-[var(--line-2)]" />
                   case 'gap':
-                    return <GapCard key={b.markerKey} question={b.question} markerKey={b.markerKey} saved={answers[b.markerKey] ?? null} onSave={onSave} />
+                    return (
+                      <GapCard
+                        key={b.markerKey}
+                        question={b.question}
+                        markerKey={b.markerKey}
+                        saved={answers[b.markerKey]?.answer || null}
+                        savedPhotos={answers[b.markerKey]?.photos ?? []}
+                        personId={AUTHOR_PERSON_ID}
+                        onSave={onSave}
+                      />
+                    )
                   case 'p':
                     return <p key={i} className="mt-4 text-[15px] leading-[1.85] text-[var(--fg-2)]"><Inline text={b.text} /></p>
                 }

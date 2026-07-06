@@ -16,17 +16,20 @@ export async function GET(request: NextRequest) {
   if (!personId) return NextResponse.json({ error: 'personId required' }, { status: 400 })
   const { data, error } = await supabase
     .from('book_inputs')
-    .select('marker_key, question, answer, updated_at')
+    .select('marker_key, question, answer, photo_urls, updated_at')
     .eq('person_id', personId)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ inputs: data ?? [] })
 }
 
 export async function POST(request: NextRequest) {
-  const { personId, markerKey, question, answer } = await request.json()
+  const { personId, markerKey, question, answer, photoUrls } = await request.json()
   if (!personId || !markerKey || typeof answer !== 'string') {
     return NextResponse.json({ error: 'personId, markerKey, answer required' }, { status: 400 })
   }
+  const photos = Array.isArray(photoUrls)
+    ? (photoUrls as unknown[]).filter((u): u is string => typeof u === 'string').slice(0, 12)
+    : []
   const { error } = await supabase
     .from('book_inputs')
     .upsert(
@@ -35,6 +38,7 @@ export async function POST(request: NextRequest) {
         marker_key: markerKey,
         question: (question ?? '').slice(0, 2000),
         answer: answer.slice(0, 20000),
+        photo_urls: photos,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'person_id,marker_key' }
