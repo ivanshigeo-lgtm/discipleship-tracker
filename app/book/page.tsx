@@ -17,12 +17,15 @@ type Block =
   | { kind: 'h1' | 'h2' | 'chapter' | 'chtitle' | 'hr' | 'p'; text: string; id?: string }
   | { kind: 'gap'; question: string; markerKey: string }
 
-// Stable key per gap so answers survive redeploys (as long as the question text stands).
-const hashKey = (s: string) => {
+// Stable content hash: gap answers and paragraph edits survive redeploys for
+// as long as the underlying text stands (a revision retires them naturally).
+const hashOf = (s: string) => {
   let h = 5381
   for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0
-  return 'gap-' + (h >>> 0).toString(36)
+  return (h >>> 0).toString(36)
 }
+const hashKey = (s: string) => 'gap-' + hashOf(s)
+const paraKey = (s: string) => 'p-' + hashOf(s)
 
 const CHAPTER_RE = /^(Chapter\s+(\w+)|Epilogue.*)$/
 
@@ -59,6 +62,87 @@ function parseManuscript(md: string): Block[] {
     prevWasChapter = false
   }
   return blocks
+}
+
+type EditState = { text: string | null; deleted: boolean }
+
+// A paragraph in a quiet box: tap ✏️ to edit in place, save/delete/restore.
+function EditablePara({ original, edit, onCommit }: {
+  original: string
+  edit: EditState | undefined
+  onCommit: (blockKey: string, original: string, action: { save?: string; delete?: boolean; restore?: boolean }) => Promise<void>
+}) {
+  const key = paraKey(original)
+  const current = edit?.deleted ? null : (edit?.text ?? original)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(current ?? original)
+  const [busy, setBusy] = useState(false)
+
+  const commit = async (action: { save?: string; delete?: boolean; restore?: boolean }) => {
+    setBusy(true)
+    await onCommit(key, original, action)
+    setBusy(false)
+    setEditing(false)
+  }
+
+  if (edit?.deleted && !editing) {
+    return (
+      <div className="mt-4 flex items-center gap-3 rounded-lg border border-dashed px-3 py-2" style={{ borderColor: 'var(--line-2)' }}>
+        <span className="text-xs italic text-[var(--fg-3)]">Paragraph removed</span>
+        <button type="button" disabled={busy} onClick={() => commit({ restore: true })} className="text-xs font-semibold underline" style={{ color: 'var(--establish)' }}>
+          Restore
+        </button>
+      </div>
+    )
+  }
+
+  if (editing) {
+    return (
+      <div className="mt-4 rounded-xl border p-3" style={{ borderColor: 'rgba(54,214,195,.45)', background: 'rgba(255,255,255,.02)' }}>
+        <textarea
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          rows={Math.min(16, Math.max(4, Math.ceil(draft.length / 70)))}
+          className="w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-3 py-2.5 text-[15px] leading-[1.8] text-[var(--fg-1)]"
+          autoFocus
+        />
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <button type="button" disabled={busy || !draft.trim()} onClick={() => commit({ save: draft.trim() })} className="cn-btn cn-btn-primary disabled:opacity-50">
+            {busy ? 'Saving…' : 'Save'}
+          </button>
+          <button type="button" disabled={busy} onClick={() => { if (confirm('Remove this paragraph from the draft?')) commit({ delete: true }) }} className="cn-btn cn-btn-ghost" style={{ color: 'var(--danger)' }}>
+            Delete paragraph
+          </button>
+          {edit && (
+            <button type="button" disabled={busy} onClick={() => commit({ restore: true })} className="cn-btn cn-btn-ghost">
+              Restore original
+            </button>
+          )}
+          <button type="button" disabled={busy} onClick={() => { setDraft(current ?? original); setEditing(false) }} className="cn-btn cn-btn-ghost">
+            Cancel
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className="group relative mt-4 rounded-lg border border-transparent px-1 py-0.5 transition-colors hover:border-[var(--line-2)]"
+      style={edit ? { borderLeft: '2px solid rgba(54,214,195,.55)', paddingLeft: '10px' } : undefined}
+    >
+      <p className="text-[15px] leading-[1.85] text-[var(--fg-2)]"><Inline text={current ?? ''} /></p>
+      <button
+        type="button"
+        onClick={() => { setDraft(current ?? original); setEditing(true) }}
+        title={edit ? 'Edited — tap to edit again' : 'Edit this paragraph'}
+        className="absolute -right-1 -top-2 flex h-7 w-7 items-center justify-center rounded-full text-[12px] opacity-40 transition-opacity hover:opacity-100 group-hover:opacity-80"
+        style={{ border: '1px solid var(--line-2)', background: 'var(--indigo)' }}
+      >
+        ✏️
+      </button>
+    </div>
+  )
 }
 
 // Minimal inline markdown: **bold**, *italic*.
@@ -241,6 +325,7 @@ export default function BookPage() {
   const { profile, loading } = useAuth()
   const [blocks, setBlocks] = useState<Block[]>([])
   const [answers, setAnswers] = useState<Record<string, { answer: string; photos: string[] }>>({})
+  const [edits, setEdits] = useState<Record<string, EditState>>({})
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
@@ -248,14 +333,39 @@ export default function BookPage() {
     Promise.all([
       fetch('/book/manuscript.md').then(r => r.text()),
       fetch(`/api/book/input?personId=${profile.id}`).then(r => r.json()),
-    ]).then(([md, j]) => {
+      fetch(`/api/book/edit?personId=${profile.id}`).then(r => r.json()),
+    ]).then(([md, j, e]) => {
       setBlocks(parseManuscript(md))
       const map: Record<string, { answer: string; photos: string[] }> = {}
       for (const i of j.inputs ?? []) map[i.marker_key] = { answer: i.answer, photos: i.photo_urls ?? [] }
       setAnswers(map)
+      const emap: Record<string, EditState> = {}
+      for (const ed of e.edits ?? []) emap[ed.block_key] = { text: ed.edited_text, deleted: ed.deleted }
+      setEdits(emap)
       setReady(true)
     })
   }, [profile?.id])
+
+  const onCommitEdit = useCallback(async (blockKey: string, original: string, action: { save?: string; delete?: boolean; restore?: boolean }) => {
+    if (action.restore) {
+      setEdits(e => { const n = { ...e }; delete n[blockKey]; return n })
+      await fetch('/api/book/edit', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ personId: AUTHOR_PERSON_ID, blockKey, restore: true }),
+      })
+      return
+    }
+    const next: EditState = action.delete ? { text: null, deleted: true } : { text: action.save ?? '', deleted: false }
+    setEdits(e => ({ ...e, [blockKey]: next }))
+    await fetch('/api/book/edit', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        personId: AUTHOR_PERSON_ID, blockKey,
+        editedText: next.text, deleted: next.deleted,
+        originalExcerpt: original.slice(0, 300),
+      }),
+    })
+  }, [])
 
   const onSave = useCallback(async (markerKey: string, question: string, answer: string, photoUrls: string[]) => {
     setAnswers(a => ({ ...a, [markerKey]: { answer, photos: photoUrls } }))
@@ -338,7 +448,7 @@ export default function BookPage() {
                       />
                     )
                   case 'p':
-                    return <p key={i} className="mt-4 text-[15px] leading-[1.85] text-[var(--fg-2)]"><Inline text={b.text} /></p>
+                    return <EditablePara key={i} original={b.text} edit={edits[paraKey(b.text)]} onCommit={onCommitEdit} />
                 }
               })}
             </article>
