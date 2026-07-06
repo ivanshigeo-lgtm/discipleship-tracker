@@ -243,7 +243,51 @@ know loss; how can we not be there" — is the LIVED PROOF of Q5's exchange
 theology and feeds Q13 (pain → capacity to love, the Brené Brown sermon note).
 "All people look the same from the outside, but we are all not the same."
 
-## Q11 — The rebuild, honestly, now — *pending*
+## Q11 + Q12 — The rebuild & the years nobody watched (ANSWERED 2026-07-05)
+
+**The reframe: the "forgotten years" were prayed through MONTHLY IN THE
+MAYOR'S OFFICE.** "The Mayor opened his office for prayer and we have been
+going in and praying with the mayor every month since the fires and many
+prayers have been answered." FEMA rent inflation hurt the rest of the island;
+housing scarce; BUT county expedited and "Maui is rebuilding faster than any
+other natural disaster location in the United States."
+
+**Documented answered civic prayers (from the church's own praise list,
+prayed with Mayor Bissen):**
+- Residential cleanup finished AHEAD of schedule — FEMA commended
+- First house started within 10 months; first homeowners moved in (Kula &
+  Lahaina) March 2025
+- Fentanyl: Maui was highest-use county in the state before the fire — now
+  the LOWEST
+- Toxic waste site moved TWICE, federally paid both times ("that NEVER
+  happens")
+- Zero traffic disruption from debris trucks on the West Maui bottleneck
+  (2-hour delays expected; none happened)
+- $1.6 BILLION awarded — highest for any disaster
+- Mayor Bissen's Solomon-like leadership + culture of honor (prayed for
+  wisdom & guidance monthly)
+- West Maui water: parties now working together; County acquiring systems
+- Drought in Kula/Lahaina: prayed for rain — "'Nuf said. ANSWERED PRAYER!"
+- Construction up 125%; unemployment down; visitor spending Jan 2026
+  $664.7M vs $534.9M Jan 2025 (+24%)
+- 175 homes already occupied — under 3 years from the fire
+
+**And the project being worked toward: AʻALIʻI VILLAGE** (pitch deck
+reviewed): 126 units / 8 acres in Kahului w/ G70; 88 affordable rentals
+($3k/mo) + 38 STVR whose profits fund tenant wealth-building; Financial
+Education Tokens + Sweat Equity Tokens; 50% of rent + 100% STVR profit into
+an exit fund → pathway to home ownership; $50M raise, self-sustaining,
+designed to scale ("$6.8B in generational wealth, 1,000+ families"). Named
+for the aʻaliʻi plant — THE FIRST PLANT TO GROW AFTER A LAVA FLOW, pulling
+water from the atmosphere in arid ground. The botanical twin of the banyan
+metaphor and the book's thesis made into a business plan.
+
+**Ghostwriter notes:** Final act structure: the island's answered-prayer
+ledger (civic scale mirror of his personal /answered page) → honest costs
+(FEMA rent inflation, scarcity) → Aʻaliʻi Village as the book's closing image:
+beauty past the ashes, planted at scale. Answers most of Q13 (what was born:
+the village, the mayor's prayer culture, leaders multiplying, baptisms
+doubling).
 
 ## Q12 — The forgotten second year — *pending*
 
