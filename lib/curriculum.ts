@@ -25,11 +25,14 @@ export const TOTAL_CHAPTERS = BOOKLETS.reduce((sum, b) => sum + b.chapters, 0) /
 
 export const CURRICULUM_MEETING_TYPES: MeetingType[] = BOOKLETS.map(b => b.meetingType)
 
-// Group focus options = the curriculum booklets plus SOAPS (an Engage-stage
-// rhythm, not a chapter booklet). Drives the group Focus dropdown and the 4E
-// stage a group's members are counted toward.
+// Group focus options = the curriculum booklets plus non-chapter materials
+// (rhythms/studies a group can work through without affecting the Empower
+// forecast). Drives the group Focus dropdown and the 4E stage a group's
+// members are counted toward.
 export const GROUP_FOCUS_OPTIONS: { key: GroupFocus; label: string; stage: Stage }[] = [
   ...BOOKLETS.map(b => ({ key: b.key as GroupFocus, label: b.label, stage: b.stage })),
+  { key: 'Purple Book', label: 'Purple Book', stage: 'Establish' },
+  { key: 'Message Notes', label: 'Message Notes', stage: 'Establish' },
   { key: 'SOAPS', label: 'SOAPS', stage: 'Engage' },
 ]
 
