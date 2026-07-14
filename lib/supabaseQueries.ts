@@ -45,12 +45,31 @@ export const getPeople = (stage?: Stage | Stage[]) =>
     return { data, error }
   })
 
-export const addPerson = async (person: Omit<Person, 'id' | 'created_at' | 'updated_at' | 'auth_user_id' | 'is_admin' | 'testimony_text' | 'testimony_video_url'>) => {
+export const addPerson = async (
+  person: Omit<Person, 'id' | 'created_at' | 'updated_at' | 'auth_user_id' | 'is_admin' | 'testimony_text' | 'testimony_video_url'>,
+  // Whoever inputs a person becomes their coach. Without this connection a
+  // non-admin can't see the person they just added — "My Constellation" only
+  // shows your own downline.
+  coachPersonId?: string
+) => {
   const { data, error } = await supabase
     .from('people')
     .insert({ ...person, auth_user_id: null, is_admin: false, updated_at: new Date().toISOString() })
     .select()
     .single()
+  if (!error && data && coachPersonId) {
+    const { error: connError } = await supabase
+      .from('discipleship_connections')
+      .insert({
+        discipler_person_id: coachPersonId,
+        disciple_person_id: data.id,
+        disciple_name: person.name,
+        relationship_notes: null,
+        status: 'Identified',
+        updated_at: new Date().toISOString(),
+      })
+    if (connError) console.error('Auto coach-connection failed:', connError)
+  }
   return { data, error }
 }
 
@@ -870,18 +889,24 @@ export const deleteDiscipleshipConnection = async (id: string) => {
 }
 
 // ==================== SOAP JOURNALS ====================
-export const getSoapJournals = async (personId: string, limit?: number) => {
+// Every column EXCEPT ocr_text. With a decade imported the OCR text alone is
+// ~1MB — half the journey page's entire download — and it's only needed for
+// search/excerpts, so it hydrates separately (getSoapJournalTexts) after paint.
+const SOAP_LITE_COLUMNS =
+  'id, person_id, journal_date, photo_url, photo_urls, scripture_reference, summary, visibility, date_precision, source, import_batch_id, import_seq, date_reviewed, processing_started_at, created_at, updated_at'
+
+const getSoapJournalsPaged = async (personId: string, columns: string, limit?: number) => {
   // Supabase caps every response at 1,000 rows. With a decade imported
   // (~2,000 entries) a single select silently truncates at ~March 2024 —
   // page through unless the caller asked for an explicit smaller limit.
   if (limit) {
     const { data, error } = await supabase
       .from('soap_journals')
-      .select('*')
+      .select(columns)
       .eq('person_id', personId)
       .order('journal_date', { ascending: false })
       .limit(limit)
-    return { data, error }
+    return { data: (data as unknown as SoapJournal[]) ?? null, error }
   }
 
   // Count first, then fetch every page IN PARALLEL — with a decade imported
@@ -897,7 +922,7 @@ export const getSoapJournals = async (personId: string, limit?: number) => {
     Array.from({ length: pages }, (_, i) =>
       supabase
         .from('soap_journals')
-        .select('*')
+        .select(columns)
         .eq('person_id', personId)
         .order('journal_date', { ascending: false })
         .order('id', { ascending: false }) // stable tiebreak so pages don't overlap
@@ -907,7 +932,45 @@ export const getSoapJournals = async (personId: string, limit?: number) => {
   const all: SoapJournal[] = []
   for (const r of results) {
     if (r.error) return { data: all.length ? all : null, error: r.error }
-    all.push(...((r.data as SoapJournal[]) ?? []))
+    all.push(...((r.data as unknown as SoapJournal[]) ?? []))
+  }
+  return { data: all, error: null }
+}
+
+export const getSoapJournals = async (personId: string, limit?: number) =>
+  getSoapJournalsPaged(personId, '*', limit)
+
+// Fast first load: all rows, minus the OCR text (rows arrive with ocr_text undefined).
+export const getSoapJournalsLite = async (personId: string, limit?: number) =>
+  getSoapJournalsPaged(personId, SOAP_LITE_COLUMNS, limit)
+
+// Second phase: id + ocr_text for rows that have text, merged into the
+// already-loaded lite rows so search and excerpts still work.
+export const getSoapJournalTexts = async (personId: string) => {
+  const { count, error: countErr } = await supabase
+    .from('soap_journals')
+    .select('id', { count: 'exact', head: true })
+    .eq('person_id', personId)
+    .not('ocr_text', 'is', null)
+  if (countErr) return { data: null, error: countErr }
+
+  const pages = Math.max(1, Math.ceil((count ?? 0) / 1000))
+  const results = await Promise.all(
+    Array.from({ length: pages }, (_, i) =>
+      supabase
+        .from('soap_journals')
+        .select('id, ocr_text')
+        .eq('person_id', personId)
+        .not('ocr_text', 'is', null)
+        .order('journal_date', { ascending: false })
+        .order('id', { ascending: false })
+        .range(i * 1000, i * 1000 + 999)
+    )
+  )
+  const all: { id: string; ocr_text: string }[] = []
+  for (const r of results) {
+    if (r.error) return { data: all.length ? all : null, error: r.error }
+    all.push(...((r.data as { id: string; ocr_text: string }[]) ?? []))
   }
   return { data: all, error: null }
 }

@@ -8,7 +8,8 @@ import {
   getMyCoach,
   getMyGroups,
   getGroupsOwnedByPerson,
-  getSoapJournals,
+  getSoapJournalsLite,
+  getSoapJournalTexts,
   getSoapStreak,
   getStageChecklistItems,
   upsertStageChecklistItem,
@@ -43,6 +44,13 @@ import SignoffNotice from '../../components/journey/SignoffNotice'
 
 const INTRO_KEY = 'journey_intro_seen'
 const DEMO_KEY = 'journey_quadrant_demo_seen'
+
+// Last-known journey data, cached per person so a returning visitor's star
+// paints instantly while the network refresh happens behind it. The dashboard
+// snapshot and the (bigger) slim SOAP list live under separate keys so either
+// can fail/expire alone. Bump the version to invalidate old shapes.
+const snapshotKey = (pid: string) => `journey-snapshot-v1-${pid}`
+const soapCacheKey = (pid: string) => `journey-soaps-v1-${pid}`
 type DemoPhase = 'meteor' | 'arrow' | 'open' | null
 
 function CoachConnectModal({
@@ -121,7 +129,7 @@ function CoachConnectModal({
 }
 
 export default function MyJourneyPage() {
-  const { user, profile, loading, signOut } = useAuth()
+  const { user, profile, loading, profileLoading, signOut } = useAuth()
   const [coach, setCoach] = useState<Person | null>(null)
   const [groups, setGroups] = useState<VictoryGroup[]>([])
   const [ownsGroup, setOwnsGroup] = useState(false)
@@ -178,6 +186,33 @@ export default function MyJourneyPage() {
     return () => { supabase.removeChannel(channel) }
   }, [profile?.id, msgCenterOpen, loadUnreadCount])
 
+  // Paint from the last visit's snapshot immediately (no dataReady — badge
+  // celebrations only fire on FRESH data), then the network refresh below
+  // overwrites everything.
+  useEffect(() => {
+    if (!profile?.id) return
+    try {
+      const snap = localStorage.getItem(snapshotKey(profile.id))
+      if (snap) {
+        const s = JSON.parse(snap)
+        if (s.coach) setCoach(s.coach)
+        if (s.myDisciples) setMyDisciples(s.myDisciples)
+        if (s.groups) setGroups(s.groups)
+        if (s.pendingGroupIds) setPendingGroupIds(s.pendingGroupIds)
+        setOwnsGroup(Boolean(s.ownsGroup))
+        setSoapStreak(s.soapStreak ?? 0)
+        setCurrentStreak(s.currentStreak ?? 0)
+        if (s.checklistItems) setChecklistItems(s.checklistItems)
+        if (s.signoffs) setSignoffs(s.signoffs)
+      }
+      const soaps = localStorage.getItem(soapCacheKey(profile.id))
+      // never clobber real rows if the network somehow won the race
+      if (soaps) setSoapJournals(prev => (prev.length ? prev : JSON.parse(soaps)))
+    } catch {
+      // corrupt/oversized cache is harmless — the network load replaces it
+    }
+  }, [profile?.id])
+
   // Light data the STAR needs — kept off the big SOAP history so the star paints
   // fast. Soaps (hundreds of rows) load separately below.
   const loadData = useCallback(async () => {
@@ -191,28 +226,64 @@ export default function MyJourneyPage() {
       getLevelSignoffs(profile.id),
       getGroupsOwnedByPerson(profile.id),
     ])
-    setOwnsGroup(((ownedRes.data as unknown[] | null)?.length ?? 0) > 0)
-    if (coachRes.data?.discipler) setCoach(coachRes.data.discipler as Person)
-    if (disciplesRes.data) setMyDisciples(disciplesRes.data as DiscipleshipConnection[])
-    if (groupsRes.data) {
-      const rows = groupsRes.data as { victory_groups: VictoryGroup; victory_group_id: string; status?: string }[]
-      // Only APPROVED memberships count as being "in" the group; pending ones
-      // are awaiting the group owner's approval.
-      setGroups(rows.filter(g => g.status !== 'pending').map(g => g.victory_groups).filter(Boolean))
-      setPendingGroupIds(rows.filter(g => g.status === 'pending').map(g => g.victory_group_id))
-    }
+    const ownsGroupNext = ((ownedRes.data as unknown[] | null)?.length ?? 0) > 0
+    const coachNext = (coachRes.data?.discipler as Person | undefined) ?? null
+    const disciplesNext = (disciplesRes.data as DiscipleshipConnection[] | null) ?? null
+    const groupRows = groupsRes.data as { victory_groups: VictoryGroup; victory_group_id: string; status?: string }[] | null
+    // Only APPROVED memberships count as being "in" the group; pending ones
+    // are awaiting the group owner's approval.
+    const groupsNext = groupRows ? groupRows.filter(g => g.status !== 'pending').map(g => g.victory_groups).filter(Boolean) : null
+    const pendingNext = groupRows ? groupRows.filter(g => g.status === 'pending').map(g => g.victory_group_id) : null
+    setOwnsGroup(ownsGroupNext)
+    if (coachNext) setCoach(coachNext)
+    if (disciplesNext) setMyDisciples(disciplesNext)
+    if (groupsNext) setGroups(groupsNext)
+    if (pendingNext) setPendingGroupIds(pendingNext)
     if (streakRes.streak !== undefined) setSoapStreak(streakRes.streak)
     if (streakRes.current !== undefined) setCurrentStreak(streakRes.current)
     if (checklistRes.data) setChecklistItems(checklistRes.data as StageChecklistItem[])
     if (signoffsRes.data) setSignoffs(signoffsRes.data as LevelSignoff[])
     setDataReady(true)
+    try {
+      localStorage.setItem(snapshotKey(profile.id), JSON.stringify({
+        coach: coachNext,
+        myDisciples: disciplesNext ?? [],
+        groups: groupsNext ?? [],
+        pendingGroupIds: pendingNext ?? [],
+        ownsGroup: ownsGroupNext,
+        soapStreak: streakRes.streak ?? 0,
+        currentStreak: streakRes.current ?? 0,
+        checklistItems: checklistRes.data ?? [],
+        signoffs: signoffsRes.data ?? [],
+      }))
+    } catch { /* quota exceeded — instant paint just won't happen next visit */ }
   }, [profile?.id])
 
   // The full SOAP history (large) loads on its own so it never blocks the star.
+  // Two phases: every row WITHOUT its OCR text first (~half the bytes), then
+  // the text merges in behind the scenes so search/excerpts still work.
   const loadSoaps = useCallback(async () => {
     if (!profile?.id) return
-    const { data } = await getSoapJournals(profile.id)
-    if (data) setSoapJournals(data as SoapJournal[])
+    const { data } = await getSoapJournalsLite(profile.id)
+    if (!data) return
+    setSoapJournals(data as SoapJournal[])
+    try {
+      // Slim projection for next visit's instant paint — enough for the star
+      // (count, dates, streak feel) and the calendar grid, without the photo
+      // URL strings that make the full list ~1MB.
+      const slim = data.map(j => ({
+        id: j.id, person_id: j.person_id, journal_date: j.journal_date,
+        scripture_reference: j.scripture_reference, date_precision: j.date_precision,
+        source: j.source, date_reviewed: j.date_reviewed, import_seq: j.import_seq,
+        created_at: j.created_at,
+      }))
+      localStorage.setItem(soapCacheKey(profile.id), JSON.stringify(slim))
+    } catch { /* quota exceeded — instant paint just won't happen next visit */ }
+    const { data: texts } = await getSoapJournalTexts(profile.id)
+    if (texts?.length) {
+      const byId = new Map(texts.map(t => [t.id, t.ocr_text]))
+      setSoapJournals(prev => prev.map(j => (byId.has(j.id) ? { ...j, ocr_text: byId.get(j.id)! } : j)))
+    }
   }, [profile?.id])
 
   useEffect(() => {
@@ -388,7 +459,9 @@ export default function MyJourneyPage() {
   }
 
 
-  if (loading) {
+  // Keep the spinner while the profile row is still on its way — never flash
+  // "no profile linked" at someone whose profile just hasn't arrived yet.
+  if (loading || (user && !profile && profileLoading)) {
     return (
       <div className="relative flex min-h-screen items-center justify-center bg-[var(--void)]">
         <Starfield count={40} seed={3} />

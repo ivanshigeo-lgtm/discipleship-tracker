@@ -19,6 +19,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="h-full antialiased">
+      <head>
+        {/* Every page's data comes from Supabase — start the TLS handshake
+            before the JS bundle even finishes parsing. */}
+        <link rel="preconnect" href="https://yddjlhdptsundeimugba.supabase.co" crossOrigin="anonymous" />
+      </head>
       <body className="min-h-full flex flex-col">
         <Providers>{children}</Providers>
       </body>

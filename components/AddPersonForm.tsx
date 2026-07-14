@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { addPerson } from '../lib/supabaseQueries'
+import { useAuth } from '../contexts/AuthContext'
 import { Stage } from '../types/database'
 import { stageLabels, stageOrder } from '../lib/stageLabels'
 
@@ -15,6 +16,7 @@ const STAGE_COLORS: Record<Stage, string> = {
 }
 
 export default function AddPersonForm({ onPersonAdded, initialName = '' }: { onPersonAdded?: () => void; initialName?: string }) {
+  const { profile } = useAuth()
   const [name, setName] = useState(initialName)
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
@@ -30,6 +32,8 @@ export default function AddPersonForm({ onPersonAdded, initialName = '' }: { onP
     setLoading(true)
     setError('')
 
+    // Whoever inputs a person is automatically connected as their coach —
+    // otherwise a non-admin can't see the person they just added.
     const { error: supabaseError } = await addPerson({
       name,
       email: email || null,
@@ -41,7 +45,7 @@ export default function AddPersonForm({ onPersonAdded, initialName = '' }: { onP
       status: 'Active',
       priority: false,
       victory_group_id: null,
-    })
+    }, profile?.id)
 
     if (supabaseError) {
       setError(supabaseError.message)

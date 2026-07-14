@@ -1,9 +1,14 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import type { User, Session } from '@supabase/supabase-js'
 import type { Person } from '../types/database'
+
+// Last-known profile (+downline) per auth user, so returning visitors skip the
+// profile round-trip and page data queries can start immediately. Refreshed in
+// the background on every load; cleared on sign-out.
+const profileCacheKey = (userId: string) => `cn-profile-v1-${userId}`
 
 type AuthContextType = {
   user: User | null
@@ -11,6 +16,9 @@ type AuthContextType = {
   profile: Person | null
   downline: string[]
   loading: boolean
+  /** true while a signed-in user's profile row is still being fetched —
+      pages should show a spinner, not "no profile linked". */
+  profileLoading: boolean
   canEdit: (personId: string) => boolean
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>
   signUp: (email: string, password: string) => Promise<{ error: Error | null }>
@@ -27,6 +35,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Person | null>(null)
   const [downline, setDownline] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
+  const [profileLoading, setProfileLoading] = useState(true)
+  // auth user id of the fetch currently in flight — initAuth and the
+  // INITIAL_SESSION auth event both fire on load; only one should hit the DB
+  const fetchingFor = useRef<string | null>(null)
+
+  // Hydrate profile+downline instantly from the last visit; the network fetch
+  // still runs and overwrites.
+  const hydrateProfileFromCache = (userId: string): boolean => {
+    try {
+      const raw = localStorage.getItem(profileCacheKey(userId))
+      if (!raw) return false
+      const cached = JSON.parse(raw) as { profile: Person; downline: string[] }
+      if (!cached?.profile) return false
+      setProfile(cached.profile)
+      setDownline(cached.downline ?? [])
+      return true
+    } catch {
+      return false
+    }
+  }
 
   const fetchProfile = async (userId: string, email?: string | null, retries = 2): Promise<boolean> => {
     console.log('Fetching profile for auth user:', userId, `(attempt ${3 - retries}/2)`)
@@ -59,16 +87,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log('is_admin:', personData.is_admin)
         setProfile(personData as Person)
 
+        let downlineIds: string[] = []
         try {
           const { data: downlineData } = await supabase
             .rpc('get_downline', { coach_person_id: personData.id })
 
           if (downlineData) {
-            setDownline(downlineData.map((d: { person_id: string }) => d.person_id))
+            downlineIds = downlineData.map((d: { person_id: string }) => d.person_id)
+            setDownline(downlineIds)
           }
         } catch (downlineErr) {
           console.error('Downline fetch error:', downlineErr)
         }
+        try {
+          localStorage.setItem(profileCacheKey(userId), JSON.stringify({ profile: personData, downline: downlineIds }))
+        } catch { /* quota — cache is best-effort */ }
         return true
       } else {
         // No profile linked to this auth id. This happens when a person record
@@ -93,12 +126,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const linked = { ...match, auth_user_id: userId } as Person
             console.log('Auto-relinked profile by email:', match.id)
             setProfile(linked)
+            let downlineIds: string[] = []
             try {
               const { data: downlineData } = await supabase.rpc('get_downline', { coach_person_id: linked.id })
-              if (downlineData) setDownline(downlineData.map((d: { person_id: string }) => d.person_id))
+              if (downlineData) {
+                downlineIds = downlineData.map((d: { person_id: string }) => d.person_id)
+                setDownline(downlineIds)
+              }
             } catch (downlineErr) {
               console.error('Downline fetch error:', downlineErr)
             }
+            try {
+              localStorage.setItem(profileCacheKey(userId), JSON.stringify({ profile: linked, downline: downlineIds }))
+            } catch { /* quota — cache is best-effort */ }
             return true
           }
         }
@@ -114,6 +154,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return fetchProfile(userId, email, retries - 1)
       }
       return false
+    }
+  }
+
+  // Single entry point for profile loading: dedupes the double-fire on page
+  // load (initAuth + the INITIAL_SESSION auth event), and tracks
+  // profileLoading so pages show a spinner instead of "no profile linked"
+  // while the row is on its way.
+  const loadProfileFor = async (userId: string, email?: string | null) => {
+    if (fetchingFor.current === userId) return
+    fetchingFor.current = userId
+    setProfileLoading(true)
+    try {
+      await fetchProfile(userId, email)
+    } catch (err) {
+      console.error('Profile fetch failed:', err)
+    } finally {
+      setProfileLoading(false)
+      fetchingFor.current = null
     }
   }
 
@@ -135,15 +193,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         setSession(session)
         setUser(session?.user ?? null)
-        setLoading(false) // Stop blocking immediately once we know auth state
 
         if (session?.user) {
-          // Fetch profile in background - don't block
-          fetchProfile(session.user.id, session.user.email)
+          // Last visit's profile paints the page NOW; the fetch refreshes it.
+          hydrateProfileFromCache(session.user.id)
+          setLoading(false) // Stop blocking immediately once we know auth state
+          loadProfileFor(session.user.id, session.user.email)
+        } else {
+          setLoading(false)
+          setProfileLoading(false)
         }
       } catch (err) {
         console.error('Auth init error:', err)
         setLoading(false)
+        setProfileLoading(false)
       }
     }
 
@@ -155,14 +218,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(session)
         setUser(session?.user ?? null)
         if (session?.user) {
-          try {
-            await fetchProfile(session.user.id, session.user.email)
-          } catch (err) {
-            console.error('Profile fetch in auth state change failed:', err)
-          }
+          await loadProfileFor(session.user.id, session.user.email)
         } else {
           setProfile(null)
           setDownline([])
+          setProfileLoading(false)
         }
         setLoading(false)
       }
@@ -230,6 +290,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .filter(k => k.startsWith('empowered-coachmark'))
         .forEach(k => sessionStorage.removeItem(k))
     } catch { /* sessionStorage may be unavailable */ }
+    // Drop the instant-paint caches so the next sign-in (possibly a different
+    // person on this device) never flashes someone else's journey.
+    try {
+      Object.keys(localStorage)
+        .filter(k => k.startsWith('cn-profile-') || k.startsWith('journey-snapshot-') || k.startsWith('journey-soaps-'))
+        .forEach(k => localStorage.removeItem(k))
+    } catch { /* localStorage may be unavailable */ }
     // ...and sign out with LOCAL scope: drops the session from this browser
     // without the slow server round-trip that 'global' makes to revoke every
     // session. The session is gone here, which is what logging out means.
@@ -247,6 +314,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profile,
       downline,
       loading,
+      profileLoading,
       canEdit,
       signIn,
       signUp,
