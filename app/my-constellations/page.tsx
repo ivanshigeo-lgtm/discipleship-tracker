@@ -277,7 +277,7 @@ export default function DiscipleshipTracker() {
   const [circleFilters, setCircleFilters] = useState<CircleFilter[]>([])
   const [circleView, setCircleView] = useState<CircleView>('pipeline')
   const [circleSort, setCircleSort] = useState<CircleSort>('4e')
-  const [circleScope, setCircleScope] = useState<'gbc' | 'mine'>('gbc')
+  const [circleScope, setCircleScope] = useState<'gbc' | 'mine' | 'direct'>('gbc')
   const [connections, setConnections] = useState<DiscipleshipConnection[]>([])
   const [journeyExpanded, setJourneyExpanded] = useState(true)
   const [journeySearch, setJourneySearch] = useState('')
@@ -353,6 +353,17 @@ export default function DiscipleshipTracker() {
     localStorage.setItem(LAST_SECTION_KEY, activeSection)
   }, [activeSection, sectionRestored])
 
+  // Remember the journey scope (GBC / My Constellation / My People) per device.
+  const [scopeRestored, setScopeRestored] = useState(false)
+  useEffect(() => {
+    const saved = localStorage.getItem('cn-circle-scope-v1')
+    if (saved === 'gbc' || saved === 'mine' || saved === 'direct') setCircleScope(saved)
+    setScopeRestored(true)
+  }, [])
+  useEffect(() => {
+    if (scopeRestored) localStorage.setItem('cn-circle-scope-v1', circleScope)
+  }, [circleScope, scopeRestored])
+
   // Profile loading timeout
   useEffect(() => {
     if (profile) { setProfileLoading(false); return }
@@ -416,11 +427,27 @@ export default function DiscipleshipTracker() {
     return ids
   }, [connections, profile?.id])
 
+  // "My People" = ONLY the people I directly coach — no transitive tree. A
+  // coach whose disciple is themselves a coach of many (e.g. Eddie coaching
+  // Jonavan) can use this to cut the view down to just their own disciples.
+  const myPeopleIds = useMemo(() => {
+    if (!profile?.id) return undefined
+    return new Set<string>(
+      connections
+        .filter(c => c.discipler_person_id === profile.id && c.disciple_person_id)
+        .map(c => c.disciple_person_id as string)
+    )
+  }, [connections, profile?.id])
+
   // Only admins may view the whole church (GBC). Everyone else is locked to
-  // their own circle so a coach never sees another coach's people/meetings.
+  // their own circle so a coach never sees another coach's people/meetings —
+  // but anyone may narrow further to just their direct people.
   const isAdmin = Boolean(profile?.is_admin)
-  const effectiveScope: 'gbc' | 'mine' = isAdmin ? circleScope : 'mine'
-  const allowedPersonIds = effectiveScope === 'mine' && myCircleIds
+  const effectiveScope: 'gbc' | 'mine' | 'direct' =
+    isAdmin ? circleScope : circleScope === 'direct' ? 'direct' : 'mine'
+  const allowedPersonIds = effectiveScope === 'direct' && myPeopleIds
+    ? Array.from(myPeopleIds)
+    : effectiveScope === 'mine' && myCircleIds
     ? Array.from(myCircleIds)
     : undefined
 
@@ -635,21 +662,23 @@ export default function DiscipleshipTracker() {
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    {/* Scope: whole church vs my coaching circle (admin only) */}
-                    {isAdmin && (
-                      <div className="flex rounded-full border border-[var(--line-2)] bg-[var(--indigo)] p-1">
-                        {([['gbc', 'GBC Constellation'], ['mine', 'My Constellation']] as const).map(([val, label]) => (
-                          <button
-                            key={val}
-                            type="button"
-                            onClick={() => setCircleScope(val)}
-                            className={`rounded-full px-2 py-1 text-[10px] font-semibold transition-all sm:px-3 sm:text-xs ${circleScope === val ? 'bg-[var(--gbm-cobalt-bright)] text-[var(--fg-1)]' : 'text-[var(--fg-2)] hover:text-[var(--fg-1)]'}`}
-                          >
-                            {label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                    {/* Scope: whole church (admin only) vs full coaching tree vs direct people */}
+                    <div className="flex rounded-full border border-[var(--line-2)] bg-[var(--indigo)] p-1">
+                      {(
+                        (isAdmin
+                          ? [['gbc', 'GBC'], ['mine', 'My Constellation'], ['direct', 'My People']]
+                          : [['mine', 'My Constellation'], ['direct', 'My People']]) as ['gbc' | 'mine' | 'direct', string][]
+                      ).map(([val, label]) => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => setCircleScope(val)}
+                          className={`whitespace-nowrap rounded-full px-2 py-1 text-[10px] font-semibold transition-all sm:px-3 sm:text-xs ${effectiveScope === val ? 'bg-[var(--gbm-cobalt-bright)] text-[var(--fg-1)]' : 'text-[var(--fg-2)] hover:text-[var(--fg-1)]'}`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
                     {/* Search + live results dropdown */}
                     <div className="relative">
                       <input
