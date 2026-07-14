@@ -490,8 +490,8 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
 
       {/* ── Top bar ── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           <h2 style={{ margin: 0, color: 'var(--fg-1)', fontSize: '19px', fontWeight: 600, letterSpacing: '-0.01em' }}>
             My SOAPs
           </h2>
@@ -516,7 +516,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
             </span>
           )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           {insightMode && (
             <button
               onClick={exitInsightMode}
