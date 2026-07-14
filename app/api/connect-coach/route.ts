@@ -71,13 +71,30 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Look up the disciple's name — discipleship_connections.disciple_name is NOT NULL
+    const { data: disciple } = await supabase
+      .from('people')
+      .select('name')
+      .eq('id', discipleId)
+      .single()
+
+    if (!disciple) {
+      return NextResponse.json(
+        { error: 'Disciple not found' },
+        { status: 404 }
+      )
+    }
+
     // Create the connection
     const { error: insertError } = await supabase
       .from('discipleship_connections')
       .insert({
         discipler_person_id: coach.id,
         disciple_person_id: discipleId,
-        relationship_type: 'Coach',
+        disciple_name: disciple.name,
+        relationship_notes: null,
+        status: 'Identified',
+        updated_at: new Date().toISOString(),
       })
 
     if (insertError) {
