@@ -175,6 +175,10 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
   const [modalOcrText, setModalOcrText] = useState<string | null>(null)
   const [showImport, setShowImport] = useState(false)
   const [premiumOpen, setPremiumOpen] = useState(false)
+  // When the bar wraps (phones / the app embed) the Premium button sits at the
+  // LEFT edge, so a right-anchored panel would hang off-screen. Pick the anchor
+  // from where the button actually is at open time.
+  const [premiumAlignLeft, setPremiumAlignLeft] = useState(false)
   const [showDateReview, setShowDateReview] = useState(false)
 
   // OCR'd imported pages that still have no real date and haven't been ignored →
@@ -571,7 +575,10 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
               {/* Premium menu: AI Insights, Answered, Books, Import */}
               <div style={{ position: 'relative', flexShrink: 0 }}>
                 <button
-                  onClick={() => setPremiumOpen(o => !o)}
+                  onClick={e => {
+                    setPremiumAlignLeft(e.currentTarget.getBoundingClientRect().right < 250)
+                    setPremiumOpen(o => !o)
+                  }}
                   style={{
                     display: 'inline-flex', alignItems: 'center', gap: '5px',
                     padding: '8px 14px', borderRadius: '10px',
@@ -588,7 +595,8 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                   <>
                     <div onClick={() => setPremiumOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 90 }} />
                     <div style={{
-                      position: 'absolute', right: 0, top: 'calc(100% + 6px)', zIndex: 91,
+                      position: 'absolute', ...(premiumAlignLeft ? { left: 0 } : { right: 0 }),
+                      top: 'calc(100% + 6px)', zIndex: 91,
                       minWidth: '230px', borderRadius: '14px', overflow: 'hidden',
                       border: '1px solid var(--line-2)', background: 'var(--indigo, #141B3D)',
                       boxShadow: 'var(--elev-2, 0 12px 40px rgba(0,0,0,.5))',
