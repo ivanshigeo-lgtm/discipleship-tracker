@@ -681,11 +681,33 @@ export default function DiscipleshipTracker() {
                           ))}
                         </div>
                       )}
+                      {/* Searched someone who isn't here yet → offer to add them, name carried over */}
+                      {searchFocused && journeySearch.trim() !== '' && searchMatches.length === 0 && (
+                        <div className="absolute left-0 right-0 top-full z-40 mt-1 overflow-hidden rounded-xl border border-[var(--line-2)] bg-[var(--indigo)] shadow-lg">
+                          <button
+                            type="button"
+                            onMouseDown={() => {
+                              setNewPersonName(journeySearch.trim())
+                              setShowAddPerson(true)
+                              setJourneySearch('')
+                              setSearchFocused(false)
+                            }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-[var(--fg-1)] transition-colors hover:bg-[var(--indigo-2)]"
+                          >
+                            <span className="shrink-0 font-semibold text-[var(--gbm-cobalt-bright)]">+</span>
+                            <span className="truncate">Add &ldquo;{journeySearch.trim()}&rdquo; as a new person</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    {/* Add person */}
+                    {/* Add person — carries whatever was just searched into the form */}
                     <button
                       type="button"
-                      onClick={() => setShowAddPerson(true)}
+                      onClick={() => {
+                        setNewPersonName(journeySearch.trim())
+                        setShowAddPerson(true)
+                        setJourneySearch('')
+                      }}
                       className="h-8 rounded-full bg-[var(--gbm-cobalt-bright)] px-3 text-xs font-semibold text-white hover:opacity-90"
                     >
                       + Add Person
@@ -833,6 +855,24 @@ export default function DiscipleshipTracker() {
                         ))}
                       </div>
                     )}
+                    {/* Searched someone who isn't here yet → offer to add them, name carried over */}
+                    {engSearchFocused && engSearch.trim() !== '' && engMatches.length === 0 && (
+                      <div className="absolute left-0 right-0 top-full z-40 mt-1 overflow-hidden rounded-xl border border-[var(--line-2)] bg-[var(--indigo)] shadow-lg">
+                        <button
+                          type="button"
+                          onMouseDown={() => {
+                            setNewPersonName(engSearch.trim())
+                            setShowAddPerson(true)
+                            setEngSearch('')
+                            setEngSearchFocused(false)
+                          }}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-[var(--fg-1)] transition-colors hover:bg-[var(--indigo-2)]"
+                        >
+                          <span className="shrink-0 font-semibold text-[var(--gbm-cobalt-bright)]">+</span>
+                          <span className="truncate">Add &ldquo;{engSearch.trim()}&rdquo; as a new person</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                   {/* New meeting — pick everyone from scratch */}
                   <button
@@ -842,10 +882,14 @@ export default function DiscipleshipTracker() {
                   >
                     + New meeting
                   </button>
-                  {/* Add a new person */}
+                  {/* Add a new person — carries whatever was just searched into the form */}
                   <button
                     type="button"
-                    onClick={() => setShowAddPerson(true)}
+                    onClick={() => {
+                      setNewPersonName(engSearch.trim())
+                      setShowAddPerson(true)
+                      setEngSearch('')
+                    }}
                     className="h-8 rounded-full bg-[var(--gbm-cobalt-bright)] px-3 text-xs font-semibold text-white hover:opacity-90"
                   >
                     + Add Person
