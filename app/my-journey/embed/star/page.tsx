@@ -33,7 +33,12 @@ const postToApp = (payload: Record<string, unknown>) => {
  * changes also live-sync via postgres_changes like the web page.
  */
 export default function EmbedStar() {
-  const { user, profile, loading, profileLoading } = useAuth()
+  const { user, profile, loading, profileLoading, refreshProfile } = useAuth()
+  // Testimony/salvation-style steps derive from the people row itself, so an
+  // app-pushed refresh must refetch the profile too — kept in a ref so the
+  // listener effect doesn't re-subscribe on every render.
+  const refreshProfileRef = useRef(refreshProfile)
+  refreshProfileRef.current = refreshProfile
   const [coach, setCoach] = useState<Person | null>(null)
   const [groups, setGroups] = useState<VictoryGroup[]>([])
   const [ownsGroup, setOwnsGroup] = useState(false)
@@ -82,7 +87,10 @@ export default function EmbedStar() {
       .subscribe()
     const onAppMessage = (e: MessageEvent) => {
       try {
-        if (JSON.parse(String(e.data))?.type === 'refresh') loadData()
+        if (JSON.parse(String(e.data))?.type === 'refresh') {
+          loadData()
+          refreshProfileRef.current()
+        }
       } catch { /* not ours */ }
     }
     window.addEventListener('message', onAppMessage)
