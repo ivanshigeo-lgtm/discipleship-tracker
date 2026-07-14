@@ -120,6 +120,18 @@ export default function StarQuadrants({
   const [active, setActive] = useState<number | null>(null)
   const [pinned, setPinned] = useState<number | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  // The ring must breathe inside whatever width it's given — 375pt phones are
+  // fine at 300, but zoomed-display minis and the app's padded WebView are not.
+  const [starSize, setStarSize] = useState(300)
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const fit = () => setStarSize(Math.max(180, Math.min(300, Math.round(el.getBoundingClientRect().width) - 45)))
+    fit()
+    const ro = new ResizeObserver(fit)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
   const demoWasOpen = useRef(false)
   // Hover with a short close-delay so the mouse can travel from a quadrant to
   // its pop-out without the panel closing in the gap between them.
@@ -176,7 +188,7 @@ export default function StarQuadrants({
         className="absolute inset-0 grid place-items-center transition-transform duration-300"
         style={{ transform: shown !== null ? `${leanMap[shown]} scale(1.04)` : 'none' }}
       >
-        <StarBadge size={300} progress={ringProgress} color={color} emphasis={shown} />
+        <StarBadge size={starSize} progress={ringProgress} color={color} emphasis={shown} />
       </div>
 
       {/* quadrant hit zones + whisper labels */}
