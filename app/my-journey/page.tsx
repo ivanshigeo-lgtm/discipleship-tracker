@@ -510,16 +510,16 @@ export default function MyJourneyPage() {
 
       {/* header */}
       <header className="relative z-10 mx-auto max-w-5xl px-4 pb-2 pt-4 sm:px-6 sm:pt-6">
-        <div className="flex items-center gap-4 sm:gap-6">
+        <div className="flex items-center gap-3 sm:gap-6">
           <img
             src="/gbm-horizontal-lockup-white.png"
             alt="Grace Bible Maui"
-            className="h-16 w-auto shrink-0 sm:h-24"
+            className="hidden w-auto shrink-0 sm:block sm:h-24"
           />
           <div className="hidden h-12 w-px bg-[var(--line-2)] sm:block" />
-          <div className="relative flex flex-1 flex-col items-center gap-2">
+          <div className="relative flex min-w-0 flex-1 flex-col items-center gap-2">
             <h1
-              className="text-3xl font-semibold sm:text-4xl"
+              className="whitespace-nowrap text-2xl font-semibold sm:text-4xl"
               style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}
             >
               My Journey
@@ -550,7 +550,7 @@ export default function MyJourneyPage() {
           </div>
           <div className="hidden h-12 w-px bg-[var(--line-2)] sm:block" />
           <div className="flex shrink-0 flex-col items-end gap-1.5 sm:flex-row sm:items-center sm:gap-3">
-            <span className="max-w-[120px] truncate text-sm font-medium text-[var(--fg-2)] sm:max-w-none sm:text-base">
+            <span className="hidden truncate text-sm font-medium text-[var(--fg-2)] sm:block sm:max-w-none sm:text-base">
               {profile.name}
             </span>
             <button
