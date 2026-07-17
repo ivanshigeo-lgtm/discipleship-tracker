@@ -504,7 +504,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
               display: 'inline-flex', alignItems: 'center', gap: '4px',
               padding: '3px 10px', borderRadius: '999px',
               background: 'rgba(244,182,80,.15)', border: '1px solid rgba(244,182,80,.30)',
-              color: '#F4B650', fontSize: '12px', fontWeight: 600, letterSpacing: '0.01em',
+              color: '#F4B650', fontSize: '13px', fontWeight: 600, letterSpacing: '0.01em',
             }}>
               ✦ {currentStreak}d current
             </span>
@@ -514,7 +514,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
               display: 'inline-flex', alignItems: 'center', gap: '4px',
               padding: '3px 10px', borderRadius: '999px',
               background: 'rgba(54,214,195,.12)', border: '1px solid rgba(54,214,195,.30)',
-              color: 'var(--establish)', fontSize: '12px', fontWeight: 600, letterSpacing: '0.01em',
+              color: 'var(--establish)', fontSize: '13px', fontWeight: 600, letterSpacing: '0.01em',
             }}>
               ✦ {soapStreak}d longest
             </span>
@@ -528,7 +528,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                 display: 'inline-flex', alignItems: 'center', gap: '5px',
                 padding: '7px 13px', borderRadius: '10px',
                 border: '1px solid rgba(54,214,195,.50)', background: 'rgba(54,214,195,.12)',
-                color: 'var(--establish, #36D6C3)', fontSize: '12px', fontWeight: 600,
+                color: 'var(--establish, #36D6C3)', fontSize: '13px', fontWeight: 600,
                 cursor: 'pointer', letterSpacing: '0.01em', flexShrink: 0,
               }}
             >
@@ -545,7 +545,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                     display: 'inline-flex', alignItems: 'center', gap: '6px',
                     padding: '8px 14px', borderRadius: '10px',
                     border: '1px solid var(--gbm-cobalt-bright)', background: 'rgba(91,141,247,.12)',
-                    color: 'var(--gbm-cobalt-bright)', fontSize: '13px', fontWeight: 600,
+                    color: 'var(--gbm-cobalt-bright)', fontSize: '14px', fontWeight: 600,
                     cursor: resuming || importActive ? 'default' : 'pointer', flexShrink: 0, opacity: resuming ? 0.6 : 1,
                   }}
                   title={importActive
@@ -564,7 +564,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                     display: 'inline-flex', alignItems: 'center', gap: '6px',
                     padding: '8px 14px', borderRadius: '10px',
                     border: '1px solid rgba(244,182,80,.5)', background: 'rgba(244,182,80,.12)',
-                    color: 'var(--gold, #F4B650)', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+                    color: 'var(--gold, #F4B650)', fontSize: '14px', fontWeight: 600, cursor: 'pointer',
                     flexShrink: 0,
                   }}
                   title="Assign dates to imported pages that had none"
@@ -584,7 +584,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                     padding: '8px 14px', borderRadius: '10px',
                     border: `1px solid ${premiumOpen ? 'rgba(244,182,80,.5)' : 'var(--line-2)'}`,
                     background: premiumOpen ? 'rgba(244,182,80,.10)' : 'transparent',
-                    color: premiumOpen ? '#F4B650' : 'var(--fg-2)', fontSize: '13px', fontWeight: 600,
+                    color: premiumOpen ? '#F4B650' : 'var(--fg-2)', fontSize: '14px', fontWeight: 600,
                     cursor: 'pointer', letterSpacing: '0.01em', transition: 'all 150ms ease',
                   }}
                   title="Premium — insights, answered prayers, books, imports"
@@ -611,8 +611,8 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                       ].map(item => {
                         const inner = (
                           <>
-                            <div style={{ color: 'var(--fg-1)', fontSize: '13px', fontWeight: 600 }}>{item.label}</div>
-                            <div style={{ color: 'var(--fg-3)', fontSize: '11px', marginTop: '2px' }}>{item.desc}</div>
+                            <div style={{ color: 'var(--fg-1)', fontSize: '14px', fontWeight: 600 }}>{item.label}</div>
+                            <div style={{ color: 'var(--fg-3)', fontSize: '12px', marginTop: '2px' }}>{item.desc}</div>
                           </>
                         )
                         const itemStyle: React.CSSProperties = {
@@ -636,7 +636,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                   display: 'inline-flex', alignItems: 'center', gap: '6px',
                   padding: '8px 16px', borderRadius: '10px', border: 'none',
                   background: 'var(--establish, #36D6C3)', color: '#0B1027',
-                  fontSize: '13px', fontWeight: 700, cursor: 'pointer',
+                  fontSize: '14px', fontWeight: 700, cursor: 'pointer',
                   letterSpacing: '0.01em', flexShrink: 0, transition: 'opacity 150ms ease',
                 }}
                 onMouseOver={e => (e.currentTarget.style.opacity = '0.85')}
@@ -659,7 +659,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
           width: '100%', boxSizing: 'border-box',
           padding: '10px 14px', borderRadius: '10px',
           border: '1px solid var(--line-2)', background: 'var(--indigo, #141B3D)',
-          color: 'var(--fg-1)', fontSize: '14px', outline: 'none',
+          color: 'var(--fg-1)', fontSize: '15px', outline: 'none',
           transition: 'border-color 150ms ease',
         }}
         onFocus={e => (e.currentTarget.style.borderColor = 'var(--establish, #36D6C3)')}
@@ -685,8 +685,8 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '15px' }}>✦</span>
-                <span style={{ color: 'var(--fg-1)', fontWeight: 700, fontSize: '14px' }}>AI Insights</span>
+                <span style={{ fontSize: '16px' }}>✦</span>
+                <span style={{ color: 'var(--fg-1)', fontWeight: 700, fontSize: '15px' }}>AI Insights</span>
               </div>
               {/* mode toggle */}
               <div style={{ display: 'flex', borderRadius: '999px', border: '1px solid var(--line-2)', background: 'var(--indigo, #141B3D)', padding: '2px' }}>
@@ -697,7 +697,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                     onClick={() => setAiMode(val)}
                     style={{
                       padding: '4px 11px', borderRadius: '999px', border: 'none', cursor: 'pointer',
-                      fontSize: '11px', fontWeight: 600, transition: 'all 150ms ease',
+                      fontSize: '12px', fontWeight: 600, transition: 'all 150ms ease',
                       background: aiMode === val ? 'rgba(54,214,195,.18)' : 'transparent',
                       color: aiMode === val ? 'var(--establish, #36D6C3)' : 'var(--fg-3)',
                     }}
@@ -712,18 +712,18 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                 <span style={{
                   padding: '2px 8px', borderRadius: '999px',
                   background: 'rgba(54,214,195,.18)', border: '1px solid rgba(54,214,195,.35)',
-                  color: 'var(--establish, #36D6C3)', fontSize: '11px', fontWeight: 600,
+                  color: 'var(--establish, #36D6C3)', fontSize: '12px', fontWeight: 600,
                 }}>
                   {selectedInsightDates.size} {selectedInsightDates.size === 1 ? 'entry' : 'entries'}
                 </span>
               )}
               {aiMode === 'range' && rangeStart && rangeEnd && (
-                <span style={{ color: 'var(--fg-3)', fontSize: '11px' }}>{rangeStart} → {rangeEnd}</span>
+                <span style={{ color: 'var(--fg-3)', fontSize: '12px' }}>{rangeStart} → {rangeEnd}</span>
               )}
               {aiMode === 'range' && (rangeStart || rangeEnd) && (
                 <button
                   onClick={() => { setRangeStart(null); setRangeEnd(null); setHoverDate(null); setInsightResponse(null); setInsightError('') }}
-                  style={{ fontSize: '11px', color: 'var(--fg-3)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
+                  style={{ fontSize: '12px', color: 'var(--fg-3)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
                 >
                   Clear
                 </button>
@@ -735,29 +735,29 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
             {aiMode === 'week' ? (
               weekSummary ? (
                 <div style={{ borderRadius: '12px', border: '1px solid rgba(54,214,195,.15)', background: 'rgba(54,214,195,.04)', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <pre style={{ margin: 0, color: 'var(--fg-1)', fontSize: '14px', lineHeight: 1.70, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit' }}>
+                  <pre style={{ margin: 0, color: 'var(--fg-1)', fontSize: '15px', lineHeight: 1.70, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit' }}>
                     {cleanInsight(weekSummary.text)}
                   </pre>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--fg-3)', fontSize: '12px' }}>From {weekSummary.count} {weekSummary.count === 1 ? 'entry' : 'entries'} in the last 7 days</span>
-                    <button onClick={() => { setWeekSummary(null); setWeekError('') }} style={{ fontSize: '12px', color: 'var(--fg-3)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Clear</button>
+                    <span style={{ color: 'var(--fg-3)', fontSize: '13px' }}>From {weekSummary.count} {weekSummary.count === 1 ? 'entry' : 'entries'} in the last 7 days</span>
+                    <button onClick={() => { setWeekSummary(null); setWeekError('') }} style={{ fontSize: '13px', color: 'var(--fg-3)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Clear</button>
                   </div>
                 </div>
               ) : weekLoading ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0' }}>
                   <span style={{ display: 'inline-block', width: '16px', height: '16px', borderRadius: '50%', border: '2px solid rgba(54,214,195,.30)', borderTopColor: 'var(--establish, #36D6C3)', animation: 'spin 0.7s linear infinite' }} />
-                  <span style={{ color: 'var(--fg-3)', fontSize: '13px' }}>Gathering your week…</span>
+                  <span style={{ color: 'var(--fg-3)', fontSize: '14px' }}>Gathering your week…</span>
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center', textAlign: 'center', padding: '4px 0' }}>
-                  <p style={{ margin: 0, color: 'var(--fg-3)', fontSize: '13px' }}>A gentle reflection on your last 7 days in the Word — one tap.</p>
+                  <p style={{ margin: 0, color: 'var(--fg-3)', fontSize: '14px' }}>A gentle reflection on your last 7 days in the Word — one tap.</p>
                   <button
                     onClick={fetchWeekSummary}
-                    style={{ padding: '10px 18px', borderRadius: '10px', border: 'none', background: 'var(--establish, #36D6C3)', color: '#0B1027', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}
+                    style={{ padding: '10px 18px', borderRadius: '10px', border: 'none', background: 'var(--establish, #36D6C3)', color: '#0B1027', fontSize: '14px', fontWeight: 700, cursor: 'pointer' }}
                   >
                     Gather this week
                   </button>
-                  {weekError && <p style={{ margin: 0, color: 'var(--fg-3)', fontSize: '12px' }}>{weekError}</p>}
+                  {weekError && <p style={{ margin: 0, color: 'var(--fg-3)', fontSize: '13px' }}>{weekError}</p>}
                 </div>
               )
             ) : (
@@ -770,15 +770,15 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                       value={rangeStart ?? ''}
                       max={rangeEnd ?? undefined}
                       onChange={e => { setRangeStart(e.target.value || null); setInsightResponse(null); setInsightError('') }}
-                      style={{ padding: '7px 10px', borderRadius: '10px', border: '1px solid var(--line-2)', background: 'var(--indigo, #141B3D)', color: 'var(--fg-1)', fontSize: '13px', colorScheme: 'dark' }}
+                      style={{ padding: '7px 10px', borderRadius: '10px', border: '1px solid var(--line-2)', background: 'var(--indigo, #141B3D)', color: 'var(--fg-1)', fontSize: '14px', colorScheme: 'dark' }}
                     />
-                    <span style={{ color: 'var(--fg-3)', fontSize: '13px' }}>→</span>
+                    <span style={{ color: 'var(--fg-3)', fontSize: '14px' }}>→</span>
                     <input
                       type="date"
                       value={rangeEnd ?? ''}
                       min={rangeStart ?? undefined}
                       onChange={e => { setRangeEnd(e.target.value || null); setInsightResponse(null); setInsightError('') }}
-                      style={{ padding: '7px 10px', borderRadius: '10px', border: '1px solid var(--line-2)', background: 'var(--indigo, #141B3D)', color: 'var(--fg-1)', fontSize: '13px', colorScheme: 'dark' }}
+                      style={{ padding: '7px 10px', borderRadius: '10px', border: '1px solid var(--line-2)', background: 'var(--indigo, #141B3D)', color: 'var(--fg-1)', fontSize: '14px', colorScheme: 'dark' }}
                     />
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', flexWrap: 'wrap' }}>
@@ -800,7 +800,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                             border: `1px solid ${active ? 'rgba(54,214,195,.45)' : 'var(--line-2)'}`,
                             background: active ? 'rgba(54,214,195,.15)' : 'transparent',
                             color: active ? 'var(--establish, #36D6C3)' : 'var(--fg-3)',
-                            fontSize: '11px', fontWeight: 600, transition: 'all 150ms ease',
+                            fontSize: '12px', fontWeight: 600, transition: 'all 150ms ease',
                           }}
                         >
                           {label}
@@ -811,13 +811,13 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                 </div>
 
                 {!rangeStart || !rangeEnd ? (
-                  <p style={{ margin: 0, color: 'var(--fg-3)', fontSize: '13px', textAlign: 'center', padding: '4px 0' }}>
+                  <p style={{ margin: 0, color: 'var(--fg-3)', fontSize: '14px', textAlign: 'center', padding: '4px 0' }}>
                     {rangeStart
                       ? `Start: ${rangeStart} — now pick an end date (or tap the calendar below).`
                       : 'Pick dates above, tap a year, or click start & end on the calendar below.'}
                   </p>
                 ) : selectedInsightDates.size === 0 ? (
-                  <p style={{ margin: 0, color: 'var(--fg-3)', fontSize: '13px', textAlign: 'center', padding: '4px 0' }}>
+                  <p style={{ margin: 0, color: 'var(--fg-3)', fontSize: '14px', textAlign: 'center', padding: '4px 0' }}>
                     No SOAP entries found in that date range.
                   </p>
                 ) : (
@@ -829,7 +829,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                     style={{
                       padding: '11px 16px', borderRadius: '10px', border: 'none',
                       background: 'var(--establish, #36D6C3)', color: '#0B1027',
-                      fontSize: '13px', fontWeight: 700, cursor: 'pointer',
+                      fontSize: '14px', fontWeight: 700, cursor: 'pointer',
                       width: '100%', transition: 'opacity 150ms ease',
                     }}
                     onMouseOver={e => (e.currentTarget.style.opacity = '0.85')}
@@ -853,7 +853,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                       style={{
                         flex: 1, padding: '10px 12px', borderRadius: '10px',
                         border: '1px solid var(--line-2)', background: 'var(--indigo, #141B3D)',
-                        color: 'var(--fg-1)', fontSize: '13px', outline: 'none',
+                        color: 'var(--fg-1)', fontSize: '14px', outline: 'none',
                         transition: 'border-color 150ms ease',
                       }}
                       onFocus={e => (e.currentTarget.style.borderColor = 'rgba(54,214,195,.60)')}
@@ -866,7 +866,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                         padding: '10px 14px', borderRadius: '10px',
                         border: '1px solid rgba(54,214,195,.40)',
                         background: insightQuestion.trim() ? 'rgba(54,214,195,.15)' : 'transparent',
-                        color: 'var(--establish, #36D6C3)', fontSize: '13px',
+                        color: 'var(--establish, #36D6C3)', fontSize: '14px',
                         fontWeight: 600, cursor: insightQuestion.trim() ? 'pointer' : 'default',
                         opacity: insightQuestion.trim() ? 1 : 0.40, transition: 'all 150ms ease',
                         flexShrink: 0,
@@ -886,13 +886,13 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                       borderTopColor: 'var(--establish, #36D6C3)',
                       animation: 'spin 0.7s linear infinite',
                     }} />
-                    <span style={{ color: 'var(--fg-3)', fontSize: '13px' }}>Thinking…</span>
+                    <span style={{ color: 'var(--fg-3)', fontSize: '14px' }}>Thinking…</span>
                   </div>
                 )}
 
                 {/* Error */}
                 {insightError && (
-                  <p style={{ margin: 0, color: 'var(--danger, #E05252)', fontSize: '13px' }}>
+                  <p style={{ margin: 0, color: 'var(--danger, #E05252)', fontSize: '14px' }}>
                     {insightError}
                   </p>
                 )}
@@ -905,7 +905,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                     display: 'flex', flexDirection: 'column', gap: '10px',
                   }}>
                     <pre style={{
-                      margin: 0, color: 'var(--fg-1)', fontSize: '14px', lineHeight: 1.70,
+                      margin: 0, color: 'var(--fg-1)', fontSize: '15px', lineHeight: 1.70,
                       whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit',
                     }}>
                       {cleanInsight(insightResponse)}
@@ -913,7 +913,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                     <button
                       onClick={() => { setInsightResponse(null); setInsightQuestion('') }}
                       style={{
-                        alignSelf: 'flex-start', fontSize: '12px', color: 'var(--fg-3)',
+                        alignSelf: 'flex-start', fontSize: '13px', color: 'var(--fg-3)',
                         background: 'none', border: 'none', cursor: 'pointer',
                         padding: '0', textDecoration: 'underline',
                       }}
@@ -945,7 +945,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
               onClick={prevWindow}
               aria-label="Previous months"
               style={{
-                width: '30px', height: '30px', borderRadius: '7px',
+                width: '40px', height: '40px', borderRadius: '7px',
                 border: '1px solid var(--line-2)', background: 'transparent',
                 color: 'var(--fg-2)', cursor: 'pointer', fontSize: '16px',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -953,14 +953,14 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
               onMouseOver={e => (e.currentTarget.style.background = 'rgba(246,241,231,.06)')}
               onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
             >‹</button>
-            <span style={{ color: 'var(--fg-1)', fontWeight: 600, fontSize: '14px' }}>
+            <span style={{ color: 'var(--fg-1)', fontWeight: 600, fontSize: '15px' }}>
               {rangeLabel}
             </span>
             <button
               onClick={nextWindow}
               aria-label="Next months"
               style={{
-                width: '30px', height: '30px', borderRadius: '7px',
+                width: '40px', height: '40px', borderRadius: '7px',
                 border: '1px solid var(--line-2)', background: 'transparent',
                 color: 'var(--fg-2)', cursor: 'pointer', fontSize: '16px',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -990,7 +990,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', marginBottom: '4px' }}>
                   {DAY_HEADERS.map((d, i) => (
                     <div key={i} style={{
-                      textAlign: 'center', fontSize: '11px', fontWeight: 700,
+                      textAlign: 'center', fontSize: '12px', fontWeight: 700,
                       color: 'var(--fg-3)', letterSpacing: '0.08em',
                       textTransform: 'uppercase', paddingBottom: '4px',
                     }}>
@@ -1057,7 +1057,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                           color: inMonth ? (isFuture ? 'var(--fg-3)' : 'var(--fg-1)') : 'var(--fg-3)',
                           opacity: inMonth ? 1 : 0.20,
                           cursor: isClickable ? 'pointer' : 'default',
-                          fontSize: '14px',
+                          fontSize: '15px',
                           fontWeight: isEndpoint ? 700 : isToday ? 700 : 400,
                           minHeight: '46px',
                           transition: 'background 80ms ease',
@@ -1074,7 +1074,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                         <span>{dayNum}</span>
                         {hasSoap && inMonth && !isInsightSelected && !isEndpoint && (
                           soapCount > 1 ? (
-                            <span style={{ fontSize: '8px', lineHeight: 1, fontWeight: 700, color: 'var(--establish, #36D6C3)' }}>●{soapCount}</span>
+                            <span style={{ fontSize: '11px', lineHeight: 1, fontWeight: 700, color: 'var(--establish, #36D6C3)' }}>●{soapCount}</span>
                           ) : (
                             <span style={{
                               width: '4px', height: '4px', borderRadius: '50%',
@@ -1085,7 +1085,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                           )
                         )}
                         {(isInsightSelected || isEndpoint) && (
-                          <span style={{ fontSize: '9px', color: 'var(--establish, #36D6C3)', lineHeight: 1, fontWeight: 700 }}>✓</span>
+                          <span style={{ fontSize: '11px', color: 'var(--establish, #36D6C3)', lineHeight: 1, fontWeight: 700 }}>✓</span>
                         )}
                       </button>
                     )
@@ -1096,7 +1096,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
           </div>
 
           <p style={{
-            margin: '0 8px 10px', fontSize: '11px', color: 'var(--fg-3)',
+            margin: '0 8px 10px', fontSize: '12px', color: 'var(--fg-3)',
             textAlign: 'center',
           }}>
             {rangeSelecting
@@ -1112,7 +1112,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
       {isSearching && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {searchResults.length === 0 ? (
-            <p style={{ color: 'var(--fg-3)', fontSize: '14px', textAlign: 'center', margin: '16px 0' }}>
+            <p style={{ color: 'var(--fg-3)', fontSize: '15px', textAlign: 'center', margin: '16px 0' }}>
               No entries match your search.
             </p>
           ) : (
@@ -1155,21 +1155,21 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                 )}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    <span style={{ color: 'var(--fg-1)', fontSize: '13px', fontWeight: 600 }}>
+                    <span style={{ color: 'var(--fg-1)', fontSize: '14px', fontWeight: 600 }}>
                       {formatNiceDate(entry.journal_date)}
                     </span>
                     {entry.scripture_reference && (
-                      <span style={{ color: 'var(--establish, #36D6C3)', fontSize: '12px' }}>
+                      <span style={{ color: 'var(--establish, #36D6C3)', fontSize: '13px' }}>
                         {entry.scripture_reference}
                       </span>
                     )}
                   </div>
                   {entry.ocr_text ? (
-                    <span style={{ color: 'var(--fg-3)', fontSize: '13px', lineHeight: 1.55 }}>
+                    <span style={{ color: 'var(--fg-3)', fontSize: '14px', lineHeight: 1.55 }}>
                       {highlightExcerpt(entry.ocr_text, searchQuery.trim())}
                     </span>
                   ) : entry.photo_url ? (
-                    <span style={{ color: 'var(--fg-3)', fontSize: '12px', fontStyle: 'italic' }}>
+                    <span style={{ color: 'var(--fg-3)', fontSize: '13px', fontStyle: 'italic' }}>
                       Photo entry — tap to read
                     </span>
                   ) : null}
@@ -1190,14 +1190,14 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
           {/* Switcher when this day holds more than one entry */}
           {selectedDayEntries.length > 1 && (
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', padding: '12px 16px 0' }}>
-              <span style={{ fontSize: '11px', color: 'var(--fg-3)' }}>{selectedDayEntries.length} entries this day:</span>
+              <span style={{ fontSize: '12px', color: 'var(--fg-3)' }}>{selectedDayEntries.length} entries this day:</span>
               {selectedDayEntries.map((_, i) => (
                 <button
                   key={i}
                   type="button"
                   onClick={() => { setSelectedEntryIdx(i); setPhotoIdx(0); setOcrResult(null) }}
                   style={{
-                    padding: '3px 11px', borderRadius: '999px', fontSize: '12px', fontWeight: 600, cursor: 'pointer',
+                    padding: '3px 11px', borderRadius: '999px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
                     border: `1px solid ${i === selectedEntryIdx ? 'var(--establish, #36D6C3)' : 'var(--line-2)'}`,
                     background: i === selectedEntryIdx ? 'rgba(54,214,195,.15)' : 'transparent',
                     color: i === selectedEntryIdx ? 'var(--establish, #36D6C3)' : 'var(--fg-2)',
@@ -1213,11 +1213,11 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
             gap: '12px', padding: '16px 16px 12px', borderBottom: '1px solid var(--line-2)',
           }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <span style={{ color: 'var(--fg-1)', fontSize: '15px', fontWeight: 700 }}>
+              <span style={{ color: 'var(--fg-1)', fontSize: '16px', fontWeight: 700 }}>
                 {formatNiceDate(selectedEntry.journal_date)}
               </span>
               {selectedEntry.scripture_reference && (
-                <span style={{ color: 'var(--establish, #36D6C3)', fontSize: '13px', fontWeight: 500 }}>
+                <span style={{ color: 'var(--establish, #36D6C3)', fontSize: '14px', fontWeight: 500 }}>
                   {selectedEntry.scripture_reference}
                 </span>
               )}
@@ -1225,7 +1225,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                 display: 'inline-flex', alignItems: 'center', marginTop: '2px',
                 padding: '2px 8px', borderRadius: '999px',
                 background: 'rgba(246,241,231,.06)', border: '1px solid var(--line-2)',
-                color: 'var(--fg-3)', fontSize: '11px', letterSpacing: '0.08em', width: 'fit-content',
+                color: 'var(--fg-3)', fontSize: '12px', letterSpacing: '0.08em', width: 'fit-content',
               }}>
                 {visibilityLabel(selectedEntry.visibility)}
               </span>
@@ -1234,9 +1234,9 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
               onClick={() => setSelectedDate(null)}
               aria-label="Close entry"
               style={{
-                flexShrink: 0, width: '28px', height: '28px', borderRadius: '8px',
+                flexShrink: 0, width: '40px', height: '40px', borderRadius: '8px',
                 border: '1px solid var(--line-2)', background: 'transparent',
-                color: 'var(--fg-3)', cursor: 'pointer', fontSize: '14px',
+                color: 'var(--fg-3)', cursor: 'pointer', fontSize: '15px',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}
               onMouseOver={e => {
@@ -1283,7 +1283,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                       title="Previous page"
                       style={{
                         position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)',
-                        width: '36px', height: '36px', borderRadius: '50%', border: '1px solid rgba(255,255,255,.25)',
+                        width: '44px', height: '44px', borderRadius: '50%', border: '1px solid rgba(255,255,255,.25)',
                         background: 'rgba(11,16,39,.62)', color: '#fff', fontSize: '20px', lineHeight: 1,
                         cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
                       }}
@@ -1296,7 +1296,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                       title="Next page"
                       style={{
                         position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)',
-                        width: '36px', height: '36px', borderRadius: '50%', border: '1px solid rgba(255,255,255,.25)',
+                        width: '44px', height: '44px', borderRadius: '50%', border: '1px solid rgba(255,255,255,.25)',
                         background: 'rgba(11,16,39,.62)', color: '#fff', fontSize: '20px', lineHeight: 1,
                         cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
                       }}
@@ -1306,7 +1306,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                     <span style={{
                       position: 'absolute', bottom: '8px', right: '8px', padding: '2px 8px',
                       borderRadius: '999px', background: 'rgba(11,16,39,.70)', color: '#fff',
-                      fontSize: '11px', fontWeight: 600,
+                      fontSize: '12px', fontWeight: 600,
                     }}>
                       Page {pageIdx + 1} of {readingPages.length}
                     </span>
@@ -1325,7 +1325,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                   style={{
                     alignSelf: 'flex-start', padding: '5px 12px', borderRadius: '8px',
                     border: '1px solid var(--line-2)', background: 'transparent',
-                    color: 'var(--fg-2)', fontSize: '12px', fontWeight: 600, cursor: rotating ? 'default' : 'pointer',
+                    color: 'var(--fg-2)', fontSize: '13px', fontWeight: 600, cursor: rotating ? 'default' : 'pointer',
                   }}
                   title="Rotate this photo 90° (fixes sideways/upside-down pages)"
                 >
@@ -1351,7 +1351,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                     style={{
                       padding: '10px 16px', borderRadius: '10px',
                       border: '1px solid var(--line-2)', background: 'var(--indigo-2)',
-                      color: 'var(--fg-2)', fontSize: '13px',
+                      color: 'var(--fg-2)', fontSize: '14px',
                       cursor: ocrLoading ? 'default' : 'pointer',
                       opacity: ocrLoading ? 0.6 : 1, width: '100%',
                     }}
@@ -1361,7 +1361,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                 )}
                 {displayOcrText && (
                   <pre style={{
-                    margin: 0, color: 'var(--fg-2)', fontSize: '14px', lineHeight: 1.65,
+                    margin: 0, color: 'var(--fg-2)', fontSize: '15px', lineHeight: 1.65,
                     whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit',
                   }}>
                     {displayOcrText}
@@ -1370,13 +1370,13 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
               </div>
             ) : selectedEntry.ocr_text ? (
               <pre style={{
-                margin: 0, color: 'var(--fg-2)', fontSize: '14px', lineHeight: 1.65,
+                margin: 0, color: 'var(--fg-2)', fontSize: '15px', lineHeight: 1.65,
                 whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit',
               }}>
                 {selectedEntry.ocr_text}
               </pre>
             ) : (
-              <p style={{ margin: 0, color: 'var(--fg-3)', fontSize: '14px', fontStyle: 'italic' }}>
+              <p style={{ margin: 0, color: 'var(--fg-3)', fontSize: '15px', fontStyle: 'italic' }}>
                 No content yet
               </p>
             )}
@@ -1419,7 +1419,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                   {formatNiceDate(modalEntry.journal_date)}
                 </span>
                 {modalEntry.scripture_reference && (
-                  <span style={{ color: 'var(--establish, #36D6C3)', fontSize: '13px', fontWeight: 500 }}>
+                  <span style={{ color: 'var(--establish, #36D6C3)', fontSize: '14px', fontWeight: 500 }}>
                     {modalEntry.scripture_reference}
                   </span>
                 )}
@@ -1427,7 +1427,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                   display: 'inline-flex', alignItems: 'center', marginTop: '2px',
                   padding: '2px 8px', borderRadius: '999px',
                   background: 'rgba(246,241,231,.06)', border: '1px solid var(--line-2)',
-                  color: 'var(--fg-3)', fontSize: '11px', letterSpacing: '0.08em',
+                  color: 'var(--fg-3)', fontSize: '12px', letterSpacing: '0.08em',
                   width: 'fit-content',
                 }}>
                   {visibilityLabel(modalEntry.visibility)}
@@ -1437,7 +1437,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                 onClick={() => { setModalEntry(null); setModalOcrText(null) }}
                 aria-label="Close"
                 style={{
-                  flexShrink: 0, width: '32px', height: '32px', borderRadius: '10px',
+                  flexShrink: 0, width: '40px', height: '40px', borderRadius: '10px',
                   border: '1px solid var(--line-2)', background: 'transparent',
                   color: 'var(--fg-3)', cursor: 'pointer', fontSize: '16px',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -1455,7 +1455,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                   {(modalEntry.photo_urls?.length ? modalEntry.photo_urls : [modalEntry.photo_url]).map((u, i, arr) => (
                     <div key={i}>
                       {arr.length > 1 && (
-                        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--fg-3)', marginBottom: '4px' }}>Page {i + 1} of {arr.length}</div>
+                        <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--fg-3)', marginBottom: '4px' }}>Page {i + 1} of {arr.length}</div>
                       )}
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
@@ -1484,7 +1484,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                       style={{
                         padding: '11px 16px', borderRadius: '10px',
                         border: '1px solid var(--line-2)', background: 'rgba(54,214,195,.06)',
-                        color: 'var(--fg-2)', fontSize: '13px', cursor: modalOcrLoading ? 'default' : 'pointer',
+                        color: 'var(--fg-2)', fontSize: '14px', cursor: modalOcrLoading ? 'default' : 'pointer',
                         opacity: modalOcrLoading ? 0.6 : 1, width: '100%',
                       }}
                     >
@@ -1495,13 +1495,13 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
               )}
               {(modalOcrText ?? modalEntry.ocr_text) ? (
                 <div style={{
-                  margin: 0, color: 'var(--fg-1)', fontSize: '15px', lineHeight: 1.75,
+                  margin: 0, color: 'var(--fg-1)', fontSize: '16px', lineHeight: 1.75,
                   whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit',
                 }}>
                   {highlightAll(modalOcrText ?? modalEntry.ocr_text ?? '', searchQuery.trim())}
                 </div>
               ) : !modalEntry.photo_url ? (
-                <p style={{ margin: 0, color: 'var(--fg-3)', fontSize: '14px', fontStyle: 'italic' }}>
+                <p style={{ margin: 0, color: 'var(--fg-3)', fontSize: '15px', fontStyle: 'italic' }}>
                   No content recorded
                 </p>
               ) : null}

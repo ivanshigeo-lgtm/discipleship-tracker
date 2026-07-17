@@ -55,29 +55,29 @@ export function StepRow({
             type="button"
             aria-label={step.completed ? 'Mark not done' : 'Mark done'}
             onClick={(e) => { e.stopPropagation(); onToggle!(step) }}
-            className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border text-[9px] font-bold transition-transform hover:scale-110"
+            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[11px] font-bold transition-transform hover:scale-110"
             style={boxStyle}
           >
             {step.completed ? '✓' : ''}
           </button>
         ) : (
           <span
-            className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border text-[9px] font-bold"
+            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[11px] font-bold"
             style={boxStyle}
           >
             {step.completed ? '✓' : '·'}
           </span>
         )}
-        <span className={`min-w-0 flex-1 truncate text-left text-[13px] font-medium ${step.completed ? 'text-[var(--fg-3)]' : 'text-[var(--fg-1)]'}`}>
+        <span className={`min-w-0 flex-1 truncate text-left text-[14px] font-medium ${step.completed ? 'text-[var(--fg-3)]' : 'text-[var(--fg-1)]'}`}>
           {step.title}
         </span>
         {step.progress > 0 && step.progress < 1 && (
-          <span className="shrink-0 text-[9px] font-bold" style={{ color }}>
+          <span className="shrink-0 text-[11px] font-bold" style={{ color }}>
             {Math.round(step.progress * 100)}%
           </span>
         )}
         {actionable && (
-          <span className="shrink-0 text-[10px] font-bold" style={{ color }}>
+          <span className="shrink-0 text-[11px] font-bold" style={{ color }}>
             {step.action === 'message-coach'
               ? 'Message →'
               : step.action === 'join-group'
@@ -94,7 +94,7 @@ export function StepRow({
           the screen the way a floating tooltip can. */}
       {description && (
         <div className="grid grid-rows-[0fr] transition-all duration-200 group-hover:grid-rows-[1fr]">
-          <p className="overflow-hidden pl-[26px] text-[11px] leading-snug text-[var(--fg-3)]">
+          <p className="overflow-hidden pl-[30px] text-[12px] leading-snug text-[var(--fg-3)]">
             <span className="block pt-1">{description}</span>
           </p>
         </div>
@@ -110,14 +110,14 @@ export function SignoffFooter({ level, onRequestSignoff }: { level: JourneyLevel
   if (level.signoff === 'approved') {
     return (
       <div className="mt-2.5 rounded-lg border px-3 py-2" style={{ borderColor: `${level.color}55`, background: `${level.color}12` }}>
-        <p className="text-[11px] font-bold" style={{ color: level.color }}>✦ Signed off by your coach</p>
-        {level.congrats && <p className="mt-1 text-xs italic leading-relaxed text-[var(--fg-1)]">&ldquo;{level.congrats}&rdquo;</p>}
+        <p className="text-[12px] font-bold" style={{ color: level.color }}>✦ Signed off by your coach</p>
+        {level.congrats && <p className="mt-1 text-[13px] italic leading-relaxed text-[var(--fg-1)]">&ldquo;{level.congrats}&rdquo;</p>}
       </div>
     )
   }
   if (level.signoff === 'requested') {
     return (
-      <p className="mt-2.5 rounded-lg border border-[var(--line-2)] px-3 py-2 text-center text-[11px] font-semibold text-[var(--fg-2)]">
+      <p className="mt-2.5 rounded-lg border border-[var(--line-2)] px-3 py-2 text-center text-[12px] font-semibold text-[var(--fg-2)]">
         ✦ Awaiting your coach&rsquo;s sign-off
       </p>
     )
@@ -129,8 +129,8 @@ export function SignoffFooter({ level, onRequestSignoff }: { level: JourneyLevel
   const next = idx >= 0 && idx < JOURNEY_ORDER.length - 1 ? JOURNEY_ORDER[idx + 1] : null
   return (
     <div className="mt-2.5 rounded-xl border p-3 text-center" style={{ borderColor: `${level.color}66`, background: `${level.color}14` }}>
-      <p className="text-sm font-bold" style={{ color: level.color }}>🎉 You&rsquo;ve completed {level.stage}!</p>
-      <p className="mx-auto mt-1 max-w-[260px] text-[11px] leading-relaxed text-[var(--fg-2)]">
+      <p className="text-[15px] font-bold" style={{ color: level.color }}>🎉 You&rsquo;ve completed {level.stage}!</p>
+      <p className="mx-auto mt-1 max-w-[260px] text-[12px] leading-relaxed text-[var(--fg-2)]">
         {isEngage
           ? 'One last step — ask your coach to confirm you’ve come full circle.'
           : next
@@ -140,7 +140,7 @@ export function SignoffFooter({ level, onRequestSignoff }: { level: JourneyLevel
       <button
         type="button"
         onClick={() => onRequestSignoff(level.stage)}
-        className="jy-signoff-pulse mt-2.5 w-full rounded-lg py-2.5 text-sm font-bold"
+        className="jy-signoff-pulse mt-2.5 w-full rounded-lg py-3.5 text-[15px] font-bold"
         style={{ background: level.color, color: 'var(--void)' }}
       >
         ✦ {isEngage ? 'Request final sign-off' : 'Request sign-off from coach'} →

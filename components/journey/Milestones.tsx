@@ -33,7 +33,7 @@ export default function Milestones({ badges }: { badges: Badge[] }) {
               <div className="mb-3 flex items-center gap-2">
                 <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color, boxShadow: `0 0 8px ${color}` }} />
                 <span className="text-xs font-bold uppercase tracking-[.14em]" style={{ color }}>{stage}</span>
-                <span className="text-[11px] text-[var(--fg-3)]">· {STAGE_BLURB[stage]}</span>
+                <span className="text-[12px] text-[var(--fg-3)]">· {STAGE_BLURB[stage]}</span>
                 <span className="ml-auto h-px flex-1 self-center" style={{ background: 'var(--line-1, rgba(246,241,231,.10))' }} />
               </div>
               {/* badges, gem last */}

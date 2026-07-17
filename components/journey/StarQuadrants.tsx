@@ -50,7 +50,7 @@ function QuadrantPanel({
     <div
       onMouseEnter={onKeepOpen}
       onMouseLeave={onCloseSoon}
-      className="jy-quad-pop pointer-events-auto fixed left-1/2 top-1/2 z-[60] max-h-[85vh] w-[min(320px,92vw)] -translate-x-1/2 -translate-y-1/2 origin-center overflow-y-auto overflow-x-hidden rounded-2xl border p-3"
+      className="jy-quad-pop pointer-events-auto fixed left-1/2 top-1/2 z-[60] max-h-[85vh] w-[min(340px,94vw)] -translate-x-1/2 -translate-y-1/2 origin-center overflow-y-auto overflow-x-hidden rounded-2xl border p-4"
       style={{
         borderColor: locked ? 'var(--line-2)' : `${level.color}55`,
         background: 'rgba(15,21,48,.92)',
@@ -63,7 +63,7 @@ function QuadrantPanel({
           {level.stage}
         </span>
         {!locked && (
-          <span className="text-sm font-bold" style={{ color: level.color }}>
+          <span className="text-[15px] font-bold" style={{ color: level.color }}>
             {Math.round(level.progress * 100)}%
           </span>
         )}
@@ -76,11 +76,11 @@ function QuadrantPanel({
               <rect x="3" y="11" width="18" height="11" rx="2" />
               <path d="M7 11V7a5 5 0 0 1 10 0v4" />
             </svg>
-            <span className="text-[10px] font-bold uppercase tracking-wider">Still ahead</span>
+            <span className="text-[12px] font-bold uppercase tracking-wider">Still ahead</span>
           </div>
-          <p className="text-xs leading-relaxed text-[var(--fg-2)]">{level.tagline}</p>
+          <p className="text-[13px] leading-relaxed text-[var(--fg-2)]">{level.tagline}</p>
           {prev && (
-            <p className="mt-1.5 text-[10px] text-[var(--fg-3)]">
+            <p className="mt-1.5 text-[11px] text-[var(--fg-3)]">
               {prev.signoff === 'requested'
                 ? `Awaiting your coach's sign-off on ${prev.stage}.`
                 : `Opens when your coach signs off on ${prev.stage}${prev.completed ? '' : ` — finish it first (it's at ${Math.round(prev.progress * 100)}%)`}.`}
@@ -89,7 +89,7 @@ function QuadrantPanel({
         </div>
       ) : (
         <>
-          <p className="px-1 pt-1 text-left text-[11px] italic leading-snug text-[var(--fg-2)]" style={{ fontFamily: 'var(--font-display)', fontSize: 13 }}>
+          <p className="px-1 pt-1 text-left text-[11px] italic leading-snug text-[var(--fg-2)]" style={{ fontFamily: 'var(--font-display)', fontSize: 14 }}>
             {level.tagline}
           </p>
           <div className="mt-1.5">
@@ -122,11 +122,11 @@ export default function StarQuadrants({
   const containerRef = useRef<HTMLDivElement>(null)
   // The ring must breathe inside whatever width it's given — 375pt phones are
   // fine at 300, but zoomed-display minis and the app's padded WebView are not.
-  const [starSize, setStarSize] = useState(300)
+  const [starSize, setStarSize] = useState(340)
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
-    const fit = () => setStarSize(Math.max(180, Math.min(300, Math.round(el.getBoundingClientRect().width) - 45)))
+    const fit = () => setStarSize(Math.max(180, Math.min(340, Math.round(el.getBoundingClientRect().width) - 45)))
     fit()
     const ro = new ResizeObserver(fit)
     ro.observe(el)
@@ -181,7 +181,7 @@ export default function StarQuadrants({
   const leanMap = ['translate(-3px,-3px)', 'translate(3px,-3px)', 'translate(3px,3px)', 'translate(-3px,3px)']
 
   return (
-    <div ref={containerRef} className="relative mx-auto" style={{ width: 'min(370px, 92vw)', height: 'min(370px, 92vw)' }}>
+    <div ref={containerRef} className="relative mx-auto" style={{ width: 'min(400px, 94vw)', height: 'min(400px, 94vw)' }}>
       {/* the star itself */}
       <div
         id="journey-hero-star"
