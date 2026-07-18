@@ -36,6 +36,7 @@ import type {
 } from '../types/database'
 import { useAuth } from '../contexts/AuthContext'
 import { SectionSkeleton } from './Skeleton'
+import ChapterTrackerModal from './ChapterTrackerModal'
 
 interface EmergingTeamSectionProps {
   refreshKey?: number
@@ -75,65 +76,19 @@ function ProgressRing({ percentage, size = 48 }: { percentage: number; size?: nu
   )
 }
 
-// Inline +/- editor for a person's chapter in each booklet.
-function ChapterEditor({
-  forecast,
-  onSet,
-  saving,
-}: {
-  forecast: EmpowerForecast
-  onSet: (booklet: Booklet, chapter: number) => void
-  saving: boolean
-}) {
-  return (
-    <div className="mt-3 space-y-2 rounded-lg border border-[var(--line-1)] bg-[var(--indigo)] p-3">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--fg-3)]">Set current chapter</p>
-      {forecast.booklets.map(b => (
-        <div key={b.key} className="flex items-center justify-between gap-2">
-          <span className="min-w-0 flex-1 truncate text-xs text-[var(--fg-2)]">{b.label}</span>
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              disabled={saving || b.current <= 0}
-              onClick={(e) => { e.stopPropagation(); onSet(b.key, b.current - 1) }}
-              className="flex h-6 w-6 items-center justify-center rounded-full border border-[var(--line-2)] text-sm text-[var(--fg-2)] disabled:opacity-30 hover:bg-[var(--indigo-2)]"
-            >
-              −
-            </button>
-            <span className="w-12 text-center text-xs tabular-nums text-[var(--fg-1)]">
-              {b.current}/{b.chapters}
-            </span>
-            <button
-              type="button"
-              disabled={saving || b.current >= b.chapters}
-              onClick={(e) => { e.stopPropagation(); onSet(b.key, b.current + 1) }}
-              className="flex h-6 w-6 items-center justify-center rounded-full border border-[var(--line-2)] text-sm text-[var(--fg-2)] disabled:opacity-30 hover:bg-[var(--indigo-2)]"
-            >
-              +
-            </button>
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
 function TeamMemberCard({
   forecast,
   onPersonClick,
   onEmpower,
   empowering,
-  onSetChapter,
-  savingChapters,
+  onOpenTracker,
 }: {
   forecast: EmpowerForecast
   onPersonClick: () => void
   onEmpower: () => void
   empowering: boolean
-  onSetChapter: (booklet: Booklet, chapter: number) => void
-  savingChapters: boolean
+  onOpenTracker: () => void
 }) {
-  const [editing, setEditing] = useState(false)
   const { person, isReady, percentComplete, currentBooklet, chaptersLeft, etaWeeks, projectedDate, unmetMilestones, cadenceFromData } = forecast
   const equipColor = STAGE_COLORS.Equip
   const empowerColor = STAGE_COLORS.Empower
@@ -227,19 +182,15 @@ function TeamMemberCard({
             </div>
           )}
 
-          {/* Edit chapters toggle */}
+          {/* Open the focused chapter tracker */}
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); setEditing(v => !v) }}
-            className="mt-2 text-[11px] font-medium text-[var(--fg-3)] underline-offset-2 hover:text-[var(--fg-1)] hover:underline"
+            onClick={(e) => { e.stopPropagation(); onOpenTracker() }}
+            className="mt-2 text-[11px] font-semibold underline-offset-2 hover:underline"
+            style={{ color: 'var(--gbm-cobalt-soft)' }}
           >
-            {editing ? 'Hide chapters' : 'Edit chapters'}
+            Open chapter tracker →
           </button>
-          {editing && (
-            <div onClick={(e) => e.stopPropagation()}>
-              <ChapterEditor forecast={forecast} onSet={onSetChapter} saving={savingChapters} />
-            </div>
-          )}
         </div>
 
         {/* Empower button or arrow */}
@@ -326,6 +277,7 @@ export default function EmergingTeamSection({
   const [isExpanded, setIsExpanded] = useState(true)
   const [empowering, setEmpowering] = useState<string | null>(null)
   const [savingChapterFor, setSavingChapterFor] = useState<string | null>(null)
+  const [trackerForId, setTrackerForId] = useState<string | null>(null)
 
   const loadData = async (retry = true) => {
     setLoading(true)
@@ -410,6 +362,7 @@ export default function EmergingTeamSection({
 
   const readyToEmpower = forecasts.filter(f => f.isReady)
   const inProgress = forecasts.filter(f => !f.isReady)
+  const trackerForecast = trackerForId ? forecasts.find(f => f.person.id === trackerForId) : undefined
 
   const handleEmpower = async (personId: string) => {
     setEmpowering(personId)
@@ -445,6 +398,7 @@ export default function EmergingTeamSection({
   const empowerColor = STAGE_COLORS.Empower
 
   return (
+    <>
     <section className="cn-card mb-6 p-4 sm:p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -508,8 +462,7 @@ export default function EmergingTeamSection({
                     onPersonClick={() => onPersonClick?.(forecast.person)}
                     onEmpower={() => handleEmpower(forecast.person.id)}
                     empowering={empowering === forecast.person.id}
-                    onSetChapter={(b, c) => handleSetChapter(forecast.person.id, b, c)}
-                    savingChapters={savingChapterFor === forecast.person.id}
+                    onOpenTracker={() => setTrackerForId(forecast.person.id)}
                   />
                 ))}
               </div>
@@ -534,8 +487,7 @@ export default function EmergingTeamSection({
                     onPersonClick={() => onPersonClick?.(forecast.person)}
                     onEmpower={() => {}}
                     empowering={false}
-                    onSetChapter={(b, c) => handleSetChapter(forecast.person.id, b, c)}
-                    savingChapters={savingChapterFor === forecast.person.id}
+                    onOpenTracker={() => setTrackerForId(forecast.person.id)}
                   />
                 ))}
               </div>
@@ -544,5 +496,17 @@ export default function EmergingTeamSection({
         </div>
       )}
     </section>
+
+    {trackerForecast && (
+      <ChapterTrackerModal
+        forecast={trackerForecast}
+        onClose={() => setTrackerForId(null)}
+        onSetChapter={(b, c) => handleSetChapter(trackerForecast.person.id, b, c)}
+        onEmpower={async () => { await handleEmpower(trackerForecast.person.id); setTrackerForId(null) }}
+        empowering={empowering === trackerForecast.person.id}
+        saving={savingChapterFor === trackerForecast.person.id}
+      />
+    )}
+    </>
   )
 }
