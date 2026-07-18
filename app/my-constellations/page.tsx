@@ -31,6 +31,23 @@ import { getSoapJournals, getAllDiscipleshipConnections, getPeople, getLevelSign
 import type { Person, SoapJournal, Stage, DiscipleshipConnection, Engagement } from '../../types/database'
 import EngagementDetailModal from '../../components/EngagementDetailModal'
 import { DashboardSkeleton } from '../../components/Skeleton'
+import MobileConstellation from '../../components/mobile/MobileConstellation'
+
+// True at phone widths — drives the mobile "Our Journey" redesign overlay.
+// Matches Tailwind's `sm` breakpoint (640px) used throughout this page.
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState<boolean>(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches
+  )
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 640px)')
+    const h = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+    mq.addEventListener('change', h)
+    setIsMobile(mq.matches)
+    return () => mq.removeEventListener('change', h)
+  }, [])
+  return isMobile
+}
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type SectionId = 'journey' | 'snapshot' | 'emerging' | 'engagements' | 'points' | 'groups' | 'prayer' | 'messages' | 'soaps'
@@ -309,6 +326,7 @@ export default function DiscipleshipTracker() {
   const [showSoapEntry, setShowSoapEntry] = useState(false)
   const [soapEntryDate, setSoapEntryDate] = useState<string | null>(null)
   const [profileLoading, setProfileLoading] = useState(true)
+  const isMobile = useIsMobile()
 
   // Coach-dashboard access is gated on the coach having signed off this
   // person's Empower stage (admins always allowed). null = still loading.
@@ -646,8 +664,8 @@ export default function DiscipleshipTracker() {
         {/* Section content */}
         <main className="flex-1 p-3 sm:p-4">
 
-          {/* ── Our Journey (default) ── */}
-          {activeSection === 'journey' && (
+          {/* ── Our Journey (default) — desktop; mobile uses MobileConstellation overlay ── */}
+          {activeSection === 'journey' && !isMobile && (
             <div>
               <div className="cn-card mb-6 p-4">
                 {/* Header row */}
@@ -1084,6 +1102,27 @@ export default function DiscipleshipTracker() {
           </div>
           <AddPersonForm initialName={newPersonName} onPersonAdded={() => { setRefreshKey(p => p + 1); setShowAddPerson(false); setNewPersonName('') }} />
         </div>
+      )}
+
+      {/* ── Mobile "Our Journey" redesign (phone widths only) ── */}
+      {isMobile && activeSection === 'journey' && (
+        <MobileConstellation
+          allowedPersonIds={allowedPersonIds}
+          effectiveScope={effectiveScope}
+          isAdmin={isAdmin}
+          onScopeChange={setCircleScope}
+          refreshKey={refreshKey}
+          onChanged={() => setRefreshKey(p => p + 1)}
+          onAddPerson={() => { setNewPersonName(''); setShowAddPerson(true) }}
+          onOpenFullProfile={(person, tab) => openPerson(person, tab)}
+          onTab={t => {
+            // Pass 1: only Journey is redesigned; the other tabs drop into the
+            // existing responsive sections (reachable, non-regressing).
+            if (t === 'groups') setActiveSection('groups')
+            else if (t === 'people') setActiveSection('snapshot')
+            else window.location.href = '/my-journey'
+          }}
+        />
       )}
 
       {/* ── New meeting modal ── */}
