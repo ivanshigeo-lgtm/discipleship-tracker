@@ -33,6 +33,7 @@ function QuadrantPanel({
   onRequestSignoff,
   onKeepOpen,
   onCloseSoon,
+  onClose,
 }: {
   level: JourneyLevel
   prev?: JourneyLevel
@@ -41,6 +42,7 @@ function QuadrantPanel({
   onRequestSignoff?: (stage: string) => void
   onKeepOpen?: () => void
   onCloseSoon?: () => void
+  onClose?: () => void
 }) {
   const locked = !level.unlocked
 
@@ -58,15 +60,29 @@ function QuadrantPanel({
         boxShadow: locked ? 'var(--elev-2)' : `0 12px 40px -12px ${level.color}50, inset 0 1px 0 rgba(246,241,231,.06)`,
       }}
     >
-      <div className="flex items-baseline justify-between gap-2 px-1">
+      <div
+        className="sticky top-0 z-10 -mx-4 -mt-4 mb-1 flex items-baseline justify-between gap-2 rounded-t-2xl px-4 pb-2 pt-4"
+        style={{ background: 'rgba(15,21,48,.92)', backdropFilter: 'blur(12px)' }}
+      >
         <span className="cn-label" style={{ color: locked ? 'var(--fg-3)' : level.color }}>
           {level.stage}
         </span>
-        {!locked && (
-          <span className="text-[15px] font-bold" style={{ color: level.color }}>
-            {Math.round(level.progress * 100)}%
-          </span>
-        )}
+        <div className="flex items-center gap-2.5">
+          {!locked && (
+            <span className="text-[15px] font-bold" style={{ color: level.color }}>
+              {Math.round(level.progress * 100)}%
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border text-[15px] leading-none text-[var(--fg-3)] transition-colors hover:text-[var(--fg-1)]"
+            style={{ borderColor: 'var(--line-2)' }}
+          >
+            ✕
+          </button>
+        </div>
       </div>
 
       {locked ? (
@@ -286,6 +302,7 @@ export default function StarQuadrants({
           onRequestSignoff={onRequestSignoff}
           onKeepOpen={() => { if (shown !== null) openQuad(shown) }}
           onCloseSoon={closeSoon}
+          onClose={() => { if (hoverTimer.current) clearTimeout(hoverTimer.current); setPinned(null); setActive(null) }}
         />
       )}
     </div>
