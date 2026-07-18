@@ -539,7 +539,7 @@ function SwipeRow({ e, onOpen, onPriority, onAdvance }: {
   }
 
   return (
-    <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden' }}>
+    <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', flexShrink: 0 }}>
       {/* action layer */}
       <div style={{ position: 'absolute', inset: 0, display: 'flex', justifyContent: 'flex-end' }}>
         <button type="button" onClick={() => { onPriority(); setOpen(false); setDx(0) }} style={{ width: 72, background: 'linear-gradient(180deg,#E0A94A,#C98F35)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, color: '#141B3D', border: 'none' }}>
