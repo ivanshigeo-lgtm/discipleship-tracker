@@ -15,11 +15,14 @@ import {
   getAllEngagements,
   getAllPrayerRequests,
   getAllStageChecklistItems,
+  getVictoryGroups,
+  getAllGroupMemberships,
   updatePersonStage,
   updatePerson,
 } from '../../lib/supabaseQueries'
 import { stageLabels, stageOrder } from '../../lib/stageLabels'
-import type { Person, Stage, Engagement, PrayerRequest, StageChecklistItem } from '../../types/database'
+import { bookletStage } from '../../lib/curriculum'
+import type { Person, Stage, Engagement, PrayerRequest, StageChecklistItem, VictoryGroup } from '../../types/database'
 import PipelineMomentum from '../PipelineMomentum'
 
 // ── Palette (kept explicit to stay pixel-faithful to the mock) ────────────────
@@ -106,10 +109,18 @@ export default function MobileConstellation({
   const [engagements, setEngagements] = useState<Engagement[]>([])
   const [prayers, setPrayers] = useState<PrayerRequest[]>([])
   const [checklist, setChecklist] = useState<StageChecklistItem[]>([])
+  const [groups, setGroups] = useState<VictoryGroup[]>([])
+  const [memberships, setMemberships] = useState<{ person_id: string; victory_group_id: string }[]>([])
   const [loading, setLoading] = useState(true)
+
+  // Top-level tab (bottom bar). 'me' is a pure route-out action, not a rendered tab.
+  const [tab, setTab] = useState<'journey' | 'people' | 'groups'>('journey')
 
   // Navigation within the overlay
   const [activeStage, setActiveStage] = useState<Stage | null>(null)
+  const [expandedGroup, setExpandedGroup] = useState<string | null>(null)
+  const [peopleFilter, setPeopleFilter] = useState<'all' | 'priority' | 'overdue'>('all')
+  const [peopleSearch, setPeopleSearch] = useState('')
   const [sheetPerson, setSheetPerson] = useState<Person | null>(null)
   const [momentumOpen, setMomentumOpen] = useState(false)
   const [scopeMenu, setScopeMenu] = useState(false)
@@ -121,14 +132,17 @@ export default function MobileConstellation({
     let alive = true
     setLoading(true)
     ;(async () => {
-      const [p, e, pr, cl] = await Promise.all([
+      const [p, e, pr, cl, g, gm] = await Promise.all([
         getPeople(), getAllEngagements(), getAllPrayerRequests(), getAllStageChecklistItems(),
+        getVictoryGroups(), getAllGroupMemberships(),
       ])
       if (!alive) return
       if (p.data) setPeople(p.data as Person[])
       if (e.data) setEngagements(e.data as Engagement[])
       if (pr.data) setPrayers(pr.data as PrayerRequest[])
       if (cl.data) setChecklist(cl.data as StageChecklistItem[])
+      if (g.data) setGroups(g.data as VictoryGroup[])
+      if (gm.data) setMemberships(gm.data as { person_id: string; victory_group_id: string }[])
       setLoading(false)
     })()
     return () => { alive = false }
@@ -210,6 +224,27 @@ export default function MobileConstellation({
     return [...overdue, ...priority]
   }, [scoped])
 
+  const peopleById = useMemo(() => {
+    const m = new Map<string, Person>()
+    people.forEach(p => m.set(p.id, p))
+    return m
+  }, [people])
+
+  // Group members within scope, and per-group counts.
+  const membersByGroup = useMemo(() => {
+    const allow = allowedPersonIds ? new Set(allowedPersonIds) : null
+    const m = new Map<string, Person[]>()
+    memberships.forEach(ms => {
+      if (allow && !allow.has(ms.person_id)) return
+      const p = peopleById.get(ms.person_id)
+      if (!p || p.status === 'Inactive') return
+      const l = m.get(ms.victory_group_id) || []
+      l.push(p); m.set(ms.victory_group_id, l)
+    })
+    m.forEach(l => l.sort((a, b) => a.name.localeCompare(b.name)))
+    return m
+  }, [memberships, peopleById, allowedPersonIds])
+
   // ── Mutations ───────────────────────────────────────────────────────────────
   const togglePriority = async (p: Person) => {
     const next = !p.priority
@@ -257,9 +292,9 @@ export default function MobileConstellation({
     )
     return (
       <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'stretch', padding: '10px 8px 26px', background: 'rgba(11,16,39,.72)', backdropFilter: 'blur(20px)', borderTop: '1px solid rgba(246,241,231,.10)' }}>
-        {item(true, 'Journey', <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />, () => { setActiveStage(null) })}
-        {item(false, 'People', <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></>, () => onTab('people'))}
-        {item(false, 'Groups', <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />, () => onTab('groups'))}
+        {item(tab === 'journey', 'Journey', <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />, () => { setTab('journey'); setActiveStage(null) })}
+        {item(tab === 'people', 'People', <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></>, () => { setTab('people'); setActiveStage(null) })}
+        {item(tab === 'groups', 'Groups', <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />, () => { setTab('groups'); setActiveStage(null) })}
         {item(false, 'Me', <><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></>, () => onTab('me'))}
       </div>
     )
@@ -438,6 +473,151 @@ export default function MobileConstellation({
     )
   })() : null
 
+  // Scope pill + dropdown, shared by the top-level tab headers.
+  const ScopePill = () => (
+    <div style={{ position: 'relative' }}>
+      <button type="button" onClick={() => setScopeMenu(v => !v)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(27,35,71,.8)', border: '1px solid rgba(246,241,231,.12)', borderRadius: 999, padding: '6px 12px', color: '#B4BAD6', fontSize: 10, fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase', minHeight: 32 }}>
+        {scopeLabel(effectiveScope)}<Chevron dir="down" size={12} color="#B4BAD6" />
+      </button>
+      {scopeMenu && (
+        <div style={{ position: 'absolute', right: 0, top: '110%', zIndex: 20, background: '#141B3D', border: '1px solid rgba(246,241,231,.14)', borderRadius: 12, overflow: 'hidden', minWidth: 160, boxShadow: '0 12px 30px -8px rgba(0,0,0,.7)' }}>
+          {scopeChoices.map(s => (
+            <button key={s} type="button" onClick={() => { onScopeChange(s); setScopeMenu(false) }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', background: effectiveScope === s ? 'rgba(46,85,230,.25)' : 'transparent', border: 'none', color: '#F6F1E7', fontSize: 13, fontWeight: 600 }}>{scopeLabel(s)}</button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+
+  // ── PEOPLE (cross-stage directory; modeled on the 1c stage list) ───────────────
+  const peopleScreen = (() => {
+    const q = peopleSearch.trim().toLowerCase()
+    let shown = q ? scoped.filter(e => e.person.name.toLowerCase().includes(q)) : scoped.slice()
+    if (peopleFilter === 'priority') shown = shown.filter(e => e.person.priority)
+    else if (peopleFilter === 'overdue') shown = shown.filter(e => e.follow?.overdue)
+    shown.sort((a, b) => a.person.name.localeCompare(b.person.name))
+    const nPriority = scoped.filter(e => e.person.priority).length
+    const nOverdue = scoped.filter(e => e.follow?.overdue).length
+
+    const chip = (key: typeof peopleFilter, label: string, active: boolean, color: string, activeBg: string, border?: string) => (
+      <button key={key} type="button" onClick={() => setPeopleFilter(key)} style={{ flex: 'none', fontSize: 12, fontWeight: 600, borderRadius: 999, padding: '8px 14px', border: border ?? 'none', background: active ? activeBg : 'rgba(27,35,71,.8)', color: active ? (key === 'all' ? '#0B1027' : color) : '#B4BAD6' }}>{label}</button>
+    )
+
+    return (
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', color: '#F6F1E7' }}>
+        <div style={{ padding: '58px 16px 0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 44 }}>
+            <div style={{ fontFamily: SERIF, fontSize: 28, fontWeight: 600 }}>People</div>
+            <ScopePill />
+          </div>
+          <div style={{ fontSize: 11.5, color: '#7A82A8', marginTop: 2 }}>{scoped.length} people · {scopeLabel(effectiveScope)}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#1B2347', border: '1px solid rgba(246,241,231,.12)', borderRadius: 14, padding: '11px 14px', marginTop: 8 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7A82A8" strokeWidth="1.75" strokeLinecap="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
+            <input value={peopleSearch} onChange={e => setPeopleSearch(e.target.value)} placeholder="Find person…" style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: '#F6F1E7', fontSize: 14 }} />
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10, overflowX: 'auto', paddingBottom: 2 }}>
+            {chip('all', `All ${scoped.length}`, peopleFilter === 'all', '#0B1027', '#F6F1E7')}
+            {chip('priority', `★ Priority ${nPriority}`, peopleFilter === 'priority', GOLD, 'rgba(242,200,121,.12)', '1px solid rgba(242,200,121,.3)')}
+            {chip('overdue', `Overdue ${nOverdue}`, peopleFilter === 'overdue', PINK, 'rgba(242,114,138,.12)', '1px solid rgba(242,114,138,.3)')}
+          </div>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '12px 16px 90px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {shown.length === 0 && <div style={{ textAlign: 'center', fontSize: 12, color: '#7A82A8', padding: '20px 0' }}>No one here yet.</div>}
+          {shown.map(e => (
+            <button key={e.person.id} type="button" onClick={() => setSheetPerson(e.person)} style={{ background: '#141B3D', border: e.person.priority ? '1px solid rgba(244,182,80,.35)' : '1px solid rgba(246,241,231,.10)', boxShadow: e.person.priority ? '0 0 24px -8px rgba(244,182,80,.4)' : undefined, borderRadius: 16, padding: '11px 14px', display: 'flex', alignItems: 'center', gap: 12, minHeight: 44, width: '100%', textAlign: 'left', color: '#F6F1E7', flexShrink: 0 }}>
+              <PersonMeta e={e} />
+              {e.follow?.overdue
+                ? <span style={{ fontSize: 10.5, fontWeight: 700, color: PINK, background: 'rgba(242,114,138,.14)', borderRadius: 999, padding: '4px 9px', flex: '0 0 auto' }}>{e.follow.label}</span>
+                : e.person.priority
+                  ? <span style={{ fontSize: 10.5, fontWeight: 700, color: GOLD, background: 'rgba(242,200,121,.14)', borderRadius: 999, padding: '4px 9px', flex: '0 0 auto' }}>★</span>
+                  : null}
+              <Chevron dir="right" size={18} />
+            </button>
+          ))}
+        </div>
+        <Fab bottom={104} />
+        <TabBar />
+      </div>
+    )
+  })()
+
+  // ── GROUPS (3c Grace Groups) ───────────────────────────────────────────────────
+  const DAY_ORDER = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+  const groupsScreen = (() => {
+    // In a narrowed scope, only surface groups that have an in-scope member.
+    const visibleGroups = allowedPersonIds
+      ? groups.filter(g => (membersByGroup.get(g.id)?.length ?? 0) > 0)
+      : groups
+    const totalMembers = visibleGroups.reduce((s, g) => s + (membersByGroup.get(g.id)?.length ?? 0), 0)
+    const byDay = new Map<string, VictoryGroup[]>()
+    visibleGroups.forEach(g => { const d = g.meeting_day || 'Unscheduled'; const l = byDay.get(d) || []; l.push(g); byDay.set(d, l) })
+    const dayKeys = [...byDay.keys()].sort((a, b) => {
+      const ia = DAY_ORDER.indexOf(a), ib = DAY_ORDER.indexOf(b)
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib)
+    })
+
+    return (
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', color: '#F6F1E7' }}>
+        <div style={{ padding: '58px 16px 0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 44 }}>
+            <div style={{ fontFamily: SERIF, fontSize: 28, fontWeight: 600 }}>Grace Groups</div>
+            <ScopePill />
+          </div>
+          <div style={{ fontSize: 11.5, color: '#7A82A8', marginTop: 2 }}>{visibleGroups.length} {visibleGroups.length === 1 ? 'group' : 'groups'} · {totalMembers} {totalMembers === 1 ? 'person' : 'people'} in a weekly rhythm</div>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '14px 16px 90px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {visibleGroups.length === 0 && <div style={{ textAlign: 'center', fontSize: 13, color: '#7A82A8', padding: '24px 0' }}>No groups in this circle yet.</div>}
+          {dayKeys.map(day => (
+            <div key={day} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase', color: '#7A82A8', padding: '4px 4px 0' }}>{day}</div>
+              {byDay.get(day)!.map(g => {
+                const members = membersByGroup.get(g.id) || []
+                const stage = bookletStage(g.focus)
+                const c = stage ? E_COLOR[stage] : '#7A82A8'
+                const expanded = expandedGroup === g.id
+                return (
+                  <div key={g.id} style={{ background: '#141B3D', border: '1px solid rgba(246,241,231,.10)', borderRadius: 16, overflow: 'hidden', flexShrink: 0 }}>
+                    <button type="button" onClick={() => setExpandedGroup(expanded ? null : g.id)} style={{ width: '100%', background: 'none', border: 'none', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left', color: '#F6F1E7', minHeight: 44 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 15, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.name}</div>
+                        {g.focus && (
+                          <div style={{ marginTop: 5 }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: c, background: `${c}1F`, border: `1px solid ${c}4D`, borderRadius: 999, padding: '3px 8px' }}>{stage ? `${stage} · ` : ''}{g.focus}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ textAlign: 'right', flex: '0 0 auto' }}>
+                        <div style={{ fontSize: 12.5, fontWeight: 600, color: '#B4BAD6' }}>{g.meeting_time || '—'}</div>
+                        <div style={{ fontSize: 10.5, color: '#7A82A8', marginTop: 2 }}>{members.length} {members.length === 1 ? 'person' : 'people'}</div>
+                      </div>
+                      <Chevron dir={expanded ? 'down' : 'right'} size={16} />
+                    </button>
+                    {expanded && (
+                      <div style={{ borderTop: '1px solid rgba(246,241,231,.08)', padding: '6px 10px 10px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {members.length === 0 && <div style={{ fontSize: 12, color: '#7A82A8', padding: '8px 4px' }}>No members yet.</div>}
+                        {members.map(m => {
+                          const mc = E_COLOR[m.current_stage]
+                          return (
+                            <button key={m.id} type="button" onClick={() => setSheetPerson(m)} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none', padding: '7px 6px', borderRadius: 10, textAlign: 'left', color: '#F6F1E7', minHeight: 40 }}>
+                              <div style={{ width: 32, height: 32, borderRadius: 999, border: `1.5px solid ${mc}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: mc, flex: '0 0 auto' }}>{initials(m.name)}</div>
+                              <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.name}</span>
+                              <span style={{ fontSize: 10.5, color: mc }}>{m.current_stage}</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          ))}
+        </div>
+        <TabBar />
+      </div>
+    )
+  })()
+
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 40, background: SPACE_BG, fontFamily: "'Montserrat', system-ui, sans-serif", overflow: 'hidden' }}>
@@ -446,7 +626,7 @@ export default function MobileConstellation({
           <div style={{ width: 32, height: 32, borderRadius: 999, border: '2px solid #2E55E6', borderTopColor: 'transparent', animation: 'spin 1s linear infinite' }} />
           <style>{'@keyframes spin{to{transform:rotate(360deg)}}'}</style>
         </div>
-      ) : activeStage ? stageList : Landing}
+      ) : activeStage ? stageList : tab === 'people' ? peopleScreen : tab === 'groups' ? groupsScreen : Landing}
 
       {/* 1d — person action sheet */}
       {sheetPerson && (() => {

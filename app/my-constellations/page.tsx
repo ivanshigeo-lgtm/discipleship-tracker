@@ -1116,11 +1116,11 @@ export default function DiscipleshipTracker() {
           onAddPerson={() => { setNewPersonName(''); setShowAddPerson(true) }}
           onOpenFullProfile={(person, tab) => openPerson(person, tab)}
           onTab={t => {
-            // Pass 1: only Journey is redesigned; the other tabs drop into the
-            // existing responsive sections (reachable, non-regressing).
-            if (t === 'groups') setActiveSection('groups')
-            else if (t === 'people') setActiveSection('snapshot')
-            else window.location.href = '/my-journey'
+            // Pass 2: People + Groups are now real in-overlay mobile screens
+            // (handled inside MobileConstellation without leaving activeSection
+            // 'journey', so the overlay stays mounted). Only Me routes out, to
+            // the coach's own mobile journey page.
+            if (t === 'me') window.location.href = '/my-journey'
           }}
         />
       )}
