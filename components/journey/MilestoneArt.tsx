@@ -149,10 +149,11 @@ export function Medallion({ badge, size = 56 }: { badge: Badge; size?: number })
 // gem renders larger than a medallion.
 export function MilestoneBadge({ badge }: { badge: Badge }) {
   const isGem = badge.kind === 'gem'
-  const size = isGem ? 76 : 56
+  // shrunk so five sit across a phone-width grid cell (~55–65px); gem still a touch larger
+  const size = isGem ? 50 : 44
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: size + 24 }}>
-      <div style={{ height: 88, display: 'flex', alignItems: 'center' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', minWidth: 0 }}>
+      <div style={{ height: 64, display: 'flex', alignItems: 'center' }}>
         {isGem ? <StageGem badge={badge} size={size} /> : <Medallion badge={badge} size={size} />}
       </div>
       <span

@@ -36,8 +36,8 @@ export default function Milestones({ badges }: { badges: Badge[] }) {
                 <span className="text-[12px] text-[var(--fg-3)]">· {STAGE_BLURB[stage]}</span>
                 <span className="ml-auto h-px flex-1 self-center" style={{ background: 'var(--line-1, rgba(246,241,231,.10))' }} />
               </div>
-              {/* badges, gem last */}
-              <div className="flex flex-wrap items-start gap-x-2 gap-y-3">
+              {/* badges, gem last — fixed 5-up grid so a row is always five, any width */}
+              <div className="grid grid-cols-5 items-start gap-x-1.5 gap-y-3">
                 {group.map(b => (
                   <MilestoneBadge key={b.id} badge={b} />
                 ))}
