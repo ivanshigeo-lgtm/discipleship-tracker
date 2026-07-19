@@ -125,19 +125,15 @@ export default function JourneyTour({
             </>
           ) : (
             <>
-              {/* the stage name commands the screen */}
+              {/* the stage title commands the screen — its first word IS the stage */}
               <h2
-                className="text-5xl font-semibold sm:text-6xl"
+                className="max-w-md text-4xl font-semibold leading-tight sm:text-5xl"
                 style={{ fontFamily: 'var(--font-display)', color: stageColor, textShadow: `0 0 32px ${stageColor}66, 0 2px 18px rgba(6,8,20,.9)` }}
               >
-                {stage}
-              </h2>
-              {/* outcome */}
-              <p className="mt-3 max-w-md text-2xl font-semibold leading-snug text-[var(--fg-1)]" style={{ fontFamily: 'var(--font-display)' }}>
                 {tourStage.outcome}
-              </p>
+              </h2>
               {/* why */}
-              <p className="mt-2 max-w-md text-base italic leading-relaxed text-[var(--fg-2)]">
+              <p className="mt-3 max-w-md text-base italic leading-relaxed text-[var(--fg-2)]">
                 {tourStage.why}
               </p>
               {/* verse */}

@@ -185,12 +185,12 @@ export default function JourneyIntro({
         />
         <div className="absolute inset-x-0 bottom-[12%] flex flex-col items-center px-8 text-center">
           <p
-            className="max-w-xl text-2xl leading-relaxed italic sm:text-3xl"
+            className="max-w-md text-base leading-relaxed italic sm:max-w-xl sm:text-xl"
             style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)', textShadow: '0 2px 24px rgba(6,8,20,.9)' }}
           >
             &ldquo;Look up at the sky and count the stars&thinsp;—&thinsp;if indeed you can count them&hellip;
             so shall your offspring be.&rdquo;
-            <span className="text-lg not-italic sm:text-xl" style={{ color: 'rgba(246,241,231,.55)' }}>&thinsp;&mdash; Genesis 15:5</span>
+            <span className="text-xs not-italic sm:text-sm" style={{ color: 'rgba(246,241,231,.55)' }}>&thinsp;&mdash; Genesis 15:5</span>
           </p>
         </div>
       </div>
@@ -281,11 +281,11 @@ export default function JourneyIntro({
           style={{ opacity: phase === 'constellation' ? 1 : 0 }}
         >
           <p
-            className="max-w-xl text-xl leading-relaxed italic sm:text-2xl"
+            className="max-w-md text-base leading-relaxed italic sm:max-w-xl sm:text-xl"
             style={{ fontFamily: 'var(--font-display)', color: '#f6f1e7' }}
           >
             &ldquo;He determines the number of the stars and calls them each by name.&rdquo;
-            <span className="text-base not-italic" style={{ color: 'rgba(246,241,231,.55)' }}>&thinsp;&mdash; Psalm 147:4</span>
+            <span className="text-xs not-italic sm:text-sm" style={{ color: 'rgba(246,241,231,.55)' }}>&thinsp;&mdash; Psalm 147:4</span>
           </p>
           <p className="cn-label mt-4" style={{ color: 'rgba(246,241,231,.7)' }}>This is your church&rsquo;s constellation</p>
         </div>
@@ -295,7 +295,7 @@ export default function JourneyIntro({
           style={{ opacity: phase === 'yours' ? 1 : 0, transitionDelay: phase === 'yours' ? '1.6s' : '0s' }}
         >
           <p
-            className="text-2xl italic sm:text-3xl"
+            className="text-xl italic sm:text-2xl"
             style={{ fontFamily: 'var(--font-display)', color: '#f6f1e7' }}
           >
             And this one, {firstName}, is yours.
@@ -309,7 +309,7 @@ export default function JourneyIntro({
           <div className="jy-star-arrive">
             <SpikedStar size={180} color={E_COLORS.Establish} maturity={0.5} pulse />
           </div>
-          <p className="mt-4 text-2xl italic sm:text-3xl" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>
+          <p className="mt-4 text-xl italic sm:text-2xl" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>
             And this one, {firstName}, is yours.
           </p>
         </div>
