@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { TOUR, E_COLORS, E_ORDER, E_VERSES } from './journeyModel'
+import { TOUR, E_COLORS, E_ORDER } from './journeyModel'
 import { StarBadge } from './StarPrimitives'
 
 /*
@@ -82,7 +82,7 @@ export default function JourneyTour({
   const stageColor = E_COLORS[stage]
   const ringEmphasis = E_ORDER.indexOf(stage)
 
-  const verse = E_VERSES[stage]
+  const verse = tourStage.verse
   const isFinale = beat?.kind === 'finale'
 
   return (

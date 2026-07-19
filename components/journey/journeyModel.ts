@@ -365,28 +365,47 @@ export type TourStage = {
   stage: Stage
   outcome: string
   why: string
+  // The story shows the full verse (E_VERSES holds the short accent used in the
+  // quadrant popups); the tour carries its own full-length text + ref.
+  verse: { text: string; ref: string }
 }
 
 export const TOUR: TourStage[] = [
   {
     stage: 'Establish',
-    outcome: 'Grounded in the faith, the Word, and the church.',
-    why: 'Foundations, not façades — a life rooted in Jesus through repentance, faith, his Word, and his family.',
+    outcome: 'Establish Biblical Foundations',
+    why: 'In the Word, faith, prayer, and the church.',
+    verse: {
+      text: 'rooted and built up in him and established in the faith, just as you were taught, abounding in thanksgiving.',
+      ref: 'Colossians 2:7',
+    },
   },
   {
     stage: 'Equip',
-    outcome: 'Equipped to serve.',
+    outcome: 'Equipped to Minister',
     why: 'Ministry was never meant for the experts alone — you’re equipped to serve and build up the body of Christ.',
+    verse: {
+      text: 'And he gave the apostles, the prophets, the evangelists, the shepherds and teachers, to equip the saints for the work of ministry, for building up the body of Christ.',
+      ref: 'Ephesians 4:11–12',
+    },
   },
   {
     stage: 'Empower',
-    outcome: 'Empowered to lead.',
+    outcome: 'Empowered to Make Disciples',
     why: 'A healthy church raises up leaders — you’re entrusted to lead, and to make leaders of others.',
+    verse: {
+      text: 'Go therefore and make disciples of all nations, baptizing them in the name of the Father and of the Son and of the Holy Spirit, teaching them to observe all that I have commanded you. And behold, I am with you always, to the end of the age.',
+      ref: 'Matthew 28:19–20',
+    },
   },
   {
     stage: 'Engage',
-    outcome: 'Sent to make disciples.',
+    outcome: 'Engage Your Community',
     why: 'Every soul is worth the search — he left the ninety-nine for the one. Now your light gives light.',
+    verse: {
+      text: 'Follow me, and I will make you fishers of men.',
+      ref: 'Matthew 4:19',
+    },
   },
 ]
 
