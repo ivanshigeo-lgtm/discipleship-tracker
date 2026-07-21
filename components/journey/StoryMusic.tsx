@@ -6,39 +6,90 @@ import { useEffect, useRef, useState } from 'react'
  * Background music for the opening story (intro + tour).
  * Looks for /journey/intro-theme.mp3 — if the file isn't there, renders
  * nothing. Browsers block un-gestured audio, so if autoplay is refused a
- * quiet "Sound on" chip appears; any tap starts the music. Volume ramps
- * in and out so the music never starts or stops abruptly.
+ * quiet "Sound on" chip appears; any tap starts the music.
+ *
+ * Fades are done through the Web Audio API (a GainNode), NOT the audio
+ * element's `volume`: on iOS WKWebView `HTMLAudioElement.volume` is a no-op,
+ * so a volume ramp there does nothing and the track cuts off abruptly. A
+ * GainNode's gain is honored on iOS, so the music truly fades in and out.
  */
 const TRACK = '/journey/intro-theme.mp3'
 const TARGET_VOLUME = 0.45
+const FADE_IN_S = 1.6
+const FADE_OUT_S = 1.4
 
 export default function StoryMusic({ active }: { active: boolean }) {
   const audioRef = useRef<HTMLAudioElement | null>(null)
-  const fadeRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const ctxRef = useRef<AudioContext | null>(null)
+  const gainRef = useRef<GainNode | null>(null)
+  const pauseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const activeRef = useRef(active)
   activeRef.current = active
   const [available, setAvailable] = useState(true)
   const [blocked, setBlocked] = useState(false)
   const [muted, setMuted] = useState(false)
 
-  const fadeTo = (target: number, onDone?: () => void, steps = 18) => {
+  // Build the Web Audio graph (audio element → gain → speakers) once. Gain
+  // starts silent so playback can fade in. Returns null if Web Audio isn't
+  // available, in which case we fall back to the (best-effort) volume prop.
+  const ensureGraph = (): GainNode | null => {
+    if (gainRef.current) return gainRef.current
+    const a = audioRef.current
+    if (!a) return null
+    try {
+      const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+      if (!Ctx) return null
+      const ctx = new Ctx()
+      const src = ctx.createMediaElementSource(a)
+      const gain = ctx.createGain()
+      gain.gain.value = 0
+      src.connect(gain)
+      gain.connect(ctx.destination)
+      ctxRef.current = ctx
+      gainRef.current = gain
+      return gain
+    } catch {
+      return null
+    }
+  }
+
+  // Ramp the gain to a target over `seconds`; runs onDone just after. Falls
+  // back to element.volume when there's no graph.
+  const rampTo = (target: number, seconds: number, onDone?: () => void) => {
+    if (pauseTimer.current) { clearTimeout(pauseTimer.current); pauseTimer.current = null }
+    const ctx = ctxRef.current
+    const gain = gainRef.current
+    if (ctx && gain) {
+      const now = ctx.currentTime
+      gain.gain.cancelScheduledValues(now)
+      gain.gain.setValueAtTime(gain.gain.value, now)
+      gain.gain.linearRampToValueAtTime(target, now + seconds)
+    } else if (audioRef.current) {
+      // Non-iOS fallback: honored where volume is settable.
+      audioRef.current.volume = target
+    }
+    if (onDone) pauseTimer.current = setTimeout(onDone, seconds * 1000 + 80)
+  }
+
+  const startPlayback = () => {
     const a = audioRef.current
     if (!a) return
-    if (fadeRef.current) clearInterval(fadeRef.current)
-    // Time-bounded fade: always finishes (and runs onDone) after the window,
-    // even on iOS Safari where setting audio.volume is a no-op. Otherwise the
-    // stop never completes there and the music plays forever.
-    const start = a.volume
-    let i = 0
-    fadeRef.current = setInterval(() => {
-      i++
-      a.volume = Math.max(0, Math.min(1, start + (target - start) * (i / steps)))
-      if (i >= steps) {
-        if (fadeRef.current) clearInterval(fadeRef.current)
-        fadeRef.current = null
-        onDone?.()
-      }
-    }, 70)
+    const gain = ensureGraph()
+    const ctx = ctxRef.current
+    const go = () => {
+      a.play()
+        .then(() => {
+          // The story may have ended while play()/resume() resolved — if so, stop.
+          if (!activeRef.current) { a.pause(); return }
+          setBlocked(false)
+          if (gain) rampTo(TARGET_VOLUME, FADE_IN_S)
+          else a.volume = TARGET_VOLUME
+        })
+        .catch(() => setBlocked(true))
+    }
+    // iOS starts the context suspended; it only resumes on a user gesture.
+    if (ctx && ctx.state === 'suspended') ctx.resume().then(go).catch(go)
+    else go()
   }
 
   useEffect(() => {
@@ -46,24 +97,17 @@ export default function StoryMusic({ active }: { active: boolean }) {
     if (!a || !available) return
 
     if (active && !muted) {
-      a.volume = a.paused ? 0 : a.volume
-      a.play()
-        .then(() => {
-          // The story may have ended while play() was resolving — if so, stop.
-          if (!activeRef.current) { a.pause(); return }
-          setBlocked(false)
-          fadeTo(TARGET_VOLUME)
-        })
-        .catch(() => setBlocked(true))
+      startPlayback()
     } else {
-      // Graceful ~1.5s fade-out at the end of the story, then stop. Kept just
-      // under the story page's 1.7s outro window so the music reaches silence
-      // before the app tears the WebView down (avoids an abrupt cut).
-      fadeTo(0, () => a.pause(), 22)
+      // Graceful fade-out at the end of the story (or on mute), then stop.
+      // The story page hands back to the app ~1.7s after the tour ends, so
+      // this ~1.4s fade reaches silence before the WebView is torn down.
+      if (gainRef.current) rampTo(0, FADE_OUT_S, () => a.pause())
+      else { a.volume = 0; a.pause() }
     }
 
     return () => {
-      if (fadeRef.current) clearInterval(fadeRef.current)
+      if (pauseTimer.current) clearTimeout(pauseTimer.current)
     }
   }, [active, muted, available])
 
@@ -79,11 +123,7 @@ export default function StoryMusic({ active }: { active: boolean }) {
             if (blocked) {
               setBlocked(false)
               setMuted(false)
-              const a = audioRef.current
-              if (a) {
-                a.volume = 0
-                a.play().then(() => fadeTo(TARGET_VOLUME)).catch(() => setBlocked(true))
-              }
+              startPlayback()
             } else {
               setMuted(m => !m)
             }
