@@ -97,10 +97,10 @@ export default function JourneyTour({
       />
 
       {/* the same star, center stage */}
-      <div className="absolute inset-x-0 top-[12%] flex justify-center">
+      <div className="absolute inset-x-0 top-[9%] flex justify-center">
         <div className="transition-transform duration-1000" style={{ transform: settling ? 'scale(0.92)' : 'scale(1)' }}>
           <StarBadge
-            size={300}
+            size={272}
             progress={settling ? realProgress : simProgress}
             color={settling ? realColor : stageColor}
             emphasis={settling ? null : ringEmphasis}
@@ -110,7 +110,7 @@ export default function JourneyTour({
 
       {/* the narration — one inspirational beat per stage */}
       {!settling && (
-        <div key={beatIdx} className="jy-rise-in absolute inset-x-0 top-[52%] flex flex-col items-center px-6 text-center">
+        <div key={beatIdx} className="jy-rise-in absolute inset-x-0 top-[48%] flex flex-col items-center px-6 text-center">
           {isFinale ? (
             <>
               <h2
@@ -132,12 +132,12 @@ export default function JourneyTour({
               >
                 {tourStage.outcome}
               </h2>
-              {/* why */}
-              <p className="mt-3 max-w-md text-base italic leading-relaxed text-[var(--fg-2)]">
+              {/* why — a quiet supporting line, kept short so the verse can breathe */}
+              <p className="mt-2 max-w-xs text-sm italic leading-snug text-[var(--fg-3)]">
                 {tourStage.why}
               </p>
-              {/* verse */}
-              <p className="mt-4 max-w-md text-sm italic text-[var(--fg-3)]">
+              {/* verse — the scripture is the focal point: brighter and larger than the why */}
+              <p className="mt-3.5 max-w-md text-[15px] italic leading-relaxed text-[var(--fg-2)]" style={{ fontFamily: 'var(--font-display)' }}>
                 &ldquo;{verse.text}&rdquo; &mdash; {verse.ref}
               </p>
             </>

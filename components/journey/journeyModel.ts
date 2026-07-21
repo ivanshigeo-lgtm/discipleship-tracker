@@ -383,7 +383,7 @@ export const TOUR: TourStage[] = [
   {
     stage: 'Equip',
     outcome: 'Equipped to Minister',
-    why: 'Ministry was never meant for the experts alone — you’re equipped to serve and build up the body of Christ.',
+    why: 'Not for the experts alone — to serve and build up the body.',
     verse: {
       text: 'And he gave the apostles, the prophets, the evangelists, the shepherds and teachers, to equip the saints for the work of ministry, for building up the body of Christ.',
       ref: 'Ephesians 4:11–12',
@@ -392,7 +392,7 @@ export const TOUR: TourStage[] = [
   {
     stage: 'Empower',
     outcome: 'Empowered to Make Disciples',
-    why: 'A healthy church raises up leaders — you’re entrusted to lead, and to make leaders of others.',
+    why: 'A healthy church raises up leaders who make leaders.',
     verse: {
       text: 'Go therefore and make disciples of all nations, baptizing them in the name of the Father and of the Son and of the Holy Spirit, teaching them to observe all that I have commanded you. And behold, I am with you always, to the end of the age.',
       ref: 'Matthew 28:19–20',
@@ -401,7 +401,7 @@ export const TOUR: TourStage[] = [
   {
     stage: 'Engage',
     outcome: 'Engage Your Community',
-    why: 'Every soul is worth the search — he left the ninety-nine for the one. Now your light gives light.',
+    why: 'He left the ninety-nine for the one — now your light gives light.',
     verse: {
       text: 'Follow me, and I will make you fishers of men.',
       ref: 'Matthew 4:19',
