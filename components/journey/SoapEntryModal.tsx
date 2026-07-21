@@ -115,26 +115,31 @@ export default function SoapEntryModal({
     setBusy(true)
     setError('')
 
-    let uploadedUrl: string | null = null
-
+    // Photo entries flow through iSOAP (the SOAP system of record): the ingest
+    // route provisions/links the iSOAP account, stores the photo, and OCRs it.
     if (photo) {
       const form = new FormData()
       form.append('file', photo)
       form.append('personId', personId)
-      const res = await fetch('/api/soap/upload', { method: 'POST', body: form })
-      const json = await res.json()
+      form.append('journal_date', entryDate)
+      const res = await fetch('/api/soap/ingest', { method: 'POST', body: form })
+      const json = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setError(json.error || 'Upload failed. Please try again.')
+        setError(json.error || 'Could not save. Please try again.')
         setBusy(false)
         return
       }
-      uploadedUrl = json.url
+      setBusy(false)
+      onSaved()
+      onClose()
+      return
     }
 
-    const { data: saved, error: insErr } = await addSoapJournal({
+    // Text-only entries have no iSOAP home yet — keep them in soap_journals.
+    const { error: insErr } = await addSoapJournal({
       person_id: personId,
       journal_date: entryDate,
-      photo_url: uploadedUrl,
+      photo_url: null,
       ocr_text: entry.trim() || null,
       scripture_reference: null,
       summary: null,
@@ -145,15 +150,6 @@ export default function SoapEntryModal({
       setError(insErr.message?.includes('duplicate') ? 'You already have an entry for that date.' : 'Could not save. Please try again.')
       setBusy(false)
       return
-    }
-
-    // Auto-OCR photo in background so it becomes searchable
-    if (uploadedUrl && saved?.id) {
-      fetch('/api/soap/ocr', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ journalId: saved.id }),
-      }).catch(() => {}) // silent — OCR is best-effort
     }
 
     setBusy(false)
