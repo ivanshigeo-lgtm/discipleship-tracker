@@ -22,6 +22,15 @@ export default function EmbedStory() {
   const { user, profile, loading, profileLoading } = useAuth()
   const [act, setAct] = useState<'intro' | 'tour'>('intro')
   const [params, setParams] = useState<{ progress: number[]; color: string } | null>(null)
+  const [ending, setEnding] = useState(false)
+
+  // Graceful outro: instead of cutting straight to the home page, fade the
+  // scene to dark and let the music ramp out (StoryMusic fades when active
+  // flips false), THEN hand back to the app. Matches the ~1.6s fade below.
+  const handleStoryDone = () => {
+    setEnding(true)
+    setTimeout(() => postToApp({ type: 'story_done' }), 1700)
+  }
 
   useEffect(() => {
     const q = new URLSearchParams(window.location.search)
@@ -42,8 +51,11 @@ export default function EmbedStory() {
   }
 
   return (
-    <div className="min-h-screen" style={{ background: 'var(--void, #060814)' }}>
-      <StoryMusic active />
+    <div
+      className="min-h-screen transition-opacity duration-[1600ms] ease-out"
+      style={{ background: 'var(--void, #060814)', opacity: ending ? 0 : 1 }}
+    >
+      <StoryMusic active={!ending} />
       {act === 'intro' && (
         <JourneyIntro personId={profile.id} name={profile.name} onDone={() => setAct('tour')} />
       )}
@@ -51,7 +63,7 @@ export default function EmbedStory() {
         <JourneyTour
           realProgress={params.progress}
           realColor={params.color}
-          onDone={() => postToApp({ type: 'story_done' })}
+          onDone={handleStoryDone}
         />
       )}
     </div>

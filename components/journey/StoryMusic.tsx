@@ -56,8 +56,10 @@ export default function StoryMusic({ active }: { active: boolean }) {
         })
         .catch(() => setBlocked(true))
     } else {
-      // Graceful ~3s fade-out at the end of the story, then stop.
-      fadeTo(0, () => a.pause(), 42)
+      // Graceful ~1.5s fade-out at the end of the story, then stop. Kept just
+      // under the story page's 1.7s outro window so the music reaches silence
+      // before the app tears the WebView down (avoids an abrupt cut).
+      fadeTo(0, () => a.pause(), 22)
     }
 
     return () => {
