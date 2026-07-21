@@ -1253,15 +1253,46 @@ export const getSharedPraises = async (limit = 12) => {
 
 const SHARED_SOAP_COLS = 'id, person_id, journal_date, scripture_reference, ocr_text, summary, visibility, created_at, people(name)'
 
-// SOAPs a coach's disciples shared with their coach (visibility = 'coach').
+// iSOAP-sourced SOAPs a coach's disciples shared with them. iSOAP has no coach
+// concept, so the share level lives in WikiChurch's isoap_entry_visibility
+// overlay; the server route authorizes the coach and fetches only the shared
+// entries (their content lives in iSOAP). Best-effort: any failure yields [].
+const fetchIsoapSharedSoaps = async (coachPersonId: string, limit: number) => {
+  try {
+    const res = await fetch('/api/soap/shared', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ coachPersonId, limit }),
+    })
+    if (!res.ok) return []
+    const json = await res.json()
+    return (json.entries as Record<string, unknown>[]) ?? []
+  } catch {
+    return []
+  }
+}
+
+// Newest-journal-date-first, tiebreak id — the order used to interleave merged
+// local + iSOAP shared rows into one devotional feed.
+const sortSharedByDate = <T extends { journal_date: string | null; id: string }>(rows: T[]) =>
+  rows.sort((a, b) => {
+    const da = a.journal_date ?? ''
+    const db = b.journal_date ?? ''
+    return da === db ? String(b.id).localeCompare(String(a.id)) : db.localeCompare(da)
+  })
+
+// SOAPs a coach's disciples shared with their coach (visibility = 'coach'),
+// from both local soap_journals and iSOAP (the system of record).
 export const getCoachSharedSoaps = async (coachPersonId: string, limit = 20) => {
+  const isoapPromise = fetchIsoapSharedSoaps(coachPersonId, limit)
+
   const { data: conns, error: connErr } = await supabase
     .from('discipleship_connections')
     .select('disciple_person_id')
     .eq('discipler_person_id', coachPersonId)
   if (connErr) return { data: null, error: connErr }
   const ids = (conns ?? []).map(c => c.disciple_person_id).filter(Boolean)
-  if (ids.length === 0) return { data: [], error: null }
+  if (ids.length === 0) return { data: await isoapPromise, error: null }
   const { data, error } = await supabase
     .from('soap_journals')
     .select(SHARED_SOAP_COLS)
@@ -1269,7 +1300,14 @@ export const getCoachSharedSoaps = async (coachPersonId: string, limit = 20) => 
     .in('person_id', ids)
     .order('created_at', { ascending: false })
     .limit(limit)
-  return { data, error }
+  if (error) return { data, error }
+
+  const isoap = await isoapPromise
+  const merged = sortSharedByDate([
+    ...((data as unknown as { journal_date: string | null; id: string }[]) ?? []),
+    ...(isoap as unknown as { journal_date: string | null; id: string }[]),
+  ]).slice(0, limit)
+  return { data: merged, error: null }
 }
 
 // SOAPs shared with the Grace Group(s) this person belongs to (visibility =

@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
     created_at: string
     updated_at: string
   }
-  const entries = ((json.entries as IsoapEntry[]) ?? [])
+  const mapped = ((json.entries as IsoapEntry[]) ?? [])
     .filter((e) => !!e.entry_date) // can't place a truly-undated entry on the timeline
     .map((e) => ({
     id: e.id,
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
     ocr_text: e.ocr_text ?? null,
     scripture_reference: e.scripture ?? null,
     summary: null,
-    visibility: 'private' as const,
+    visibility: 'private' as 'private' | 'coach' | 'group' | 'constellation',
     date_precision: (e.date_precision === 'year' ? 'year' : 'day') as 'day' | 'year',
     source: 'imported' as const,
     created_at: e.created_at,
@@ -100,5 +100,24 @@ export async function POST(request: NextRequest) {
     isoap: true,
   }))
 
-  return NextResponse.json({ entries })
+  // Coach-visibility overlay: iSOAP entries default to private, but the disciple
+  // may have opted specific entries into sharing (isoap_entry_visibility). This
+  // is a self-view, so reflect the owner's chosen level back to them — the coach
+  // read path (/api/soap/shared) enforces who may actually see a shared entry.
+  if (mapped.length > 0) {
+    const { data: overrides } = await admin
+      .from('isoap_entry_visibility')
+      .select('isoap_entry_id, visibility')
+      .eq('wc_person_id', personId)
+      .in('isoap_entry_id', mapped.map((m) => m.id))
+    if (overrides?.length) {
+      const level = new Map(overrides.map((o) => [o.isoap_entry_id, o.visibility]))
+      for (const m of mapped) {
+        const v = level.get(m.id)
+        if (v === 'coach' || v === 'group' || v === 'constellation') m.visibility = v
+      }
+    }
+  }
+
+  return NextResponse.json({ entries: mapped })
 }

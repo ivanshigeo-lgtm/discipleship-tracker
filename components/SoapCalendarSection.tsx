@@ -6,6 +6,7 @@ import { SoapJournal } from '../types/database'
 import { cleanInsight } from './journey/WeeklyInsightCard'
 import SoapImportModal from './journey/SoapImportModal'
 import SoapDateReviewModal from './journey/SoapDateReviewModal'
+import { updateSoapJournal } from '../lib/supabaseQueries'
 
 interface Props {
   soaps: SoapJournal[]
@@ -37,6 +38,109 @@ function visibilityLabel(v: SoapJournal['visibility']): string {
     case 'constellation': return 'The constellation'
     default:              return v
   }
+}
+
+const SHARE_OPTIONS: SoapJournal['visibility'][] = ['private', 'coach', 'group', 'constellation']
+
+// The owner's control over who can see one SOAP entry. Sharing is always opt-in
+// and defaults to private; a coach only ever sees an entry the disciple raised
+// here. iSOAP-sourced entries (no coach concept in iSOAP) record their level in
+// WikiChurch's coach-visibility overlay (/api/soap/visibility); local rows update
+// soap_journals directly. Keyed by entry id at the call site so it re-seeds when
+// a different entry opens.
+function ShareControl({
+  entry,
+  personId,
+  onChanged,
+}: {
+  entry: SoapJournal
+  personId?: string
+  onChanged?: () => void
+}) {
+  const [value, setValue] = useState<SoapJournal['visibility']>(entry.visibility ?? 'private')
+  const [busy, setBusy] = useState(false)
+  const [failed, setFailed] = useState(false)
+
+  // iSOAP writes need the owner's personId; without it we can only show, not edit.
+  if (entry.isoap && !personId) {
+    return (
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', marginTop: '2px',
+        padding: '2px 8px', borderRadius: '999px',
+        background: 'rgba(246,241,231,.06)', border: '1px solid var(--line-2)',
+        color: 'var(--fg-3)', fontSize: '12px', letterSpacing: '0.08em', width: 'fit-content',
+      }}>{visibilityLabel(value)}</span>
+    )
+  }
+
+  const change = async (next: SoapJournal['visibility']) => {
+    if (busy || next === value) return
+    const prev = value
+    setValue(next) // optimistic
+    setBusy(true)
+    setFailed(false)
+    let ok = false
+    try {
+      if (entry.isoap) {
+        const res = await fetch('/api/soap/visibility', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            personId,
+            isoap_entry_id: entry.id,
+            journal_date: entry.journal_date,
+            visibility: next,
+          }),
+        })
+        ok = res.ok
+      } else {
+        const { error } = await updateSoapJournal(entry.id, { visibility: next })
+        ok = !error
+      }
+    } catch {
+      ok = false
+    }
+    setBusy(false)
+    if (!ok) {
+      setValue(prev)
+      setFailed(true)
+      return
+    }
+    onChanged?.()
+  }
+
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: '2px',
+      padding: '2px 4px 2px 10px', borderRadius: '999px',
+      background: value === 'private' ? 'rgba(246,241,231,.06)' : 'rgba(54,214,195,.12)',
+      border: `1px solid ${value === 'private' ? 'var(--line-2)' : 'rgba(54,214,195,.4)'}`,
+      color: 'var(--fg-3)', fontSize: '12px', letterSpacing: '0.06em', width: 'fit-content',
+    }}>
+      <span aria-hidden style={{ opacity: 0.7 }}>{value === 'private' ? '🔒' : '✦'}</span>
+      <select
+        aria-label="Who can see this entry"
+        value={value}
+        disabled={busy}
+        onChange={(e) => change(e.target.value as SoapJournal['visibility'])}
+        style={{
+          appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none',
+          background: 'transparent', border: 'none', outline: 'none',
+          color: value === 'private' ? 'var(--fg-3)' : 'var(--establish, #36D6C3)',
+          fontSize: '12px', fontWeight: 600, letterSpacing: '0.04em',
+          cursor: busy ? 'wait' : 'pointer', paddingRight: '14px',
+        }}
+      >
+        {SHARE_OPTIONS.map((v) => (
+          <option key={v} value={v} style={{ color: '#111' }}>
+            {visibilityLabel(v)}
+          </option>
+        ))}
+      </select>
+      {busy && <span style={{ opacity: 0.6 }}>…</span>}
+      {failed && <span style={{ color: 'var(--danger, #f66)' }} title="Couldn’t update">!</span>}
+    </span>
+  )
 }
 
 function formatNiceDate(dateStr: string): string {
@@ -1221,14 +1325,12 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                   {selectedEntry.scripture_reference}
                 </span>
               )}
-              <span style={{
-                display: 'inline-flex', alignItems: 'center', marginTop: '2px',
-                padding: '2px 8px', borderRadius: '999px',
-                background: 'rgba(246,241,231,.06)', border: '1px solid var(--line-2)',
-                color: 'var(--fg-3)', fontSize: '12px', letterSpacing: '0.08em', width: 'fit-content',
-              }}>
-                {visibilityLabel(selectedEntry.visibility)}
-              </span>
+              <ShareControl
+                key={selectedEntry.id}
+                entry={selectedEntry}
+                personId={personId}
+                onChanged={onRefresh}
+              />
             </div>
             <button
               onClick={() => setSelectedDate(null)}
@@ -1423,15 +1525,12 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                     {modalEntry.scripture_reference}
                   </span>
                 )}
-                <span style={{
-                  display: 'inline-flex', alignItems: 'center', marginTop: '2px',
-                  padding: '2px 8px', borderRadius: '999px',
-                  background: 'rgba(246,241,231,.06)', border: '1px solid var(--line-2)',
-                  color: 'var(--fg-3)', fontSize: '12px', letterSpacing: '0.08em',
-                  width: 'fit-content',
-                }}>
-                  {visibilityLabel(modalEntry.visibility)}
-                </span>
+                <ShareControl
+                  key={modalEntry.id}
+                  entry={modalEntry}
+                  personId={personId}
+                  onChanged={onRefresh}
+                />
               </div>
               <button
                 onClick={() => { setModalEntry(null); setModalOcrText(null) }}

@@ -129,6 +129,21 @@ export default function SoapEntryModal({
         setBusy(false)
         return
       }
+      // iSOAP is private by default and has no coach concept. If the disciple
+      // chose to share this entry, record that choice in WikiChurch's
+      // coach-visibility overlay, keyed by the iSOAP entry id we just created.
+      if (json.entry_id && visibility !== 'private') {
+        await fetch('/api/soap/visibility', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            personId,
+            isoap_entry_id: json.entry_id,
+            journal_date: entryDate,
+            visibility,
+          }),
+        }).catch(() => {})
+      }
       setBusy(false)
       onSaved()
       onClose()
