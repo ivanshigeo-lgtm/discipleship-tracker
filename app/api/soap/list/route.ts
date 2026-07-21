@@ -71,10 +71,12 @@ export async function POST(request: NextRequest) {
 
   type IsoapEntry = {
     id: string
+    kind?: string | null
     entry_date: string
     date_precision?: string
     scripture?: string | null
     ocr_text?: string | null
+    body?: string | null
     photo_url?: string | null
     created_at: string
     updated_at: string
@@ -87,7 +89,9 @@ export async function POST(request: NextRequest) {
     journal_date: e.entry_date,
     photo_url: e.photo_url ?? null,
     photo_urls: null,
-    ocr_text: e.ocr_text ?? null,
+    // Text-only entries carry their content in `body`; photo entries in `ocr_text`.
+    // Fold both into ocr_text so the existing display + search path renders them.
+    ocr_text: e.ocr_text ?? e.body ?? null,
     scripture_reference: e.scripture ?? null,
     summary: null,
     visibility: 'private' as 'private' | 'coach' | 'group' | 'constellation',

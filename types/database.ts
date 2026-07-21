@@ -183,7 +183,8 @@ export type SoapJournal = {
   // self-driving import chain is actively reading this page.
   processing_started_at?: string | null
   // True when this row was read from iSOAP (the SOAP system of record) rather
-  // than the local soap_journals table. Read-only in WikiChurch for now.
+  // than the local soap_journals table. Editable from WikiChurch via
+  // /api/soap/update (which forwards the edit to iSOAP by entry id).
   isoap?: boolean
 }
 

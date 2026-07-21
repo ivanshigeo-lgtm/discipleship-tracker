@@ -15,6 +15,7 @@ interface Props {
   currentStreak?: number    // current run
   onRefresh?: () => void
   onNewEntryForDate?: (date: string) => void
+  onEditEntry?: (entry: SoapJournal) => void  // open the editor for an existing entry
   belowSearch?: ReactNode   // rendered right under the search bar
   personId?: string         // whose journals — needed for the weekly summary
 }
@@ -252,7 +253,7 @@ function shiftMonth(year: number, month: number, delta: number) {
   return { year: y, month: m }
 }
 
-export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, currentStreak = 0, onRefresh, onNewEntryForDate, belowSearch, personId }: Props) {
+export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, currentStreak = 0, onRefresh, onNewEntryForDate, onEditEntry, belowSearch, personId }: Props) {
   const today = new Date()
   const todayIso = toLocalIso(today)
 
@@ -1332,24 +1333,46 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                 onChanged={onRefresh}
               />
             </div>
-            <button
-              onClick={() => setSelectedDate(null)}
-              aria-label="Close entry"
-              style={{
-                flexShrink: 0, width: '40px', height: '40px', borderRadius: '8px',
-                border: '1px solid var(--line-2)', background: 'transparent',
-                color: 'var(--fg-3)', cursor: 'pointer', fontSize: '15px',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}
-              onMouseOver={e => {
-                e.currentTarget.style.background = 'rgba(246,241,231,.08)'
-                e.currentTarget.style.color = 'var(--fg-1)'
-              }}
-              onMouseOut={e => {
-                e.currentTarget.style.background = 'transparent'
-                e.currentTarget.style.color = 'var(--fg-3)'
-              }}
-            >✕</button>
+            <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+              {onEditEntry && (
+                <button
+                  onClick={() => onEditEntry(selectedEntry)}
+                  aria-label="Edit entry"
+                  style={{
+                    height: '40px', padding: '0 14px', borderRadius: '8px',
+                    border: '1px solid var(--line-2)', background: 'transparent',
+                    color: 'var(--fg-2)', cursor: 'pointer', fontSize: '13px', fontWeight: 600,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                  }}
+                  onMouseOver={e => {
+                    e.currentTarget.style.background = 'rgba(54,214,195,.10)'
+                    e.currentTarget.style.color = 'var(--establish, #36D6C3)'
+                  }}
+                  onMouseOut={e => {
+                    e.currentTarget.style.background = 'transparent'
+                    e.currentTarget.style.color = 'var(--fg-2)'
+                  }}
+                >✎ Edit</button>
+              )}
+              <button
+                onClick={() => setSelectedDate(null)}
+                aria-label="Close entry"
+                style={{
+                  width: '40px', height: '40px', borderRadius: '8px',
+                  border: '1px solid var(--line-2)', background: 'transparent',
+                  color: 'var(--fg-3)', cursor: 'pointer', fontSize: '15px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+                onMouseOver={e => {
+                  e.currentTarget.style.background = 'rgba(246,241,231,.08)'
+                  e.currentTarget.style.color = 'var(--fg-1)'
+                }}
+                onMouseOut={e => {
+                  e.currentTarget.style.background = 'transparent'
+                  e.currentTarget.style.color = 'var(--fg-3)'
+                }}
+              >✕</button>
+            </div>
           </div>
 
           <div style={{ padding: '16px' }}>

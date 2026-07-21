@@ -28,13 +28,17 @@ export async function POST(request: NextRequest) {
 
   const formData = await request.formData()
   const file = formData.get('file') as File | null
+  const textField = formData.get('text')
+  const text = typeof textField === 'string' ? textField.trim() : ''
   const personId = formData.get('personId') as string | null
   const journalDate = formData.get('journal_date') as string | null
+  const scriptureField = formData.get('scripture')
+  const scripture = typeof scriptureField === 'string' && scriptureField.trim() ? scriptureField.trim() : null
 
-  if (!file || !personId) {
-    return NextResponse.json({ error: 'file and personId required' }, { status: 400 })
+  if (!personId || (!file && !text)) {
+    return NextResponse.json({ error: 'personId and (file or text) required' }, { status: 400 })
   }
-  if (file.size > 10 * 1024 * 1024) {
+  if (file && file.size > 10 * 1024 * 1024) {
     return NextResponse.json({ error: 'File too large (10MB max)' }, { status: 400 })
   }
 
@@ -72,11 +76,12 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // 3. Base64 the photo bytes.
-  const arrayBuffer = await file.arrayBuffer()
-  const photoBase64 = Buffer.from(arrayBuffer).toString('base64')
+  // 3. Base64 the photo bytes (photo entries only).
+  const photoBase64 = file
+    ? Buffer.from(await file.arrayBuffer()).toString('base64')
+    : null
 
-  // 4. Forward to iSOAP.
+  // 4. Forward to iSOAP — a photo capture (photo_base64) or a typed entry (text).
   let resp: Response
   try {
     resp = await fetch(ISOAP_INGEST_URL, {
@@ -87,8 +92,10 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({
         ...target,
-        photo_base64: photoBase64,
-        content_type: file.type || 'image/jpeg',
+        ...(photoBase64
+          ? { photo_base64: photoBase64, content_type: file!.type || 'image/jpeg' }
+          : { text }),
+        scripture,
         entry_date: journalDate || undefined,
       }),
     })

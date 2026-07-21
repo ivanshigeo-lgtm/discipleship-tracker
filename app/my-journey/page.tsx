@@ -150,6 +150,7 @@ export default function MyJourneyPage() {
   const [demo, setDemo] = useState<DemoPhase>(null)
   const [activeModal, setActiveModal] = useState<'soap' | 'testimony' | 'coach' | 'message' | 'join-group' | 'prayer' | null>(null)
   const [soapEntryDate, setSoapEntryDate] = useState<string | null>(null)
+  const [soapEditEntry, setSoapEditEntry] = useState<SoapJournal | null>(null)
   const [msgCenterOpen, setMsgCenterOpen] = useState(false)
   const [unreadMsgCount, setUnreadMsgCount] = useState(0)
   const [selfConfirm, setSelfConfirm] = useState<SelfConfirmKind | null>(null)
@@ -664,6 +665,7 @@ export default function MyJourneyPage() {
             currentStreak={currentStreak}
             onRefresh={refreshSoaps}
             onNewEntryForDate={date => { setSoapEntryDate(date); setActiveModal('soap') }}
+            onEditEntry={entry => { setSoapEditEntry(entry); setActiveModal('soap') }}
             personId={profile.id}
           />
         </section>
@@ -695,7 +697,8 @@ export default function MyJourneyPage() {
         <SoapEntryModal
           personId={profile.id}
           initialDate={soapEntryDate ?? undefined}
-          onClose={() => { setActiveModal(null); setSoapEntryDate(null) }}
+          editEntry={soapEditEntry ?? undefined}
+          onClose={() => { setActiveModal(null); setSoapEntryDate(null); setSoapEditEntry(null) }}
           onSaved={loadData}
         />
       )}

@@ -1,9 +1,21 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { addSoapJournal } from '../../lib/supabaseQueries'
+import { updateSoapJournal } from '../../lib/supabaseQueries'
 import { prepareImage } from '../../lib/prepareImage'
-import type { ShareVisibility } from '../../types/database'
+import type { ShareVisibility, SoapJournal } from '../../types/database'
+
+// Base64 (no data: prefix) of a File — for forwarding a photo to iSOAP on edit.
+const fileToBase64 = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = String(reader.result)
+      resolve(result.includes(',') ? result.split(',')[1] : result)
+    }
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(file)
+  })
 
 const SCOPES: { value: ShareVisibility; label: string; hint: string }[] = [
   { value: 'private', label: 'Just me', hint: 'Between you and God' },
@@ -20,18 +32,26 @@ export default function SoapEntryModal({
   onClose,
   onSaved,
   initialDate,
+  editEntry,
 }: {
   personId: string
   onClose: () => void
   onSaved: () => void
   initialDate?: string
+  // When present the modal edits an existing SOAP in place (create otherwise).
+  // Edits to an iSOAP row route through /api/soap/update; local rows update
+  // soap_journals directly.
+  editEntry?: SoapJournal
 }) {
+  const isEdit = !!editEntry
   const todayIso = new Date().toISOString().split('T')[0]
-  const [entryDate, setEntryDate] = useState(initialDate ?? todayIso)
-  const [entry, setEntry] = useState('')
-  const [visibility, setVisibility] = useState<ShareVisibility>('private')
+  const [entryDate, setEntryDate] = useState(editEntry?.journal_date ?? initialDate ?? todayIso)
+  const [entry, setEntry] = useState(editEntry?.ocr_text ?? '')
+  const [visibility, setVisibility] = useState<ShareVisibility>(editEntry?.visibility ?? 'private')
   const [photo, setPhoto] = useState<File | null>(null)
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  // A newly-taken photo (File) replaces the entry image; on edit we seed the
+  // preview from the existing photo so the user sees it, without a File to send.
+  const [photoPreview, setPhotoPreview] = useState<string | null>(editEntry?.photo_url ?? null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [cameraOpen, setCameraOpen] = useState(false)
@@ -110,39 +130,64 @@ export default function SoapEntryModal({
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
+  // Records the disciple's share choice for an iSOAP entry in WikiChurch's
+  // coach-visibility overlay (iSOAP is private by default and has no coach
+  // concept). 'private' clears the overlay row on the server.
+  const saveVisibility = async (isoapEntryId: string) => {
+    await fetch('/api/soap/visibility', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ personId, isoap_entry_id: isoapEntryId, journal_date: entryDate, visibility }),
+    }).catch(() => {})
+  }
+
   const handleSave = async () => {
-    if (!entry.trim() && !photo) return
+    if (!entry.trim() && !photo && !photoPreview) return
     setBusy(true)
     setError('')
 
-    // Photo entries flow through iSOAP (the SOAP system of record): the ingest
-    // route provisions/links the iSOAP account, stores the photo, and OCRs it.
-    if (photo) {
-      const form = new FormData()
-      form.append('file', photo)
-      form.append('personId', personId)
-      form.append('journal_date', entryDate)
-      const res = await fetch('/api/soap/ingest', { method: 'POST', body: form })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        setError(json.error || 'Could not save. Please try again.')
-        setBusy(false)
-        return
-      }
-      // iSOAP is private by default and has no coach concept. If the disciple
-      // chose to share this entry, record that choice in WikiChurch's
-      // coach-visibility overlay, keyed by the iSOAP entry id we just created.
-      if (json.entry_id && visibility !== 'private') {
-        await fetch('/api/soap/visibility', {
+    // A photo is involved if the user just took one, or (on edit) the entry
+    // already had one. Photo entries store text in ocr_text; text entries in body.
+    const hasPhoto = !!photo || !!editEntry?.photo_url
+
+    if (isEdit) {
+      // ---- EDIT ----
+      if (editEntry!.isoap) {
+        // Route the edit to iSOAP (the system of record) by entry id.
+        const payload: Record<string, unknown> = {
+          personId,
+          entryId: editEntry!.id,
+          entry_date: entryDate,
+          [hasPhoto ? 'ocr_text' : 'body']: entry.trim() || null,
+        }
+        if (photo) {
+          payload.photo_base64 = await fileToBase64(photo)
+          payload.content_type = photo.type || 'image/jpeg'
+        }
+        const res = await fetch('/api/soap/update', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            personId,
-            isoap_entry_id: json.entry_id,
-            journal_date: entryDate,
-            visibility,
-          }),
-        }).catch(() => {})
+          body: JSON.stringify(payload),
+        })
+        const json = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          setError(json.error || 'Could not save. Please try again.')
+          setBusy(false)
+          return
+        }
+        await saveVisibility(editEntry!.id)
+      } else {
+        // Local soap_journals row — update in place.
+        const { error: updErr } = await updateSoapJournal(editEntry!.id, {
+          journal_date: entryDate,
+          ocr_text: entry.trim() || null,
+          visibility,
+        })
+        if (updErr) {
+          setError('Could not save. Please try again.')
+          setBusy(false)
+          return
+        }
       }
       setBusy(false)
       onSaved()
@@ -150,36 +195,37 @@ export default function SoapEntryModal({
       return
     }
 
-    // Text-only entries have no iSOAP home yet — keep them in soap_journals.
-    const { error: insErr } = await addSoapJournal({
-      person_id: personId,
-      journal_date: entryDate,
-      photo_url: null,
-      ocr_text: entry.trim() || null,
-      scripture_reference: null,
-      summary: null,
-      visibility,
-    })
-
-    if (insErr) {
-      setError(insErr.message?.includes('duplicate') ? 'You already have an entry for that date.' : 'Could not save. Please try again.')
+    // ---- CREATE ---- Everything new flows through iSOAP (the system of record):
+    // photo captures and text-only entries alike. The ingest proxy provisions/
+    // links the iSOAP account and (for photos) stores + OCRs the image.
+    const form = new FormData()
+    form.append('personId', personId)
+    form.append('journal_date', entryDate)
+    if (photo) form.append('file', photo)
+    else form.append('text', entry.trim())
+    const res = await fetch('/api/soap/ingest', { method: 'POST', body: form })
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      setError(json.error || 'Could not save. Please try again.')
       setBusy(false)
       return
     }
-
+    if (json.entry_id && visibility !== 'private') {
+      await saveVisibility(json.entry_id)
+    }
     setBusy(false)
     onSaved()
     onClose()
   }
 
-  const canSave = entry.trim().length > 0 || photo !== null
+  const canSave = entry.trim().length > 0 || photo !== null || !!photoPreview
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(6,8,20,.8)] p-4 backdrop-blur-sm">
       <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-[var(--r-xl)] border border-[var(--line-2)] bg-[var(--indigo)] p-6" style={{ boxShadow: 'var(--elev-2)' }}>
         <div className="cn-label" style={{ color: 'var(--establish)' }}>Establish · in the Word</div>
         <h2 className="mt-1 text-2xl" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>
-          {entryDate === todayIso ? "Today’s SOAP" : 'SOAP Entry'}
+          {isEdit ? 'Edit SOAP' : entryDate === todayIso ? "Today’s SOAP" : 'SOAP Entry'}
         </h2>
 
         {/* Date selector (for backdating) */}
@@ -340,7 +386,7 @@ export default function SoapEntryModal({
           disabled={busy || !canSave}
           className="cn-btn cn-btn-primary mt-4 w-full disabled:opacity-50"
         >
-          {busy ? 'Saving…' : entryDate === todayIso ? "Save today's entry" : 'Save entry'}
+          {busy ? 'Saving…' : isEdit ? 'Save changes' : entryDate === todayIso ? "Save today's entry" : 'Save entry'}
         </button>
         <button type="button" onClick={onClose} className="cn-btn cn-btn-ghost mt-2 w-full">
           Cancel
