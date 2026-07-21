@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { updateSoapJournal } from '../../lib/supabaseQueries'
+import { updateSoapJournal, deleteSoapJournal } from '../../lib/supabaseQueries'
 import { prepareImage } from '../../lib/prepareImage'
 import type { ShareVisibility, SoapJournal } from '../../types/database'
 
@@ -218,6 +218,39 @@ export default function SoapEntryModal({
     onClose()
   }
 
+  // Delete an existing SOAP. iSOAP-owned rows route through /api/soap/delete
+  // (the system of record removes the one row under an ownership guard); local
+  // soap_journals rows delete directly. Never offered in create mode.
+  const handleDelete = async () => {
+    if (!editEntry) return
+    if (!window.confirm('Delete this SOAP entry? This cannot be undone.')) return
+    setBusy(true)
+    setError('')
+    if (editEntry.isoap) {
+      const res = await fetch('/api/soap/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ personId, entryId: editEntry.id }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(json.error || 'Could not delete. Please try again.')
+        setBusy(false)
+        return
+      }
+    } else {
+      const { error: delErr } = await deleteSoapJournal(editEntry.id)
+      if (delErr) {
+        setError('Could not delete. Please try again.')
+        setBusy(false)
+        return
+      }
+    }
+    setBusy(false)
+    onSaved()
+    onClose()
+  }
+
   const canSave = entry.trim().length > 0 || photo !== null || !!photoPreview
 
   return (
@@ -391,6 +424,16 @@ export default function SoapEntryModal({
         <button type="button" onClick={onClose} className="cn-btn cn-btn-ghost mt-2 w-full">
           Cancel
         </button>
+        {isEdit && (
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={busy}
+            className="mt-2 w-full rounded-lg py-2 text-xs font-medium text-[var(--danger)] underline underline-offset-2 hover:opacity-80 disabled:opacity-50"
+          >
+            Delete this entry
+          </button>
+        )}
       </div>
     </div>
   )
