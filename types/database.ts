@@ -182,6 +182,9 @@ export type SoapJournal = {
   // Worker claim on a pending import photo; a recent timestamp means the
   // self-driving import chain is actively reading this page.
   processing_started_at?: string | null
+  // True when this row was read from iSOAP (the SOAP system of record) rather
+  // than the local soap_journals table. Read-only in WikiChurch for now.
+  isoap?: boolean
 }
 
 export type LevelSignoff = {

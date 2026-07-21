@@ -895,10 +895,47 @@ export const deleteDiscipleshipConnection = async (id: string) => {
 const SOAP_LITE_COLUMNS =
   'id, person_id, journal_date, photo_url, photo_urls, scripture_reference, summary, visibility, date_precision, source, import_batch_id, import_seq, date_reviewed, processing_started_at, created_at, updated_at'
 
+// iSOAP is the SOAP system of record. For linked people, pull their journal
+// from there and map it into SoapJournal shape so it can be merged with any
+// remaining local soap_journals rows. Best-effort: any failure yields [] and
+// the local rows still render.
+const fetchIsoapJournals = async (
+  personId: string,
+  includeText: boolean,
+  limit?: number
+): Promise<SoapJournal[]> => {
+  try {
+    const res = await fetch('/api/soap/list', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ personId, includeText, limit }),
+    })
+    if (!res.ok) return []
+    const json = await res.json()
+    return (json.entries as SoapJournal[]) ?? []
+  } catch {
+    return []
+  }
+}
+
+// Newest-first, with a stable id tiebreak — matches the DB ordering so merged
+// local + iSOAP rows interleave correctly.
+const sortSoapDesc = (rows: SoapJournal[]) =>
+  rows.sort((a, b) => {
+    const da = a.journal_date ?? ''
+    const db = b.journal_date ?? ''
+    return da === db ? b.id.localeCompare(a.id) : db.localeCompare(da)
+  })
+
 const getSoapJournalsPaged = async (personId: string, columns: string, limit?: number) => {
+  const includeText = columns === '*'
+  // Kick off the iSOAP read in parallel with the local read.
+  const isoapPromise = fetchIsoapJournals(personId, includeText, limit)
+
   // Supabase caps every response at 1,000 rows. With a decade imported
   // (~2,000 entries) a single select silently truncates at ~March 2024 —
   // page through unless the caller asked for an explicit smaller limit.
+  let local: SoapJournal[]
   if (limit) {
     const { data, error } = await supabase
       .from('soap_journals')
@@ -906,35 +943,47 @@ const getSoapJournalsPaged = async (personId: string, columns: string, limit?: n
       .eq('person_id', personId)
       .order('journal_date', { ascending: false })
       .limit(limit)
-    return { data: (data as unknown as SoapJournal[]) ?? null, error }
-  }
+    if (error) return { data: null, error }
+    local = (data as unknown as SoapJournal[]) ?? []
+  } else {
+    // Count first, then fetch every page IN PARALLEL — with a decade imported
+    // (~2,000 rows, MBs of text) sequential pages made the journey page crawl.
+    const { count, error: countErr } = await supabase
+      .from('soap_journals')
+      .select('id', { count: 'exact', head: true })
+      .eq('person_id', personId)
+    if (countErr) return { data: null, error: countErr }
 
-  // Count first, then fetch every page IN PARALLEL — with a decade imported
-  // (~2,000 rows, MBs of text) sequential pages made the journey page crawl.
-  const { count, error: countErr } = await supabase
-    .from('soap_journals')
-    .select('id', { count: 'exact', head: true })
-    .eq('person_id', personId)
-  if (countErr) return { data: null, error: countErr }
-
-  const pages = Math.max(1, Math.ceil((count ?? 0) / 1000))
-  const results = await Promise.all(
-    Array.from({ length: pages }, (_, i) =>
-      supabase
-        .from('soap_journals')
-        .select(columns)
-        .eq('person_id', personId)
-        .order('journal_date', { ascending: false })
-        .order('id', { ascending: false }) // stable tiebreak so pages don't overlap
-        .range(i * 1000, i * 1000 + 999)
+    const pages = Math.max(1, Math.ceil((count ?? 0) / 1000))
+    const results = await Promise.all(
+      Array.from({ length: pages }, (_, i) =>
+        supabase
+          .from('soap_journals')
+          .select(columns)
+          .eq('person_id', personId)
+          .order('journal_date', { ascending: false })
+          .order('id', { ascending: false }) // stable tiebreak so pages don't overlap
+          .range(i * 1000, i * 1000 + 999)
+      )
     )
-  )
-  const all: SoapJournal[] = []
-  for (const r of results) {
-    if (r.error) return { data: all.length ? all : null, error: r.error }
-    all.push(...((r.data as unknown as SoapJournal[]) ?? []))
+    local = []
+    for (const r of results) {
+      if (r.error) return { data: local.length ? local : null, error: r.error }
+      local.push(...((r.data as unknown as SoapJournal[]) ?? []))
+    }
   }
-  return { data: all, error: null }
+
+  // Dedup for the transition: the same decade of handwritten SOAP was imported
+  // into BOTH apps independently, so a linked person's local soap_journals and
+  // iSOAP journal_entries overlap by date. iSOAP is the system of record, so on
+  // any shared date the iSOAP row wins; local rows survive only on dates iSOAP
+  // has nothing for (e.g. entries never migrated). Collapses once soap_journals
+  // is migrated and retired.
+  const isoap = await isoapPromise
+  const isoapDates = new Set(isoap.map((e) => e.journal_date))
+  const localOnly = local.filter((r) => !isoapDates.has(r.journal_date))
+  const merged = sortSoapDesc([...localOnly, ...isoap])
+  return { data: limit ? merged.slice(0, limit) : merged, error: null }
 }
 
 export const getSoapJournals = async (personId: string, limit?: number) =>
@@ -971,6 +1020,11 @@ export const getSoapJournalTexts = async (personId: string) => {
   for (const r of results) {
     if (r.error) return { data: all.length ? all : null, error: r.error }
     all.push(...((r.data as { id: string; ocr_text: string }[]) ?? []))
+  }
+  // Fold in iSOAP entry text so cross-app entries are searchable too.
+  const isoap = await fetchIsoapJournals(personId, true)
+  for (const e of isoap) {
+    if (e.ocr_text) all.push({ id: e.id, ocr_text: e.ocr_text })
   }
   return { data: all, error: null }
 }
