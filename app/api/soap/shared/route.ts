@@ -4,23 +4,30 @@ import { getSupabaseAdmin } from '../../../../lib/supabaseServer'
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
-// Coach read path for the coach-visibility overlay. Returns the iSOAP-sourced
-// SOAP entries a coach's disciples have explicitly shared with their coach
-// (isoap_entry_visibility.visibility = 'coach'), mapped into the same shape the
-// local getCoachSharedSoaps feed uses, so both merge in the coach dashboard.
+// Read path for the visibility overlay. Returns the iSOAP-sourced SOAP entries
+// that disciples explicitly shared at a given level (isoap_entry_visibility),
+// mapped into the same shape the local shared-SOAP feeds use, so both merge in
+// the dashboard. Three scopes, each with its own authorization rule:
 //
-// Authorization is enforced here, server-side:
-//   • only disciples connected to this coach (discipleship_connections),
-//   • only their entries flagged 'coach' in the overlay,
-//   • fetched from each disciple's OWN iSOAP account (user_id-scoped) via
-//     entry_ids — so nothing outside the shared set is ever read or signed.
-// iSOAP itself is untouched; it has no coach concept.
+//   • coach         — entries flagged 'coach' by the coach's disciples
+//                     (discipleship_connections). Body needs coachPersonId.
+//   • group         — entries flagged 'group' by any approved co-member of the
+//                     viewer's Grace Group(s). Body needs personId.
+//   • constellation — entries flagged 'constellation' by anyone (church-wide,
+//                     the GBC wall). No author restriction; no id needed.
 //
-// Body (JSON): { coachPersonId, limit? }
+// In every case the content is fetched from each author's OWN iSOAP account
+// (user_id-scoped) via entry_ids — nothing outside the shared set is ever read
+// or signed. iSOAP itself is untouched; it has no coach/group concept.
+//
+// Body (JSON): { scope?: 'coach'|'group'|'constellation', coachPersonId?, personId?, limit? }
+// scope defaults to 'coach' for backward compatibility.
 
 const ISOAP_LIST_URL = (
   process.env.ISOAP_INGEST_URL || 'https://api.isoap.app/api/entries/ingest'
 ).replace(/\/ingest$/, '/list')
+
+type Level = 'coach' | 'group' | 'constellation'
 
 type SharedRow = {
   id: string
@@ -29,11 +36,63 @@ type SharedRow = {
   scripture_reference: string | null
   ocr_text: string | null
   summary: string | null
-  visibility: 'coach'
+  visibility: Level
   created_at: string
   people: { name: string } | null
   photo_url: string | null
   isoap: true
+}
+
+// Determine which authors' shares this request may read, per scope. Returns the
+// list of allowed author person-ids, or `null` for church-wide (constellation)
+// where no author restriction applies. A non-null empty array means "authorized
+// but no one qualifies" → the caller returns an empty feed.
+async function resolveAuthors(
+  admin: ReturnType<typeof getSupabaseAdmin>,
+  scope: Level,
+  coachPersonId: string | undefined,
+  personId: string | undefined
+): Promise<{ authorIds: string[] | null } | { error: string }> {
+  if (scope === 'constellation') return { authorIds: null }
+
+  if (scope === 'coach') {
+    if (!coachPersonId) return { error: 'coachPersonId required' }
+    // Relationship = authorization: only this coach's disciples.
+    const { data: conns, error } = await admin
+      .from('discipleship_connections')
+      .select('disciple_person_id')
+      .eq('discipler_person_id', coachPersonId)
+    if (error) return { error: 'Could not read connections' }
+    return {
+      authorIds: Array.from(
+        new Set((conns ?? []).map((c) => c.disciple_person_id).filter(Boolean))
+      ),
+    }
+  }
+
+  // scope === 'group': approved co-members of the viewer's Grace Group(s).
+  if (!personId) return { error: 'personId required' }
+  const { data: myGroups, error: gErr } = await admin
+    .from('person_victory_groups')
+    .select('victory_group_id')
+    .eq('person_id', personId)
+    .eq('status', 'approved')
+  if (gErr) return { error: 'Could not read groups' }
+  const gids = Array.from(
+    new Set((myGroups ?? []).map((g) => g.victory_group_id).filter(Boolean))
+  )
+  if (gids.length === 0) return { authorIds: [] }
+  const { data: members, error: mErr } = await admin
+    .from('person_victory_groups')
+    .select('person_id')
+    .in('victory_group_id', gids)
+    .eq('status', 'approved')
+  if (mErr) return { error: 'Could not read group members' }
+  return {
+    authorIds: Array.from(
+      new Set((members ?? []).map((m) => m.person_id).filter(Boolean))
+    ),
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -42,43 +101,39 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'ISOAP_INGEST_SECRET not configured' }, { status: 500 })
   }
 
-  let body: { coachPersonId?: string; limit?: number }
+  let body: { scope?: string; coachPersonId?: string; personId?: string; limit?: number }
   try {
     body = await request.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
-  const coachPersonId = body.coachPersonId
-  if (!coachPersonId) {
-    return NextResponse.json({ error: 'coachPersonId required' }, { status: 400 })
-  }
+  const scope: Level =
+    body.scope === 'group' || body.scope === 'constellation' ? body.scope : 'coach'
   const limit = Math.min(Math.max(body.limit ?? 20, 1), 100)
 
   const admin = getSupabaseAdmin()
 
-  // 1. Who does this coach disciple? (relationship = authorization)
-  const { data: conns, error: connErr } = await admin
-    .from('discipleship_connections')
-    .select('disciple_person_id')
-    .eq('discipler_person_id', coachPersonId)
-  if (connErr) {
-    return NextResponse.json({ error: 'Could not read connections' }, { status: 500 })
+  // 1. Who may this request read? (authorization, per scope)
+  const resolved = await resolveAuthors(admin, scope, body.coachPersonId, body.personId)
+  if ('error' in resolved) {
+    const status = resolved.error.endsWith('required') ? 400 : 500
+    return NextResponse.json({ error: resolved.error }, { status })
   }
-  const discipleIds = Array.from(
-    new Set((conns ?? []).map((c) => c.disciple_person_id).filter(Boolean))
-  )
-  if (discipleIds.length === 0) return NextResponse.json({ entries: [] })
+  const { authorIds } = resolved
+  // Authorized but nobody qualifies (e.g. coach with no disciples, or viewer in
+  // no group) → empty feed. `null` = church-wide, which never short-circuits.
+  if (authorIds !== null && authorIds.length === 0) return NextResponse.json({ entries: [] })
 
-  // 2. Which of their iSOAP entries did they share with their coach?
-  //    Pull a generous buffer, ordered newest-first; the final slice is applied
-  //    after content is fetched.
-  const { data: shares, error: shareErr } = await admin
+  // 2. Which iSOAP entries were shared at this level? Pull a generous buffer,
+  //    ordered newest-first; the final slice is applied after content is fetched.
+  let shareQuery = admin
     .from('isoap_entry_visibility')
     .select('isoap_entry_id, wc_person_id, journal_date')
-    .in('wc_person_id', discipleIds)
-    .eq('visibility', 'coach')
+    .eq('visibility', scope)
     .order('journal_date', { ascending: false })
     .limit(limit * 4)
+  if (authorIds !== null) shareQuery = shareQuery.in('wc_person_id', authorIds)
+  const { data: shares, error: shareErr } = await shareQuery
   if (shareErr) {
     return NextResponse.json({ error: 'Could not read shares' }, { status: 500 })
   }
@@ -141,7 +196,7 @@ export async function POST(request: NextRequest) {
           scripture_reference: e.scripture ?? null,
           ocr_text: e.ocr_text ?? null,
           summary: null,
-          visibility: 'coach' as const,
+          visibility: scope,
           created_at: e.created_at,
           people: name ? { name } : null,
           photo_url: e.photo_url ?? null,
