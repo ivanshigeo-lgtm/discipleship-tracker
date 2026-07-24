@@ -20,8 +20,8 @@ import {
   sendMessage,
 } from '../../lib/supabaseQueries'
 import { supabase } from '../../lib/supabaseClient'
-import type { SoapJournal, StageChecklistItem, Person, VictoryGroup, DiscipleshipConnection, LevelSignoff } from '../../types/database'
-import { computeJourney, computeBadges, ringProgressFromLevels, levelByStage, STEP_CHECKLIST, type JourneyStep } from '../../components/journey/journeyModel'
+import type { SoapJournal, StageChecklistItem, Person, VictoryGroup, DiscipleshipConnection, LevelSignoff, Stage } from '../../types/database'
+import { computeJourney, computeBadges, ringProgressFromLevels, levelByStage, STEP_CHECKLIST, JOURNEY_ORDER, type JourneyStep } from '../../components/journey/journeyModel'
 import { Starfield } from '../../components/journey/StarPrimitives'
 import JourneyIntro from '../../components/journey/JourneyIntro'
 import JourneyTour from '../../components/journey/JourneyTour'
@@ -41,6 +41,10 @@ import JourneyMenu from '../../components/journey/JourneyMenu'
 import EmpoweredCoachmark from '../../components/journey/EmpoweredCoachmark'
 import SoapCalendarSection from '../../components/SoapCalendarSection'
 import SignoffNotice from '../../components/journey/SignoffNotice'
+import JourneyTabs, { type JourneyTab } from '../../components/journey/JourneyTabs'
+import StageDock from '../../components/journey/StageDock'
+import PrayerLifeSection from '../../components/journey/PrayerLifeSection'
+import SoapFeedSection from '../../components/journey/SoapFeedSection'
 
 const INTRO_KEY = 'journey_intro_seen'
 const DEMO_KEY = 'journey_quadrant_demo_seen'
@@ -157,6 +161,11 @@ export default function MyJourneyPage() {
   const [selectedJournal, setSelectedJournal] = useState<SoapJournal | null>(null)
   const [processingOcr, setProcessingOcr] = useState(false)
   const feedItems = useConstellationFeed()
+  // Which of the five destinations is showing (native separates these onto
+  // their own screens; on web the rail/bottom-bar switches between them).
+  const [tab, setTab] = useState<JourneyTab>('home')
+  // Home screen: which stage's checklist is docked below the star (null = none).
+  const [dockStage, setDockStage] = useState<Stage | null>(null)
 
   useEffect(() => {
     setShowIntro(!localStorage.getItem(INTRO_KEY))
@@ -485,6 +494,15 @@ export default function MyJourneyPage() {
 
   const currentLevel = levels.find(l => l.unlocked && !l.completed) ?? levels[levels.length - 1]
 
+  // Home dock: the chosen stage's level + its journey-order predecessor (for the
+  // "opens when your coach signs off …" note on locked stages).
+  const dockLevel = dockStage ? (levels.find(l => l.stage === dockStage) ?? null) : null
+  const dockPrev = (() => {
+    if (!dockStage) return undefined
+    const i = JOURNEY_ORDER.indexOf(dockStage)
+    return i > 0 ? levels.find(l => l.stage === JOURNEY_ORDER[i - 1]) : undefined
+  })()
+
   return (
     <div className="relative min-h-screen overflow-x-clip bg-[var(--void)]">
       {/* cosmic backdrop */}
@@ -509,6 +527,11 @@ export default function MyJourneyPage() {
 
       <ConstellationRail items={feedItems} />
 
+      {/* the five destinations — left rail on desktop, bottom bar on phones */}
+      <JourneyTabs active={tab} onChange={t => { setTab(t); window.scrollTo({ top: 0, behavior: 'auto' }) }} />
+
+      {/* everything to the right of the desktop rail */}
+      <div className="md:pl-52">
       {/* header */}
       <header className="relative z-10 mx-auto max-w-5xl px-4 pb-2 pt-4 sm:px-6 sm:pt-6">
         <div className="flex items-center gap-3 sm:gap-6">
@@ -571,119 +594,140 @@ export default function MyJourneyPage() {
         </div>
       </header>
 
-      <main className="relative z-10 mx-auto max-w-xl px-4 pb-20 sm:px-6">
+      <main className="relative z-10 mx-auto w-full max-w-5xl px-4 pb-28 sm:px-6 md:pb-16">
         {/* Coach: disciples waiting on a sign-off (banner + browser alerts) */}
         <SignoffNotice coachId={profile.id} />
 
-        {/* hero — your star IS the interface */}
-        <section className="flex flex-col items-center pt-2 text-center">
-          <div className="relative">
-            <p className={`text-xs uppercase tracking-[.14em] text-[var(--fg-3)] ${demo === 'meteor' ? 'jy-hint-glow' : ''}`}>
-              Hover or tap a quadrant of your star
-            </p>
-            {demo === 'meteor' && <span className="jy-meteor" aria-hidden />}
-          </div>
-          <div className="relative z-20 mt-2 w-full">
-            <StarQuadrants
-              onStepToggle={handleStepToggle}
-              onRequestSignoff={handleRequestSignoff}
-              levels={levels}
-              color={currentLevel?.color ?? '#FBF6EC'}
-              onStepAction={handleStepAction}
-              demo={demo === 'arrow' || demo === 'open' ? demo : null}
-            />
-          </div>
-          <div className="mt-3 flex items-center gap-3">
-            <h1 className="text-3xl sm:text-4xl" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>
-              {profile.name}
-            </h1>
-          </div>
-          <p className="mt-1 text-sm text-[var(--fg-3)]">
-            {fullCircle ? (
-              <span style={{ color: 'var(--empower)' }}>You&rsquo;ve come full circle — light that gives light.</span>
-            ) : (
-              <>
-                Walking through <span style={{ color: currentLevel.color }}>{currentLevel.stage}</span>
-                {coach ? <> with {coach.name}</> : null}
-              </>
+        {/* ── Home: the star + its docked steps ── */}
+        {tab === 'home' && (
+          <div className="mx-auto max-w-xl">
+            {/* hero — your star IS the interface */}
+            <section className="flex flex-col items-center pt-2 text-center">
+              <div className="relative">
+                <p className={`text-xs uppercase tracking-[.14em] text-[var(--fg-3)] ${demo === 'meteor' ? 'jy-hint-glow' : ''}`}>
+                  Tap a point of your star to see its steps
+                </p>
+                {demo === 'meteor' && <span className="jy-meteor" aria-hidden />}
+              </div>
+              <div className="relative z-20 mt-2 w-full">
+                <StarQuadrants
+                  docked
+                  onQuadrant={setDockStage}
+                  onStepToggle={handleStepToggle}
+                  onRequestSignoff={handleRequestSignoff}
+                  levels={levels}
+                  color={currentLevel?.color ?? '#FBF6EC'}
+                  onStepAction={handleStepAction}
+                  demo={demo === 'arrow' || demo === 'open' ? demo : null}
+                />
+              </div>
+              <div className="mt-3 flex items-center gap-3">
+                <h1 className="text-3xl sm:text-4xl" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>
+                  {profile.name}
+                </h1>
+              </div>
+              <p className="mt-1 text-sm text-[var(--fg-3)]">
+                {fullCircle ? (
+                  <span style={{ color: 'var(--empower)' }}>You&rsquo;ve come full circle — light that gives light.</span>
+                ) : (
+                  <>
+                    Walking through <span style={{ color: currentLevel.color }}>{currentLevel.stage}</span>
+                    {coach ? <> with {coach.name}</> : null}
+                  </>
+                )}
+              </p>
+
+              {/* the steps dock here — the space the two blue CTAs used to hold */}
+              <div className="w-full">
+                <StageDock
+                  level={dockLevel}
+                  prev={dockPrev}
+                  onStepAction={handleStepAction}
+                  onStepToggle={handleStepToggle}
+                  onRequestSignoff={handleRequestSignoff}
+                  onClose={() => setDockStage(null)}
+                />
+              </div>
+            </section>
+
+            {/* Completed Empower but the coach hasn't signed off yet → no toggle to
+                point at, so keep an informative note. (Once signed off, the toggle
+                appears and the one-time EmpoweredCoachmark points to it instead.) */}
+            {(levelByStage(levels, 'Empower')?.completed ?? false) &&
+              !(profile.is_admin || signoffs.some(s => s.stage === 'Empower' && s.status === 'approved')) && (
+              <section
+                className="mt-8 rounded-[var(--r-xl)] border p-6 text-center"
+                style={{
+                  borderColor: 'rgba(240,114,159,.35)',
+                  background: 'linear-gradient(180deg, rgba(240,114,159,.10) 0%, rgba(20,27,61,.6) 100%)',
+                  boxShadow: '0 0 48px -16px rgba(240,114,159,.5)',
+                }}
+              >
+                <p className="cn-label" style={{ color: 'var(--empower)' }}>Empowered</p>
+                <p className="mt-2 text-xl italic leading-relaxed" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>
+                  You’ve completed Empower. Once your coach signs off, your coach dashboard opens.
+                </p>
+                <p className="mt-4 text-xs text-[var(--fg-3)]">Awaiting your coach&rsquo;s Empower sign-off.</p>
+              </section>
             )}
-          </p>
 
-          {/* today's invitation */}
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-            <button type="button" onClick={() => setActiveModal('soap')} className="cn-btn cn-btn-primary inline-flex items-center gap-2">
-              ✦ Today&rsquo;s SOAP
-              {soapStreak > 0 && (
-                <span
-                  className="rounded-full px-2 py-0.5 text-[11px] font-bold"
-                  title={`Longest ${soapStreak}d · current ${currentStreak}d`}
-                  style={{ background: 'rgba(255,255,255,.18)', color: '#fff' }}
-                >
-                  {soapStreak}d best{currentStreak > 0 ? ` · ${currentStreak}d now` : ''}
-                </span>
-              )}
-            </button>
-            <button type="button" onClick={() => setActiveModal('prayer')} className="cn-btn cn-btn-primary">
-              ✦ Today&rsquo;s Prayer / Praise
-            </button>
+            {/* footer */}
+            <footer className="mt-14 flex flex-col items-center gap-2 text-center">
+              <p className="max-w-sm text-xs italic leading-relaxed text-[var(--fg-3)]" style={{ fontFamily: 'var(--font-display)', fontSize: 14 }}>
+                &ldquo;He determines the number of the stars and calls them each by name.&rdquo; — Psalm 147:4
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowIntro(true)}
+                className="text-[11px] text-[var(--fg-3)] underline-offset-2 hover:underline"
+              >
+                Replay the story
+              </button>
+            </footer>
           </div>
-        </section>
+        )}
 
-        {/* Completed Empower but the coach hasn't signed off yet → no toggle to
-            point at, so keep an informative note. (Once signed off, the toggle
-            appears and the one-time EmpoweredCoachmark points to it instead.) */}
-        {(levelByStage(levels, 'Empower')?.completed ?? false) &&
-          !(profile.is_admin || signoffs.some(s => s.stage === 'Empower' && s.status === 'approved')) && (
-          <section
-            className="mt-8 rounded-[var(--r-xl)] border p-6 text-center"
-            style={{
-              borderColor: 'rgba(240,114,159,.35)',
-              background: 'linear-gradient(180deg, rgba(240,114,159,.10) 0%, rgba(20,27,61,.6) 100%)',
-              boxShadow: '0 0 48px -16px rgba(240,114,159,.5)',
-            }}
-          >
-            <p className="cn-label" style={{ color: 'var(--empower)' }}>Empowered</p>
-            <p className="mt-2 text-xl italic leading-relaxed" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>
-              You’ve completed Empower. Once your coach signs off, your coach dashboard opens.
-            </p>
-            <p className="mt-4 text-xs text-[var(--fg-3)]">Awaiting your coach&rsquo;s Empower sign-off.</p>
+        {/* ── SOAPs ── */}
+        {tab === 'soaps' && (
+          <section className="pt-2">
+            <SoapCalendarSection
+              soaps={soapJournals}
+              onNewEntry={() => { setSoapEntryDate(null); setActiveModal('soap') }}
+              soapStreak={soapStreak}
+              currentStreak={currentStreak}
+              onRefresh={refreshSoaps}
+              onNewEntryForDate={date => { setSoapEntryDate(date); setActiveModal('soap') }}
+              onEditEntry={entry => { setSoapEditEntry(entry); setActiveModal('soap') }}
+              personId={profile.id}
+            />
           </section>
         )}
 
-        {/* lights you carry */}
-        <Milestones badges={badges} />
+        {/* ── Prayer Wall ── */}
+        {tab === 'prayer' && (
+          <section className="pt-2">
+            <h2 className="mb-4 text-center text-2xl sm:text-3xl" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>Prayer &amp; Praise</h2>
+            <PrayerLifeSection personId={profile.id} isAdmin={Boolean(profile.is_admin)} />
+          </section>
+        )}
 
-        {/* "Shared With Me" (constellation + grace group) moved into the side
-            menu — see the Spirit section of JourneyMenu. */}
+        {/* ── Feed (shared SOAPs) ── */}
+        {tab === 'feed' && (
+          <section className="pt-2">
+            <h2 className="mb-4 text-center text-2xl sm:text-3xl" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>Feed</h2>
+            <SoapFeedSection personId={profile.id} />
+          </section>
+        )}
 
-        {/* SOAP journal calendar */}
-        <section className="mt-10">
-          <SoapCalendarSection
-            soaps={soapJournals}
-            onNewEntry={() => { setSoapEntryDate(null); setActiveModal('soap') }}
-            soapStreak={soapStreak}
-            currentStreak={currentStreak}
-            onRefresh={refreshSoaps}
-            onNewEntryForDate={date => { setSoapEntryDate(date); setActiveModal('soap') }}
-            onEditEntry={entry => { setSoapEditEntry(entry); setActiveModal('soap') }}
-            personId={profile.id}
-          />
-        </section>
-
-        {/* footer */}
-        <footer className="mt-14 flex flex-col items-center gap-2 text-center">
-          <p className="max-w-sm text-xs italic leading-relaxed text-[var(--fg-3)]" style={{ fontFamily: 'var(--font-display)', fontSize: 14 }}>
-            &ldquo;He determines the number of the stars and calls them each by name.&rdquo; — Psalm 147:4
-          </p>
-          <button
-            type="button"
-            onClick={() => setShowIntro(true)}
-            className="text-[11px] text-[var(--fg-3)] underline-offset-2 hover:underline"
-          >
-            Replay the story
-          </button>
-        </footer>
+        {/* ── Milestones ── */}
+        {tab === 'milestones' && (
+          <section className="pt-2">
+            <h2 className="mb-4 text-center text-2xl sm:text-3xl" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>Milestones</h2>
+            <Milestones badges={badges} />
+          </section>
+        )}
       </main>
+      </div>
 
       {/* modals */}
       {activeModal === 'prayer' && profile && (

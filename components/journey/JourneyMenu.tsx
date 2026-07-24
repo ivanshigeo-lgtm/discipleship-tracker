@@ -583,7 +583,7 @@ export default function JourneyMenu({
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Open navigation"
-        className="fixed left-4 top-4 z-40 flex h-9 w-9 flex-col items-center justify-center gap-[5px] rounded-lg border border-[var(--line-2)] bg-[rgba(8,12,30,.75)] backdrop-blur-md transition-colors hover:border-[rgba(91,141,247,.5)]"
+        className="fixed left-4 top-4 z-40 flex h-9 w-9 flex-col items-center justify-center gap-[5px] rounded-lg border border-[var(--line-2)] bg-[rgba(8,12,30,.75)] backdrop-blur-md transition-colors hover:border-[rgba(91,141,247,.5)] md:hidden"
       >
         <span className="h-px w-4 rounded-full bg-[var(--fg-2)]" />
         <span className="h-px w-4 rounded-full bg-[var(--fg-2)]" />

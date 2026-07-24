@@ -124,6 +124,8 @@ export default function StarQuadrants({
   onStepToggle,
   onRequestSignoff,
   demo = null,
+  docked = false,
+  onQuadrant,
 }: {
   levels: JourneyLevel[]
   color: string
@@ -132,6 +134,11 @@ export default function StarQuadrants({
   onRequestSignoff?: (stage: string) => void
   /* first-visit coachmark: 'arrow' glides toward the quadrant, 'open' presses it */
   demo?: 'arrow' | 'open' | null
+  /* docked: don't pop a floating panel — report the chosen stage up so the page
+     can render the checklist below the star (matching the native home screen,
+     where the steps dock into the space the two CTAs used to occupy). */
+  docked?: boolean
+  onQuadrant?: (stage: Stage | null) => void
 }) {
   const [active, setActive] = useState<number | null>(null)
   const [pinned, setPinned] = useState<number | null>(null)
@@ -186,7 +193,16 @@ export default function StarQuadrants({
     return () => document.removeEventListener('pointerdown', close)
   }, [pinned])
 
-  const shown = pinned ?? active
+  // Docked mode is tap-driven only (like native) so the panel below the star
+  // stays put; hover-preview is reserved for the floating (home-overlay) mode.
+  const shown = docked ? pinned : (pinned ?? active)
+
+  // Report the chosen stage up to the page so it can dock the checklist below.
+  const shownStage = shown !== null ? QUADRANT_META[shown].stage : null
+  useEffect(() => {
+    if (docked) onQuadrant?.(shownStage)
+  }, [docked, shownStage, onQuadrant])
+
   const ringProgress = ringProgressFromLevels(levels)
   const byStage = (stage: Stage) => levels.find(l => l.stage === stage)
   const prevOf = (stage: Stage) => {
@@ -292,8 +308,9 @@ export default function StarQuadrants({
         )
       })()}
 
-      {/* the pop-out panel */}
-      {shown !== null && byStage(QUADRANT_META[shown].stage) && (
+      {/* the pop-out panel — only in floating mode; docked mode renders the
+          checklist below the star instead (see the home page) */}
+      {!docked && shown !== null && byStage(QUADRANT_META[shown].stage) && (
         <QuadrantPanel
           level={byStage(QUADRANT_META[shown].stage)!}
           prev={prevOf(QUADRANT_META[shown].stage)}
