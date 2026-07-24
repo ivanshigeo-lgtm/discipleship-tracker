@@ -294,7 +294,7 @@ export const markActionCompleted = async (id: string, completed: boolean) => {
 export const getPrayerRequestsByPerson = async (personId: string) => {
   const { data, error } = await supabase
     .from('prayer_requests')
-    .select('*')
+    .select('*, people!person_id(name)')
     .eq('person_id', personId)
     .order('created_at', { ascending: false })
   return { data, error }
