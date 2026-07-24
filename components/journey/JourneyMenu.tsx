@@ -222,7 +222,7 @@ function PrayerPanel({ personId, isAdmin, onClose }: { personId: string; isAdmin
 }
 
 // ─── Engagements panel ────────────────────────────────────────────────────────
-function EngagementsPanel({ personId, onClose }: { personId: string; onClose: () => void }) {
+export function EngagementsPanel({ personId, onClose }: { personId: string; onClose: () => void }) {
   const [engagements, setEngagements] = useState<Engagement[]>([])
   const [loading, setLoading] = useState(true)
   const [reloadKey, setReloadKey] = useState(0)

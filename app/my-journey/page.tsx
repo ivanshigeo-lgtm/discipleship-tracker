@@ -37,7 +37,7 @@ import MessageCoachModal from '../../components/journey/MessageCoachModal'
 import MessageCenter from '../../components/MessageCenter'
 import JoinGroupModal from '../../components/journey/JoinGroupModal'
 import SelfConfirmModal, { type SelfConfirmKind } from '../../components/journey/SelfConfirmModal'
-import JourneyMenu from '../../components/journey/JourneyMenu'
+import JourneyMenu, { EngagementsPanel } from '../../components/journey/JourneyMenu'
 import EmpoweredCoachmark from '../../components/journey/EmpoweredCoachmark'
 import SoapCalendarSection from '../../components/SoapCalendarSection'
 import SignoffNotice from '../../components/journey/SignoffNotice'
@@ -157,6 +157,7 @@ export default function MyJourneyPage() {
   const [soapEditEntry, setSoapEditEntry] = useState<SoapJournal | null>(null)
   const [msgCenterOpen, setMsgCenterOpen] = useState(false)
   const [unreadMsgCount, setUnreadMsgCount] = useState(0)
+  const [engagementsOpen, setEngagementsOpen] = useState(false)
   const [selfConfirm, setSelfConfirm] = useState<SelfConfirmKind | null>(null)
   const [selectedJournal, setSelectedJournal] = useState<SoapJournal | null>(null)
   const [processingOcr, setProcessingOcr] = useState(false)
@@ -528,7 +529,20 @@ export default function MyJourneyPage() {
       <ConstellationRail items={feedItems} />
 
       {/* the five destinations — left rail on desktop, bottom bar on phones */}
-      <JourneyTabs active={tab} onChange={t => { setTab(t); window.scrollTo({ top: 0, behavior: 'auto' }) }} />
+      <JourneyTabs
+        active={tab}
+        onChange={t => { setTab(t); window.scrollTo({ top: 0, behavior: 'auto' }) }}
+        onMessage={() => { setMsgCenterOpen(true); setUnreadMsgCount(0) }}
+        onEngagements={() => {
+          // Empowered people are coaches too — send them to the real
+          // My Constellations page (mirrors JourneyMenu's handleItem).
+          if (Boolean(profile.is_admin) || signoffs.some(s => s.stage === 'Empower' && s.status === 'approved')) {
+            router.push('/my-constellations?section=engagements')
+          } else {
+            setEngagementsOpen(true)
+          }
+        }}
+      />
 
       {/* everything to the right of the desktop rail */}
       <div className="md:pl-52">
@@ -790,6 +804,11 @@ export default function MyJourneyPage() {
         isAdmin={Boolean(profile.is_admin)}
         empowered={Boolean(profile.is_admin) || signoffs.some(s => s.stage === 'Empower' && s.status === 'approved')}
       />
+
+      {/* Engagements overlay — opened from the desktop rail (non-empowered users) */}
+      {engagementsOpen && (
+        <EngagementsPanel personId={profile.id} onClose={() => setEngagementsOpen(false)} />
+      )}
 
       {/* Message Center */}
       <MessageCenter

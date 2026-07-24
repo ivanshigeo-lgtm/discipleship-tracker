@@ -27,6 +27,12 @@ const TABS: TabDef[] = [
   { key: 'milestones', label: 'Milestones', icon: I('M12 2 21 7v10l-9 5-9-5V7z', <path d="M12 7v10M8 9v6M16 9v6" />) },
 ]
 
+// Secondary "Connect" destinations — desktop-only rail entries. On phones these
+// live in the hamburger drawer (JourneyMenu); the rail surfaces them so desktop
+// users aren't missing them (they have no hamburger).
+const ENGAGEMENTS_ICON = I('M8 2v3M16 2v3M3.5 9h17', <path d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" />)
+const MESSAGE_ICON = I('M21 12a8 8 0 0 1-11.5 7.2L4 21l1.8-5.5A8 8 0 1 1 21 12z')
+
 function TabButton({
   tab, active, onClick, orientation,
 }: { tab: TabDef; active: boolean; onClick: () => void; orientation: 'row' | 'col' }) {
@@ -60,9 +66,31 @@ function TabButton({
   )
 }
 
+// A rail row for a one-shot action (Connect items) — matches the `col` TabButton
+// look but has no persistent active state.
+function RailAction({ label, icon, onClick }: { label: string; icon: ReactNode; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] transition-colors hover:bg-[rgba(91,141,247,.08)]"
+      style={{ color: 'var(--fg-3)' }}
+    >
+      <span className="grid place-items-center transition-colors group-hover:text-[var(--gbm-cobalt-bright)]">{icon}</span>
+      <span className="font-medium">{label}</span>
+    </button>
+  )
+}
+
 export default function JourneyTabs({
-  active, onChange,
-}: { active: JourneyTab; onChange: (t: JourneyTab) => void }) {
+  active, onChange, onMessage, onEngagements,
+}: {
+  active: JourneyTab
+  onChange: (t: JourneyTab) => void
+  onMessage?: () => void
+  onEngagements?: () => void
+}) {
+  const hasConnect = Boolean(onMessage || onEngagements)
   return (
     <>
       {/* Desktop: persistent left rail */}
@@ -77,6 +105,15 @@ export default function JourneyTabs({
             <TabButton key={t.key} tab={t} active={active === t.key} onClick={() => onChange(t.key)} orientation="col" />
           ))}
         </nav>
+        {hasConnect && (
+          <>
+            <p className="mb-1 mt-6 px-3 text-[10px] font-semibold uppercase tracking-[.14em] text-[var(--fg-3)]">Connect</p>
+            <nav className="flex flex-col gap-1">
+              {onEngagements && <RailAction label="Engagements" icon={ENGAGEMENTS_ICON} onClick={onEngagements} />}
+              {onMessage && <RailAction label="Message" icon={MESSAGE_ICON} onClick={onMessage} />}
+            </nav>
+          </>
+        )}
         <div className="mt-auto pb-6 pl-3 text-base" style={{ color: 'rgba(91,141,247,.25)' }}>✦</div>
       </aside>
 
