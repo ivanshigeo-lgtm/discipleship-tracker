@@ -327,7 +327,7 @@ export const getConstellationPrayerRequests = () =>
 export const getPrayerWallForViewer = async (viewerPersonId: string, isAdmin: boolean) => {
   const { data, error } = await supabase
     .from('prayer_requests')
-    .select('*')
+    .select('*, people!person_id(name)')
     .neq('visibility', 'private')
     .order('created_at', { ascending: false })
     .limit(300)
@@ -1256,7 +1256,7 @@ export const getSharedSoaps = async (limit = 12) => {
 export const getSharedPraises = async (limit = 12) => {
   const { data, error } = await supabase
     .from('prayer_requests')
-    .select('id, request, is_praise, status, created_at, people(name)')
+    .select('id, request, is_praise, status, created_at, people!person_id(name)')
     .eq('visibility', 'constellation')
     .order('created_at', { ascending: false })
     .limit(limit)
@@ -1363,7 +1363,7 @@ export const getGroupSharedSoaps = async (personId: string, limit = 20) => {
   return { data: merged, error: null }
 }
 
-const SHARED_PRAYER_COLS = 'id, person_id, request, is_praise, status, answer_notes, visibility, media_url, created_at, people(name)'
+const SHARED_PRAYER_COLS = 'id, person_id, request, is_praise, status, answer_notes, visibility, media_url, created_at, people!person_id(name)'
 
 // Prayers/praises a coach's disciples shared with their coach (visibility='coach').
 // ── Per-viewer archive of shared SOAPs (hide from my feed; never deletes) ──────
