@@ -12,6 +12,7 @@ import {
   updateVictoryGroupOwner,
   upsertGroupAttendance,
   getGroupAttendance,
+  getRecentGroupAttendance,
 } from '../lib/supabaseQueries'
 import type { Person, PersonVictoryGroupWithPerson, Stage, VictoryGroup, GroupAttendance, GroupFocus } from '../types/database'
 import { stageLabels } from '../lib/stageLabels'
@@ -30,20 +31,71 @@ const STAGE_COLORS: Record<Stage, string> = {
 
 const toDateInputValue = (date: Date) => date.toISOString().split('T')[0]
 
+// Attendance-history derivations, mirroring the native app's history sheet: consecutive
+// missed-meeting streak per member (stops at first attended), and per-meeting totals.
+function computeAttendanceHistory(records: GroupAttendance[], memberships: PersonVictoryGroupWithPerson[]) {
+  const dates = [...new Set(records.map(r => r.meeting_date))].sort().reverse() // newest-first
+  const byPerson = new Map<string, Map<string, boolean>>()
+  records.forEach(r => {
+    let m = byPerson.get(r.person_id)
+    if (!m) { m = new Map(); byPerson.set(r.person_id, m) }
+    m.set(r.meeting_date, r.attended)
+  })
+  const missedStreak = (pid: string) => {
+    const m = byPerson.get(pid); let s = 0
+    for (const d of dates) { if (m?.get(d)) break; s++ }
+    return s
+  }
+  const attendedTotal = (pid: string) => {
+    const m = byPerson.get(pid); if (!m) return 0
+    let n = 0; for (const d of dates) if (m.get(d)) n++; return n
+  }
+  const members = memberships
+    .map(ms => ms.people)
+    .filter((p): p is Person => Boolean(p))
+    .map(p => ({ person: p, streak: missedStreak(p.id), attended: attendedTotal(p.id) }))
+  const meetings = dates.map(d => ({
+    date: d,
+    present: records.filter(r => r.meeting_date === d && r.attended).length,
+    recorded: records.filter(r => r.meeting_date === d).length,
+  }))
+  return { dates, members, meetings }
+}
+// Absence-streak warning color: amber at 2 in a row, rose at 3+ (matches native).
+const attnWarnFor = (s: number) =>
+  s >= 3 ? { color: '#F2728A', label: `${s} missed in a row` }
+  : s === 2 ? { color: '#F4B650', label: '2 missed in a row' }
+  : null
+const fmtHistDate = (d: string) =>
+  new Date(d + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+
+// Local YYYY-MM-DD key (never toISOString — that can shift the day across the UTC
+// boundary in negative-offset zones like Hawaii, where meeting dates are recorded).
+const localDayKey = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+
 export default function VictoryGroupsList({
   onChanged,
   startWithForm = false,
   onPersonClick,
   onAddNewPerson,
+  myCircleIds,
+  myPeopleIds,
 }: {
   onChanged?: () => void
   startWithForm?: boolean
   onPersonClick?: (person: Person) => void
   onAddNewPerson?: (name?: string) => void
+  // Scope person-sets from the parent page: My Constellation = my whole coaching
+  // tree; My People = those I directly disciple. Used to scope the weekly-attendance
+  // count. Undefined (not yet loaded) is treated as "all" (like GBC).
+  myCircleIds?: Set<string>
+  myPeopleIds?: Set<string>
 }) {
   const { profile } = useAuth()
-  // GBC Constellation = all groups; My Constellation = only groups I own.
-  const [scope, setScope] = useState<'gbc' | 'mine'>('mine')
+  // GBC = all groups; My Constellation / My People = only groups I own (the person-set
+  // distinction below scopes the weekly-attendance metric, mirroring the native app).
+  const [scope, setScope] = useState<'gbc' | 'mine' | 'direct'>('mine')
   // Searchable owner picker: which group's picker is open + its filter text.
   const [ownerPickerGroupId, setOwnerPickerGroupId] = useState<string | null>(null)
   const [ownerSearch, setOwnerSearch] = useState('')
@@ -110,6 +162,14 @@ export default function VictoryGroupsList({
   const [savingAttendance, setSavingAttendance] = useState(false)
   const [attendanceMessage, setAttendanceMessage] = useState('')
 
+  // Attendance-history view (per group): all rows for the open group, newest-first.
+  const [historyGroupId, setHistoryGroupId] = useState<string | null>(null)
+  const [historyRecords, setHistoryRecords] = useState<GroupAttendance[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  // Rolling 7-day attendance (attended=true, all groups) for the "attended this week"
+  // metric. person_id lets us de-dupe a member who attends multiple groups.
+  const [recentAttn, setRecentAttn] = useState<{ person_id: string; meeting_date: string; attended: boolean }[]>([])
+
   const loadData = async () => {
     try {
       const [{ data: groupsData, error: groupsError }, { data: peopleData, error: peopleError }] = await Promise.race([
@@ -135,6 +195,12 @@ export default function VictoryGroupsList({
         groupedMembers[group.id] = (memberResults[i].data ?? []) as unknown as PersonVictoryGroupWithPerson[]
       })
       setMembersByGroup(groupedMembers)
+
+      // Rolling 7-day window (today and the prior 6 days), local time.
+      const since = new Date()
+      since.setDate(since.getDate() - 6)
+      const { data: recentData } = await getRecentGroupAttendance(localDayKey(since))
+      setRecentAttn((recentData ?? []) as { person_id: string; meeting_date: string; attended: boolean }[])
     } catch (err) {
       console.error('VictoryGroupsList load error:', err)
       setError('Failed to load groups')
@@ -144,6 +210,19 @@ export default function VictoryGroupsList({
   useEffect(() => {
     loadData()
   }, [])
+
+  // Load full attendance history when a group's history view opens.
+  useEffect(() => {
+    if (!historyGroupId) return
+    let cancelled = false
+    setHistoryLoading(true)
+    getGroupAttendance(historyGroupId).then(({ data }) => {
+      if (cancelled) return
+      setHistoryRecords((data ?? []) as GroupAttendance[])
+      setHistoryLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [historyGroupId])
 
   // Load existing attendance when entering attendance mode or changing date
   useEffect(() => {
@@ -302,6 +381,7 @@ export default function VictoryGroupsList({
     setOpenGroupId(openGroupId === groupId ? null : groupId)
     if (openGroupId === groupId) {
       setAttendanceGroupId(null)
+      setHistoryGroupId(null)
     }
   }
 
@@ -311,8 +391,21 @@ export default function VictoryGroupsList({
       setDraftAttendance({})
       setAttendanceMessage('')
     } else {
+      setHistoryGroupId(null) // attendance + history are mutually exclusive
       setAttendanceGroupId(groupId)
       setAttendanceDate(toDateInputValue(new Date()))
+    }
+  }
+
+  const toggleHistoryMode = (groupId: string) => {
+    if (historyGroupId === groupId) {
+      setHistoryGroupId(null)
+    } else {
+      setAttendanceGroupId(null) // leave attendance mode when viewing history
+      setDraftAttendance({})
+      setAttendanceMessage('')
+      setHistoryRecords([])
+      setHistoryGroupId(groupId)
     }
   }
 
@@ -345,20 +438,39 @@ export default function VictoryGroupsList({
     setSavingAttendance(false)
   }
 
-  // GBC scope shows every group; My Constellation shows only groups I own.
-  const visibleGroups = scope === 'mine'
-    ? groups.filter(g => g.owner_person_id === profile?.id)
-    : groups
+  // GBC shows every group; My Constellation / My People show only groups I own.
+  const visibleGroups = scope === 'gbc'
+    ? groups
+    : groups.filter(g => g.owner_person_id === profile?.id)
   const personName = (id: string | null) => allPeople.find(p => p.id === id)?.name ?? 'Unassigned'
+
+  // Person-set for the current scope: My People = those I directly disciple; My
+  // Constellation = my whole tree; GBC (or a not-yet-loaded set) = null = everyone.
+  const allowedPersonIds: Set<string> | null =
+    scope === 'direct' ? (myPeopleIds ?? null)
+    : scope === 'mine' ? (myCircleIds ?? null)
+    : null
+
+  // Distinct people who attended ANY group in the rolling 7-day window, scoped to the
+  // current circle and de-duped by person_id (a member in two groups counts once).
+  // recentAttn is already attended=true from the query.
+  const weekAttendCount = (() => {
+    const seen = new Set<string>()
+    for (const r of recentAttn) {
+      if (allowedPersonIds && !allowedPersonIds.has(r.person_id)) continue
+      seen.add(r.person_id)
+    }
+    return seen.size
+  })()
 
   return (
     <div className="rounded-2xl border border-[var(--line-1)] bg-[var(--indigo-2)] p-3">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <h3 className="text-sm font-semibold text-[var(--fg-1)]">Grace Groups</h3>
-          {/* GBC = all groups, Mine = only groups I own */}
+          {/* GBC = all groups; Mine/My People = groups I own (person-scoped metric) */}
           <div className="flex rounded-full border border-[var(--line-2)] bg-[var(--indigo)] p-0.5">
-            {([['gbc', 'GBC Constellation'], ['mine', 'My Constellation']] as const).map(([val, label]) => (
+            {([['gbc', 'GBC Constellation'], ['mine', 'My Constellation'], ['direct', 'My People']] as const).map(([val, label]) => (
               <button
                 key={val}
                 type="button"
@@ -369,6 +481,13 @@ export default function VictoryGroupsList({
               </button>
             ))}
           </div>
+          {/* Rolling 7-day attendance — distinct people, de-duped across groups, scoped */}
+          <span
+            className="rounded-full border border-[var(--line-2)] bg-[var(--indigo)] px-2 py-0.5 text-[10px] font-semibold text-[var(--fg-2)]"
+            title="Distinct people who attended any group in the last 7 days (counted once even if in multiple groups)"
+          >
+            <span className="text-[var(--establish)]">{weekAttendCount}</span> attended this week
+          </span>
         </div>
         <div className="flex items-center gap-1.5">
           {showForm && (
@@ -443,7 +562,7 @@ export default function VictoryGroupsList({
 
       {visibleGroups.length === 0 ? (
         <p className="text-sm text-[var(--fg-2)]">
-          {scope === 'mine'
+          {scope !== 'gbc'
             ? 'You don’t own any groups yet. Switch to GBC Constellation to see and claim existing groups, or add one.'
             : 'No Grace Groups yet.'}
         </p>
@@ -461,8 +580,11 @@ export default function VictoryGroupsList({
             const availablePeople = allPeople.filter(person => !memberIds.has(person.id))
             const isOpen = openGroupId === group.id
             const isAttendanceMode = attendanceGroupId === group.id
+            const isHistoryMode = historyGroupId === group.id
             // Only the group's owner (or an admin) can edit the group.
             const canManage = !!profile?.is_admin || group.owner_person_id === profile?.id
+            // History derivations only apply to the group whose history is loaded.
+            const history = isHistoryMode ? computeAttendanceHistory(historyRecords, sortedMemberships) : null
 
             return (
               <div
@@ -510,8 +632,8 @@ export default function VictoryGroupsList({
 
                 {isOpen && (
                   <div className="space-y-3 border-t border-[var(--line-1)] p-2.5">
-                    {canManage && (
-                      <div className="flex gap-2">
+                    <div className="flex gap-2">
+                      {canManage && (
                         <button
                           type="button"
                           onClick={(event) => {
@@ -527,6 +649,23 @@ export default function VictoryGroupsList({
                         >
                           {isAttendanceMode ? 'Cancel' : 'Attendance'}
                         </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          toggleHistoryMode(group.id)
+                        }}
+                        className="flex-1 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all"
+                        style={{
+                          borderColor: isHistoryMode ? 'var(--gbm-cobalt-bright)' : 'var(--line-2)',
+                          background: isHistoryMode ? 'var(--gbm-cobalt-bright)' : 'var(--indigo-2)',
+                          color: 'var(--fg-1)',
+                        }}
+                      >
+                        {isHistoryMode ? 'Close history' : 'History'}
+                      </button>
+                      {canManage && (
                         <button
                           type="button"
                           onClick={(event) => {
@@ -537,8 +676,8 @@ export default function VictoryGroupsList({
                         >
                           Edit
                         </button>
-                      </div>
-                    )}
+                      )}
+                    </div>
                     {!canManage && (
                       <p className="text-[11px] text-[var(--fg-3)]">View only — only {personName(group.owner_person_id)} can edit this group.</p>
                     )}
@@ -606,6 +745,69 @@ export default function VictoryGroupsList({
                       </div>
                     )}
 
+                    {/* Attendance history — who came to past meetings, absence streaks. */}
+                    {isHistoryMode && (
+                      <div>
+                        {historyLoading ? (
+                          <p className="py-4 text-center text-xs text-[var(--fg-3)]">Loading history…</p>
+                        ) : !history || history.dates.length === 0 ? (
+                          <p className="text-xs text-[var(--fg-3)]">No meetings recorded yet. Take attendance to start tracking who comes.</p>
+                        ) : (
+                          <div className="space-y-3">
+                            <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--fg-3)]">
+                              {history.dates.length} {history.dates.length === 1 ? 'meeting' : 'meetings'} recorded
+                            </div>
+                            <div>
+                              <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--fg-3)]">Members</div>
+                              <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+                                {history.members.map(({ person, streak, attended }) => {
+                                  const stageColor = STAGE_COLORS[person.current_stage]
+                                  const warn = attnWarnFor(streak)
+                                  const initials = person.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+                                  return (
+                                    <div
+                                      key={person.id}
+                                      className="flex items-center justify-between gap-2 rounded-lg border px-2 py-1.5"
+                                      style={{
+                                        borderColor: warn ? warn.color : 'var(--line-1)',
+                                        background: warn ? `${warn.color}14` : 'var(--indigo-2)',
+                                      }}
+                                    >
+                                      <div className="flex min-w-0 items-center gap-2">
+                                        <div
+                                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
+                                          style={{ border: `2px solid ${stageColor}`, color: stageColor }}
+                                        >
+                                          {initials}
+                                        </div>
+                                        <div className="min-w-0">
+                                          <div className="truncate text-xs font-semibold text-[var(--fg-1)]">{person.name}</div>
+                                          {warn && <div className="text-[10px] font-medium" style={{ color: warn.color }}>{warn.label}</div>}
+                                        </div>
+                                      </div>
+                                      <span className="shrink-0 text-[11px] font-semibold text-[var(--fg-2)]">{attended}/{history.dates.length}</span>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--fg-3)]">Meetings</div>
+                              <div className="space-y-1">
+                                {history.meetings.map(m => (
+                                  <div key={m.date} className="flex items-center justify-between gap-2 rounded-lg border border-[var(--line-1)] bg-[var(--indigo-2)] px-2 py-1.5">
+                                    <span className="truncate text-xs text-[var(--fg-1)]">{fmtHistDate(m.date)}</span>
+                                    <span className="shrink-0 text-[11px] font-semibold text-[var(--fg-2)]">{m.present}/{m.recorded} present</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {!isHistoryMode && (
                     <div>
                       <div className="mb-1.5 text-xs font-semibold text-[var(--fg-2)]">
                         {isAttendanceMode ? 'Check who attended:' : 'Members'}
@@ -691,6 +893,7 @@ export default function VictoryGroupsList({
                         </div>
                       )}
                     </div>
+                    )}
 
                     {isAttendanceMode ? (
                       <div className="space-y-2">
@@ -712,7 +915,7 @@ export default function VictoryGroupsList({
                           {savingAttendance ? 'Saving...' : `Submit Attendance (${Object.values(draftAttendance).filter(Boolean).length}/${sortedMemberships.length})`}
                         </button>
                       </div>
-                    ) : canManage ? (
+                    ) : canManage && !isHistoryMode ? (
                       <div onClick={(e) => e.stopPropagation()}>
                         <button
                           type="button"

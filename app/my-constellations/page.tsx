@@ -1017,6 +1017,8 @@ export default function DiscipleshipTracker() {
                   onChanged={() => setRefreshKey(p => p + 1)}
                   onPersonClick={p => openPerson(p)}
                   onAddNewPerson={(name) => { setNewPersonName(name ?? ''); setShowAddPerson(true) }}
+                  myCircleIds={myCircleIds}
+                  myPeopleIds={myPeopleIds}
                 />
               </ErrorBoundary>
             </div>

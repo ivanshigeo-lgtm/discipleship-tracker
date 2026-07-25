@@ -786,6 +786,19 @@ export const getGroupAttendance = async (groupId: string) => {
   return { data, error }
 }
 
+// Rolling-window attendance across ALL groups: every attended row on/after `since`
+// (a local 'YYYY-MM-DD'). Returns person_id so callers can de-dupe a member who
+// attends multiple groups; scope filtering happens in the UI via allowedPersonIds.
+// Powers the "N attended this week" metric in the Groups view.
+export const getRecentGroupAttendance = async (since: string) => {
+  const { data, error } = await supabase
+    .from('group_attendance')
+    .select('person_id, meeting_date, attended')
+    .gte('meeting_date', since)
+    .eq('attended', true)
+  return { data, error }
+}
+
 export const upsertGroupAttendance = async (
   attendance: Omit<GroupAttendance, 'id' | 'created_at' | 'updated_at'>
 ) => {
