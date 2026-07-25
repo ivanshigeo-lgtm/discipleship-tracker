@@ -294,7 +294,7 @@ export const markActionCompleted = async (id: string, completed: boolean) => {
 export const getPrayerRequestsByPerson = async (personId: string) => {
   const { data, error } = await supabase
     .from('prayer_requests')
-    .select('*, people!person_id(name)')
+    .select('*, people!person_id(name, current_stage)')
     .eq('person_id', personId)
     .order('created_at', { ascending: false })
   return { data, error }
@@ -318,7 +318,7 @@ export const getConstellationPrayerRequests = () =>
 export const getPrayerWallForViewer = async (viewerPersonId: string, isAdmin: boolean) => {
   const { data, error } = await supabase
     .from('prayer_requests')
-    .select('*, people!person_id(name)')
+    .select('*, people!person_id(name, current_stage)')
     .neq('visibility', 'private')
     .order('created_at', { ascending: false })
     .limit(300)

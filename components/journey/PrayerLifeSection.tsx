@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { getPrayerLifeForPerson, addPrayerRequest, deletePrayerRequest, markPrayerAnswered } from '../../lib/supabaseQueries'
-import type { PrayerRequest, ShareVisibility } from '../../types/database'
+import type { PrayerRequest, ShareVisibility, Stage } from '../../types/database'
 
 /*
  * PrayerLifeSection — the disciple's whole prayer life as a first-class
@@ -11,14 +11,25 @@ import type { PrayerRequest, ShareVisibility } from '../../types/database'
  * individually marked answered or deleted (own entries always; any entry if you
  * are an admin/coach). Answered ones drop into their own section.
  */
-type PrayerRow = PrayerRequest & { people?: { name: string } | null }
+type PrayerRow = PrayerRequest & { people?: { name: string; current_stage?: Stage | null } | null }
 
 type PersonGroup = {
   personId: string
   name: string
   isOwn: boolean
+  stage: Stage | null
   requests: PrayerRow[]
 }
+
+// The person's avatar circle is tinted by their journey stage (falls back to the
+// house purple when the stage is unknown), matching the constellation stage hues.
+const STAGE_COLORS: Record<Stage, string> = {
+  Engage: 'var(--engage)',
+  Establish: 'var(--establish)',
+  Equip: 'var(--equip)',
+  Empower: 'var(--empower)',
+}
+const stageColorOf = (stage: Stage | null) => (stage ? STAGE_COLORS[stage] : '#9B80FF')
 
 const PRAYER_SCOPES: { value: ShareVisibility; label: string }[] = [
   { value: 'private', label: 'Just me' },
@@ -81,7 +92,7 @@ export default function PrayerLifeSection({ personId, isAdmin = false }: { perso
     for (const r of rows) {
       let g = m.get(r.person_id)
       if (!g) {
-        g = { personId: r.person_id, name: r.people?.name ?? (r.person_id === personId ? 'You' : 'A disciple'), isOwn: r.person_id === personId, requests: [] }
+        g = { personId: r.person_id, name: r.people?.name ?? (r.person_id === personId ? 'You' : 'A disciple'), isOwn: r.person_id === personId, stage: r.people?.current_stage ?? null, requests: [] }
         m.set(r.person_id, g)
       }
       g.requests.push(r)
@@ -97,12 +108,13 @@ export default function PrayerLifeSection({ personId, isAdmin = false }: { perso
 
   const renderCard = (g: PersonGroup, answered: boolean) => {
     const canManage = g.isOwn || isAdmin
+    const stageColor = stageColorOf(g.stage)
     return (
       <div key={g.personId} className="group/card rounded-xl border border-[var(--line-1)] p-3" style={{ background: 'var(--indigo-2)' }}>
         <div className="flex items-start gap-3">
           <div
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
-            style={{ background: 'var(--indigo)', border: '2px solid #9B80FF', color: '#9B80FF' }}
+            style={{ background: 'var(--indigo)', border: `2px solid ${stageColor}`, color: stageColor }}
           >
             {initialsOf(g.name)}
           </div>
