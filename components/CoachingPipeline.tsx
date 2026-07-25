@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import {
   getPeople,
   getAllEngagements,
-  getAllPrayerRequests,
+  getPrayerWallForViewer,
   updatePersonStage,
   updatePerson,
 } from '../lib/supabaseQueries'
@@ -16,6 +16,8 @@ interface CoachingPipelineProps {
   collapsed?: boolean
   searchQuery?: string
   allowedPersonIds?: string[]
+  viewerPersonId: string
+  isAdmin: boolean
   onPersonClick?: (person: Person, openTab?: 'engagements') => void
   onChanged?: () => void
 }
@@ -236,6 +238,8 @@ export default function CoachingPipeline({
   collapsed = false,
   searchQuery = '',
   allowedPersonIds,
+  viewerPersonId,
+  isAdmin,
   onPersonClick,
   onChanged,
 }: CoachingPipelineProps) {
@@ -250,7 +254,7 @@ export default function CoachingPipeline({
       const [peopleResult, engagementsResult, prayerResult] = await Promise.all([
         getPeople(),
         getAllEngagements(),
-        getAllPrayerRequests(),
+        getPrayerWallForViewer(viewerPersonId, isAdmin),
       ])
 
       if (peopleResult.data) setPeople(peopleResult.data as Person[])
@@ -265,7 +269,8 @@ export default function CoachingPipeline({
 
   useEffect(() => {
     loadData()
-  }, [refreshKey])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey, viewerPersonId, isAdmin])
 
   const engagementsByPerson = useMemo(() => {
     const map = new Map<string, Engagement[]>()

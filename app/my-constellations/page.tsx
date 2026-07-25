@@ -804,6 +804,8 @@ export default function DiscipleshipTracker() {
                         collapsed={!journeyExpanded}
                         searchQuery={journeySearch}
                         allowedPersonIds={allowedPersonIds}
+                        viewerPersonId={profile.id}
+                        isAdmin={isAdmin}
                         onPersonClick={(p, tab) => openPerson(p, tab)}
                         onChanged={() => setRefreshKey(p => p + 1)}
                       />
@@ -1110,6 +1112,7 @@ export default function DiscipleshipTracker() {
           allowedPersonIds={allowedPersonIds}
           effectiveScope={effectiveScope}
           isAdmin={isAdmin}
+          viewerPersonId={profile.id}
           onScopeChange={setCircleScope}
           refreshKey={refreshKey}
           onChanged={() => setRefreshKey(p => p + 1)}

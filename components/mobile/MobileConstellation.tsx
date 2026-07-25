@@ -13,7 +13,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   getPeople,
   getAllEngagements,
-  getAllPrayerRequests,
+  getPrayerWallForViewer,
   getAllStageChecklistItems,
   getVictoryGroups,
   getAllGroupMemberships,
@@ -88,6 +88,7 @@ export default function MobileConstellation({
   allowedPersonIds,
   effectiveScope,
   isAdmin,
+  viewerPersonId,
   onScopeChange,
   refreshKey,
   onChanged,
@@ -98,6 +99,7 @@ export default function MobileConstellation({
   allowedPersonIds?: string[]
   effectiveScope: 'gbc' | 'mine' | 'direct'
   isAdmin: boolean
+  viewerPersonId: string
   onScopeChange: (s: 'gbc' | 'mine' | 'direct') => void
   refreshKey: number
   onChanged: () => void
@@ -133,7 +135,7 @@ export default function MobileConstellation({
     setLoading(true)
     ;(async () => {
       const [p, e, pr, cl, g, gm] = await Promise.all([
-        getPeople(), getAllEngagements(), getAllPrayerRequests(), getAllStageChecklistItems(),
+        getPeople(), getAllEngagements(), getPrayerWallForViewer(viewerPersonId, isAdmin), getAllStageChecklistItems(),
         getVictoryGroups(), getAllGroupMemberships(),
       ])
       if (!alive) return
@@ -146,7 +148,8 @@ export default function MobileConstellation({
       setLoading(false)
     })()
     return () => { alive = false }
-  }, [refreshKey])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey, viewerPersonId, isAdmin])
 
   const engByPerson = useMemo(() => {
     const m = new Map<string, Engagement[]>()

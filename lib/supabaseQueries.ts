@@ -300,15 +300,6 @@ export const getPrayerRequestsByPerson = async (personId: string) => {
   return { data, error }
 }
 
-export const getAllPrayerRequests = () =>
-  dedup('getAllPrayerRequests', async () => {
-    const { data, error } = await supabase
-      .from('prayer_requests')
-      .select('*')
-      .order('created_at', { ascending: false })
-    return { data, error }
-  })
-
 // The Prayer Wall only shows requests/praises explicitly shared to everyone.
 export const getConstellationPrayerRequests = () =>
   dedup('getConstellationPrayerRequests', async () => {

@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import {
   getPeople,
   getAllEngagements,
-  getAllPrayerRequests,
+  getPrayerWallForViewer,
   getVictoryGroups,
   getAllStageChecklistItems,
   updatePerson,
@@ -50,10 +50,14 @@ function getChecklistProgress(personId: string, stage: Stage, items: StageCheckl
 }
 
 export default function FocusDashboard({
+  viewerPersonId,
+  isAdmin,
   onPersonClick,
   onViewFullDashboard,
   onAddPerson,
 }: {
+  viewerPersonId: string
+  isAdmin: boolean
   onPersonClick?: (person: Person) => void
   onViewFullDashboard?: () => void
   onAddPerson?: () => void
@@ -71,7 +75,7 @@ export default function FocusDashboard({
       const [peopleRes, engagementsRes, prayerRes, checklistRes] = await Promise.all([
         getPeople(),
         getAllEngagements(),
-        getAllPrayerRequests(),
+        getPrayerWallForViewer(viewerPersonId, isAdmin),
         getAllStageChecklistItems(),
       ])
 
@@ -88,7 +92,8 @@ export default function FocusDashboard({
 
   useEffect(() => {
     loadData()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewerPersonId, isAdmin])
 
   const pipelineHealth = useMemo(() => {
     const empowered = people.filter(p => p.current_stage === 'Empower').length
