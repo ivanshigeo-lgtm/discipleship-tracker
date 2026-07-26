@@ -7,6 +7,7 @@ import {
   getVictoryGroups,
   getAllGroupMemberships,
   getConfirmedEngagementIds,
+  getRecentGroupAttendance,
   updateEngagement,
 } from '../lib/supabaseQueries'
 import type { Person, Stage, Engagement, VictoryGroup } from '../types/database'
@@ -205,6 +206,8 @@ export default function NeedAttentionSection({
   const [confirmedIds, setConfirmedIds] = useState<Set<string>>(new Set())
   const [victoryGroups, setVictoryGroups] = useState<VictoryGroup[]>([])
   const [groupMemberships, setGroupMemberships] = useState<{ person_id: string; victory_group_id: string }[]>([])
+  // Small-group attendance in the rolling last-7-day window (attended=true).
+  const [recentAttn, setRecentAttn] = useState<{ person_id: string; victory_group_id: string }[]>([])
   const { profile } = useAuth()
   // Badge scope: GBC = whole church, mine = my constellation / my groups.
   const [badgeScope, setBadgeScope] = useState<'gbc' | 'mine'>('gbc')
@@ -237,6 +240,12 @@ export default function NeedAttentionSection({
       }
       if (groupsResult.data) setVictoryGroups(groupsResult.data as VictoryGroup[])
       if (membershipsResult.data) setGroupMemberships(membershipsResult.data as { person_id: string; victory_group_id: string }[])
+      // Rolling last-7-days group attendance (today plus the previous 6 days),
+      // for the "met this week" tally on the header.
+      const attnSince = new Date(); attnSince.setDate(attnSince.getDate() - 6)
+      const attnSinceKey = `${attnSince.getFullYear()}-${String(attnSince.getMonth() + 1).padStart(2, '0')}-${String(attnSince.getDate()).padStart(2, '0')}`
+      const { data: attnData } = await getRecentGroupAttendance(attnSinceKey)
+      setRecentAttn((attnData as { person_id: string; victory_group_id: string }[]) ?? [])
     } catch (err) {
       console.error('NeedAttentionSection load error:', err)
       setLoadError(true)
@@ -424,6 +433,38 @@ export default function NeedAttentionSection({
     return counts
   }, [people, engagements, victoryGroups, groupMemberships, badgeScope, viewerPersonId, isAdmin, profile?.id])
 
+  // Distinct people met with in the rolling last-7-days window, across BOTH small
+  // groups (attendance) AND completed 1:1 meetings, deduped by person (met in both
+  // counts once). Responds to the GBC/Mine toggle: GBC = whole church; Mine = the
+  // groups I own + the 1:1s I'm involved in. The coach is excluded from their own
+  // tally. Mirrors the native "My Meetings" card.
+  const metThisWeekCount = useMemo(() => {
+    const effectiveScope = isAdmin ? badgeScope : 'mine'
+    const ownedGroupIds = new Set(
+      victoryGroups.filter(g => g.owner_person_id === profile?.id).map(g => g.id)
+    )
+    const mineInvolved = (e: Engagement) =>
+      !!viewerPersonId && (e.created_by_person_id === viewerPersonId || e.person_id === viewerPersonId || confirmedIds.has(e.id))
+    const cutoff = new Date(); cutoff.setHours(0, 0, 0, 0); cutoff.setDate(cutoff.getDate() - 6)
+    const met = new Set<string>()
+    // (a) small-group attendance
+    for (const r of recentAttn) {
+      if (effectiveScope === 'mine' && !ownedGroupIds.has(r.victory_group_id)) continue
+      met.add(r.person_id)
+    }
+    // (b) completed 1:1 meetings in-window. No completed_at column — follow_up_date
+    // is the meeting date; date-only strings anchor to local midnight.
+    for (const e of engagements) {
+      if (e.status !== 'Completed' || !e.follow_up_date) continue
+      const d = e.follow_up_date
+      if (new Date(d + (d.length === 10 ? 'T00:00:00' : '')).getTime() < cutoff.getTime()) continue
+      if (effectiveScope === 'mine' && !mineInvolved(e)) continue
+      met.add(e.person_id)
+    }
+    if (profile?.id) met.delete(profile.id)
+    return met.size
+  }, [recentAttn, engagements, victoryGroups, badgeScope, isAdmin, profile?.id, viewerPersonId, confirmedIds])
+
   if (loading) {
     return <SectionSkeleton title="My Meetings" />
   }
@@ -454,6 +495,13 @@ export default function NeedAttentionSection({
                 ))}
               </div>
             )}
+            <span
+              title="Distinct people you met with in the last 7 days — small groups + 1:1s, counted once. Follows the GBC/Mine scope."
+              className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+              style={{ background: 'rgba(54,214,195,.15)', color: 'var(--establish)' }}
+            >
+              🤝 {metThisWeekCount} met this week
+            </span>
             {overdueCount > 0 && (
               <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'rgba(242,114,138,.15)', color: '#F2728A' }}>
                 {overdueCount} overdue

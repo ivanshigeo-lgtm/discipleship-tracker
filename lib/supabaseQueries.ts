@@ -793,7 +793,7 @@ export const getGroupAttendance = async (groupId: string) => {
 export const getRecentGroupAttendance = async (since: string) => {
   const { data, error } = await supabase
     .from('group_attendance')
-    .select('person_id, meeting_date, attended')
+    .select('person_id, victory_group_id, meeting_date, attended')
     .gte('meeting_date', since)
     .eq('attended', true)
   return { data, error }
