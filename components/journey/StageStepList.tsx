@@ -49,13 +49,7 @@ export function StepRow({
   return (
     <div
       className={`group rounded-lg px-2 py-1.5 transition-colors ${actionable ? 'cursor-pointer hover:bg-[rgba(246,241,231,.05)]' : 'hover:bg-[rgba(246,241,231,.04)]'}`}
-      onClick={() => {
-        // GIFTS-DBG (temporary) — logs EVERY row tap so we can see whether the
-        // gift row's click fires, whether it's actionable, and whether onAction exists.
-        // eslint-disable-next-line no-console
-        console.log('[GIFTS-DBG] StepRow tap', { id: step.id, action: step.action, actionable, hasOnAction: !!onAction, completed: step.completed, locked })
-        if (actionable && onAction) onAction(step)
-      }}
+      onClick={actionable && onAction ? () => onAction(step) : undefined}
     >
       <div className="flex items-center gap-2.5">
         {toggleable ? (

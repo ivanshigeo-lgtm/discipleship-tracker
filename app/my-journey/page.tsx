@@ -155,11 +155,6 @@ export default function MyJourneyPage() {
   const [dataReady, setDataReady] = useState(false)
   const [demo, setDemo] = useState<DemoPhase>(null)
   const [activeModal, setActiveModal] = useState<'soap' | 'testimony' | 'spiritual-gifts' | 'coach' | 'message' | 'join-group' | 'prayer' | null>(null)
-  // GIFTS-DBG (temporary) — confirms whether setActiveModal took effect + profile truthy at that moment.
-  useEffect(() => {
-    // eslint-disable-next-line no-console
-    console.log('[GIFTS-DBG] activeModal changed ->', activeModal, 'profile?', !!profile)
-  }, [activeModal]) // eslint-disable-line react-hooks/exhaustive-deps
   const [giftsResult, setGiftsResult] = useState<SpiritualGiftsResult | null>(null)
   const [soapEntryDate, setSoapEntryDate] = useState<string | null>(null)
   const [soapEditEntry, setSoapEditEntry] = useState<SoapJournal | null>(null)
@@ -374,9 +369,6 @@ export default function MyJourneyPage() {
   const fullCircle = levelByStage(levels, 'Engage')?.completed ?? false
 
   const handleStepAction = (step: JourneyStep) => {
-    // GIFTS-DBG (temporary)
-    // eslint-disable-next-line no-console
-    console.log('[GIFTS-DBG] handleStepAction', { action: step.action, id: step.id, hasProfile: !!profile })
     if (step.action === 'soap') setActiveModal('soap')
     else if (step.action === 'testimony') setActiveModal('testimony')
     else if (step.action === 'spiritual-gifts') setActiveModal('spiritual-gifts')
@@ -426,6 +418,11 @@ export default function MyJourneyPage() {
 
   // intro hands off to the tour — same star, focus unbroken
   const dismissIntro = useCallback(() => {
+    // Persist "seen" the moment the intro is dismissed (not only after the whole
+    // tour finishes in dismissTour). If a user leaves mid-story, the flag would
+    // otherwise never be set and the opaque full-screen story would replay on
+    // every visit, silently intercepting taps on the home CTAs behind it.
+    localStorage.setItem(INTRO_KEY, '1')
     setShowIntro(false)
     setShowTour(true)
   }, [])
