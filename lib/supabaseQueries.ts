@@ -646,6 +646,39 @@ export const upsertBookletProgress = async (
   return { data, error }
 }
 
+// ==================== SPIRITUAL GIFTS ====================
+export const getSpiritualGiftsResult = async (personId: string) => {
+  const { data, error } = await supabase
+    .from('spiritual_gifts_results')
+    .select('*')
+    .eq('person_id', personId)
+    .maybeSingle()
+  return { data, error }
+}
+
+export const upsertSpiritualGiftsResult = async (
+  personId: string,
+  responses: Record<number, number>,
+  scores: unknown[],
+  topGifts: unknown[],
+) => {
+  const { data, error } = await supabase
+    .from('spiritual_gifts_results')
+    .upsert(
+      {
+        person_id: personId,
+        responses,
+        scores,
+        top_gifts: topGifts,
+        completed_at: new Date().toISOString(),
+      },
+      { onConflict: 'person_id' }
+    )
+    .select()
+    .single()
+  return { data, error }
+}
+
 export const getGroupsForPerson = async (personId: string) => {
   const { data, error } = await supabase
     .from('person_victory_groups')

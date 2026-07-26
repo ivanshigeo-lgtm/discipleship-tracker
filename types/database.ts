@@ -19,6 +19,20 @@ export type BookletProgress = {
   updated_at: string
 }
 
+// Latest spiritual-gifts assessment result per person (one row per person).
+// responses/scores/top_gifts are stored as jsonb; shapes mirror lib/spiritualGifts.ts.
+export type SpiritualGiftsResult = {
+  id: string
+  person_id: string
+  responses: Record<string, number>
+  scores: unknown[]
+  top_gifts: unknown[]
+  completed_at: string | null
+  last_edited_by: string | null
+  created_at: string
+  updated_at: string
+}
+
 export type Person = {
   id: string
   name: string
