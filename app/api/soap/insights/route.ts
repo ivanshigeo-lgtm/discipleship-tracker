@@ -11,28 +11,48 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+type J = { journal_date: string; ocr_text: string | null; scripture_reference: string | null }
+
 export async function POST(request: NextRequest) {
-  const { journalIds, question } = await request.json() as {
-    journalIds: string[]
+  const { journalIds, entries: providedEntries, question } = await request.json() as {
+    journalIds?: string[]
+    entries?: J[]
     question?: string
   }
 
-  if (!journalIds?.length) {
-    return NextResponse.json({ error: 'journalIds required' }, { status: 400 })
+  const journals: J[] = []
+
+  if (providedEntries?.length) {
+    // Client-provided path: the caller already holds the entry text. The native
+    // journal is the iSOAP store (system of record), whose entry ids do NOT live
+    // in soap_journals for most people — only Jonavan's bulk-imported decade was
+    // copied in with matching ids. Fetching by id there returned zero rows and
+    // surfaced "Could not fetch entries" for every other linked user. Trust the
+    // text the client already loaded (local + iSOAP, merged) — no DB round-trip,
+    // no id-space mismatch.
+    journals.push(
+      ...providedEntries.map(e => ({
+        journal_date: e.journal_date,
+        ocr_text: e.ocr_text ?? null,
+        scripture_reference: e.scripture_reference ?? null,
+      }))
+    )
+  } else if (journalIds?.length) {
+    // Legacy id path (web callers that pass local soap_journals ids). Fetch in
+    // id-chunks: Supabase caps responses at 1,000 rows, and decade-wide ranges
+    // select ~2,000 entries at once.
+    for (let i = 0; i < journalIds.length; i += 500) {
+      const { data, error } = await supabase
+        .from('soap_journals')
+        .select('journal_date, ocr_text, scripture_reference')
+        .in('id', journalIds.slice(i, i + 500))
+      if (error) return NextResponse.json({ error: 'Could not fetch entries' }, { status: 500 })
+      journals.push(...((data ?? []) as J[]))
+    }
+  } else {
+    return NextResponse.json({ error: 'journalIds or entries required' }, { status: 400 })
   }
 
-  // Fetch in id-chunks: Supabase caps responses at 1,000 rows, and decade-wide
-  // ranges now select ~2,000 entries at once.
-  type J = { journal_date: string; ocr_text: string | null; scripture_reference: string | null }
-  const journals: J[] = []
-  for (let i = 0; i < journalIds.length; i += 500) {
-    const { data, error } = await supabase
-      .from('soap_journals')
-      .select('journal_date, ocr_text, scripture_reference')
-      .in('id', journalIds.slice(i, i + 500))
-    if (error) return NextResponse.json({ error: 'Could not fetch entries' }, { status: 500 })
-    journals.push(...((data ?? []) as J[]))
-  }
   journals.sort((a, b) => a.journal_date.localeCompare(b.journal_date))
   if (!journals.length) {
     return NextResponse.json({ error: 'Could not fetch entries' }, { status: 500 })
