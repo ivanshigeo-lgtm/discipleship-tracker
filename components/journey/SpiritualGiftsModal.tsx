@@ -7,6 +7,7 @@ import {
   SCALE,
   scoreGifts,
   topGifts as computeTopGifts,
+  formatGiftsForSharing,
   TIER_LABEL,
   TOTAL_QUESTIONS,
   type GiftScore,
@@ -49,6 +50,7 @@ export default function SpiritualGiftsModal({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [showAll, setShowAll] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   // Resume an in-progress draft (only when there's no saved result yet).
   useEffect(() => {
@@ -106,6 +108,21 @@ export default function SpiritualGiftsModal({
     setResponses({})
     setPage(0)
     setView('quiz')
+  }
+
+  // Copy/share the results so they can be sent to a coach or a Grace Group.
+  // Prefer the OS share sheet on mobile web; fall back to clipboard elsewhere.
+  const shareResults = async () => {
+    const text = formatGiftsForSharing(scores, profile.name)
+    try {
+      if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+        await navigator.share({ text })
+        return
+      }
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2500)
+    } catch { /* user dismissed the share sheet, or clipboard was blocked */ }
   }
 
   return (
@@ -235,6 +252,20 @@ export default function SpiritualGiftsModal({
                   </div>
                 ))}
               </div>
+
+              {/* Copy / share results — to send to a coach or Grace Group */}
+              <button
+                type="button"
+                onClick={shareResults}
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-medium transition-colors"
+                style={{
+                  borderColor: copied ? 'var(--equip)' : 'var(--line-2)',
+                  background: 'var(--indigo-2)',
+                  color: 'var(--fg-1)',
+                }}
+              >
+                {copied ? '✓ Copied — paste it to your coach or group' : 'Copy my results to share'}
+              </button>
 
               {/* Full ranked list */}
               <button

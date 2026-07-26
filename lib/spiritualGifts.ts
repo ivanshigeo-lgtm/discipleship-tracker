@@ -480,3 +480,21 @@ export function scoreGifts(responses: Record<number, number>): GiftScore[] {
 export function topGifts(responses: Record<number, number>, n = 3): GiftScore[] {
   return scoreGifts(responses).slice(0, n)
 }
+
+// A plain-text summary of someone's results, meant for copying into a message
+// to a coach or a Grace Group chat. Deliberately text-only (no markdown) so it
+// reads cleanly in Messages / WhatsApp / anywhere it's pasted. Keep this shared
+// between web and native so both share the exact same wording.
+export function formatGiftsForSharing(scores: GiftScore[], personName?: string): string {
+  const top = scores.slice(0, 3)
+  const who = personName?.trim()
+  const lines: string[] = [who ? `My Spiritual Gifts — ${who}` : 'My Spiritual Gifts', '', 'Top 3 gifts:']
+  top.forEach((g, i) => {
+    lines.push(`${i + 1}. ${g.name} (${TIER_LABEL[g.tier]} · ${g.score}/${g.max})`)
+    if (g.description) lines.push(`   ${g.description}`)
+  })
+  const ministries = top[0]?.ministries ?? []
+  if (ministries.length) lines.push('', `Ways to serve: ${ministries.join(', ')}`)
+  lines.push('', 'Discovered with the WikiChurch discipleship app.')
+  return lines.join('\n')
+}
