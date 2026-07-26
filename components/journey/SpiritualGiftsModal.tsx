@@ -109,7 +109,7 @@ export default function SpiritualGiftsModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(6,8,20,.8)] p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[rgba(6,8,20,.8)] p-4 backdrop-blur-sm">
       <div
         className="flex max-h-[92vh] w-full max-w-md flex-col overflow-hidden rounded-[var(--r-xl)] border border-[var(--line-2)] bg-[var(--indigo)]"
         style={{ boxShadow: 'var(--elev-2)' }}
