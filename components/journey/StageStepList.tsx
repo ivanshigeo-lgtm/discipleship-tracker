@@ -26,10 +26,12 @@ export function StepRow({
   const toggleable = !locked && !!STEP_CHECKLIST[step.id] && !!onToggle
   const actionable =
     !locked &&
-    // message-coach and testimony stay clickable even when complete — so you can
-    // always (re)record or watch your 2-min miracle, or message your coach.
+    // message-coach, testimony and spiritual-gifts stay clickable even when
+    // complete — so you can always (re)record or watch your 2-min miracle,
+    // message your coach, or view/retake your gifts assessment.
     (step.action === 'message-coach' ||
       step.action === 'testimony' ||
+      step.action === 'spiritual-gifts' ||
       (!step.completed &&
         (step.action === 'coach-code' ||
           step.action === 'join-group' ||
@@ -86,6 +88,8 @@ export function StepRow({
               ? 'Mark it →'
               : step.action === 'testimony'
               ? (step.completed ? 'Watch / re-record →' : 'Record →')
+              : step.action === 'spiritual-gifts'
+              ? (step.completed ? 'View / retake →' : 'Take test →')
               : '→'}
           </span>
         )}
