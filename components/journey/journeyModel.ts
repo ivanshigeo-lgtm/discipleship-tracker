@@ -46,6 +46,7 @@ export const STEP_CHECKLIST: Record<string, { stage: Stage; label: string; categ
   one2one: { stage: 'Establish', label: 'Completed One2One', category: 'Tool' },
   'church-community': { stage: 'Establish', label: 'Completed Church Community', category: 'Tool' },
   'making-disciples': { stage: 'Equip', label: 'Completed Making Disciples', category: 'Tool' },
+  'spiritual-gifts': { stage: 'Equip', label: 'Discover Your Spiritual Gifts', category: 'Action Step' },
   testimony: { stage: 'Equip', label: 'Shared Their 2min Miracle', category: 'Action Step' },
   'empowering-leaders': { stage: 'Empower', label: 'Completed Empowering Leaders', category: 'Tool' },
 }
@@ -60,6 +61,7 @@ export const STEP_DESCRIPTIONS: Record<string, string> = {
   one2one: 'Walk the One2One booklet with your coach — the foundations of following Jesus.',
   'church-community': 'Learn what it means to belong to the body of Christ.',
   'making-disciples': 'Journey through the Making Disciples booklet — learn to help others follow Jesus.',
+  'spiritual-gifts': 'Take a short assessment to discover the gifts God has given you — and how to put them to work.',
   testimony: 'Record your two-minute miracle — your story becomes light for others.',
   'empowering-leaders': 'Be equipped to raise up and release new leaders.',
   identify: 'Look around your world — Start a conversation, Ask questions, Listen, Tell your story.',
@@ -76,6 +78,7 @@ export type StepAction =
   | 'join-group'
   | 'soap'
   | 'testimony'
+  | 'spiritual-gifts'
   | 'self-confirm'
   | 'coach-verified'
   | 'celebrate'
@@ -119,6 +122,8 @@ export type JourneyData = {
   disciples: DiscipleshipConnection[]
   /* coach sign-offs on completed levels */
   signoffs: LevelSignoff[]
+  /* true if this person has completed the spiritual-gifts assessment */
+  hasGiftsResult?: boolean
 }
 
 const SOAP_STREAK_TARGET = 7
@@ -290,6 +295,16 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
       completed: stepDone(d.checklist, 'making-disciples', false),
       progress: stepDone(d.checklist, 'making-disciples', false) ? 1 : 0,
       action: 'coach-verified',
+    },
+    {
+      id: 'spiritual-gifts',
+      title: 'Discover Your Gifts',
+      detail: stepDone(d.checklist, 'spiritual-gifts', Boolean(d.hasGiftsResult))
+        ? 'You know your top gifts — now put them to work.'
+        : 'Take a short assessment to discover how God has gifted you.',
+      completed: stepDone(d.checklist, 'spiritual-gifts', Boolean(d.hasGiftsResult)),
+      progress: stepDone(d.checklist, 'spiritual-gifts', Boolean(d.hasGiftsResult)) ? 1 : 0,
+      action: 'spiritual-gifts',
     },
     {
       id: 'testimony',
