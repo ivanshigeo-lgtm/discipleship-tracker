@@ -213,12 +213,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     initAuth()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         console.log('Auth state change:', event, session?.user?.email)
         setSession(session)
         setUser(session?.user ?? null)
         if (session?.user) {
-          await loadProfileFor(session.user.id, session.user.email)
+          // Defer the profile query OUT of this callback. supabase-js invokes
+          // onAuthStateChange while holding its navigator LockManager lock;
+          // running a supabase query here (which itself needs the lock for token
+          // handling) deadlocks the client — getSession() and the query hang
+          // until the 8s "Profile query timeout" fires, ×3, leaving a returning
+          // user on a blank/spinner page for ~24s. setTimeout(…,0) lets the
+          // callback return and release the lock before the query runs.
+          const u = session.user
+          setTimeout(() => { loadProfileFor(u.id, u.email) }, 0)
         } else {
           setProfile(null)
           setDownline([])
