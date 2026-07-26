@@ -564,7 +564,7 @@ export const getVictoryGroups = () =>
     return { data, error }
   })
 
-export const addVictoryGroup = async (group: Omit<VictoryGroup, 'id' | 'created_at' | 'google_calendar_event_id'>) => {
+export const addVictoryGroup = async (group: Omit<VictoryGroup, 'id' | 'created_at' | 'google_calendar_event_id' | 'last_edited_by'>) => {
   const { data, error } = await supabase
     .from('victory_groups')
     .insert(group)

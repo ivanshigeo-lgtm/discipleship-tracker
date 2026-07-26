@@ -103,6 +103,7 @@ export type VictoryGroup = {
   owner_person_id: string | null
   focus: GroupFocus | null
   created_at: string
+  last_edited_by: string | null
 }
 
 export type PersonVictoryGroup = {

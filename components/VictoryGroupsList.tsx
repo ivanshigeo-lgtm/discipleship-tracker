@@ -551,17 +551,26 @@ export default function VictoryGroupsList({
                     onClick={() => toggleGroup(group.id)}
                     className="flex flex-1 items-center justify-between gap-2 px-2.5 py-1.5 text-left"
                   >
-                    <span className="flex min-w-0 items-center gap-2">
-                      <span className="truncate text-sm font-semibold text-[var(--fg-1)]">{group.name}</span>
-                      {group.focus && bookletStage(group.focus) && (
-                        <span
-                          className="shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold"
-                          style={{ background: `${STAGE_COLORS[bookletStage(group.focus)!]}22`, color: STAGE_COLORS[bookletStage(group.focus)!] }}
-                          title={`${group.focus} · ${bookletStage(group.focus)}`}
-                        >
-                          {bookletStage(group.focus)} · {group.focus}
-                        </span>
-                      )}
+                    <span className="flex min-w-0 flex-col gap-0.5">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="truncate text-sm font-semibold text-[var(--fg-1)]">{group.name}</span>
+                        {group.focus && bookletStage(group.focus) && (
+                          <span
+                            className="shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold"
+                            style={{ background: `${STAGE_COLORS[bookletStage(group.focus)!]}22`, color: STAGE_COLORS[bookletStage(group.focus)!] }}
+                            title={`${group.focus} · ${bookletStage(group.focus)}`}
+                          >
+                            {bookletStage(group.focus)} · {group.focus}
+                          </span>
+                        )}
+                      </span>
+                      {/* Who owns the group, and who last touched it (audit). */}
+                      <span className="truncate text-[10px] text-[var(--fg-3)]">
+                        Led by <span className="text-[var(--fg-2)]">{personName(group.owner_person_id)}</span>
+                        {group.last_edited_by && (
+                          <> · edited by <span className="text-[var(--fg-2)]">{personName(group.last_edited_by)}</span></>
+                        )}
+                      </span>
                     </span>
                     <span className="shrink-0 text-[10px] text-[var(--fg-3)]">
                       {group.google_calendar_event_id && <span title="Synced to Google Calendar">📅 </span>}
