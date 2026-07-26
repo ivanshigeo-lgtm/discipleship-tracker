@@ -180,9 +180,15 @@ export default function StarQuadrants({
     }
   }, [demo, demoQuadrant])
 
-  // tap outside closes a pinned panel (mobile)
+  // tap outside closes a pinned FLOATING panel (mobile). Skip entirely in docked
+  // mode: there the checklist docks OUTSIDE this component's containerRef (the
+  // home page renders <StageDock> as a sibling), so every tap on a dock CTA
+  // counts as "outside" and this pointerdown handler would null `pinned` —
+  // unmounting the dock BEFORE the CTA's click lands, silently killing every
+  // step action on devices where the re-render beats the click (Jonavan's bug).
+  // Docked mode closes via the dock's own ✕ or by re-tapping the quadrant.
   useEffect(() => {
-    if (pinned === null) return
+    if (pinned === null || docked) return
     const close = (e: PointerEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setPinned(null)
@@ -191,7 +197,7 @@ export default function StarQuadrants({
     }
     document.addEventListener('pointerdown', close)
     return () => document.removeEventListener('pointerdown', close)
-  }, [pinned])
+  }, [pinned, docked])
 
   // Docked mode is tap-driven only (like native) so the panel below the star
   // stays put; hover-preview is reserved for the floating (home-overlay) mode.
