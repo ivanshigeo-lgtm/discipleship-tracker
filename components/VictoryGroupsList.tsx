@@ -12,7 +12,6 @@ import {
   updateVictoryGroupOwner,
   upsertGroupAttendance,
   getGroupAttendance,
-  getRecentGroupAttendance,
 } from '../lib/supabaseQueries'
 import type { Person, PersonVictoryGroupWithPerson, Stage, VictoryGroup, GroupAttendance, GroupFocus } from '../types/database'
 import { stageLabels } from '../lib/stageLabels'
@@ -69,28 +68,16 @@ const attnWarnFor = (s: number) =>
 const fmtHistDate = (d: string) =>
   new Date(d + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
 
-// Local YYYY-MM-DD key (never toISOString — that can shift the day across the UTC
-// boundary in negative-offset zones like Hawaii, where meeting dates are recorded).
-const localDayKey = (date: Date) =>
-  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-
 export default function VictoryGroupsList({
   onChanged,
   startWithForm = false,
   onPersonClick,
   onAddNewPerson,
-  myCircleIds,
-  myPeopleIds,
 }: {
   onChanged?: () => void
   startWithForm?: boolean
   onPersonClick?: (person: Person) => void
   onAddNewPerson?: (name?: string) => void
-  // Scope person-sets from the parent page: My Constellation = my whole coaching
-  // tree; My People = those I directly disciple. Used to scope the weekly-attendance
-  // count. Undefined (not yet loaded) is treated as "all" (like GBC).
-  myCircleIds?: Set<string>
-  myPeopleIds?: Set<string>
 }) {
   const { profile } = useAuth()
   // GBC = all groups; My Constellation / My People = only groups I own (the person-set
@@ -166,10 +153,6 @@ export default function VictoryGroupsList({
   const [historyGroupId, setHistoryGroupId] = useState<string | null>(null)
   const [historyRecords, setHistoryRecords] = useState<GroupAttendance[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
-  // Rolling 7-day attendance (attended=true, all groups) for the "attended this week"
-  // metric. person_id lets us de-dupe a member who attends multiple groups.
-  const [recentAttn, setRecentAttn] = useState<{ person_id: string; meeting_date: string; attended: boolean }[]>([])
-
   const loadData = async () => {
     try {
       const [{ data: groupsData, error: groupsError }, { data: peopleData, error: peopleError }] = await Promise.race([
@@ -195,12 +178,6 @@ export default function VictoryGroupsList({
         groupedMembers[group.id] = (memberResults[i].data ?? []) as unknown as PersonVictoryGroupWithPerson[]
       })
       setMembersByGroup(groupedMembers)
-
-      // Rolling 7-day window (today and the prior 6 days), local time.
-      const since = new Date()
-      since.setDate(since.getDate() - 6)
-      const { data: recentData } = await getRecentGroupAttendance(localDayKey(since))
-      setRecentAttn((recentData ?? []) as { person_id: string; meeting_date: string; attended: boolean }[])
     } catch (err) {
       console.error('VictoryGroupsList load error:', err)
       setError('Failed to load groups')
@@ -444,25 +421,6 @@ export default function VictoryGroupsList({
     : groups.filter(g => g.owner_person_id === profile?.id)
   const personName = (id: string | null) => allPeople.find(p => p.id === id)?.name ?? 'Unassigned'
 
-  // Person-set for the current scope: My People = those I directly disciple; My
-  // Constellation = my whole tree; GBC (or a not-yet-loaded set) = null = everyone.
-  const allowedPersonIds: Set<string> | null =
-    scope === 'direct' ? (myPeopleIds ?? null)
-    : scope === 'mine' ? (myCircleIds ?? null)
-    : null
-
-  // Distinct people who attended ANY group in the rolling 7-day window, scoped to the
-  // current circle and de-duped by person_id (a member in two groups counts once).
-  // recentAttn is already attended=true from the query.
-  const weekAttendCount = (() => {
-    const seen = new Set<string>()
-    for (const r of recentAttn) {
-      if (allowedPersonIds && !allowedPersonIds.has(r.person_id)) continue
-      seen.add(r.person_id)
-    }
-    return seen.size
-  })()
-
   return (
     <div className="rounded-2xl border border-[var(--line-1)] bg-[var(--indigo-2)] p-3">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
@@ -481,13 +439,6 @@ export default function VictoryGroupsList({
               </button>
             ))}
           </div>
-          {/* Rolling 7-day attendance — distinct people, de-duped across groups, scoped */}
-          <span
-            className="rounded-full border border-[var(--line-2)] bg-[var(--indigo)] px-2 py-0.5 text-[10px] font-semibold text-[var(--fg-2)]"
-            title="Distinct people who attended any group in the last 7 days (counted once even if in multiple groups)"
-          >
-            <span className="text-[var(--establish)]">{weekAttendCount}</span> attended this week
-          </span>
         </div>
         <div className="flex items-center gap-1.5">
           {showForm && (

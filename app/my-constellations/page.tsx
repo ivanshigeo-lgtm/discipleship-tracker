@@ -27,7 +27,7 @@ import GoogleCalendarConnect from '../../components/GoogleCalendarConnect'
 import MessageCenter from '../../components/MessageCenter'
 import SoapEntryModal from '../../components/journey/SoapEntryModal'
 import SoapCalendarSection from '../../components/SoapCalendarSection'
-import { getSoapJournals, getAllDiscipleshipConnections, getPeople, getLevelSignoffs, getAllEngagements, getAllActionItems, getVictoryGroups, getPrayerLifeForPerson, getMyConversations, getConfirmedEngagementIds, getPendingLevelSignoffs } from '../../lib/supabaseQueries'
+import { getSoapJournals, getAllDiscipleshipConnections, getPeople, getLevelSignoffs, getAllEngagements, getAllActionItems, getVictoryGroups, getPrayerLifeForPerson, getMyConversations, getConfirmedEngagementIds, getPendingLevelSignoffs, getRecentGroupAttendance } from '../../lib/supabaseQueries'
 import type { Person, SoapJournal, Stage, DiscipleshipConnection, Engagement } from '../../types/database'
 import EngagementDetailModal from '../../components/EngagementDetailModal'
 import { DashboardSkeleton } from '../../components/Skeleton'
@@ -305,6 +305,10 @@ export default function DiscipleshipTracker() {
   const [engSearchFocused, setEngSearchFocused] = useState(false)
   // Open engagement detail (action/prayer/praise points)
   const [detailEngagement, setDetailEngagement] = useState<{ engagement: Engagement; personName: string } | null>(null)
+  // "My Meetings" — distinct people met with in the rolling 7-day window across BOTH
+  // small groups (group_attendance) AND individual 1:1 meetings (completed engagements),
+  // deduped by person_id so someone met in both surfaces counts once.
+  const [weekMeetCount, setWeekMeetCount] = useState(0)
 
   // Person modal
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null)
@@ -569,6 +573,38 @@ export default function DiscipleshipTracker() {
     })()
     return () => { cancelled = true }
   }, [profile, isAdmin, refreshKey, currentStreak, soapStreak])
+
+  // My Meetings card — distinct people met with this week across small groups AND 1:1s.
+  useEffect(() => {
+    if (!profile) return
+    let cancelled = false
+    ;(async () => {
+      const since = new Date(); since.setDate(since.getDate() - 6)
+      const sinceKey = `${since.getFullYear()}-${String(since.getMonth() + 1).padStart(2, '0')}-${String(since.getDate()).padStart(2, '0')}`
+      since.setHours(0, 0, 0, 0)
+      const [engRes, attnRes] = await Promise.all([
+        getAllEngagements(),
+        getRecentGroupAttendance(sinceKey),
+      ])
+      if (cancelled) return
+      const met = new Set<string>()
+      // (a) group attendance (already attended=true, meeting_date >= sinceKey)
+      for (const r of (attnRes.data as { person_id: string }[] ?? [])) met.add(r.person_id)
+      // (b) completed 1:1 meetings in the rolling window. There's no completed_at
+      // column — follow_up_date is the meeting date (same signal lastTouch uses).
+      const engs = (engRes.data as { person_id: string; status: string; follow_up_date: string | null }[]) ?? []
+      for (const e of engs) {
+        if (e.status !== 'Completed' || !e.follow_up_date) continue
+        const d = e.follow_up_date
+        if (new Date(d + (d.length === 10 ? 'T00:00:00' : '')).getTime() < since.getTime()) continue
+        met.add(e.person_id)
+      }
+      // The coach shouldn't count themselves among the unique people they met with.
+      met.delete(profile.id)
+      setWeekMeetCount(met.size)
+    })()
+    return () => { cancelled = true }
+  }, [profile, refreshKey])
 
   // ── Guard renders ──────────────────────────────────────────────────────────
   if (loading) {
@@ -945,6 +981,18 @@ export default function DiscipleshipTracker() {
                   </button>
                 </div>
               </div>
+              {/* My Meetings — people met with this week across small groups AND 1:1s (deduped) */}
+              <div className="mb-6 flex items-center gap-3 rounded-2xl border border-[rgba(54,214,195,0.22)] bg-[var(--indigo)] px-4 py-3.5">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[rgba(54,214,195,0.12)] text-lg">🤝</div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-[var(--fg-1)]">My Meetings</p>
+                  <p className="mt-0.5 text-xs text-[var(--fg-3)]">People met with this week · groups &amp; 1:1s</p>
+                </div>
+                <div className="shrink-0 text-center" title="Distinct people met with in the last 7 days across small groups and individual meetings (counted once even if met in both)">
+                  <div className="text-3xl font-semibold leading-none text-[var(--establish)]">{weekMeetCount}</div>
+                  <div className="mt-1 text-[10px] text-[var(--fg-3)]">{weekMeetCount === 1 ? 'person' : 'people'}</div>
+                </div>
+              </div>
               <ErrorBoundary name="SignoffRequestsSection">
                 <SignoffRequestsSection
                   coachId={profile.id}
@@ -1017,8 +1065,6 @@ export default function DiscipleshipTracker() {
                   onChanged={() => setRefreshKey(p => p + 1)}
                   onPersonClick={p => openPerson(p)}
                   onAddNewPerson={(name) => { setNewPersonName(name ?? ''); setShowAddPerson(true) }}
-                  myCircleIds={myCircleIds}
-                  myPeopleIds={myPeopleIds}
                 />
               </ErrorBoundary>
             </div>
