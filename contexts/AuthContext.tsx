@@ -116,6 +116,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             .select('*')
             .ilike('email', email)
             .is('auth_user_id', null)
+            // When two unclaimed rows share this email (a coach-side reverse-order
+            // duplicate), claim the OLDEST — that's the original coach-created row
+            // carrying the connection + progress; the newer one is the accidental
+            // dup. Deterministic order avoids arbitrarily linking to the stray.
+            .order('created_at', { ascending: true })
             .limit(1)
           const match = byEmail?.[0] as Person | undefined
           if (match) {
