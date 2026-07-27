@@ -825,11 +825,14 @@ export default function MyJourneyPage() {
               </section>
             )}
 
-            {/* Ministry fit — full card once all three Equip assessments are done,
-                otherwise a locked teaser that drives completion (goal gradient). */}
+            {/* Ministry fit — tied to the Equip stage sheet: it only appears while
+                the Equip dock is open, and disappears when you close it. Collapsible
+                so the long exec summary can be folded away without closing Equip. */}
+            {dockStage === 'Equip' && (
             <MinistryFitCard
               result={ministryFit}
               generating={ministryFitGenerating}
+              collapsible
               progress={(() => {
                 const completed = [giftsResult, bigFiveResult, passionResult].filter(Boolean).length
                 const next = !giftsResult
@@ -848,6 +851,7 @@ export default function MyJourneyPage() {
                 }
               })()}
             />
+            )}
 
             {/* footer */}
             <footer className="mt-14 flex flex-col items-center gap-2 text-center">

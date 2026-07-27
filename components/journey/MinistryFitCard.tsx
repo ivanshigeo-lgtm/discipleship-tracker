@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { MINISTRIES } from '@/lib/ministries'
 import type { MinistryFitResult, MinistryFitSuggestion, MinistryFitNewIdea } from '@/types/database'
 
@@ -140,12 +141,20 @@ export default function MinistryFitCard({
   title = 'Your Ministry Fit',
   generating = false,
   progress,
+  collapsible = false,
+  defaultCollapsed = false,
 }: {
   result: MinistryFitResult | null
   title?: string
   generating?: boolean
   progress?: MinistryFitProgress
+  // When true, the full summary can be folded away with a chevron in the header
+  // (the exec summary is long; keep it out of the way once you've read it).
+  collapsible?: boolean
+  defaultCollapsed?: boolean
 }) {
+  const [collapsed, setCollapsed] = useState(defaultCollapsed)
+
   if (!result && !generating) {
     // Not generated yet: show the locked teaser to drive assessment completion.
     if (progress && progress.completed < progress.total) {
@@ -166,10 +175,33 @@ export default function MinistryFitCard({
         boxShadow: '0 0 48px -20px rgba(127,176,255,.45)',
       }}
     >
-      <p className="cn-label" style={{ color: '#7Fb0ff' }}>Ministry Fit</p>
-      <h3 className="mt-1 text-xl sm:text-2xl" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>{title}</h3>
+      {collapsible ? (
+        <button
+          type="button"
+          onClick={() => setCollapsed(c => !c)}
+          aria-expanded={!collapsed}
+          className="flex w-full items-start justify-between gap-3 text-left"
+        >
+          <span>
+            <span className="cn-label block" style={{ color: '#7Fb0ff' }}>Ministry Fit</span>
+            <span className="mt-1 block text-xl sm:text-2xl" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>{title}</span>
+          </span>
+          <span
+            aria-hidden
+            className="mt-1 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg border text-[13px] text-[var(--fg-3)] transition-transform"
+            style={{ borderColor: 'var(--line-2)', transform: collapsed ? 'rotate(0deg)' : 'rotate(180deg)' }}
+          >
+            ▾
+          </span>
+        </button>
+      ) : (
+        <>
+          <p className="cn-label" style={{ color: '#7Fb0ff' }}>Ministry Fit</p>
+          <h3 className="mt-1 text-xl sm:text-2xl" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>{title}</h3>
+        </>
+      )}
 
-      {generating && !result ? (
+      {collapsed ? null : generating && !result ? (
         <p className="mt-4 flex items-center gap-2 text-sm text-[var(--fg-3)]">
           <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden />
           Discerning where you’re wired to serve…
