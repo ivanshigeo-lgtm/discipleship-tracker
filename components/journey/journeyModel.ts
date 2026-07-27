@@ -47,6 +47,7 @@ export const STEP_CHECKLIST: Record<string, { stage: Stage; label: string; categ
   'church-community': { stage: 'Establish', label: 'Completed Church Community', category: 'Tool' },
   'making-disciples': { stage: 'Equip', label: 'Completed Making Disciples', category: 'Tool' },
   'spiritual-gifts': { stage: 'Equip', label: 'Discover Your Spiritual Gifts', category: 'Action Step' },
+  'big-five': { stage: 'Equip', label: 'Discover Your Personality (Big Five)', category: 'Action Step' },
   testimony: { stage: 'Equip', label: 'Shared Their 2min Miracle', category: 'Action Step' },
   'empowering-leaders': { stage: 'Empower', label: 'Completed Empowering Leaders', category: 'Tool' },
 }
@@ -62,6 +63,7 @@ export const STEP_DESCRIPTIONS: Record<string, string> = {
   'church-community': 'Learn what it means to belong to the body of Christ.',
   'making-disciples': 'Journey through the Making Disciples booklet — learn to help others follow Jesus.',
   'spiritual-gifts': 'Take a short assessment to discover the gifts God has given you — and how to put them to work.',
+  'big-five': 'Take a short personality assessment to understand how and where you tend to thrive in serving.',
   testimony: 'Record your two-minute miracle — your story becomes light for others.',
   'empowering-leaders': 'Be equipped to raise up and release new leaders.',
   identify: 'Look around your world — Start a conversation, Ask questions, Listen, Tell your story.',
@@ -79,6 +81,7 @@ export type StepAction =
   | 'soap'
   | 'testimony'
   | 'spiritual-gifts'
+  | 'big-five'
   | 'self-confirm'
   | 'coach-verified'
   | 'celebrate'
@@ -124,6 +127,8 @@ export type JourneyData = {
   signoffs: LevelSignoff[]
   /* true if this person has completed the spiritual-gifts assessment */
   hasGiftsResult?: boolean
+  /* true if this person has completed the Big Five personality assessment */
+  hasBigFiveResult?: boolean
 }
 
 const SOAP_STREAK_TARGET = 7
@@ -305,6 +310,16 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
       completed: stepDone(d.checklist, 'spiritual-gifts', Boolean(d.hasGiftsResult)),
       progress: stepDone(d.checklist, 'spiritual-gifts', Boolean(d.hasGiftsResult)) ? 1 : 0,
       action: 'spiritual-gifts',
+    },
+    {
+      id: 'big-five',
+      title: 'Discover Your Personality',
+      detail: stepDone(d.checklist, 'big-five', Boolean(d.hasBigFiveResult))
+        ? 'You know how you tend to thrive — lean into it as you serve.'
+        : 'Take a short personality assessment to see how and where you thrive.',
+      completed: stepDone(d.checklist, 'big-five', Boolean(d.hasBigFiveResult)),
+      progress: stepDone(d.checklist, 'big-five', Boolean(d.hasBigFiveResult)) ? 1 : 0,
+      action: 'big-five',
     },
     {
       id: 'testimony',

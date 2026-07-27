@@ -13,6 +13,7 @@ import {
   getSoapStreak,
   getStageChecklistItems,
   getSpiritualGiftsResult,
+  getBigFiveResult,
   upsertStageChecklistItem,
   getDiscipleshipConnections,
   getMyConversations,
@@ -21,7 +22,7 @@ import {
   sendMessage,
 } from '../../lib/supabaseQueries'
 import { supabase } from '../../lib/supabaseClient'
-import type { SoapJournal, StageChecklistItem, Person, VictoryGroup, DiscipleshipConnection, LevelSignoff, Stage, SpiritualGiftsResult } from '../../types/database'
+import type { SoapJournal, StageChecklistItem, Person, VictoryGroup, DiscipleshipConnection, LevelSignoff, Stage, SpiritualGiftsResult, BigFiveResult } from '../../types/database'
 import { computeJourney, computeBadges, ringProgressFromLevels, levelByStage, STEP_CHECKLIST, JOURNEY_ORDER, type JourneyStep } from '../../components/journey/journeyModel'
 import { Starfield } from '../../components/journey/StarPrimitives'
 import JourneyIntro from '../../components/journey/JourneyIntro'
@@ -33,6 +34,7 @@ import SoapEntryModal from '../../components/journey/SoapEntryModal'
 import PrayerEntryModal from '../../components/journey/PrayerEntryModal'
 import TestimonyModal from '../../components/journey/TestimonyModal'
 import SpiritualGiftsModal from '../../components/journey/SpiritualGiftsModal'
+import BigFiveModal from '../../components/journey/BigFiveModal'
 import ConstellationRail, { useConstellationFeed } from '../../components/journey/ConstellationRail'
 import StoryMusic from '../../components/journey/StoryMusic'
 import MessageCoachModal from '../../components/journey/MessageCoachModal'
@@ -154,8 +156,9 @@ export default function MyJourneyPage() {
   const [signingOut, setSigningOut] = useState(false)
   const [dataReady, setDataReady] = useState(false)
   const [demo, setDemo] = useState<DemoPhase>(null)
-  const [activeModal, setActiveModal] = useState<'soap' | 'testimony' | 'spiritual-gifts' | 'coach' | 'message' | 'join-group' | 'prayer' | null>(null)
+  const [activeModal, setActiveModal] = useState<'soap' | 'testimony' | 'spiritual-gifts' | 'big-five' | 'coach' | 'message' | 'join-group' | 'prayer' | null>(null)
   const [giftsResult, setGiftsResult] = useState<SpiritualGiftsResult | null>(null)
+  const [bigFiveResult, setBigFiveResult] = useState<BigFiveResult | null>(null)
   const [soapEntryDate, setSoapEntryDate] = useState<string | null>(null)
   const [soapEditEntry, setSoapEditEntry] = useState<SoapJournal | null>(null)
   const [msgCenterOpen, setMsgCenterOpen] = useState(false)
@@ -231,7 +234,7 @@ export default function MyJourneyPage() {
   // fast. Soaps (hundreds of rows) load separately below.
   const loadData = useCallback(async () => {
     if (!profile?.id) return
-    const [coachRes, groupsRes, streakRes, checklistRes, disciplesRes, signoffsRes, ownedRes, giftsRes] = await Promise.all([
+    const [coachRes, groupsRes, streakRes, checklistRes, disciplesRes, signoffsRes, ownedRes, giftsRes, bigFiveRes] = await Promise.all([
       getMyCoach(profile.id),
       getMyGroups(profile.id),
       getSoapStreak(profile.id),
@@ -240,8 +243,10 @@ export default function MyJourneyPage() {
       getLevelSignoffs(profile.id),
       getGroupsOwnedByPerson(profile.id),
       getSpiritualGiftsResult(profile.id),
+      getBigFiveResult(profile.id),
     ])
     setGiftsResult((giftsRes.data as SpiritualGiftsResult | null) ?? null)
+    setBigFiveResult((bigFiveRes.data as BigFiveResult | null) ?? null)
     const ownsGroupNext = ((ownedRes.data as unknown[] | null)?.length ?? 0) > 0
     const coachNext = (coachRes.data?.discipler as Person | undefined) ?? null
     const disciplesNext = (disciplesRes.data as DiscipleshipConnection[] | null) ?? null
@@ -357,9 +362,10 @@ export default function MyJourneyPage() {
             disciples: myDisciples,
             signoffs,
             hasGiftsResult: Boolean(giftsResult),
+            hasBigFiveResult: Boolean(bigFiveResult),
           }
         : null,
-    [profile, coach, groups, ownsGroup, soapStreak, soapJournals, checklistItems, myDisciples, signoffs, giftsResult]
+    [profile, coach, groups, ownsGroup, soapStreak, soapJournals, checklistItems, myDisciples, signoffs, giftsResult, bigFiveResult]
   )
 
   const levels = useMemo(() => (journeyData ? computeJourney(journeyData) : []), [journeyData])
@@ -372,6 +378,7 @@ export default function MyJourneyPage() {
     if (step.action === 'soap') setActiveModal('soap')
     else if (step.action === 'testimony') setActiveModal('testimony')
     else if (step.action === 'spiritual-gifts') setActiveModal('spiritual-gifts')
+    else if (step.action === 'big-five') setActiveModal('big-five')
     else if (step.action === 'coach-code') setActiveModal('coach')
     else if (step.action === 'message-coach') setActiveModal('message')
     else if (step.action === 'join-group') setActiveModal('join-group')
@@ -779,6 +786,14 @@ export default function MyJourneyPage() {
         <SpiritualGiftsModal
           profile={profile}
           existingResult={giftsResult}
+          onClose={() => setActiveModal(null)}
+          onSaved={loadData}
+        />
+      )}
+      {activeModal === 'big-five' && profile && (
+        <BigFiveModal
+          profile={profile}
+          existingResult={bigFiveResult}
           onClose={() => setActiveModal(null)}
           onSaved={loadData}
         />

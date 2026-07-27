@@ -679,6 +679,37 @@ export const upsertSpiritualGiftsResult = async (
   return { data, error }
 }
 
+// ==================== BIG FIVE (OCEAN) ====================
+export const getBigFiveResult = async (personId: string) => {
+  const { data, error } = await supabase
+    .from('big_five_results')
+    .select('*')
+    .eq('person_id', personId)
+    .maybeSingle()
+  return { data, error }
+}
+
+export const upsertBigFiveResult = async (
+  personId: string,
+  responses: Record<number, number>,
+  scores: unknown[],
+) => {
+  const { data, error } = await supabase
+    .from('big_five_results')
+    .upsert(
+      {
+        person_id: personId,
+        responses,
+        scores,
+        completed_at: new Date().toISOString(),
+      },
+      { onConflict: 'person_id' }
+    )
+    .select()
+    .single()
+  return { data, error }
+}
+
 export const getGroupsForPerson = async (personId: string) => {
   const { data, error } = await supabase
     .from('person_victory_groups')

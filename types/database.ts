@@ -33,6 +33,20 @@ export type SpiritualGiftsResult = {
   updated_at: string
 }
 
+// Latest Big Five (OCEAN) personality result per person (one row per person).
+// responses/scores are stored as jsonb; shapes mirror lib/bigFive.ts. No
+// top_gifts equivalent — the Big Five has a fixed set of five traits.
+export type BigFiveResult = {
+  id: string
+  person_id: string
+  responses: Record<string, number>
+  scores: unknown[]
+  completed_at: string | null
+  last_edited_by: string | null
+  created_at: string
+  updated_at: string
+}
+
 export type Person = {
   id: string
   name: string
