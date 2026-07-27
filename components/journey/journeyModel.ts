@@ -48,6 +48,7 @@ export const STEP_CHECKLIST: Record<string, { stage: Stage; label: string; categ
   'making-disciples': { stage: 'Equip', label: 'Completed Making Disciples', category: 'Tool' },
   'spiritual-gifts': { stage: 'Equip', label: 'Discover Your Spiritual Gifts', category: 'Action Step' },
   'big-five': { stage: 'Equip', label: 'Discover Your Personality (Big Five)', category: 'Action Step' },
+  passion: { stage: 'Equip', label: 'Discover Your Passion', category: 'Action Step' },
   testimony: { stage: 'Equip', label: 'Shared Their 2min Miracle', category: 'Action Step' },
   'empowering-leaders': { stage: 'Empower', label: 'Completed Empowering Leaders', category: 'Tool' },
 }
@@ -64,6 +65,7 @@ export const STEP_DESCRIPTIONS: Record<string, string> = {
   'making-disciples': 'Journey through the Making Disciples booklet — learn to help others follow Jesus.',
   'spiritual-gifts': 'Take a short assessment to discover the gifts God has given you — and how to put them to work.',
   'big-five': 'Take a short personality assessment to understand how and where you tend to thrive in serving.',
+  passion: 'Reflect on who and what stirs your heart — and discover where God may be calling you to serve.',
   testimony: 'Record your two-minute miracle — your story becomes light for others.',
   'empowering-leaders': 'Be equipped to raise up and release new leaders.',
   identify: 'Look around your world — Start a conversation, Ask questions, Listen, Tell your story.',
@@ -82,6 +84,7 @@ export type StepAction =
   | 'testimony'
   | 'spiritual-gifts'
   | 'big-five'
+  | 'passion'
   | 'self-confirm'
   | 'coach-verified'
   | 'celebrate'
@@ -129,6 +132,8 @@ export type JourneyData = {
   hasGiftsResult?: boolean
   /* true if this person has completed the Big Five personality assessment */
   hasBigFiveResult?: boolean
+  /* true if this person has completed the Passion assessment */
+  hasPassionResult?: boolean
 }
 
 const SOAP_STREAK_TARGET = 7
@@ -320,6 +325,16 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
       completed: stepDone(d.checklist, 'big-five', Boolean(d.hasBigFiveResult)),
       progress: stepDone(d.checklist, 'big-five', Boolean(d.hasBigFiveResult)) ? 1 : 0,
       action: 'big-five',
+    },
+    {
+      id: 'passion',
+      title: 'Discover Your Passion',
+      detail: stepDone(d.checklist, 'passion', Boolean(d.hasPassionResult))
+        ? 'You know what stirs your heart — pray about where to serve.'
+        : 'Reflect on who and what stirs your heart to serve.',
+      completed: stepDone(d.checklist, 'passion', Boolean(d.hasPassionResult)),
+      progress: stepDone(d.checklist, 'passion', Boolean(d.hasPassionResult)) ? 1 : 0,
+      action: 'passion',
     },
     {
       id: 'testimony',

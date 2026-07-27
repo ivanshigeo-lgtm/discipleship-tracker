@@ -47,6 +47,19 @@ export type BigFiveResult = {
   updated_at: string
 }
 
+// Latest Passion Assessment (GBC) result per person (one row per person).
+// Unlike gifts/Big Five this is NOT scored — `answers` (jsonb) holds the five
+// reflections plus the ranked top-3 people-groups and issues (see lib/passion.ts).
+export type PassionResult = {
+  id: string
+  person_id: string
+  answers: unknown
+  completed_at: string | null
+  last_edited_by: string | null
+  created_at: string
+  updated_at: string
+}
+
 export type Person = {
   id: string
   name: string

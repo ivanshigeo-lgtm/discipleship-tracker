@@ -710,6 +710,35 @@ export const upsertBigFiveResult = async (
   return { data, error }
 }
 
+// ==================== PASSION ASSESSMENT (GBC) ====================
+export const getPassionResult = async (personId: string) => {
+  const { data, error } = await supabase
+    .from('passion_results')
+    .select('*')
+    .eq('person_id', personId)
+    .maybeSingle()
+  return { data, error }
+}
+
+export const upsertPassionResult = async (
+  personId: string,
+  answers: unknown,
+) => {
+  const { data, error } = await supabase
+    .from('passion_results')
+    .upsert(
+      {
+        person_id: personId,
+        answers,
+        completed_at: new Date().toISOString(),
+      },
+      { onConflict: 'person_id' }
+    )
+    .select()
+    .single()
+  return { data, error }
+}
+
 export const getGroupsForPerson = async (personId: string) => {
   const { data, error } = await supabase
     .from('person_victory_groups')
