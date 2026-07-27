@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react'
 import { deletePerson, updatePerson } from '../lib/supabaseQueries'
 import { useAuth } from '../contexts/AuthContext'
-import type { Person, Stage, Engagement } from '../types/database'
+import type { Person, Stage, Engagement, MinistryFitResult } from '../types/database'
 import { stageLabels, stageOrder } from '../lib/stageLabels'
+import MinistryFitCard from './journey/MinistryFitCard'
 import StageChecklist from './StageChecklist'
 import NextStepsList from './NextStepsList'
 import AddNextStepForm from './AddNextStepForm'
@@ -83,6 +84,8 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
   const [refreshKey, setRefreshKey] = useState(0)
   const [starRefreshKey, setStarRefreshKey] = useState(0)
   const [activeSection, setActiveSection] = useState<ModalSection>(initialTab)
+  const [ministryFit, setMinistryFit] = useState<MinistryFitResult | null>(null)
+  const [ministryFitGenerating, setMinistryFitGenerating] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [inviteCopied, setInviteCopied] = useState(false)
   const [accessState, setAccessState] = useState<'idle' | 'copied'>('idle')
@@ -123,7 +126,31 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
     setActiveSection(initialTab)
     setRefreshKey(key => key + 1)
     setStarRefreshKey(key => key + 1)
+    setMinistryFit(null)
   }, [person, initialTab])
+
+  // Ministry-fit summary for this disciple. Generated once they've completed all
+  // three Equip assessments; the route returns the cached copy otherwise. RLS lets
+  // a coach read their downline's row. Fetched lazily when the Journey tab opens.
+  useEffect(() => {
+    if (activeSection !== 'journey') return
+    let cancelled = false
+    setMinistryFitGenerating(true)
+    fetch('/api/ministry-fit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ personId: savedPerson.id }),
+    })
+      .then(res => res.json())
+      .then(json => {
+        if (!cancelled && json?.status === 'ready' && json.result) {
+          setMinistryFit(json.result as MinistryFitResult)
+        }
+      })
+      .catch(() => { /* non-fatal */ })
+      .finally(() => { if (!cancelled) setMinistryFitGenerating(false) })
+    return () => { cancelled = true }
+  }, [activeSection, savedPerson.id])
 
   const applySavedPerson = (nextPerson: Person, successMessage: string, syncFormFields = true) => {
     setSavedPerson(nextPerson)
@@ -535,6 +562,14 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
                 />
               </div>
             </ModalSectionCard>
+          )}
+
+          {activeSection === 'journey' && (
+            <MinistryFitCard
+              result={ministryFit}
+              title={`${savedPerson.name.split(' ')[0]}'s Ministry Fit`}
+              generating={ministryFitGenerating}
+            />
           )}
 
           {activeSection === 'connections' && (

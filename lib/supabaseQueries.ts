@@ -739,6 +739,18 @@ export const upsertPassionResult = async (
   return { data, error }
 }
 
+// Ministry-fit summary (capstone). Read-only from the client — the row is generated
+// server-side by /api/ministry-fit (service-role). Returns null data if not yet
+// generated. RLS allows the person and their coach (downline) to read.
+export const getMinistryFitResult = async (personId: string) => {
+  const { data, error } = await supabase
+    .from('ministry_fit_results')
+    .select('*')
+    .eq('person_id', personId)
+    .maybeSingle()
+  return { data, error }
+}
+
 export const getGroupsForPerson = async (personId: string) => {
   const { data, error } = await supabase
     .from('person_victory_groups')

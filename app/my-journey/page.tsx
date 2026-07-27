@@ -15,6 +15,7 @@ import {
   getSpiritualGiftsResult,
   getBigFiveResult,
   getPassionResult,
+  getMinistryFitResult,
   upsertStageChecklistItem,
   getDiscipleshipConnections,
   getMyConversations,
@@ -23,7 +24,7 @@ import {
   sendMessage,
 } from '../../lib/supabaseQueries'
 import { supabase } from '../../lib/supabaseClient'
-import type { SoapJournal, StageChecklistItem, Person, VictoryGroup, DiscipleshipConnection, LevelSignoff, Stage, SpiritualGiftsResult, BigFiveResult, PassionResult } from '../../types/database'
+import type { SoapJournal, StageChecklistItem, Person, VictoryGroup, DiscipleshipConnection, LevelSignoff, Stage, SpiritualGiftsResult, BigFiveResult, PassionResult, MinistryFitResult } from '../../types/database'
 import { computeJourney, computeBadges, ringProgressFromLevels, levelByStage, STEP_CHECKLIST, JOURNEY_ORDER, type JourneyStep } from '../../components/journey/journeyModel'
 import { Starfield } from '../../components/journey/StarPrimitives'
 import JourneyIntro from '../../components/journey/JourneyIntro'
@@ -37,6 +38,7 @@ import TestimonyModal from '../../components/journey/TestimonyModal'
 import SpiritualGiftsModal from '../../components/journey/SpiritualGiftsModal'
 import BigFiveModal from '../../components/journey/BigFiveModal'
 import PassionModal from '../../components/journey/PassionModal'
+import MinistryFitCard from '../../components/journey/MinistryFitCard'
 import ConstellationRail, { useConstellationFeed } from '../../components/journey/ConstellationRail'
 import StoryMusic from '../../components/journey/StoryMusic'
 import MessageCoachModal from '../../components/journey/MessageCoachModal'
@@ -162,6 +164,8 @@ export default function MyJourneyPage() {
   const [giftsResult, setGiftsResult] = useState<SpiritualGiftsResult | null>(null)
   const [bigFiveResult, setBigFiveResult] = useState<BigFiveResult | null>(null)
   const [passionResult, setPassionResult] = useState<PassionResult | null>(null)
+  const [ministryFit, setMinistryFit] = useState<MinistryFitResult | null>(null)
+  const [ministryFitGenerating, setMinistryFitGenerating] = useState(false)
   const [soapEntryDate, setSoapEntryDate] = useState<string | null>(null)
   const [soapEditEntry, setSoapEditEntry] = useState<SoapJournal | null>(null)
   const [msgCenterOpen, setMsgCenterOpen] = useState(false)
@@ -233,11 +237,32 @@ export default function MyJourneyPage() {
     }
   }, [profile?.id])
 
+  // Ask the server for this person's ministry-fit summary. The route generates it
+  // (or returns the cached copy) when all three Equip assessments are present.
+  const refreshMinistryFit = useCallback(async (personId: string) => {
+    setMinistryFitGenerating(true)
+    try {
+      const res = await fetch('/api/ministry-fit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ personId }),
+      })
+      const json = await res.json()
+      if (json?.status === 'ready' && json.result) {
+        setMinistryFit(json.result as MinistryFitResult)
+      }
+    } catch {
+      // non-fatal — the card just stays on whatever was already loaded
+    } finally {
+      setMinistryFitGenerating(false)
+    }
+  }, [])
+
   // Light data the STAR needs — kept off the big SOAP history so the star paints
   // fast. Soaps (hundreds of rows) load separately below.
   const loadData = useCallback(async () => {
     if (!profile?.id) return
-    const [coachRes, groupsRes, streakRes, checklistRes, disciplesRes, signoffsRes, ownedRes, giftsRes, bigFiveRes, passionRes] = await Promise.all([
+    const [coachRes, groupsRes, streakRes, checklistRes, disciplesRes, signoffsRes, ownedRes, giftsRes, bigFiveRes, passionRes, ministryFitRes] = await Promise.all([
       getMyCoach(profile.id),
       getMyGroups(profile.id),
       getSoapStreak(profile.id),
@@ -248,10 +273,18 @@ export default function MyJourneyPage() {
       getSpiritualGiftsResult(profile.id),
       getBigFiveResult(profile.id),
       getPassionResult(profile.id),
+      getMinistryFitResult(profile.id),
     ])
     setGiftsResult((giftsRes.data as SpiritualGiftsResult | null) ?? null)
     setBigFiveResult((bigFiveRes.data as BigFiveResult | null) ?? null)
     setPassionResult((passionRes.data as PassionResult | null) ?? null)
+    setMinistryFit((ministryFitRes.data as MinistryFitResult | null) ?? null)
+    // Auto-generate / refresh the ministry-fit summary once all three Equip
+    // assessments exist. The route is idempotent + cached on an inputs hash, so
+    // this is cheap on repeat loads (only spends tokens when an assessment changed).
+    if (giftsRes.data && bigFiveRes.data && passionRes.data) {
+      void refreshMinistryFit(profile.id)
+    }
     const ownsGroupNext = ((ownedRes.data as unknown[] | null)?.length ?? 0) > 0
     const coachNext = (coachRes.data?.discipler as Person | undefined) ?? null
     const disciplesNext = (disciplesRes.data as DiscipleshipConnection[] | null) ?? null
@@ -283,7 +316,7 @@ export default function MyJourneyPage() {
         signoffs: signoffsRes.data ?? [],
       }))
     } catch { /* quota exceeded — instant paint just won't happen next visit */ }
-  }, [profile?.id])
+  }, [profile?.id, refreshMinistryFit])
 
   // The full SOAP history (large) loads on its own so it never blocks the star.
   // Two phases: every row WITHOUT its OCR text first (~half the bytes), then
@@ -710,6 +743,9 @@ export default function MyJourneyPage() {
                 <p className="mt-4 text-xs text-[var(--fg-3)]">Awaiting your coach&rsquo;s Empower sign-off.</p>
               </section>
             )}
+
+            {/* Ministry fit — appears once all three Equip assessments are done */}
+            <MinistryFitCard result={ministryFit} generating={ministryFitGenerating} />
 
             {/* footer */}
             <footer className="mt-14 flex flex-col items-center gap-2 text-center">

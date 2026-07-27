@@ -60,6 +60,28 @@ export type PassionResult = {
   updated_at: string
 }
 
+// A single ranked ministry suggestion inside a MinistryFitResult.
+export type MinistryFitSuggestion = {
+  ministry: string   // the ministry name (matches an entry in lib/ministries.ts)
+  rationale: string  // why this person fits, grounded in their 3 assessments
+  fitScore: number   // 0–100, higher = stronger fit
+}
+
+// AI ministry-fit summary per person (capstone). Machine-generated server-side by
+// /api/ministry-fit from the three Equip assessments, auto-generated once all three
+// are complete, and shared (read) with both the person and their coach.
+export type MinistryFitResult = {
+  id: string
+  person_id: string
+  summary: string
+  suggestions: MinistryFitSuggestion[]
+  inputs_hash: string | null
+  model: string | null
+  generated_at: string
+  created_at: string
+  updated_at: string
+}
+
 export type Person = {
   id: string
   name: string
