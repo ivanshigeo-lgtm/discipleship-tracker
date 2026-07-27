@@ -25,20 +25,43 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-const MODEL = 'claude-sonnet-5'
+// Fable 5 — chosen for its warm, pastoral prose on this human-facing spiritual
+// summary. Volume is tiny (one cached generation per disciple), so latency/cost
+// are non-issues; it still supports structured output for the schema below.
+const MODEL = 'claude-fable-5'
 
 type Suggestion = { ministry: string; rationale: string; fitScore: number }
-type MinistryFit = { summary: string; suggestions: Suggestion[] }
+type NewIdea = { name: string; rationale: string }
+type MinistryFit = { summary: string; suggestions: Suggestion[]; newMinistryIdeas: NewIdea[] }
 
 const resultSchema = jsonSchema<MinistryFit>({
   type: 'object',
   additionalProperties: false,
-  required: ['summary', 'suggestions'],
+  required: ['summary', 'suggestions', 'newMinistryIdeas'],
   properties: {
     summary: {
       type: 'string',
       description:
-        "2–3 warm, encouraging sentences describing how God has wired this person to serve, grounded in their gifts, personality, and passion. Written to be read by both the disciple and their coach.",
+        "An executive summary: 3–4 warm, encouraging sentences describing how God has wired this person to serve, grounded in their gifts, personality, and passion. Written to be read by both the disciple and their coach.",
+    },
+    newMinistryIdeas: {
+      type: 'array',
+      minItems: 0,
+      maxItems: 3,
+      description:
+        'Optional brand-new ministries the church does NOT currently have but that this person is uniquely wired to help start, grounded in their gifts/personality/passion. Empty array if nothing compelling.',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['name', 'rationale'],
+        properties: {
+          name: { type: 'string', description: 'A short, clear name for the proposed new ministry.' },
+          rationale: {
+            type: 'string',
+            description: "1–2 sentences: the need it meets and why THIS person could launch it. Address them as 'you'.",
+          },
+        },
+      },
     },
     suggestions: {
       type: 'array',
@@ -166,10 +189,11 @@ export async function POST(request: NextRequest) {
 
   // Generate.
   const system = [
-    'You are a discipleship ministry-placement assistant for Grace Bible Church on Maui.',
+    'You are a seasoned spiritual coach and pastor of assimilation for Grace Bible Church on Maui, deeply versed in the best practices of church volunteer-ministry placement.',
+    'You think in the tradition of team-based ministry leaders and resources — Wayne Cordeiro and New Hope ("Doing Church as a Team"; every member a minister, fractal/team leadership, releasing people into their God-given design), Cornerstone, and gift-and-design frameworks like SHAPE (Spiritual gifts, Heart/passion, Abilities, Personality, Experiences) and New Hope\'s DESIGN. Your goal is to place each person in their "sweet spot" — the intersection of their gifting, passion, and personality — where they will thrive, bear fruit, and stay, not just fill an open slot.',
     'You are given a disciple\'s three assessments — Spiritual Gifts (Wagner-modified), personality (Big Five), and ministry Passion — and the church\'s ministry roster.',
-    'Produce (1) a warm, encouraging summary of how God has wired them to serve, and (2) a ranked shortlist of the best-fitting ministries.',
-    'Rules: choose ONLY ministries from the provided roster (use the exact names). Ground every rationale in concrete assessment results (name specific gifts, traits, people-groups, or issues). Address the person directly as "you". Prefer 3–5 suggestions, strongest first. Be specific, warm, and Christ-centered — this is read by both the disciple and their coach.',
+    'Produce (1) an executive summary of how God has uniquely wired them to serve (their design/sweet spot), (2) a ranked shortlist of the best-fitting EXISTING ministries, and (3) optionally, 1–3 brand-new ministry ideas the church does not yet have but that this person is uniquely positioned to help pioneer.',
+    'Rules: for `suggestions`, choose ONLY ministries from the provided roster (use the exact names). For `newMinistryIdeas`, propose fresh ministries NOT on the roster (or an empty array if nothing compelling). Ground every rationale in concrete assessment results (name specific gifts, traits, people-groups, or issues) — never generic. Watch for a person being over-placed into a visible role their personality would drain in, or under-placed away from their true passion. Address the person directly as "you". Prefer 3–5 suggestions, strongest first. Be specific, warm, pastoral, and Christ-centered — this is read by both the disciple and their coach.',
   ].join('\n')
 
   const prompt = [
@@ -205,6 +229,7 @@ export async function POST(request: NextRequest) {
         score = Math.max(0, Math.min(100, Math.round(score)))
         return { ministry: s.ministry, rationale: s.rationale, fitScore: score }
       }),
+      newMinistryIdeas: (object.newMinistryIdeas ?? []).map((n) => ({ name: n.name, rationale: n.rationale })),
     }
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e)
@@ -218,6 +243,7 @@ export async function POST(request: NextRequest) {
         person_id: personId,
         summary: generated.summary,
         suggestions: generated.suggestions,
+        new_ministry_ideas: generated.newMinistryIdeas,
         inputs_hash: inputsHash,
         model: MODEL,
         generated_at: new Date().toISOString(),

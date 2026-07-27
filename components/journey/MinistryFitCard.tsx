@@ -1,7 +1,7 @@
 'use client'
 
 import { MINISTRIES } from '@/lib/ministries'
-import type { MinistryFitResult, MinistryFitSuggestion } from '@/types/database'
+import type { MinistryFitResult, MinistryFitSuggestion, MinistryFitNewIdea } from '@/types/database'
 
 const metaFor = (name: string) => MINISTRIES.find((m) => m.name === name)
 
@@ -56,6 +56,7 @@ export default function MinistryFitCard({
   if (!result && !generating) return null
 
   const suggestions = (result?.suggestions ?? []) as MinistryFitSuggestion[]
+  const newIdeas = (result?.new_ministry_ideas ?? []) as MinistryFitNewIdea[]
 
   return (
     <section
@@ -84,6 +85,24 @@ export default function MinistryFitCard({
               <SuggestionRow key={`${s.ministry}-${i}`} s={s} rank={i + 1} />
             ))}
           </ul>
+
+          {newIdeas.length > 0 && (
+            <div className="mt-6">
+              <p className="cn-label" style={{ color: '#C9A5F5' }}>New ministries you could help start</p>
+              <ul className="mt-2 space-y-3">
+                {newIdeas.map((n, i) => (
+                  <li key={`${n.name}-${i}`} className="rounded-[var(--r-lg,14px)] border border-dashed p-4" style={{ borderColor: 'rgba(201,165,245,.4)', background: 'rgba(201,165,245,.05)' }}>
+                    <div className="flex items-center gap-2">
+                      <span aria-hidden style={{ color: '#C9A5F5' }}>✦</span>
+                      <h4 className="text-base font-semibold" style={{ color: 'var(--fg-1)' }}>{n.name}</h4>
+                    </div>
+                    <p className="mt-2 text-sm leading-relaxed" style={{ color: 'var(--fg-2, #cdd3e6)' }}>{n.rationale}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <p className="mt-4 text-[11px] leading-relaxed text-[var(--fg-3)]">
             Suggested from your Spiritual Gifts, Personality, and Passion. Talk with your coach about where to take a next step.
           </p>

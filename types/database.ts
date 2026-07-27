@@ -67,6 +67,12 @@ export type MinistryFitSuggestion = {
   fitScore: number   // 0–100, higher = stronger fit
 }
 
+// An AI-proposed brand-new ministry the church does not yet have.
+export type MinistryFitNewIdea = {
+  name: string       // proposed ministry name
+  rationale: string  // why it fits this person's wiring / the need it meets
+}
+
 // AI ministry-fit summary per person (capstone). Machine-generated server-side by
 // /api/ministry-fit from the three Equip assessments, auto-generated once all three
 // are complete, and shared (read) with both the person and their coach.
@@ -75,6 +81,7 @@ export type MinistryFitResult = {
   person_id: string
   summary: string
   suggestions: MinistryFitSuggestion[]
+  new_ministry_ideas: MinistryFitNewIdea[]
   inputs_hash: string | null
   model: string | null
   generated_at: string
