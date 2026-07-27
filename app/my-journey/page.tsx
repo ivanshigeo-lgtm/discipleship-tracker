@@ -744,8 +744,29 @@ export default function MyJourneyPage() {
               </section>
             )}
 
-            {/* Ministry fit — appears once all three Equip assessments are done */}
-            <MinistryFitCard result={ministryFit} generating={ministryFitGenerating} />
+            {/* Ministry fit — full card once all three Equip assessments are done,
+                otherwise a locked teaser that drives completion (goal gradient). */}
+            <MinistryFitCard
+              result={ministryFit}
+              generating={ministryFitGenerating}
+              progress={(() => {
+                const completed = [giftsResult, bigFiveResult, passionResult].filter(Boolean).length
+                const next = !giftsResult
+                  ? { label: 'Spiritual Gifts', minutes: 10, action: 'spiritual-gifts' as const }
+                  : !bigFiveResult
+                    ? { label: 'Personality', minutes: 5, action: 'big-five' as const }
+                    : !passionResult
+                      ? { label: 'Passion', minutes: 5, action: 'passion' as const }
+                      : null
+                return {
+                  completed,
+                  total: 3,
+                  nextLabel: next?.label ?? null,
+                  nextMinutes: next?.minutes,
+                  onStartNext: next ? () => setActiveModal(next.action) : undefined,
+                }
+              })()}
+            />
 
             {/* footer */}
             <footer className="mt-14 flex flex-col items-center gap-2 text-center">

@@ -12,6 +12,17 @@ function fitColor(score: number): string {
   return 'var(--fg-3)'
 }
 
+export type MinistryFitProgress = {
+  completed: number
+  total: number
+  /** Human label of the next assessment to take, or null if all done. */
+  nextLabel: string | null
+  /** Rough time estimate in minutes for the next assessment. */
+  nextMinutes?: number
+  /** Opens the next assessment. */
+  onStartNext?: () => void
+}
+
 function SuggestionRow({ s, rank }: { s: MinistryFitSuggestion; rank: number }) {
   const meta = metaFor(s.ministry)
   const pct = Math.max(0, Math.min(100, Math.round(s.fitScore)))
@@ -44,16 +55,104 @@ function SuggestionRow({ s, rank }: { s: MinistryFitSuggestion; rank: number }) 
   )
 }
 
+/** A single blurred, non-interactive teaser row — hints at the real reward. */
+function GhostRow({ w, fit }: { w: string; fit: number }) {
+  return (
+    <li
+      aria-hidden
+      className="select-none rounded-[var(--r-lg,14px)] border p-4"
+      style={{ borderColor: 'var(--line, rgba(255,255,255,.10))', background: 'rgba(255,255,255,.03)', filter: 'blur(5px)', opacity: 0.8 }}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span className="grid h-6 w-6 place-items-center rounded-full" style={{ background: 'rgba(255,255,255,.08)' }} />
+          <span className="block h-4 rounded" style={{ width: w, background: 'rgba(255,255,255,.18)' }} />
+        </div>
+        <div className="text-lg font-bold tabular-nums" style={{ color: fitColor(fit) }}>{fit}</div>
+      </div>
+      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full" style={{ background: 'rgba(255,255,255,.08)' }}>
+        <div className="h-full rounded-full" style={{ width: `${fit}%`, background: fitColor(fit) }} />
+      </div>
+    </li>
+  )
+}
+
+/** Locked reward state shown while the disciple is still completing the 3 Equip assessments. */
+function LockedTeaser({ progress, title }: { progress: MinistryFitProgress; title: string }) {
+  const { completed, total, nextLabel, nextMinutes, onStartNext } = progress
+  const pct = Math.round((completed / total) * 100)
+  const remaining = total - completed
+  return (
+    <section
+      className="mt-8 rounded-[var(--r-xl)] border p-6"
+      style={{
+        borderColor: 'rgba(127,176,255,.25)',
+        background: 'linear-gradient(180deg, rgba(127,176,255,.08) 0%, rgba(20,27,61,.55) 100%)',
+        boxShadow: '0 0 48px -20px rgba(127,176,255,.45)',
+      }}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <p className="cn-label" style={{ color: '#7Fb0ff' }}>Ministry Fit</p>
+        <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ background: 'rgba(255,255,255,.08)', color: 'var(--fg-2, #cdd3e6)' }}>
+          <span aria-hidden>🔒</span> {completed} of {total}
+        </span>
+      </div>
+      <h3 className="mt-1 text-xl sm:text-2xl" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>{title}</h3>
+
+      {/* progress bar — goal gradient */}
+      <div className="mt-4 h-2 w-full overflow-hidden rounded-full" style={{ background: 'rgba(255,255,255,.08)' }}>
+        <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: 'linear-gradient(90deg,#7Fb0ff,#C9A5F5)' }} />
+      </div>
+
+      {/* blurred reward preview */}
+      <div className="relative mt-5">
+        <ul className="space-y-3" aria-hidden>
+          <GhostRow w="9rem" fit={92} />
+          <GhostRow w="7rem" fit={85} />
+        </ul>
+        <div className="pointer-events-none absolute inset-0 grid place-items-center">
+          <span className="text-2xl" aria-hidden>🔒</span>
+        </div>
+      </div>
+
+      <p className="mt-4 text-[15px] leading-relaxed" style={{ color: 'var(--fg-1)' }}>
+        {remaining === 1
+          ? 'One more to go — finish it to unlock your top ministries, your SHAPE, and where you’re wired to thrive.'
+          : `Complete all three Equip assessments to reveal where you’re wired to serve. ${remaining} to go.`}
+      </p>
+
+      {nextLabel && onStartNext && (
+        <button
+          type="button"
+          onClick={onStartNext}
+          className="mt-4 inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-colors"
+          style={{ background: '#7Fb0ff', color: '#0b1027' }}
+        >
+          Take the {nextLabel} assessment{nextMinutes ? ` (~${nextMinutes} min)` : ''} →
+        </button>
+      )}
+    </section>
+  )
+}
+
 export default function MinistryFitCard({
   result,
   title = 'Your Ministry Fit',
   generating = false,
+  progress,
 }: {
   result: MinistryFitResult | null
   title?: string
   generating?: boolean
+  progress?: MinistryFitProgress
 }) {
-  if (!result && !generating) return null
+  if (!result && !generating) {
+    // Not generated yet: show the locked teaser to drive assessment completion.
+    if (progress && progress.completed < progress.total) {
+      return <LockedTeaser progress={progress} title={title} />
+    }
+    return null
+  }
 
   const suggestions = (result?.suggestions ?? []) as MinistryFitSuggestion[]
   const newIdeas = (result?.new_ministry_ideas ?? []) as MinistryFitNewIdea[]
