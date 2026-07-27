@@ -81,15 +81,31 @@ export default function StoryMusic({ active }: { active: boolean }) {
         .then(() => {
           // The story may have ended while play()/resume() resolved — if so, stop.
           if (!activeRef.current) { a.pause(); return }
+          // play() can resolve while the AudioContext is still suspended — on
+          // desktop the element advances but the graph outputs silence. Only go
+          // audible once the context is actually running; otherwise surface the
+          // "Sound on" chip so a tap can resume it.
+          if (ctx && ctx.state !== 'running') { setBlocked(true); return }
           setBlocked(false)
           if (gain) rampTo(TARGET_VOLUME, FADE_IN_S)
           else a.volume = TARGET_VOLUME
         })
         .catch(() => setBlocked(true))
     }
-    // iOS starts the context suspended; it only resumes on a user gesture.
-    if (ctx && ctx.state === 'suspended') ctx.resume().then(go).catch(go)
-    else go()
+    // The context starts suspended and only resumes under a user gesture.
+    // resume() lands promptly on native and on the Sound-on tap, but off a
+    // gesture (the desktop intro auto-opens) Chrome leaves it PENDING forever —
+    // which used to strand the story silent with no way to start it. Race a
+    // short timeout so go() always runs; its suspended-check then surfaces the
+    // chip when resume() hasn't landed.
+    if (ctx && ctx.state === 'suspended') {
+      Promise.race([
+        ctx.resume().catch(() => {}),
+        new Promise(res => setTimeout(res, 400)),
+      ]).then(go)
+    } else {
+      go()
+    }
   }
 
   useEffect(() => {
