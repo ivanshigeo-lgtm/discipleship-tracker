@@ -67,6 +67,73 @@ function ModalSectionCard({
   )
 }
 
+const EQUIP_ASSESSMENTS: { key: 'gifts' | 'bigFive' | 'passion'; label: string }[] = [
+  { key: 'gifts', label: 'Spiritual Gifts' },
+  { key: 'bigFive', label: 'Personality' },
+  { key: 'passion', label: 'Passion' },
+]
+
+// #3 — coach-side "X of 3 — nudge to finish" indicator. Shows which Equip
+// assessments a disciple still hasn't done so their coach can personally follow
+// up. Only rendered while the three are incomplete (Ministry Fit not yet unlocked).
+function CoachEquipNudge({
+  missing,
+  firstName,
+}: {
+  missing: { gifts: boolean; bigFive: boolean; passion: boolean }
+  firstName: string
+}) {
+  const done = EQUIP_ASSESSMENTS.filter(a => !missing[a.key])
+  const todo = EQUIP_ASSESSMENTS.filter(a => missing[a.key])
+  const pct = Math.round((done.length / 3) * 100)
+  const remainingNames =
+    todo.length === 1
+      ? todo[0].label
+      : todo.length === 2
+        ? `${todo[0].label} and ${todo[1].label}`
+        : 'their Equip assessments'
+  return (
+    <div className="overflow-hidden rounded-xl border border-[rgba(91,141,247,.35)] bg-[rgba(91,141,247,.08)]">
+      <div className="p-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-xs font-semibold uppercase tracking-wider text-[var(--equip)]">Ministry Fit — locked</div>
+          <span className="rounded-full bg-[rgba(255,255,255,.08)] px-2.5 py-1 text-[11px] font-semibold text-[var(--fg-2)]">
+            🔒 {done.length} of 3
+          </span>
+        </div>
+        {/* progress bar */}
+        <div className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-[rgba(255,255,255,.08)]">
+          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: 'linear-gradient(90deg,#5B8DF7,#C9A5F5)' }} />
+        </div>
+        {/* per-assessment chips */}
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {EQUIP_ASSESSMENTS.map(a => {
+            const complete = !missing[a.key]
+            return (
+              <span
+                key={a.key}
+                className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium"
+                style={
+                  complete
+                    ? { background: 'rgba(54,214,195,.15)', color: 'var(--establish)' }
+                    : { background: 'rgba(255,255,255,.06)', color: 'var(--fg-3)' }
+                }
+              >
+                <span aria-hidden>{complete ? '✓' : '○'}</span> {a.label}
+              </span>
+            )
+          })}
+        </div>
+        <p className="mt-3 text-xs leading-relaxed text-[var(--fg-2)]">
+          {done.length === 0
+            ? `${firstName} hasn't started the Equip assessments yet. A personal nudge to begin ${remainingNames} unlocks their Ministry Fit.`
+            : `${firstName} is ${done.length}/3 of the way there — a quick nudge to finish ${remainingNames} unlocks where they're wired to serve.`}
+        </p>
+      </div>
+    </div>
+  )
+}
+
 export default function PersonProfileModal({ person, initialTab = 'profile', onClose, onSaved, onDeleted, onPersonCreated, onOpenEngagement }: PersonProfileModalProps) {
   const { canEdit: checkCanEdit, profile } = useAuth()
   const [savedPerson, setSavedPerson] = useState(person)
@@ -86,6 +153,10 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
   const [activeSection, setActiveSection] = useState<ModalSection>(initialTab)
   const [ministryFit, setMinistryFit] = useState<MinistryFitResult | null>(null)
   const [ministryFitGenerating, setMinistryFitGenerating] = useState(false)
+  // #3 coach-side Equip progress: which of the three Equip assessments this
+  // disciple still hasn't done, so a coach can personally nudge them to finish
+  // and unlock their Ministry Fit. Null once all three are complete.
+  const [equipMissing, setEquipMissing] = useState<{ gifts: boolean; bigFive: boolean; passion: boolean } | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [inviteCopied, setInviteCopied] = useState(false)
   const [accessState, setAccessState] = useState<'idle' | 'copied'>('idle')
@@ -127,6 +198,7 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
     setRefreshKey(key => key + 1)
     setStarRefreshKey(key => key + 1)
     setMinistryFit(null)
+    setEquipMissing(null)
   }, [person, initialTab])
 
   // Ministry-fit summary for this disciple. Generated once they've completed all
@@ -143,8 +215,12 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
     })
       .then(res => res.json())
       .then(json => {
-        if (!cancelled && json?.status === 'ready' && json.result) {
+        if (cancelled) return
+        if (json?.status === 'ready' && json.result) {
           setMinistryFit(json.result as MinistryFitResult)
+          setEquipMissing(null)
+        } else if (json?.status === 'incomplete' && json.missing) {
+          setEquipMissing(json.missing as { gifts: boolean; bigFive: boolean; passion: boolean })
         }
       })
       .catch(() => { /* non-fatal */ })
@@ -562,6 +638,10 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
                 />
               </div>
             </ModalSectionCard>
+          )}
+
+          {activeSection === 'journey' && equipMissing && (
+            <CoachEquipNudge missing={equipMissing} firstName={savedPerson.name.split(' ')[0]} />
           )}
 
           {activeSection === 'journey' && (

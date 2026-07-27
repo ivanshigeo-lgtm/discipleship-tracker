@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../../contexts/AuthContext'
 import LoginPage from '../../components/LoginPage'
@@ -140,6 +140,62 @@ function CoachConnectModal({
   )
 }
 
+// #2 — sequential post-test nudge (goal gradient). Fires the moment an Equip
+// assessment is saved while 1–2 of 3 are done, pointing straight at the next one.
+function EquipNudgeToast({
+  nudge,
+  onTake,
+  onDismiss,
+}: {
+  nudge: { label: string; action: string; done: number }
+  onTake: () => void
+  onDismiss: () => void
+}) {
+  useEffect(() => {
+    const t = setTimeout(onDismiss, 9000)
+    return () => clearTimeout(t)
+  }, [onDismiss])
+  const remaining = 3 - nudge.done
+  return (
+    <div className="fixed inset-x-0 bottom-4 z-[60] flex justify-center px-4" role="status" aria-live="polite">
+      <div
+        className="flex w-full max-w-md items-center gap-3 rounded-2xl border p-4 shadow-2xl"
+        style={{
+          borderColor: 'rgba(127,176,255,.3)',
+          background: 'linear-gradient(180deg, rgba(35,44,90,.98), rgba(20,27,61,.98))',
+          boxShadow: '0 0 48px -18px rgba(127,176,255,.55)',
+        }}
+      >
+        <span aria-hidden className="text-2xl">✨</span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold" style={{ color: 'var(--fg-1)' }}>
+            {nudge.done} of 3 done — {remaining === 1 ? 'one more to go!' : `${remaining} to go!`}
+          </p>
+          <p className="mt-0.5 text-xs" style={{ color: 'var(--fg-3)' }}>
+            Next: your {nudge.label} assessment unlocks your Ministry Fit.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onTake}
+          className="shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-opacity hover:opacity-90"
+          style={{ background: '#7Fb0ff', color: '#0b1027' }}
+        >
+          Take it →
+        </button>
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label="Dismiss"
+          className="shrink-0 text-lg leading-none text-[var(--fg-3)] transition-colors hover:text-[var(--fg-1)]"
+        >
+          ✕
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function MyJourneyPage() {
   const { user, profile, loading, profileLoading, signOut } = useAuth()
   const [coach, setCoach] = useState<Person | null>(null)
@@ -166,6 +222,11 @@ export default function MyJourneyPage() {
   const [passionResult, setPassionResult] = useState<PassionResult | null>(null)
   const [ministryFit, setMinistryFit] = useState<MinistryFitResult | null>(null)
   const [ministryFitGenerating, setMinistryFitGenerating] = useState(false)
+  // #2 goal-gradient nudge: shown as a toast right after an Equip assessment is
+  // saved (1–2 of 3 done), pointing straight at the next test. The ref guards it
+  // so the toast fires only on a fresh save, never on a plain page reload.
+  const [equipNudge, setEquipNudge] = useState<{ label: string; action: 'spiritual-gifts' | 'big-five' | 'passion'; done: number } | null>(null)
+  const justSavedEquipRef = useRef(false)
   const [soapEntryDate, setSoapEntryDate] = useState<string | null>(null)
   const [soapEditEntry, setSoapEditEntry] = useState<SoapJournal | null>(null)
   const [msgCenterOpen, setMsgCenterOpen] = useState(false)
@@ -285,6 +346,20 @@ export default function MyJourneyPage() {
     if (giftsRes.data && bigFiveRes.data && passionRes.data) {
       void refreshMinistryFit(profile.id)
     }
+    // #2 sequential nudge — only right after a fresh Equip save (not on plain
+    // reloads). If they now have 1–2 of 3, point them at the very next assessment.
+    if (justSavedEquipRef.current) {
+      justSavedEquipRef.current = false
+      const done = [giftsRes.data, bigFiveRes.data, passionRes.data].filter(Boolean).length
+      if (done >= 1 && done < 3) {
+        const next = !giftsRes.data
+          ? { label: 'Spiritual Gifts', action: 'spiritual-gifts' as const }
+          : !bigFiveRes.data
+            ? { label: 'Personality', action: 'big-five' as const }
+            : { label: 'Passion', action: 'passion' as const }
+        setEquipNudge({ label: next.label, action: next.action, done })
+      }
+    }
     const ownsGroupNext = ((ownedRes.data as unknown[] | null)?.length ?? 0) > 0
     const coachNext = (coachRes.data?.discipler as Person | undefined) ?? null
     const disciplesNext = (disciplesRes.data as DiscipleshipConnection[] | null) ?? null
@@ -317,6 +392,12 @@ export default function MyJourneyPage() {
       }))
     } catch { /* quota exceeded — instant paint just won't happen next visit */ }
   }, [profile?.id, refreshMinistryFit])
+
+  // Equip assessment saves route through here so the post-test nudge (#2) can fire.
+  const handleEquipSaved = useCallback(() => {
+    justSavedEquipRef.current = true
+    void loadData()
+  }, [loadData])
 
   // The full SOAP history (large) loads on its own so it never blocks the star.
   // Two phases: every row WITHOUT its OCR text first (~half the bytes), then
@@ -851,7 +932,7 @@ export default function MyJourneyPage() {
           profile={profile}
           existingResult={giftsResult}
           onClose={() => setActiveModal(null)}
-          onSaved={loadData}
+          onSaved={handleEquipSaved}
         />
       )}
       {activeModal === 'big-five' && profile && (
@@ -859,7 +940,7 @@ export default function MyJourneyPage() {
           profile={profile}
           existingResult={bigFiveResult}
           onClose={() => setActiveModal(null)}
-          onSaved={loadData}
+          onSaved={handleEquipSaved}
         />
       )}
       {activeModal === 'passion' && profile && (
@@ -867,7 +948,7 @@ export default function MyJourneyPage() {
           profile={profile}
           existingResult={passionResult}
           onClose={() => setActiveModal(null)}
-          onSaved={loadData}
+          onSaved={handleEquipSaved}
         />
       )}
       {activeModal === 'coach' && profile && (
@@ -961,6 +1042,15 @@ export default function MyJourneyPage() {
             )}
           </div>
         </div>
+      )}
+
+      {/* #2 — post-Equip-test nudge toast */}
+      {equipNudge && (
+        <EquipNudgeToast
+          nudge={equipNudge}
+          onTake={() => { setActiveModal(equipNudge.action); setEquipNudge(null) }}
+          onDismiss={() => setEquipNudge(null)}
+        />
       )}
     </div>
   )
