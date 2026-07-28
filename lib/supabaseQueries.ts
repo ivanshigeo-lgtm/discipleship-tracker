@@ -73,6 +73,39 @@ export const addPerson = async (
   return { data, error }
 }
 
+// A lightweight duplicate check for the coach-side Add Person form. The DB only
+// enforces uniqueness on auth_user_id and on the email of *claimed* profiles, so
+// two unclaimed rows with the same email (or name) slip through and become the
+// dup we keep having to merge by hand. This surfaces likely matches BEFORE the
+// blind insert so the coach can connect to the existing person instead.
+export type DuplicatePersonCandidate = Pick<Person, 'id' | 'name' | 'email' | 'current_stage' | 'auth_user_id'>
+
+export const findPotentialDuplicatePeople = async ({
+  name,
+  email,
+}: {
+  name: string
+  email?: string | null
+}): Promise<{ data: DuplicatePersonCandidate[]; error: null }> => {
+  const trimmedName = name.trim()
+  const trimmedEmail = email?.trim() ?? ''
+  const cols = 'id, name, email, current_stage, auth_user_id'
+  // Keyed by id so an email+name double match isn't listed twice.
+  const matches = new Map<string, DuplicatePersonCandidate>()
+
+  // Email is the strongest signal — ilike with no wildcards = case-insensitive equality.
+  if (trimmedEmail) {
+    const { data } = await supabase.from('people').select(cols).ilike('email', trimmedEmail).limit(5)
+    for (const p of (data ?? []) as DuplicatePersonCandidate[]) matches.set(p.id, p)
+  }
+  // Name catches dups that were added without an email.
+  if (trimmedName) {
+    const { data } = await supabase.from('people').select(cols).ilike('name', trimmedName).limit(5)
+    for (const p of (data ?? []) as DuplicatePersonCandidate[]) matches.set(p.id, p)
+  }
+  return { data: Array.from(matches.values()), error: null }
+}
+
 export const updatePerson = async (
   personId: string,
   updates: Partial<Omit<Person, 'id' | 'created_at' | 'updated_at'>>

@@ -1,7 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { addPerson } from '../lib/supabaseQueries'
+import {
+  addPerson,
+  addDiscipleshipConnection,
+  findPotentialDuplicatePeople,
+  type DuplicatePersonCandidate,
+} from '../lib/supabaseQueries'
 import { useAuth } from '../contexts/AuthContext'
 import { Stage } from '../types/database'
 import { stageLabels, stageOrder } from '../lib/stageLabels'
@@ -24,11 +29,20 @@ export default function AddPersonForm({ onPersonAdded, initialName = '' }: { onP
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  // Populated when the dup check finds likely matches — the form pauses and
+  // shows them so the coach can connect instead of creating a duplicate.
+  const [dupCandidates, setDupCandidates] = useState<DuplicatePersonCandidate[] | null>(null)
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!name) return
+  const resetForm = () => {
+    setName('')
+    setEmail('')
+    setPhone('')
+    setCurrentStage('Engage')
+    setNotes('')
+    setDupCandidates(null)
+  }
 
+  const createPerson = async () => {
     setLoading(true)
     setError('')
 
@@ -51,11 +65,55 @@ export default function AddPersonForm({ onPersonAdded, initialName = '' }: { onP
       setError(supabaseError.message)
       console.error('Supabase error:', supabaseError)
     } else {
-      setName('')
-      setEmail('')
-      setPhone('')
-      setCurrentStage('Engage')
-      setNotes('')
+      resetForm()
+      onPersonAdded?.()
+    }
+    setLoading(false)
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!name) return
+
+    // Run the duplicate check first, once. If matches turn up we pause and
+    // render them; a second submit (from "Create new person anyway") clears
+    // dupCandidates back to [] and falls straight through to the insert.
+    if (dupCandidates === null) {
+      setLoading(true)
+      setError('')
+      const { data } = await findPotentialDuplicatePeople({ name, email })
+      setLoading(false)
+      if (data.length > 0) {
+        setDupCandidates(data)
+        return
+      }
+      setDupCandidates([])
+    }
+
+    await createPerson()
+  }
+
+  // "Connect to existing" — link this coach to the person that already exists
+  // rather than minting a second row for them.
+  const connectToExisting = async (candidate: DuplicatePersonCandidate) => {
+    if (!profile?.id) {
+      setError('You must be signed in to connect a person.')
+      return
+    }
+    setLoading(true)
+    setError('')
+    const { error: connError } = await addDiscipleshipConnection({
+      discipler_person_id: profile.id,
+      disciple_person_id: candidate.id,
+      disciple_name: candidate.name,
+      relationship_notes: null,
+      status: 'Identified',
+    })
+    if (connError) {
+      setError(connError.message)
+      console.error('Connect-to-existing failed:', connError)
+    } else {
+      resetForm()
       onPersonAdded?.()
     }
     setLoading(false)
@@ -71,12 +129,42 @@ export default function AddPersonForm({ onPersonAdded, initialName = '' }: { onP
         </div>
       )}
 
+      {dupCandidates && dupCandidates.length > 0 && (
+        <div className="space-y-2 rounded-xl border border-[var(--line-2)] bg-[var(--indigo)] p-3">
+          <p className="text-sm font-medium text-[var(--fg-2)]">
+            Someone like this may already exist. Connect to them instead of creating a duplicate?
+          </p>
+          {dupCandidates.map(c => (
+            <div
+              key={c.id}
+              className="flex items-center justify-between gap-3 rounded-lg border border-[var(--line-2)] p-2.5"
+            >
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold text-[var(--fg-1)]">{c.name}</div>
+                <div className="truncate text-xs text-[var(--fg-3)]">
+                  {c.email || 'no email'} · {stageLabels[c.current_stage].name}
+                  {c.auth_user_id ? ' · claimed' : ' · unclaimed'}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => connectToExisting(c)}
+                disabled={loading}
+                className="shrink-0 rounded-lg border border-[var(--gbm-cobalt-bright)] px-3 py-1.5 text-xs font-semibold text-[var(--gbm-cobalt-bright)] transition-all hover:bg-[rgba(46,85,230,.12)] disabled:opacity-50"
+              >
+                Connect
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div>
         <label className="mb-1.5 block text-sm font-medium text-[var(--fg-2)]">Name *</label>
         <input
           type="text"
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => { setName(e.target.value); setDupCandidates(null) }}
           className="w-full rounded-xl border border-[var(--line-2)] bg-[var(--indigo)] p-3 text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
           required
         />
@@ -88,7 +176,7 @@ export default function AddPersonForm({ onPersonAdded, initialName = '' }: { onP
           <input
             type="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => { setEmail(e.target.value); setDupCandidates(null) }}
             className="w-full rounded-xl border border-[var(--line-2)] bg-[var(--indigo)] p-3 text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
           />
         </div>
@@ -155,7 +243,7 @@ export default function AddPersonForm({ onPersonAdded, initialName = '' }: { onP
           boxShadow: '0 0 20px rgba(46,85,230,.3)',
         }}
       >
-        {loading ? 'Adding...' : 'Add Person'}
+        {loading ? 'Adding...' : dupCandidates && dupCandidates.length > 0 ? 'Create new person anyway' : 'Add Person'}
       </button>
     </form>
   )
