@@ -76,6 +76,11 @@ export function StepRow({
         <span className={`min-w-0 flex-1 truncate text-left text-[14px] font-medium ${step.completed ? 'text-[var(--fg-3)]' : 'text-[var(--fg-1)]'}`}>
           {step.title}
         </span>
+        {step.coachRequired && (
+          <span className="shrink-0 rounded-full border border-[var(--line-2)] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-[var(--fg-3)]">
+            Coach Required
+          </span>
+        )}
         {step.progress > 0 && step.progress < 1 && (
           <span className="shrink-0 text-[11px] font-bold" style={{ color }}>
             {Math.round(step.progress * 100)}%

@@ -96,6 +96,10 @@ export type JourneyStep = {
   completed: boolean
   progress: number // 0..1
   action: StepAction
+  // Steps whose material is meant to be walked through with a coach. The app is
+  // self-serve (a disciple can still self-mark these), but we surface a subtle
+  // "(Coach Required)" badge so the expectation is clear. Mirrors native.
+  coachRequired?: boolean
 }
 
 export type JourneyLevel = {
@@ -245,6 +249,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
       completed: stepDone(d.checklist, 'group', inGroup),
       progress: stepDone(d.checklist, 'group', inGroup) ? 1 : 0,
       action: 'join-group',
+      coachRequired: true,
     },
     {
       id: 'word',
@@ -286,6 +291,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
       completed: stepDone(d.checklist, 'one2one', false),
       progress: stepDone(d.checklist, 'one2one', false) ? 1 : 0,
       action: 'self-confirm',
+      coachRequired: true,
     },
     {
       id: 'church-community',
@@ -294,6 +300,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
       completed: stepDone(d.checklist, 'church-community', false),
       progress: stepDone(d.checklist, 'church-community', false) ? 1 : 0,
       action: 'self-confirm',
+      coachRequired: true,
     },
   ]
 
@@ -305,6 +312,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
       completed: stepDone(d.checklist, 'making-disciples', false),
       progress: stepDone(d.checklist, 'making-disciples', false) ? 1 : 0,
       action: 'coach-verified',
+      coachRequired: true,
     },
     {
       id: 'spiritual-gifts',
@@ -356,6 +364,7 @@ export function computeJourney(d: JourneyData): JourneyLevel[] {
       completed: stepDone(d.checklist, 'empowering-leaders', false),
       progress: stepDone(d.checklist, 'empowering-leaders', false) ? 1 : 0,
       action: 'coach-verified',
+      coachRequired: true,
     },
   ]
 

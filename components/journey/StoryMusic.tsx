@@ -112,8 +112,22 @@ export default function StoryMusic({ active }: { active: boolean }) {
     const a = audioRef.current
     if (!a || !available) return
 
+    let kick: (() => void) | null = null
+
     if (active && !muted) {
       startPlayback()
+      // Bulletproof autoplay: browsers block un-gestured audio, and the small
+      // "Sound on" chip is easy to miss — which left desktop web silent. The
+      // FIRST gesture anywhere on the page resumes the AudioContext and starts
+      // the track; once the context is running this stops re-triggering. Capture
+      // phase so it fires even when the story UI swallows the event.
+      kick = () => {
+        if (!activeRef.current) return
+        const ctx = ctxRef.current
+        if (!ctx || ctx.state !== 'running') startPlayback()
+      }
+      document.addEventListener('pointerdown', kick, true)
+      document.addEventListener('keydown', kick, true)
     } else {
       // Graceful fade-out at the end of the story (or on mute), then stop.
       // The story page hands back to the app ~1.7s after the tour ends, so
@@ -124,6 +138,10 @@ export default function StoryMusic({ active }: { active: boolean }) {
 
     return () => {
       if (pauseTimer.current) clearTimeout(pauseTimer.current)
+      if (kick) {
+        document.removeEventListener('pointerdown', kick, true)
+        document.removeEventListener('keydown', kick, true)
+      }
     }
   }, [active, muted, available])
 
