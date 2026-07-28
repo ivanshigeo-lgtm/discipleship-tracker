@@ -722,7 +722,13 @@ export default function MyJourneyPage() {
             )}
             <EmpoweredCoachmark
               personId={profile.id}
-              enabled={Boolean(profile.is_admin) || signoffs.some(s => s.stage === 'Empower' && s.status === 'approved')}
+              // Only after the cinematic intro + tour are done — otherwise the
+              // pointer floats over the story scene (it anchors to a toggle the
+              // story is covering).
+              enabled={
+                showIntro === false && !showTour &&
+                (Boolean(profile.is_admin) || signoffs.some(s => s.stage === 'Empower' && s.status === 'approved'))
+              }
               onActiveChange={setCoachmarkActive}
             />
           </div>
