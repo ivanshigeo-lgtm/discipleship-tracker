@@ -3,7 +3,7 @@
 // Open self-service signup wizard. Anyone can create an account:
 //   email → OTP code → password → onboarding (claim a coach-made profile, or
 //   start fresh with an optional coach code). Mirrors LoginPage / setup styling.
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabaseClient'
@@ -34,6 +34,26 @@ export default function SignUpPage() {
   const [coachCode, setCoachCode] = useState<string | null>(null)
   const [personName, setPersonName] = useState<string | null>(null)
   const [inputCode, setInputCode] = useState('')
+  // Arrived via a coach's invite link → prefill so the disciple auto-connects and
+  // never has to type anything. Two link shapes:
+  //   ?code=ABC123   generic coach code → connect a fresh profile to that coach
+  //   ?claim=<id>    per-disciple link → claim the exact profile the coach made
+  const [invited, setInvited] = useState(false)
+  const [claimPersonId, setClaimPersonId] = useState('')
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const c = params.get('code')
+    if (c) {
+      setInputCode(c.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))
+      setInvited(true)
+    }
+    const claim = params.get('claim')
+    if (claim) {
+      setClaimPersonId(claim.trim())
+      setInvited(true)
+    }
+  }, [])
 
   const getAccessToken = async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -97,7 +117,7 @@ export default function SignUpPage() {
       const res = await fetch('/api/signup-complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'context', accessToken }),
+        body: JSON.stringify({ action: 'context', accessToken, claimPersonId }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Something went wrong.'); return }
@@ -130,6 +150,7 @@ export default function SignUpPage() {
           accessToken,
           name: name.trim(),
           coachCode: mode === 'orphan' ? inputCode.trim() : '',
+          claimPersonId,
         }),
       })
       const data = await res.json()
@@ -272,10 +293,18 @@ export default function SignUpPage() {
 
               {mode === 'orphan' && (
                 <>
-                  <h2 className="mb-2 text-lg font-semibold text-[var(--fg-1)]">You&apos;re almost in</h2>
-                  <p className="mb-4 text-sm text-[var(--fg-2)]">Let&apos;s finish setting up your journey.</p>
+                  <h2 className="mb-2 text-lg font-semibold text-[var(--fg-1)]">
+                    {invited ? 'You’ve been invited!' : 'You’re almost in'}
+                  </h2>
+                  <p className="mb-4 text-sm text-[var(--fg-2)]">
+                    {invited
+                      ? 'Your coach’s code is filled in below — finish to connect with them.'
+                      : 'Let’s finish setting up your journey.'}
+                  </p>
                   <div className="mb-4">
-                    <label htmlFor="coach-code" className="mb-1 block text-xs font-medium text-[var(--fg-2)]">Coach code (optional)</label>
+                    <label htmlFor="coach-code" className="mb-1 block text-xs font-medium text-[var(--fg-2)]">
+                      {invited ? 'Your coach’s code' : 'Coach code (optional)'}
+                    </label>
                     <input
                       id="coach-code"
                       type="text"
@@ -285,7 +314,11 @@ export default function SignUpPage() {
                       placeholder="ABC123"
                       maxLength={6}
                     />
-                    <p className="mt-1 text-xs text-[var(--fg-3)]">If your coach gave you a code, enter it to connect.</p>
+                    <p className="mt-1 text-xs text-[var(--fg-3)]">
+                      {invited
+                        ? 'From your invite link. Leave as-is to connect with your coach.'
+                        : 'If your coach gave you a code, enter it to connect.'}
+                    </p>
                   </div>
                   <button type="button" onClick={handleFinish} disabled={loading} className="cn-btn cn-btn-primary w-full">
                     {loading ? 'Finishing...' : 'Finish'}

@@ -166,7 +166,10 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
   const canInvite = !person.auth_user_id
 
   const copyInviteLink = () => {
-    const link = `${window.location.origin}/invite/${person.id}`
+    // Route through the open self-service wizard, carrying this person's id so it
+    // claims THIS profile (server-side, past RLS) instead of the old /invite page,
+    // which read `people` anonymously and broke under the RLS lockdown.
+    const link = `${window.location.origin}/sign-up?claim=${person.id}`
     navigator.clipboard.writeText(link)
     setInviteCopied(true)
     setTimeout(() => setInviteCopied(false), 2000)

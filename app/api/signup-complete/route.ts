@@ -63,7 +63,12 @@ export async function POST(request: NextRequest) {
       accessToken?: string
       name?: string
       coachCode?: string
+      // Set when the user arrived from a coach's per-disciple invite link
+      // (/sign-up?claim=<id>) → claim THIS specific coach-created profile,
+      // regardless of whether the signup email matches the profile's email.
+      claimPersonId?: string
     }
+    const claimPersonId = (body.claimPersonId ?? '').trim()
 
     const user = await getUserFromToken(accessToken)
     if (!user) {
@@ -81,6 +86,19 @@ export async function POST(request: NextRequest) {
         .order('created_at', { ascending: true })
         .limit(1)
       return (data?.[0] as { id: string; name: string } | undefined) ?? null
+    }
+
+    // An unclaimed coach-created row addressed by its exact id (per-disciple
+    // invite link). Returns null if the id is unknown or already claimed.
+    const findUnclaimedById = async (id: string) => {
+      if (!id) return null
+      const { data } = await supabase
+        .from('people')
+        .select('id, name')
+        .eq('id', id)
+        .is('auth_user_id', null)
+        .maybeSingle()
+      return (data as { id: string; name: string } | null) ?? null
     }
 
     // A row already claimed by THIS auth user (idempotency across retries).
@@ -112,7 +130,9 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'context') {
-      const unclaimed = await findUnclaimedByEmail()
+      // A specific invite link wins over email matching — the coach told us
+      // exactly which profile this is, even if the signup email differs.
+      const unclaimed = (claimPersonId && await findUnclaimedById(claimPersonId)) || await findUnclaimedByEmail()
       if (unclaimed) {
         const coach = await findCoachForDisciple(unclaimed.id)
         return NextResponse.json({
@@ -136,7 +156,9 @@ export async function POST(request: NextRequest) {
       const coachCode = (body.coachCode ?? '').trim()
 
       // ── Pre-existing (coach-created) row → claim it and greet the coach. ──
-      const unclaimed = await findUnclaimedByEmail()
+      // A per-disciple invite link (?claim=<id>) targets the exact profile even
+      // when the signup email differs; otherwise fall back to email matching.
+      const unclaimed = (claimPersonId && await findUnclaimedById(claimPersonId)) || await findUnclaimedByEmail()
       if (unclaimed) {
         const { error: claimError } = await supabase
           .from('people')
@@ -148,6 +170,14 @@ export async function POST(request: NextRequest) {
           console.error('signup-complete claim error:', claimError)
           return NextResponse.json({ error: 'Failed to finish setup.' }, { status: 500 })
         }
+
+        // Align the profile's email to their login so a future signup can't miss
+        // it (this is the gap that let a duplicate slip through). Best-effort:
+        // a unique-email collision here must never block a successful claim.
+        await supabase
+          .from('people')
+          .update({ email: user.email })
+          .eq('id', unclaimed.id)
 
         // Notify the connected coach that their disciple just joined.
         const coach = await findCoachForDisciple(unclaimed.id)

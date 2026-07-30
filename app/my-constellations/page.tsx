@@ -95,6 +95,63 @@ const NAV: Array<{ heading: string; items: Array<{ id: SectionId; label: string;
   },
 ]
 
+// ─── Coach invite helpers ──────────────────────────────────────────────────────
+// A coach's shareable code = last 6 chars of their people.id, uppercased — the
+// single reconciliation point disciples use to connect. The invite link bakes
+// the code into /sign-up?code=… so an invited disciple auto-connects on finish.
+const INVITE_ORIGIN = 'https://wikichurch.app'
+const inviteUrl = (code: string) => `${INVITE_ORIGIN}/sign-up?code=${code}`
+const inviteMessage = (code: string) =>
+  `Join me on WikiChurch! Tap to set up your account — we'll be connected automatically:\n\n${inviteUrl(code)}`
+
+async function shareInvite(code: string) {
+  const text = inviteMessage(code)
+  if (typeof navigator !== 'undefined' && navigator.share) {
+    try { await navigator.share({ text }) } catch { /* user cancelled the share sheet */ }
+    return
+  }
+  try { await navigator.clipboard.writeText(text) } catch { /* clipboard unavailable */ }
+  alert('Invite copied — paste it into a text or email to your disciple.')
+}
+
+// Prominent labeled coach-code card for the top of "Our Journey". Tap the code
+// to copy it; "Invite a disciple" shares a ready-made sign-up link with the code
+// baked in.
+function CoachCodeCard({ code }: { code: string }) {
+  const [copied, setCopied] = useState(false)
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(code) } catch { return }
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+  return (
+    <div className="cn-card mb-6 flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p className="text-[10px] font-semibold uppercase tracking-[.14em] text-[var(--fg-3)]">Your coach code</p>
+        <div className="mt-1 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={copy}
+            title="Copy code"
+            className="font-mono text-2xl font-semibold tracking-[.2em] text-[var(--fg-1)] transition-colors hover:text-[var(--gbm-cobalt-bright)]"
+          >
+            {code}
+          </button>
+          <span className="text-xs text-[var(--fg-3)]">{copied ? 'Copied ✓' : 'tap to copy'}</span>
+        </div>
+        <p className="mt-1 text-xs text-[var(--fg-2)]">Disciples enter this to connect with you.</p>
+      </div>
+      <button
+        type="button"
+        onClick={() => shareInvite(code)}
+        className="shrink-0 rounded-lg border border-[rgba(91,141,247,.4)] px-4 py-2 text-sm font-medium text-[var(--gbm-cobalt-bright)] transition-colors hover:bg-[rgba(91,141,247,.1)]"
+      >
+        ✦ Invite a disciple
+      </button>
+    </div>
+  )
+}
+
 // ─── Sidebar component ────────────────────────────────────────────────────────
 function CoachSidebar({
   active,
@@ -229,15 +286,16 @@ function CoachSidebar({
         <div className="shrink-0 space-y-2 border-t border-[var(--line-2)] px-4 py-3">
           <GoogleCalendarConnect />
           <div className="flex items-center justify-between">
-            <div>
+            <div className="min-w-0">
               <p className="truncate text-xs font-medium text-[var(--fg-1)]">{profileName}</p>
+              <p className="text-[9px] font-semibold uppercase tracking-[.12em] text-[var(--fg-3)]">Coach code</p>
               <button
                 type="button"
                 onClick={() => {
                   navigator.clipboard.writeText(coachCode)
                   alert(`Coach code: ${coachCode}\n\nCopied!`)
                 }}
-                className="font-mono text-[10px] text-[var(--fg-3)] hover:text-[var(--fg-2)]"
+                className="font-mono text-xs font-semibold tracking-[.15em] text-[var(--fg-2)] hover:text-[var(--fg-1)]"
               >
                 {coachCode} 📋
               </button>
@@ -245,15 +303,22 @@ function CoachSidebar({
             <button
               type="button"
               onClick={onSignOut}
-              className="rounded-lg border border-[var(--line-2)] px-2 py-1 text-[10px] text-[var(--fg-3)] hover:text-[var(--fg-1)]"
+              className="shrink-0 rounded-lg border border-[var(--line-2)] px-2 py-1 text-[10px] text-[var(--fg-3)] hover:text-[var(--fg-1)]"
             >
               Sign out
             </button>
           </div>
           <button
             type="button"
-            onClick={onAddPerson}
+            onClick={() => shareInvite(coachCode)}
             className="w-full rounded-lg border border-[rgba(91,141,247,.4)] py-1.5 text-xs font-medium text-[var(--gbm-cobalt-bright)] transition-colors hover:bg-[rgba(91,141,247,.1)]"
+          >
+            ✦ Invite a disciple
+          </button>
+          <button
+            type="button"
+            onClick={onAddPerson}
+            className="w-full rounded-lg border border-[var(--line-2)] py-1.5 text-xs font-medium text-[var(--fg-2)] transition-colors hover:bg-[var(--indigo-2)]"
           >
             + Add person
           </button>
@@ -667,6 +732,7 @@ export default function DiscipleshipTracker() {
           {/* ── Our Journey (default) — desktop; mobile uses MobileConstellation overlay ── */}
           {activeSection === 'journey' && !isMobile && (
             <div>
+              <CoachCodeCard code={profile.id.slice(-6).toUpperCase()} />
               <div className="cn-card mb-6 p-4">
                 {/* Header row */}
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
