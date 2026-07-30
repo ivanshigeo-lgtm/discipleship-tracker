@@ -1,10 +1,23 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Providers from "../components/Providers";
 
 export const metadata: Metadata = {
   title: "Constellation — Grace Bible Maui",
   description: "Helping people grow through the 4E process",
+  // Make "Add to Home Screen" launch full-screen and app-like on iOS.
+  appleWebApp: {
+    capable: true,
+    title: "Constellation",
+    statusBarStyle: "black",
+  },
+};
+
+// themeColor / viewport must live in the viewport export (not metadata).
+export const viewport: Viewport = {
+  themeColor: "#0B1027",
+  width: "device-width",
+  initialScale: 1,
 };
 
 // Prevent Vercel's edge from caching stale HTML that references an old JS
