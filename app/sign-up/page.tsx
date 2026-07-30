@@ -3,7 +3,7 @@
 // Open self-service signup wizard. Anyone can create an account:
 //   email → OTP code → password → onboarding (claim a coach-made profile, or
 //   start fresh with an optional coach code). Mirrors LoginPage / setup styling.
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabaseClient'
@@ -40,6 +40,11 @@ export default function SignUpPage() {
   //   ?claim=<id>    per-disciple link → claim the exact profile the coach made
   const [invited, setInvited] = useState(false)
   const [claimPersonId, setClaimPersonId] = useState('')
+  // Once we know the user is invited (has a prefilled claim id or coach code),
+  // the onboarding screen is applied silently — never rendered. This guards the
+  // one-shot auto-submit and lets us fall back to the manual screen if it fails.
+  const autoFinishedRef = useRef(false)
+  const [autoFinishFailed, setAutoFinishFailed] = useState(false)
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -151,16 +156,32 @@ export default function SignUpPage() {
           name: name.trim(),
           coachCode: mode === 'orphan' ? inputCode.trim() : '',
           claimPersonId,
+          invited,
         }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.error || 'Something went wrong.'); setLoading(false); return }
+      if (!res.ok) { setError(data.error || 'Something went wrong.'); setAutoFinishFailed(true); setLoading(false); return }
       router.push('/my-journey')
     } catch {
       setError('Something went wrong. Please try again.')
+      setAutoFinishFailed(true)
       setLoading(false)
     }
   }
+
+  // An invited disciple (arrived via ?claim=<id> or ?code=) should never see the
+  // coach-code / claim screen — the code is already known. Once onboarding
+  // context has resolved, submit 'finish' silently and drop them into the app.
+  // If it errors, handleFinish flips autoFinishFailed so the manual screen shows.
+  const autoFinish = invited && !!(claimPersonId || inputCode)
+  useEffect(() => {
+    if (step !== 'onboarding' || !autoFinish) return
+    if (mode === null || mode === 'done') return
+    if (autoFinishedRef.current) return
+    autoFinishedRef.current = true
+    handleFinish()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, mode, autoFinish])
 
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
@@ -194,6 +215,7 @@ export default function SignUpPage() {
                 <div>
                   <label htmlFor="email" className="mb-1 block text-xs font-medium text-[var(--fg-2)]">Email</label>
                   <input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} className={inputClass} placeholder="you@example.com" required />
+                  <p className="mt-1 text-xs text-[var(--fg-3)]">We&apos;ll email you a code. Can&apos;t find it? Check your spam or junk folder.</p>
                 </div>
                 <button type="submit" disabled={loading} className="cn-btn cn-btn-primary w-full">
                   {loading ? 'Sending code...' : 'Send verification code'}
@@ -206,9 +228,10 @@ export default function SignUpPage() {
           {step === 'code' && (
             <form onSubmit={handleCode}>
               <h2 className="mb-2 text-lg font-semibold text-[var(--fg-1)]">Enter your code</h2>
-              <p className="mb-4 text-sm text-[var(--fg-2)]">
+              <p className="mb-1 text-sm text-[var(--fg-2)]">
                 We sent a 6-digit code to <span className="font-semibold text-[var(--fg-1)]">{email}</span>. Enter it below.
               </p>
+              <p className="mb-4 text-xs text-[var(--fg-3)]">Can&apos;t find it? Check your spam or junk folder.</p>
               <div className="space-y-4">
                 <div>
                   <label htmlFor="code" className="mb-1 block text-xs font-medium text-[var(--fg-2)]">Verification code</label>
@@ -262,9 +285,13 @@ export default function SignUpPage() {
           )}
 
           {/* ── Step 4: onboarding ── */}
-          {step === 'onboarding' && (
+          {step === 'onboarding' && (() => {
+            // Invited disciples never see this step: while the silent auto-finish
+            // runs we show only a spinner (unless it failed and we fall back).
+            const onboardingBusy = mode === null || (autoFinish && !autoFinishFailed)
+            return (
             <div>
-              {mode === 'preexisting' && (
+              {!onboardingBusy && mode === 'preexisting' && (
                 <>
                   <h2 className="mb-2 text-lg font-semibold text-[var(--fg-1)]">
                     Welcome{personName ? `, ${personName}` : ''}!
@@ -291,7 +318,7 @@ export default function SignUpPage() {
                 </>
               )}
 
-              {mode === 'orphan' && (
+              {!onboardingBusy && mode === 'orphan' && (
                 <>
                   <h2 className="mb-2 text-lg font-semibold text-[var(--fg-1)]">
                     {invited ? 'You’ve been invited!' : 'You’re almost in'}
@@ -326,13 +353,14 @@ export default function SignUpPage() {
                 </>
               )}
 
-              {mode === null && (
+              {onboardingBusy && (
                 <div className="flex justify-center py-6">
                   <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--gbm-cobalt-bright)] border-t-transparent" />
                 </div>
               )}
             </div>
-          )}
+            )
+          })()}
         </div>
 
         <button

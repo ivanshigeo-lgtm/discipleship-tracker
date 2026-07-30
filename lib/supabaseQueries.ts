@@ -7,6 +7,7 @@ import type {
   Stage,
   StageChecklistItem,
   GroupAttendance,
+  GroupMeetingStatus,
   DiscipleshipConnection,
   SoapJournal,
   InviteToken,
@@ -952,6 +953,45 @@ export const upsertGroupAttendance = async (
     .select()
     .single()
   return { data, error }
+}
+
+// ==================== GROUP MEETING STATUS (per-occurrence cancel/reschedule) ====================
+// A recurring group meeting has no per-occurrence row; these override a SINGLE
+// occurrence, keyed by its original meeting_date. See GroupMeetingStatus type.
+export const getGroupMeetingStatuses = async () => {
+  const { data, error } = await supabase
+    .from('group_meeting_status')
+    .select('id, victory_group_id, meeting_date, status, rescheduled_to, rescheduled_time, note, created_by_person_id, created_at, updated_at')
+  return { data, error }
+}
+
+// Upsert one group's status for one original meeting_date. onConflict matches the
+// unique (victory_group_id, meeting_date) so re-submitting overwrites.
+export const upsertGroupMeetingStatus = async (record: {
+  victory_group_id: string
+  meeting_date: string
+  status: 'cancelled' | 'rescheduled'
+  rescheduled_to?: string | null
+  rescheduled_time?: string | null
+  note?: string | null
+  created_by_person_id?: string | null
+}) => {
+  const { data, error } = await supabase
+    .from('group_meeting_status')
+    .upsert({ ...record, updated_at: new Date().toISOString() }, { onConflict: 'victory_group_id,meeting_date' })
+    .select()
+    .single()
+  return { data, error }
+}
+
+// Undo a cancel/reschedule — the occurrence reverts to its normal day/time.
+export const clearGroupMeetingStatus = async (victoryGroupId: string, meetingDate: string) => {
+  const { error } = await supabase
+    .from('group_meeting_status')
+    .delete()
+    .eq('victory_group_id', victoryGroupId)
+    .eq('meeting_date', meetingDate)
+  return { error }
 }
 
 // ==================== DISCIPLESHIP CONNECTIONS ====================

@@ -12,8 +12,11 @@ import {
   updateVictoryGroupOwner,
   upsertGroupAttendance,
   getGroupAttendance,
+  getGroupMeetingStatuses,
+  upsertGroupMeetingStatus,
+  clearGroupMeetingStatus,
 } from '../lib/supabaseQueries'
-import type { Person, PersonVictoryGroupWithPerson, Stage, VictoryGroup, GroupAttendance, GroupFocus } from '../types/database'
+import type { Person, PersonVictoryGroupWithPerson, Stage, VictoryGroup, GroupAttendance, GroupMeetingStatus, GroupFocus } from '../types/database'
 import { stageLabels } from '../lib/stageLabels'
 import { GROUP_FOCUS_OPTIONS, bookletStage } from '../lib/curriculum'
 import { useAuth } from '../contexts/AuthContext'
@@ -29,6 +32,21 @@ const STAGE_COLORS: Record<Stage, string> = {
 }
 
 const toDateInputValue = (date: Date) => date.toISOString().split('T')[0]
+
+// The next date (today or later) matching a group's weekly meeting day, as a
+// local 'YYYY-MM-DD'. This is the occurrence a per-meeting cancel/reschedule
+// acts on. Null when the group has no set day.
+const nextOccurrenceDate = (meetingDay: string | null): string | null => {
+  if (!meetingDay) return null
+  const target = meetingDays.indexOf(meetingDay)
+  if (target < 0) return null
+  const d = new Date(); d.setHours(0, 0, 0, 0)
+  d.setDate(d.getDate() + ((target - d.getDay() + 7) % 7))
+  return toDateInputValue(d)
+}
+// The weekday name for a 'YYYY-MM-DD' date (for "all future" reschedule, which
+// shifts the group's standing meeting_day).
+const weekdayOf = (dateStr: string) => meetingDays[new Date(dateStr + 'T00:00:00').getDay()]
 
 // Attendance-history derivations, mirroring the native app's history sheet: consecutive
 // missed-meeting streak per member (stops at first attended), and per-meeting totals.
@@ -153,18 +171,96 @@ export default function VictoryGroupsList({
   const [historyGroupId, setHistoryGroupId] = useState<string | null>(null)
   const [historyRecords, setHistoryRecords] = useState<GroupAttendance[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
+
+  // Per-occurrence cancel/reschedule overrides for the current meeting of each
+  // group (keyed by victory_group_id + original meeting_date).
+  const [groupStatuses, setGroupStatuses] = useState<GroupMeetingStatus[]>([])
+  const [rsGroupId, setRsGroupId] = useState<string | null>(null) // which group's reschedule form is open
+  const [rsDate, setRsDate] = useState('')
+  const [rsTime, setRsTime] = useState('')
+  const [rsAll, setRsAll] = useState(false)
+  const [rsSaving, setRsSaving] = useState(false)
+
+  const statusFor = (groupId: string, occDate: string) =>
+    groupStatuses.find(s => s.victory_group_id === groupId && s.meeting_date === occDate) ?? null
+
+  const reloadStatuses = async () => {
+    const { data } = await getGroupMeetingStatuses()
+    setGroupStatuses((data ?? []) as GroupMeetingStatus[])
+  }
+
+  const cancelOccurrence = async (group: VictoryGroup, occDate: string) => {
+    const { error } = await upsertGroupMeetingStatus({
+      victory_group_id: group.id,
+      meeting_date: occDate,
+      status: 'cancelled',
+      created_by_person_id: profile?.id ?? null,
+    })
+    if (error) { setError(error.message); return }
+    await reloadStatuses()
+    onChanged?.()
+  }
+
+  const reopenOccurrence = async (group: VictoryGroup, occDate: string) => {
+    const { error } = await clearGroupMeetingStatus(group.id, occDate)
+    if (error) { setError(error.message); return }
+    setRsGroupId(null)
+    await reloadStatuses()
+    onChanged?.()
+  }
+
+  const openReschedule = (group: VictoryGroup, occDate: string) => {
+    const st = statusFor(group.id, occDate)
+    setRsGroupId(group.id)
+    setRsDate(st?.rescheduled_to ?? occDate)
+    setRsTime(st?.rescheduled_time ?? group.meeting_time ?? '')
+    setRsAll(false)
+    setError('')
+  }
+
+  const saveReschedule = async (group: VictoryGroup, occDate: string) => {
+    if (!rsDate) return
+    setRsSaving(true)
+    if (rsAll) {
+      // Shift the standing day/time for every future occurrence, and clear any
+      // one-off override for this occurrence so it follows the new schedule.
+      const res = await updateVictoryGroup(group.id, { meeting_day: weekdayOf(rsDate), meeting_time: rsTime || null })
+      if (!res.error) await clearGroupMeetingStatus(group.id, occDate)
+      if (res.error) setError(res.error.message)
+      else if (group.google_calendar_event_id) {
+        await syncGroupToCalendar('update', group.id, { ...group, meeting_day: weekdayOf(rsDate), meeting_time: rsTime || null })
+      }
+    } else {
+      const { error } = await upsertGroupMeetingStatus({
+        victory_group_id: group.id,
+        meeting_date: occDate,
+        status: 'rescheduled',
+        rescheduled_to: rsDate,
+        rescheduled_time: rsTime || null,
+        created_by_person_id: profile?.id ?? null,
+      })
+      if (error) setError(error.message)
+    }
+    setRsSaving(false)
+    setRsGroupId(null)
+    await Promise.all([reloadStatuses(), loadData()])
+    onChanged?.()
+  }
+
   const loadData = async () => {
     try {
-      const [{ data: groupsData, error: groupsError }, { data: peopleData, error: peopleError }] = await Promise.race([
+      const [{ data: groupsData, error: groupsError }, { data: peopleData, error: peopleError }, { data: statusesData }] = await Promise.race([
         Promise.all([
           getVictoryGroups(),
           getPeople(),
+          getGroupMeetingStatuses(),
         ]),
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000))
       ])
 
       if (groupsError) setError(groupsError.message)
       if (peopleError) setError(peopleError.message)
+      setGroupStatuses((statusesData ?? []) as GroupMeetingStatus[])
 
       const nextGroups = (groupsData ?? []) as VictoryGroup[]
       const nextPeople = (peopleData ?? []) as Person[]
@@ -692,6 +788,67 @@ export default function VictoryGroupsList({
                         </div>
                       )}
                     </div>
+
+                    {/* This week's meeting — per-occurrence cancel / reschedule.
+                        "All future meetings" instead shifts the group's standing
+                        day/time. Mirrors the native group action sheet. */}
+                    {group.meeting_day && !isAttendanceMode && !isHistoryMode && (() => {
+                      const occ = nextOccurrenceDate(group.meeting_day)
+                      if (!occ) return null
+                      const st = statusFor(group.id, occ)
+                      const isRsOpen = rsGroupId === group.id
+                      return (
+                        <div className="rounded-lg border border-[var(--line-1)] bg-[var(--indigo-2)] p-2.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--fg-3)]">Next meeting</div>
+                              {st?.status === 'cancelled' ? (
+                                <div className="text-xs font-semibold" style={{ color: '#F2728A' }}>{fmtHistDate(occ)} · Cancelled</div>
+                              ) : st?.status === 'rescheduled' && st.rescheduled_to ? (
+                                <div className="text-xs text-[var(--fg-1)]">
+                                  <span className="text-[var(--fg-3)] line-through">{fmtHistDate(occ)}</span>
+                                  {' → '}
+                                  <span className="font-semibold" style={{ color: 'var(--establish)' }}>
+                                    {fmtHistDate(st.rescheduled_to)}{st.rescheduled_time ? ` @ ${st.rescheduled_time}` : ''}
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="text-xs font-semibold text-[var(--fg-1)]">{fmtHistDate(occ)}{group.meeting_time ? ` @ ${group.meeting_time}` : ''}</div>
+                              )}
+                            </div>
+                            {canManage && (
+                              <div className="flex shrink-0 items-center gap-1.5">
+                                {st ? (
+                                  <button type="button" onClick={() => reopenOccurrence(group, occ)} className="rounded-lg border border-[var(--line-2)] bg-[var(--indigo)] px-2 py-1 text-[11px] font-semibold text-[var(--fg-1)] hover:border-[var(--gbm-cobalt-bright)]">Undo</button>
+                                ) : (
+                                  <>
+                                    <button type="button" onClick={() => openReschedule(group, occ)} className="rounded-lg border border-[var(--line-2)] bg-[var(--indigo)] px-2 py-1 text-[11px] font-semibold text-[var(--fg-1)] hover:border-[var(--gbm-cobalt-bright)]">Reschedule</button>
+                                    <button type="button" onClick={() => cancelOccurrence(group, occ)} className="rounded-lg border px-2 py-1 text-[11px] font-semibold" style={{ borderColor: 'rgba(240,114,159,.4)', color: '#F0729F', background: 'rgba(240,114,159,.1)' }}>Cancel</button>
+                                  </>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          {isRsOpen && (
+                            <>
+                              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                                <input type="date" value={rsDate} onChange={e => setRsDate(e.target.value)} className="rounded-lg border border-[var(--line-2)] bg-[var(--indigo)] px-2 py-1 text-xs text-[var(--fg-1)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none" />
+                                <input type="time" value={rsTime} onChange={e => setRsTime(e.target.value)} className="rounded-lg border border-[var(--line-2)] bg-[var(--indigo)] px-2 py-1 text-xs text-[var(--fg-1)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none" />
+                                <label className="flex items-center gap-1 text-[10px] text-[var(--fg-2)]">
+                                  <input type="checkbox" checked={rsAll} onChange={e => setRsAll(e.target.checked)} className="h-3.5 w-3.5 rounded border-[var(--line-2)] bg-[var(--indigo)] accent-[var(--gbm-cobalt-bright)]" />
+                                  All future meetings
+                                </label>
+                                <button type="button" onClick={() => saveReschedule(group, occ)} disabled={rsSaving || !rsDate} className="cn-btn cn-btn-primary !px-2.5 !py-1 !text-xs disabled:opacity-50">{rsSaving ? 'Saving…' : 'Save'}</button>
+                                <button type="button" onClick={() => setRsGroupId(null)} className="cn-chip !text-xs">Cancel</button>
+                              </div>
+                              {rsAll && rsDate && (
+                                <p className="mt-1 text-[10px] text-[var(--fg-3)]">Moves the group’s regular meeting to {weekdayOf(rsDate)}{rsTime ? ` @ ${rsTime}` : ''} for every future week.</p>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      )
+                    })()}
 
                     {isAttendanceMode && (
                       <div className="flex items-center gap-2">

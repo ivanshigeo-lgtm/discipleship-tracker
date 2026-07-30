@@ -120,7 +120,10 @@ export type Engagement = {
   follow_up_time: string | null
   location: string | null
   meeting_type: MeetingType | null
-  status: 'Pending' | 'Completed'
+  // 'Cancelled' = a meeting that was scheduled but didn't happen. It stays
+  // visible (with a red badge) but is excluded from overdue / needs-attention /
+  // "met this week" tallies. Reopening flips it back to 'Pending'.
+  status: 'Pending' | 'Completed' | 'Cancelled'
   notes: string | null
   completed_at: string | null
   action_completed: boolean
@@ -209,6 +212,24 @@ export type GroupAttendance = {
   person_id: string
   meeting_date: string
   attended: boolean
+  created_at: string
+  updated_at: string
+}
+
+// Per-occurrence override for a recurring Grace Group meeting. Groups have no
+// per-occurrence row otherwise (occurrences are derived from
+// victory_groups.meeting_day/time), so cancelling or rescheduling a SINGLE
+// meeting lands here, keyed by the ORIGINAL meeting_date. Rescheduling ALL
+// future occurrences instead edits victory_groups.meeting_day/time directly.
+export type GroupMeetingStatus = {
+  id: string
+  victory_group_id: string
+  meeting_date: string          // the original occurrence date
+  status: 'cancelled' | 'rescheduled'
+  rescheduled_to: string | null  // new date when status='rescheduled'
+  rescheduled_time: string | null
+  note: string | null
+  created_by_person_id: string | null
   created_at: string
   updated_at: string
 }

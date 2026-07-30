@@ -10,6 +10,7 @@ import {
   addPrayerRequest,
   addPraise,
   updateEngagement,
+  getEngagementsByPerson,
 } from '../lib/supabaseQueries'
 import { useAuth } from '../contexts/AuthContext'
 import type { Engagement, ActionItem, PrayerRequest } from '../types/database'
@@ -39,9 +40,59 @@ export default function EngagementDetailModal({
   const [timeVal, setTimeVal] = useState(engagement.follow_up_time ?? '')
   const [savingReschedule, setSavingReschedule] = useState(false)
 
+  // Cancel / reopen. A cancelled meeting stays visible but drops out of the
+  // overdue / needs-attention / "met this week" tallies (mirrors native).
+  const [status, setStatus] = useState<Engagement['status']>(engagement.status)
+  const [togglingCancel, setTogglingCancel] = useState(false)
+  const cancelled = status === 'Cancelled'
+
+  const toggleCancel = async () => {
+    const next: Engagement['status'] = cancelled ? 'Pending' : 'Cancelled'
+    setTogglingCancel(true)
+    const { error } = await updateEngagement(engagement.id, { status: next })
+    if (error) {
+      alert(`Couldn't ${cancelled ? 'reopen' : 'cancel'} meeting: ${error.message || 'Unknown error'}`)
+    } else {
+      setStatus(next)
+      onChanged?.()
+    }
+    setTogglingCancel(false)
+  }
+
   const handleReschedule = async () => {
     setSavingReschedule(true)
-    await updateEngagement(engagement.id, { follow_up_date: dateVal || null, follow_up_time: timeVal || null })
+    const newDate = dateVal || null
+    const newTime = timeVal || null
+    await updateEngagement(engagement.id, { follow_up_date: newDate, follow_up_time: newTime })
+
+    // If the date moved and this looks like a repeating meeting, offer to shift
+    // every FUTURE sibling too (same person + meeting_type, still Pending, dated
+    // on/after the original). Engagements carry no series id, so siblings are a
+    // heuristic — same as the native app.
+    const origDate = engagement.follow_up_date
+    const dayDelta = origDate && newDate
+      ? Math.round((new Date(newDate + 'T00:00:00').getTime() - new Date(origDate + 'T00:00:00').getTime()) / 86_400_000)
+      : 0
+    if (dayDelta !== 0 && engagement.meeting_type) {
+      const { data } = await getEngagementsByPerson(engagement.person_id)
+      const siblings = (data as Engagement[] | null ?? []).filter(e =>
+        e.id !== engagement.id &&
+        e.status === 'Pending' &&
+        e.meeting_type === engagement.meeting_type &&
+        e.follow_up_date && origDate && e.follow_up_date >= origDate
+      )
+      if (siblings.length > 0 && window.confirm(
+        `Shift the other ${siblings.length} repeated “${engagement.meeting_type}” meeting${siblings.length === 1 ? '' : 's'} by ${dayDelta > 0 ? '+' : ''}${dayDelta} day${Math.abs(dayDelta) === 1 ? '' : 's'} too?\n\nOK = all future meetings · Cancel = just this one`
+      )) {
+        await Promise.all(siblings.map(e => {
+          const shifted = new Date(e.follow_up_date + 'T00:00:00')
+          shifted.setDate(shifted.getDate() + dayDelta)
+          const shiftedStr = `${shifted.getFullYear()}-${String(shifted.getMonth() + 1).padStart(2, '0')}-${String(shifted.getDate()).padStart(2, '0')}`
+          return updateEngagement(e.id, { follow_up_date: shiftedStr, follow_up_time: newTime ?? e.follow_up_time })
+        }))
+      }
+    }
+
     // Keep the linked Google Calendar event in sync, if any.
     if (engagement.google_calendar_event_id && profile?.id) {
       try {
@@ -53,7 +104,7 @@ export default function EngagementDetailModal({
             coachPersonId: profile.id,
             engagementId: engagement.id,
             personName,
-            engagement: { ...engagement, follow_up_date: dateVal || null, follow_up_time: timeVal || null },
+            engagement: { ...engagement, follow_up_date: newDate, follow_up_time: newTime },
           }),
         })
       } catch { /* best-effort calendar sync */ }
@@ -151,20 +202,38 @@ export default function EngagementDetailModal({
             <p className="mt-0.5 text-xs text-[var(--fg-3)]">
               {[engagement.meeting_type, dateLabel, timeVal, engagement.location].filter(Boolean).join(' · ')}
             </p>
+            {cancelled && (
+              <span className="mt-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'rgba(240,114,159,.15)', color: '#F0729F' }}>
+                Cancelled
+              </span>
+            )}
             {!rescheduling ? (
-              <button
-                type="button"
-                onClick={() => setRescheduling(true)}
-                className="mt-1.5 inline-flex items-center gap-1 rounded-full border border-[var(--line-2)] bg-[var(--indigo-2)] px-2.5 py-1 text-[11px] font-semibold text-[var(--fg-2)] transition-colors hover:border-[var(--gbm-cobalt-bright)] hover:text-[var(--fg-1)]"
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="4" width="18" height="18" rx="2" />
-                  <line x1="16" y1="2" x2="16" y2="6" />
-                  <line x1="8" y1="2" x2="8" y2="6" />
-                  <line x1="3" y1="10" x2="21" y2="10" />
-                </svg>
-                Reschedule
-              </button>
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setRescheduling(true)}
+                  className="inline-flex items-center gap-1 rounded-full border border-[var(--line-2)] bg-[var(--indigo-2)] px-2.5 py-1 text-[11px] font-semibold text-[var(--fg-2)] transition-colors hover:border-[var(--gbm-cobalt-bright)] hover:text-[var(--fg-1)]"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="4" width="18" height="18" rx="2" />
+                    <line x1="16" y1="2" x2="16" y2="6" />
+                    <line x1="8" y1="2" x2="8" y2="6" />
+                    <line x1="3" y1="10" x2="21" y2="10" />
+                  </svg>
+                  Reschedule
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleCancel}
+                  disabled={togglingCancel}
+                  className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors disabled:opacity-50"
+                  style={cancelled
+                    ? { borderColor: 'var(--line-2)', color: 'var(--fg-2)', background: 'var(--indigo-2)' }
+                    : { borderColor: 'rgba(240,114,159,.4)', color: '#F0729F', background: 'rgba(240,114,159,.1)' }}
+                >
+                  {togglingCancel ? '…' : cancelled ? 'Reopen meeting' : 'Cancel meeting'}
+                </button>
+              </div>
             ) : (
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 <input

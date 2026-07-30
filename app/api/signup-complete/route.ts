@@ -67,8 +67,14 @@ export async function POST(request: NextRequest) {
       // (/sign-up?claim=<id>) → claim THIS specific coach-created profile,
       // regardless of whether the signup email matches the profile's email.
       claimPersonId?: string
+      // True when the user arrived from a coach's invite link (?code= or
+      // ?claim=). The coach already invited them, so a coach-code connection
+      // must NOT be left pending (no second approval to enter the app). A
+      // stranger who manually types a coach code is NOT invited → pending.
+      invited?: boolean
     }
     const claimPersonId = (body.claimPersonId ?? '').trim()
+    const invited = body.invited === true
 
     const user = await getUserFromToken(accessToken)
     if (!user) {
@@ -215,7 +221,11 @@ export async function POST(request: NextRequest) {
         person = created as { id: string; name: string }
       }
 
-      // Optional coach code → open a PENDING connection request the coach accepts.
+      // Optional coach code → connect to the coach.
+      // A code that arrived via the coach's own invite link (invited=true) is a
+      // standing invitation — the connection is created NON-pending so the
+      // disciple is in immediately with no second approval. A code typed by a
+      // stranger opens a PENDING request the coach must accept in their feed.
       if (coachCode) {
         const coach = await findCoachByCode(coachCode)
         if (!coach) {
@@ -237,14 +247,16 @@ export async function POST(request: NextRequest) {
             disciple_person_id: person.id,
             disciple_name: name || person.name,
             status: 'Identified',
-            pending: true,
+            pending: !invited,
             updated_at: new Date().toISOString(),
           })
           await supabase.from('messages').insert({
             from_person_id: person.id,
             to_person_id: coach.id,
             kind: 'note',
-            body: `${name || person.name} signed up and requested you as their coach — accept in your feed to connect. ✦`,
+            body: invited
+              ? `${name || person.name} joined the app via your invite link and is now connected to you! ✦`
+              : `${name || person.name} signed up and requested you as their coach — accept in your feed to connect. ✦`,
           })
         }
       }
