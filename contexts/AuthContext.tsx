@@ -23,6 +23,12 @@ type AuthContextType = {
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>
   signUp: (email: string, password: string) => Promise<{ error: Error | null }>
   resetPassword: (email: string) => Promise<{ error: Error | null }>
+  /** Open self-service signup — emails a 6-digit OTP, creating the user if new. */
+  startEmailOtp: (email: string) => Promise<{ error: Error | null }>
+  /** Verify the emailed OTP; on success a session exists for the (new) user. */
+  verifyEmailOtp: (email: string, token: string) => Promise<{ error: Error | null }>
+  /** Set a password on the just-created (OTP-authed) account. */
+  setPassword: (password: string) => Promise<{ error: Error | null }>
   signOut: () => Promise<void>
   refreshProfile: () => Promise<void>
 }
@@ -282,6 +288,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error }
   }
 
+  // Open self-service signup: email a 6-digit OTP (creating the auth user on
+  // first send), then verify it to establish a session, then let them set a
+  // password so they can sign in normally afterward.
+  const startEmailOtp = async (email: string) => {
+    const { error } = await supabase.auth.signInWithOtp({
+      email: email.trim(),
+      options: { shouldCreateUser: true },
+    })
+    return { error }
+  }
+
+  const verifyEmailOtp = async (email: string, token: string) => {
+    const { error } = await supabase.auth.verifyOtp({
+      email: email.trim(),
+      token: token.trim(),
+      type: 'email',
+    })
+    return { error }
+  }
+
+  const setPassword = async (password: string) => {
+    const { error } = await supabase.auth.updateUser({ password })
+    return { error }
+  }
+
   // Sends a Supabase password-reset email; the link lands on /reset-password.
   const resetPassword = async (email: string) => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -332,6 +363,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signIn,
       signUp,
       resetPassword,
+      startEmailOtp,
+      verifyEmailOtp,
+      setPassword,
       signOut,
       refreshProfile,
     }}>

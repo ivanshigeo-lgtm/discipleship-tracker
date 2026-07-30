@@ -974,6 +974,19 @@ export const getAllDiscipleshipConnections = () =>
     return { data, error }
   })
 
+// Pending self-service connection requests awaiting this coach's acceptance
+// (from open web signup — a disciple entered this coach's code). The coach
+// accepts them in their Engagements feed.
+export const getPendingConnectionRequests = async (coachPersonId: string) => {
+  const { data, error } = await supabase
+    .from('discipleship_connections')
+    .select('id, disciple_name, disciple_person_id, created_at')
+    .eq('discipler_person_id', coachPersonId)
+    .eq('pending', true)
+    .order('created_at', { ascending: false })
+  return { data, error }
+}
+
 export const addDiscipleshipConnection = async (
   connection: Omit<DiscipleshipConnection, 'id' | 'created_at' | 'updated_at'>
 ) => {

@@ -165,6 +165,16 @@ export default function LoginPage() {
           </form>
         )}
 
+        {mode === 'signin' && (
+          <button
+            type="button"
+            onClick={() => router.push('/sign-up')}
+            className="mt-4 w-full text-center text-xs text-[var(--gbm-cobalt-bright)] hover:underline"
+          >
+            Create an account
+          </button>
+        )}
+
         <p className="mt-4 text-center text-xs text-[var(--fg-3)]">
           Contact your coach if you need access
         </p>

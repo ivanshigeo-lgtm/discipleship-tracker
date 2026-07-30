@@ -12,6 +12,7 @@ import CoachingPipeline from '../../components/CoachingPipeline'
 import NeedAttentionSection from '../../components/NeedAttentionSection'
 import SignoffRequestsSection from '../../components/SignoffRequestsSection'
 import GroupJoinRequests from '../../components/GroupJoinRequests'
+import NewDiscipleRequests from '../../components/NewDiscipleRequests'
 import MeetingInvites from '../../components/MeetingInvites'
 import NewMeetingModal from '../../components/NewMeetingModal'
 import SharedSoapFeed from '../../components/SharedSoapFeed'
@@ -944,6 +945,13 @@ export default function DiscipleshipTracker() {
                   </button>
                 </div>
               </div>
+              <ErrorBoundary name="NewDiscipleRequests">
+                <NewDiscipleRequests
+                  coachPersonId={profile.id}
+                  refreshKey={refreshKey}
+                  onChanged={() => setRefreshKey(p => p + 1)}
+                />
+              </ErrorBoundary>
               <ErrorBoundary name="SignoffRequestsSection">
                 <SignoffRequestsSection
                   coachId={profile.id}
