@@ -222,6 +222,9 @@ export type DiscipleshipConnection = {
   status: 'Identified' | 'One2One Started' | 'Actively Discipling'
   created_at: string
   updated_at: string
+  // A disciple may have multiple coaches; at most one connection is the primary.
+  // DB-defaulted (false) + partial-unique across a disciple, so optional on insert.
+  is_primary?: boolean
   // The disciple's actual journey stage (joined), for deriving Engage progress.
   disciple?: { current_stage: Stage } | null
 }

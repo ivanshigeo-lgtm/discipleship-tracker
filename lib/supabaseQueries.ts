@@ -1359,12 +1359,16 @@ export const linkAuthUserToPerson = async (personId: string, authUserId: string)
 
 // ==================== DISCIPLE JOURNEY HELPERS ====================
 export const getMyCoach = async (personId: string) => {
+  // A disciple may have several coaches. "My coach" resolves to the primary one
+  // (is_primary), falling back to the earliest connection when none is flagged.
   const { data, error } = await supabase
     .from('discipleship_connections')
     .select('*, discipler:people!discipler_person_id(*)')
     .eq('disciple_person_id', personId)
-    .maybeSingle()
-  return { data, error }
+    .order('is_primary', { ascending: false })
+    .order('created_at', { ascending: true })
+    .limit(1)
+  return { data: data?.[0] ?? null, error }
 }
 
 export const getMyGroups = async (personId: string) => {

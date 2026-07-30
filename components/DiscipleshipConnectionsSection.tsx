@@ -10,6 +10,7 @@ import {
   getPeople,
 } from '../lib/supabaseQueries'
 import type { DiscipleshipConnection, Person, Stage } from '../types/database'
+import { useAuth } from '../contexts/AuthContext'
 
 const STAGE_COLORS: Record<Stage, string> = {
   Engage: '#F4B650',
@@ -26,6 +27,7 @@ interface DiscipleshipConnectionsSectionProps {
 type CreateMode = 'coach' | 'disciple' | null
 
 export default function DiscipleshipConnectionsSection({ personId, onPersonCreated }: DiscipleshipConnectionsSectionProps) {
+  const { profile } = useAuth()
   const [shepherdingConnections, setShepherdingConnections] = useState<DiscipleshipConnection[]>([])
   const [allConnections, setAllConnections] = useState<DiscipleshipConnection[]>([])
   const [people, setPeople] = useState<Person[]>([])
@@ -33,6 +35,7 @@ export default function DiscipleshipConnectionsSection({ personId, onPersonCreat
   const [selectedDiscipleId, setSelectedDiscipleId] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [promotingId, setPromotingId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
 
@@ -50,6 +53,21 @@ export default function DiscipleshipConnectionsSection({ personId, onPersonCreat
   const incomingConnections = useMemo(() => {
     return allConnections.filter(connection => connection.disciple_person_id === personId)
   }, [allConnections, personId])
+
+  // Which coach (if any) is the primary, and whether the viewer may reassign it.
+  // Authorized: an admin, the current primary coach (handing off), or — when no
+  // primary is set yet — any coach already connected to this disciple.
+  const primaryConnection = useMemo(
+    () => incomingConnections.find(connection => connection.is_primary),
+    [incomingConnections]
+  )
+
+  const canManagePrimary = useMemo(() => {
+    if (!profile) return false
+    if (profile.is_admin) return true
+    if (primaryConnection) return primaryConnection.discipler_person_id === profile.id
+    return incomingConnections.some(connection => connection.discipler_person_id === profile.id)
+  }, [profile, primaryConnection, incomingConnections])
 
   const currentDisciplerIds = useMemo(() => {
     return new Set(incomingConnections.map(connection => connection.discipler_person_id))
@@ -206,6 +224,32 @@ export default function DiscipleshipConnectionsSection({ personId, onPersonCreat
     setSaving(false)
   }
 
+  const handleMakePrimary = async (connectionId: string) => {
+    if (!profile) return
+    setMessage('')
+    setError('')
+    setPromotingId(connectionId)
+    try {
+      const res = await fetch('/api/set-primary-coach', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ connectionId, actorPersonId: profile.id }),
+      })
+      const payload = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(payload.error ?? 'Failed to set primary coach.')
+        return
+      }
+      await loadConnections()
+      setMessage('Primary coach updated.')
+    } catch (err) {
+      console.error('Make primary error:', err)
+      setError('Failed to set primary coach.')
+    } finally {
+      setPromotingId(null)
+    }
+  }
+
   const handleDelete = async (id: string) => {
     if (!confirm('Remove this connection?')) return
     setMessage('')
@@ -324,26 +368,49 @@ export default function DiscipleshipConnectionsSection({ personId, onPersonCreat
                     .slice(0, 2)
                     .toUpperCase()
 
+                  const canPromote =
+                    canManagePrimary && incomingConnections.length > 1 && !connection.is_primary
+
                   return (
                     <div key={connection.id} className="flex items-center justify-between gap-2 rounded-lg border border-[var(--line-1)] bg-[var(--indigo)] p-2">
-                      <div className="flex items-center gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
                         <div
                           className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
                           style={{ border: `2px solid ${stageColor}`, color: stageColor }}
                         >
                           {initials}
                         </div>
-                        <span className="text-xs font-semibold text-[var(--fg-1)]">
+                        <span className="truncate text-xs font-semibold text-[var(--fg-1)]">
                           {displayNameForPerson(connection.discipler_person_id)}
                         </span>
+                        {connection.is_primary && (
+                          <span
+                            title="Primary coach"
+                            className="shrink-0 rounded-full bg-[rgba(244,182,80,.15)] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#F4B650]"
+                          >
+                            ★ Primary
+                          </span>
+                        )}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(connection.id)}
-                        className="text-[10px] text-[#F2728A] hover:underline"
-                      >
-                        ×
-                      </button>
+                      <div className="flex shrink-0 items-center gap-2">
+                        {canPromote && (
+                          <button
+                            type="button"
+                            onClick={() => handleMakePrimary(connection.id)}
+                            disabled={promotingId === connection.id}
+                            className="text-[10px] font-semibold text-[#F4B650] hover:underline disabled:opacity-50"
+                          >
+                            {promotingId === connection.id ? 'Setting…' : 'Make primary'}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(connection.id)}
+                          className="text-[10px] text-[#F2728A] hover:underline"
+                        >
+                          ×
+                        </button>
+                      </div>
                     </div>
                   )
                 })}
