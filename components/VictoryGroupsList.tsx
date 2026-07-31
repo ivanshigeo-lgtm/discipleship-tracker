@@ -85,6 +85,8 @@ const attnWarnFor = (s: number) =>
   : null
 const fmtHistDate = (d: string) =>
   new Date(d + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+// meeting_time / rescheduled_time come back as HH:MM or HH:MM:SS (Postgres time) — trim seconds for display
+const fmtTime = (t: string) => t.slice(0, 5)
 
 export default function VictoryGroupsList({
   onChanged,
@@ -670,7 +672,7 @@ export default function VictoryGroupsList({
                     </span>
                     <span className="shrink-0 text-[10px] text-[var(--fg-3)]">
                       {group.google_calendar_event_id && <span title="Synced to Google Calendar">📅 </span>}
-                      {group.meeting_day ?? ''}{group.meeting_time ? ` @ ${group.meeting_time}` : ''} · {memberships.length}
+                      {group.meeting_day ?? ''}{group.meeting_time ? ` @ ${fmtTime(group.meeting_time)}` : ''} · {memberships.length}
                     </span>
                   </button>
                   {canManage && group.meeting_day && !group.google_calendar_event_id && (
@@ -809,11 +811,11 @@ export default function VictoryGroupsList({
                                   <span className="text-[var(--fg-3)] line-through">{fmtHistDate(occ)}</span>
                                   {' → '}
                                   <span className="font-semibold" style={{ color: 'var(--establish)' }}>
-                                    {fmtHistDate(st.rescheduled_to)}{st.rescheduled_time ? ` @ ${st.rescheduled_time}` : ''}
+                                    {fmtHistDate(st.rescheduled_to)}{st.rescheduled_time ? ` @ ${fmtTime(st.rescheduled_time)}` : ''}
                                   </span>
                                 </div>
                               ) : (
-                                <div className="text-xs font-semibold text-[var(--fg-1)]">{fmtHistDate(occ)}{group.meeting_time ? ` @ ${group.meeting_time}` : ''}</div>
+                                <div className="text-xs font-semibold text-[var(--fg-1)]">{fmtHistDate(occ)}{group.meeting_time ? ` @ ${fmtTime(group.meeting_time)}` : ''}</div>
                               )}
                             </div>
                             {canManage && (
