@@ -48,7 +48,7 @@ import SelfConfirmModal, { type SelfConfirmKind } from '../../components/journey
 import JourneyMenu, { EngagementsPanel } from '../../components/journey/JourneyMenu'
 import EmpoweredCoachmark from '../../components/journey/EmpoweredCoachmark'
 import SoapCalendarSection from '../../components/SoapCalendarSection'
-import SignoffNotice from '../../components/journey/SignoffNotice'
+import SignoffGate from '../../components/journey/SignoffGate'
 import JourneyTabs, { type JourneyTab } from '../../components/journey/JourneyTabs'
 import StageDock from '../../components/journey/StageDock'
 import StageOverlay from '../../components/journey/StageOverlay'
@@ -212,6 +212,15 @@ export default function MyJourneyPage() {
   const [checklistItems, setChecklistItems] = useState<StageChecklistItem[]>([])
   const [myDisciples, setMyDisciples] = useState<DiscipleshipConnection[]>([])
   const [signoffs, setSignoffs] = useState<LevelSignoff[]>([])
+  // Home sign-off gate: dismissed once per browser session (survives navigation,
+  // re-pops on a fresh session / new tab), so "Not now" isn't a nag.
+  const [gateDismissed, setGateDismissed] = useState(
+    () => typeof window !== 'undefined' && sessionStorage.getItem('signoffGateDismissed') === '1',
+  )
+  const dismissGate = useCallback(() => {
+    if (typeof window !== 'undefined') sessionStorage.setItem('signoffGateDismissed', '1')
+    setGateDismissed(true)
+  }, [])
   const [showIntro, setShowIntro] = useState<boolean | null>(null)
   const [showTour, setShowTour] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
@@ -756,8 +765,11 @@ export default function MyJourneyPage() {
       </header>
 
       <main className="relative z-10 mx-auto w-full max-w-5xl px-4 pb-28 sm:px-6 md:pb-16">
-        {/* Coach: disciples waiting on a sign-off (banner + browser alerts) */}
-        <SignoffNotice coachId={profile.id} />
+        {/* Coach: the one loud spot — a full-screen gate over home for pending
+            sign-offs. Dismiss ("Not now") drops them to the Message Center. */}
+        {(Boolean(profile.is_admin) || signoffs.some(s => s.stage === 'Empower' && s.status === 'approved')) && !gateDismissed && (
+          <SignoffGate coachId={profile.id} isAdmin={Boolean(profile.is_admin)} onDismiss={dismissGate} />
+        )}
 
         {/* ── Home: the star + its docked steps ── */}
         {tab === 'home' && (
