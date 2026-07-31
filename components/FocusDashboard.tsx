@@ -7,7 +7,8 @@ import {
   getPrayerWallForViewer,
   getVictoryGroups,
   getAllStageChecklistItems,
-  updatePerson,
+  getMyPriorityPersonIds,
+  setPersonPriority,
 } from '../lib/supabaseQueries'
 import type { Person, Engagement, PrayerRequest, VictoryGroup, StageChecklistItem, Stage } from '../types/database'
 import { stageChecklistTemplates } from '../lib/stageChecklistTemplates'
@@ -72,14 +73,19 @@ export default function FocusDashboard({
   const loadData = async () => {
     setLoading(true)
     try {
-      const [peopleRes, engagementsRes, prayerRes, checklistRes] = await Promise.all([
+      const [peopleRes, engagementsRes, prayerRes, checklistRes, priorityRes] = await Promise.all([
         getPeople(),
         getAllEngagements(),
         getPrayerWallForViewer(viewerPersonId, isAdmin),
         getAllStageChecklistItems(),
+        getMyPriorityPersonIds(viewerPersonId),
       ])
 
-      if (peopleRes.data) setPeople(peopleRes.data as Person[])
+      // Priority is per-coach — overlay this viewer's private stars.
+      if (peopleRes.data) {
+        const mine = priorityRes.ids
+        setPeople((peopleRes.data as Person[]).map(p => ({ ...p, priority: mine.has(p.id) })))
+      }
       if (engagementsRes.data) setEngagements(engagementsRes.data as Engagement[])
       if (prayerRes.data) setPrayerRequests(prayerRes.data as PrayerRequest[])
       if (checklistRes.data) setChecklistItems(checklistRes.data as StageChecklistItem[])
@@ -266,7 +272,7 @@ export default function FocusDashboard({
     // Optimistic update
     setPeople(prev => prev.map(p => p.id === personId ? { ...p, priority: true } : p))
 
-    const { error } = await updatePerson(personId, { priority: true })
+    const { error } = await setPersonPriority(viewerPersonId, personId, true)
     if (error) {
       // Revert on error
       setPeople(prev => prev.map(p => p.id === personId ? { ...p, priority: false } : p))

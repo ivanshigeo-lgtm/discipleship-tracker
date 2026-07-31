@@ -132,6 +132,42 @@ export const updatePerson = async (
   return { data, error: null }
 }
 
+// PRIORITY is per-coach and private (person_priorities table), NOT a shared flag
+// on people. Each coach flags their own disciples; RLS hides one coach's stars
+// from every other coach. Returns the set of person ids THIS coach has starred.
+export const getMyPriorityPersonIds = async (coachPersonId: string) => {
+  const { data, error } = await supabase
+    .from('person_priorities')
+    .select('person_id')
+    .eq('coach_person_id', coachPersonId)
+  const ids = new Set<string>(((data as { person_id: string }[]) ?? []).map(r => r.person_id))
+  return { ids, error }
+}
+
+// Toggle this coach's private priority flag for a person: insert a row to star,
+// delete it to unstar. Idempotent (unique coach+person; ignoreDuplicates).
+export const setPersonPriority = async (
+  coachPersonId: string,
+  personId: string,
+  on: boolean
+) => {
+  if (on) {
+    const { error } = await supabase
+      .from('person_priorities')
+      .upsert(
+        { coach_person_id: coachPersonId, person_id: personId },
+        { onConflict: 'coach_person_id,person_id', ignoreDuplicates: true }
+      )
+    return { error }
+  }
+  const { error } = await supabase
+    .from('person_priorities')
+    .delete()
+    .eq('coach_person_id', coachPersonId)
+    .eq('person_id', personId)
+  return { error }
+}
+
 export const updatePersonStage = async (personId: string, newStage: Stage) => {
   // Capture the prior stage so the transition can be logged for velocity.
   const { data: prior } = await supabase

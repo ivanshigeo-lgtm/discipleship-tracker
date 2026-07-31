@@ -6,7 +6,8 @@ import {
   getAllEngagements,
   getPrayerWallForViewer,
   updatePersonStage,
-  updatePerson,
+  getMyPriorityPersonIds,
+  setPersonPriority,
 } from '../lib/supabaseQueries'
 import { stageLabels, stageOrder } from '../lib/stageLabels'
 import type { Person, Stage, Engagement, PrayerRequest } from '../types/database'
@@ -251,13 +252,19 @@ export default function CoachingPipeline({
   const loadData = async () => {
     setLoading(true)
     try {
-      const [peopleResult, engagementsResult, prayerResult] = await Promise.all([
+      const [peopleResult, engagementsResult, prayerResult, priorityResult] = await Promise.all([
         getPeople(),
         getAllEngagements(),
         getPrayerWallForViewer(viewerPersonId, isAdmin),
+        getMyPriorityPersonIds(viewerPersonId),
       ])
 
-      if (peopleResult.data) setPeople(peopleResult.data as Person[])
+      // Priority is per-coach: overlay THIS viewer's private stars onto people,
+      // ignoring the deprecated shared people.priority column.
+      if (peopleResult.data) {
+        const mine = priorityResult.ids
+        setPeople((peopleResult.data as Person[]).map(p => ({ ...p, priority: mine.has(p.id) })))
+      }
       if (engagementsResult.data) setEngagements(engagementsResult.data as Engagement[])
       if (prayerResult.data) setPrayerRequests(prayerResult.data as PrayerRequest[])
     } catch (err) {
@@ -323,7 +330,7 @@ export default function CoachingPipeline({
     // Optimistic update - update local state immediately
     setPeople(prev => prev.map(p => p.id === person.id ? { ...p, priority: newPriority } : p))
 
-    const { error } = await updatePerson(person.id, { priority: newPriority })
+    const { error } = await setPersonPriority(viewerPersonId, person.id, newPriority)
     if (error) {
       console.error('Priority toggle error:', error)
       // Revert on error

@@ -18,7 +18,8 @@ import {
   getVictoryGroups,
   getAllGroupMemberships,
   updatePersonStage,
-  updatePerson,
+  getMyPriorityPersonIds,
+  setPersonPriority,
 } from '../../lib/supabaseQueries'
 import { stageLabels, stageOrder } from '../../lib/stageLabels'
 import { bookletStage } from '../../lib/curriculum'
@@ -134,12 +135,13 @@ export default function MobileConstellation({
     let alive = true
     setLoading(true)
     ;(async () => {
-      const [p, e, pr, cl, g, gm] = await Promise.all([
+      const [p, e, pr, cl, g, gm, prio] = await Promise.all([
         getPeople(), getAllEngagements(), getPrayerWallForViewer(viewerPersonId, isAdmin), getAllStageChecklistItems(),
-        getVictoryGroups(), getAllGroupMemberships(),
+        getVictoryGroups(), getAllGroupMemberships(), getMyPriorityPersonIds(viewerPersonId),
       ])
       if (!alive) return
-      if (p.data) setPeople(p.data as Person[])
+      // Priority is per-coach — overlay this viewer's private stars.
+      if (p.data) setPeople((p.data as Person[]).map(x => ({ ...x, priority: prio.ids.has(x.id) })))
       if (e.data) setEngagements(e.data as Engagement[])
       if (pr.data) setPrayers(pr.data as PrayerRequest[])
       if (cl.data) setChecklist(cl.data as StageChecklistItem[])
@@ -253,7 +255,7 @@ export default function MobileConstellation({
     const next = !p.priority
     setPeople(prev => prev.map(x => x.id === p.id ? { ...x, priority: next } : x))
     setSheetPerson(prev => prev && prev.id === p.id ? { ...prev, priority: next } : prev)
-    const { error } = await updatePerson(p.id, { priority: next })
+    const { error } = await setPersonPriority(viewerPersonId, p.id, next)
     if (error) setPeople(prev => prev.map(x => x.id === p.id ? { ...x, priority: !next } : x))
     else onChanged()
   }
