@@ -386,19 +386,19 @@ export const getPrayerWallForViewer = async (viewerPersonId: string, isAdmin: bo
   return { data: filtered, error: null }
 }
 
-// A person's whole prayer life: their own requests/praises (every visibility,
-// incl. private) PLUS everything they pray over for others (the wall). Deduped.
-// The same set on My Journey and the coach dashboard.
-export const getPrayerLifeForPerson = async (personId: string, isAdmin: boolean) => {
-  const [own, wall] = await Promise.all([
-    getPrayerRequestsByPerson(personId),
-    getPrayerWallForViewer(personId, isAdmin),
-  ])
-  const byId = new Map<string, PrayerRequest>()
-  for (const p of ((own.data as PrayerRequest[]) ?? [])) byId.set(p.id, p)
-  for (const p of ((wall.data as PrayerRequest[]) ?? [])) if (!byId.has(p.id)) byId.set(p.id, p)
-  const merged = Array.from(byId.values()).sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''))
-  return { data: merged, error: own.error || wall.error }
+// A person's OWN private prayer wall: only prayers they are personally part of —
+// their own requests/praises (person_id = me, every visibility incl. private) and
+// the ones they logged for others (created_by = me). It is NOT a shared coach
+// wall: another person's prayer never appears here just because they're in your
+// coaching tree / group / constellation. (The `_isAdmin` arg is kept for a stable
+// signature but intentionally grants no extra visibility.)
+export const getPrayerLifeForPerson = async (personId: string, _isAdmin: boolean) => {
+  const { data, error } = await supabase
+    .from('prayer_requests')
+    .select('*, people!person_id(name, current_stage)')
+    .or(`person_id.eq.${personId},created_by_person_id.eq.${personId}`)
+    .order('created_at', { ascending: false })
+  return { data: (data as PrayerRequest[]) ?? [], error }
 }
 
 export const addPrayerRequest = async (
