@@ -46,6 +46,57 @@ async function findCoachByCode(code: string) {
   return coaches.find(coach => coach.id.slice(-6).toUpperCase() === normalizedCode) || null
 }
 
+// Best-effort: add a freshly-signed-up disciple to WikiChurch's external
+// Friends & Family TestFlight group so they get an install invite email.
+// No-op unless ASC_PRIVATE_KEY (the App Store Connect API .p8 PEM) is set in the
+// environment. Never throws — a TestFlight hiccup must not fail the signup.
+// Mirrors journey-app/scripts/asc_add_external.mjs.
+const ASC_KEY_ID = process.env.ASC_KEY_ID || '24PFTD99QC'
+const ASC_ISSUER = process.env.ASC_ISSUER || 'f8a4efbe-5ca7-4b2d-9fc7-107c4561c6dc'
+const ASC_FF_GROUP = process.env.ASC_FF_GROUP || 'cbba6c70-4b24-4b91-b7b4-de36513235ad'
+
+async function inviteToTestFlight(email: string, fullName: string) {
+  const pem = process.env.ASC_PRIVATE_KEY
+  if (!pem || !email) return
+  try {
+    const { createSign, createPrivateKey } = await import('node:crypto')
+    const now = Math.floor(Date.now() / 1000)
+    const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url')
+    const unsigned =
+      `${b64({ alg: 'ES256', kid: ASC_KEY_ID, typ: 'JWT' })}.` +
+      `${b64({ iss: ASC_ISSUER, iat: now, exp: now + 900, aud: 'appstoreconnect-v1' })}`
+    const sign = createSign('SHA256')
+    sign.update(unsigned)
+    // Env vars flatten "\n" to literal backslash-n; restore real newlines for the PEM.
+    const key = createPrivateKey(pem.replace(/\\n/g, '\n'))
+    const sig = sign.sign({ key, dsaEncoding: 'ieee-p1363' }).toString('base64url')
+    const jwt = `${unsigned}.${sig}`
+
+    const [first, ...rest] = (fullName || '').trim().split(/\s+/)
+    // Never let a slow/hung ASC delay the signup response.
+    const ctl = new AbortController()
+    const t = setTimeout(() => ctl.abort(), 8000)
+    const res = await fetch('https://api.appstoreconnect.apple.com/v1/betaTesters', {
+      method: 'POST',
+      signal: ctl.signal,
+      headers: { Authorization: `Bearer ${jwt}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        data: {
+          type: 'betaTesters',
+          attributes: { email, firstName: first || '', lastName: rest.join(' ') },
+          relationships: { betaGroups: { data: [{ type: 'betaGroups', id: ASC_FF_GROUP }] } },
+        },
+      }),
+    }).finally(() => clearTimeout(t))
+    // 409 = already a tester → fine. Log anything else without throwing.
+    if (!res.ok && res.status !== 409) {
+      console.error('inviteToTestFlight non-OK', res.status, await res.text().catch(() => ''))
+    }
+  } catch (err) {
+    console.error('inviteToTestFlight error (ignored):', err)
+  }
+}
+
 // Resolve the caller's identity from their access token. Returns the auth user
 // (with a normalized, lower-cased email) or null.
 async function getUserFromToken(accessToken: string | undefined) {
@@ -196,6 +247,9 @@ export async function POST(request: NextRequest) {
           })
         }
 
+        // Best-effort TestFlight invite for the freshly-claimed disciple.
+        await inviteToTestFlight(user.email, unclaimed.name)
+
         return NextResponse.json({ ok: true })
       }
 
@@ -260,6 +314,9 @@ export async function POST(request: NextRequest) {
           })
         }
       }
+
+      // Best-effort TestFlight invite for the new/reused disciple.
+      await inviteToTestFlight(user.email, name || person.name)
 
       return NextResponse.json({ ok: true })
     }
