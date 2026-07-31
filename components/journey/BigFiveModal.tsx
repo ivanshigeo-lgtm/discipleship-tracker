@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { upsertBigFiveResult } from '../../lib/supabaseQueries'
 import {
   QUESTIONS,
@@ -56,6 +56,13 @@ export default function BigFiveModal({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
+  const bodyRef = useRef<HTMLDivElement>(null)
+
+  // Each quiz page must open at the top — the body keeps its scroll offset
+  // across page changes, so people landed mid-list and missed the questions above.
+  useEffect(() => {
+    bodyRef.current?.scrollTo({ top: 0 })
+  }, [page])
 
   // Resume an in-progress draft (only when there's no saved result yet).
   useEffect(() => {
@@ -142,7 +149,7 @@ export default function BigFiveModal({
         </div>
 
         {/* ── Body ───────────────────────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto px-6 pb-2 pt-3">
+        <div ref={bodyRef} className="flex-1 overflow-y-auto px-6 pb-2 pt-3">
           {view === 'intro' && (
             <div>
               <p className="text-sm leading-relaxed text-[var(--fg-2)]">

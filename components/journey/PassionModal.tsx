@@ -7,6 +7,7 @@ import {
   PEOPLE_GROUPS,
   ISSUES,
   RANK_COUNT,
+  PEOPLE_RANK_COUNT,
   emptyPassionAnswers,
   normalizePassionAnswers,
   isPassionComplete,
@@ -47,6 +48,8 @@ export default function PassionModal({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
+  // Free-text "Other" people-group being typed (added on Add / Enter).
+  const [customPeople, setCustomPeople] = useState('')
 
   // Resume an in-progress draft (only when there's no saved result yet).
   useEffect(() => {
@@ -82,9 +85,19 @@ export default function PassionModal({
   const setReflection = (id: number, text: string) =>
     setAnswers(prev => ({ ...prev, reflections: { ...prev.reflections, [id]: text } }))
   const togglePeople = (opt: string) =>
-    setAnswers(prev => ({ ...prev, peopleGroups: toggleRanked(prev.peopleGroups, opt) }))
+    setAnswers(prev => ({ ...prev, peopleGroups: toggleRanked(prev.peopleGroups, opt, PEOPLE_RANK_COUNT) }))
   const toggleIssue = (opt: string) =>
     setAnswers(prev => ({ ...prev, issues: toggleRanked(prev.issues, opt) }))
+  const addCustomPeople = () => {
+    const t = customPeople.trim()
+    if (!t) return
+    setAnswers(prev =>
+      prev.peopleGroups.some(g => g.toLowerCase() === t.toLowerCase()) || prev.peopleGroups.length >= PEOPLE_RANK_COUNT
+        ? prev
+        : { ...prev, peopleGroups: [...prev.peopleGroups, t] }
+    )
+    setCustomPeople('')
+  }
 
   const rankOf = (list: string[], opt: string) => {
     const i = list.indexOf(opt)
@@ -127,16 +140,17 @@ export default function PassionModal({
 
   // A ranked-option chip list (people-groups / issues). Tap to rank 1–3; tap
   // again to remove and the rest re-number automatically.
-  const RankList = ({ options, selected, onToggle }: {
+  const RankList = ({ options, selected, onToggle, cap = RANK_COUNT }: {
     options: string[]
     selected: string[]
     onToggle: (opt: string) => void
+    cap?: number
   }) => (
     <div className="mt-3.5 space-y-2">
       {options.map(opt => {
         const rank = rankOf(selected, opt)
         const active = rank !== null
-        const disabled = !active && selected.length >= RANK_COUNT
+        const disabled = !active && selected.length >= cap
         return (
           <button
             key={opt}
@@ -233,10 +247,54 @@ export default function PassionModal({
             <div>
               <div className="cn-label mb-1" style={{ color: 'var(--equip)' }}>Who · 2 of 3</div>
               <p className="text-sm leading-relaxed text-[var(--fg-2)]">
-                Select the three people-groups you&rsquo;re most passionate about serving. Tap to rank them
-                1–3; tap again to remove. ({answers.peopleGroups.length}/{RANK_COUNT})
+                Select the two people-groups you&rsquo;re most passionate about serving. Tap to rank them
+                1–2; tap again to remove. Don&rsquo;t see yours? Add your own below.
+                ({answers.peopleGroups.length}/{PEOPLE_RANK_COUNT})
               </p>
-              <RankList options={PEOPLE_GROUPS} selected={answers.peopleGroups} onToggle={togglePeople} />
+              <RankList
+                options={PEOPLE_GROUPS}
+                selected={answers.peopleGroups}
+                onToggle={togglePeople}
+                cap={PEOPLE_RANK_COUNT}
+              />
+              {/* Custom picks (added via the Other box) — click to remove, same as presets. */}
+              <div className="mt-2 space-y-2">
+                {answers.peopleGroups.filter(g => !PEOPLE_GROUPS.includes(g)).map(opt => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => togglePeople(opt)}
+                    className="flex w-full items-center justify-between rounded-xl border px-3.5 py-3 text-left transition-colors"
+                    style={{ borderColor: 'var(--equip)', background: 'rgba(91,141,247,.15)' }}
+                  >
+                    <span className="min-w-0 pr-2 text-sm font-medium" style={{ color: 'var(--fg-1)' }}>{opt}</span>
+                    <span
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
+                      style={{ background: 'var(--equip)', color: 'var(--void)' }}
+                    >
+                      {rankOf(answers.peopleGroups, opt)}
+                    </span>
+                  </button>
+                ))}
+                <div className="flex items-center gap-2">
+                  <input
+                    value={customPeople}
+                    onChange={e => setCustomPeople(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustomPeople() } }}
+                    placeholder="Other — type your own…"
+                    className="min-w-0 flex-1 rounded-xl border border-[var(--line-2)] bg-[var(--indigo-2)] px-3.5 py-2.5 text-sm text-[var(--fg-1)] outline-none placeholder:text-[var(--fg-3)] focus:border-[var(--equip)]"
+                  />
+                  <button
+                    type="button"
+                    onClick={addCustomPeople}
+                    disabled={!customPeople.trim() || answers.peopleGroups.length >= PEOPLE_RANK_COUNT}
+                    className="shrink-0 rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-40"
+                    style={{ background: 'var(--equip)', color: 'var(--void)' }}
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
@@ -358,7 +416,7 @@ export default function PassionModal({
               <button
                 type="button"
                 onClick={() => setView('issues')}
-                disabled={answers.peopleGroups.length !== RANK_COUNT}
+                disabled={answers.peopleGroups.length < PEOPLE_RANK_COUNT}
                 className="cn-btn cn-btn-primary flex-1 disabled:opacity-40"
               >
                 Next

@@ -64,8 +64,12 @@ export const ISSUES: string[] = [
   'Other',
 ]
 
-// How many people-groups / issues the person ranks.
+// How many people-groups / issues the person ranks. People-groups ask for two
+// (some genuinely only have two, and a forced third felt fake — Jul 31 2026
+// feedback); issues keep three. Custom "Other…" people-groups are stored as
+// plain strings alongside the preset options.
 export const RANK_COUNT = 3
+export const PEOPLE_RANK_COUNT = 2
 export const TOTAL_REFLECTIONS = REFLECTIONS.length
 
 // The stored shape (jsonb `answers` on passion_results). reflections maps a
@@ -100,17 +104,19 @@ export function normalizePassionAnswers(raw: unknown): PassionAnswers {
   return { reflections, peopleGroups, issues }
 }
 
-// Complete = all five reflections answered and both top-3 rankings filled.
+// Complete = all five reflections answered, both rankings filled (two
+// people-groups — >= so pre-change drafts holding three still count — and
+// three issues).
 export function isPassionComplete(a: PassionAnswers): boolean {
   const reflectionsDone = REFLECTIONS.every(r => (a.reflections[r.id] ?? '').trim().length > 0)
-  return reflectionsDone && a.peopleGroups.length === RANK_COUNT && a.issues.length === RANK_COUNT
+  return reflectionsDone && a.peopleGroups.length >= PEOPLE_RANK_COUNT && a.issues.length === RANK_COUNT
 }
 
 // Toggle an option in a ranked list: add it to the end (next rank) if absent
 // and under the cap, or remove it (the rest re-number automatically) if present.
-export function toggleRanked(list: string[], option: string): string[] {
+export function toggleRanked(list: string[], option: string, cap: number = RANK_COUNT): string[] {
   if (list.includes(option)) return list.filter(o => o !== option)
-  if (list.length >= RANK_COUNT) return list
+  if (list.length >= cap) return list
   return [...list, option]
 }
 
