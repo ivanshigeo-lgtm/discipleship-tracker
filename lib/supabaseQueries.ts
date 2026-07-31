@@ -1781,13 +1781,17 @@ export const approveLevelSignoff = async (id: string, coachPersonId: string, con
   return { data, error }
 }
 
-export const getMyMessages = async (personId: string, limit = 30) => {
-  const { data, error } = await supabase
+export const getMyMessages = async (
+  personId: string,
+  opts: { limit?: number; archived?: boolean } = {}
+) => {
+  const { limit = 30, archived = false } = opts
+  let q = supabase
     .from('messages')
     .select('*, from:people!messages_from_person_id_fkey(id, name, current_stage)')
     .eq('to_person_id', personId)
-    .order('created_at', { ascending: false })
-    .limit(limit)
+  q = archived ? q.not('archived_at', 'is', null) : q.is('archived_at', null)
+  const { data, error } = await q.order('created_at', { ascending: false }).limit(limit)
   return { data, error }
 }
 
@@ -1798,6 +1802,42 @@ export const markMessageRead = async (id: string) => {
     .eq('id', id)
     .select()
   return { data: data?.[0] ?? null, error }
+}
+
+// How many messages this person has archived — drives whether the inbox shows a
+// "Show archived" affordance (kept reachable even when the live inbox empties).
+export const countArchivedMessages = async (personId: string) => {
+  const { count, error } = await supabase
+    .from('messages')
+    .select('id', { count: 'exact', head: true })
+    .eq('to_person_id', personId)
+    .not('archived_at', 'is', null)
+  return { count: count ?? 0, error }
+}
+
+// Soft-hide a message from the inbox (recoverable via "Show archived").
+export const archiveMessage = async (id: string) => {
+  const { error } = await supabase
+    .from('messages')
+    .update({ archived_at: new Date().toISOString() })
+    .eq('id', id)
+  return { error }
+}
+
+// Return an archived message to the live inbox.
+export const unarchiveMessage = async (id: string) => {
+  const { error } = await supabase
+    .from('messages')
+    .update({ archived_at: null })
+    .eq('id', id)
+  return { error }
+}
+
+// Permanently remove a message the person received (RLS scopes this to the
+// recipient — see supabase/migrations/20260730130000_messages_archive_delete.sql).
+export const deleteMessage = async (id: string) => {
+  const { error } = await supabase.from('messages').delete().eq('id', id)
+  return { error }
 }
 
 // ── Conversation messaging ─────────────────────────────────────

@@ -1,7 +1,14 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { getMyMessages, markMessageRead } from '../lib/supabaseQueries'
+import {
+  getMyMessages,
+  markMessageRead,
+  archiveMessage,
+  unarchiveMessage,
+  deleteMessage,
+  countArchivedMessages,
+} from '../lib/supabaseQueries'
 import type { Message, Person } from '../types/database'
 
 type MessageWithSender = Message & { from: Pick<Person, 'id' | 'name' | 'current_stage'> | null }
@@ -23,12 +30,18 @@ export default function MessagesDropdown({
 }) {
   const [messages, setMessages] = useState<MessageWithSender[]>([])
   const [open, setOpen] = useState(false)
+  const [showArchived, setShowArchived] = useState(false)
+  const [archivedCount, setArchivedCount] = useState(0)
   const ref = useRef<HTMLDivElement>(null)
 
   const load = useCallback(async () => {
-    const { data } = await getMyMessages(personId)
+    const [{ data }, { count }] = await Promise.all([
+      getMyMessages(personId, { archived: showArchived }),
+      countArchivedMessages(personId),
+    ])
     if (data) setMessages(data as unknown as MessageWithSender[])
-  }, [personId])
+    setArchivedCount(count)
+  }, [personId, showArchived])
 
   useEffect(() => { load() }, [load, refreshKey])
 
@@ -54,6 +67,27 @@ export default function MessagesDropdown({
     setMessages(current => current.map(m => ids.includes(m.id) ? { ...m, read_at: new Date().toISOString() } : m))
     await Promise.all(ids.map(id => markMessageRead(id)))
   }
+
+  const handleArchive = async (id: string) => {
+    setMessages(current => current.filter(m => m.id !== id))
+    setArchivedCount(c => c + 1)
+    await archiveMessage(id)
+  }
+
+  const handleUnarchive = async (id: string) => {
+    setMessages(current => current.filter(m => m.id !== id))
+    setArchivedCount(c => Math.max(0, c - 1))
+    await unarchiveMessage(id)
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Delete this message for good? This can’t be undone.')) return
+    setMessages(current => current.filter(m => m.id !== id))
+    if (showArchived) setArchivedCount(c => Math.max(0, c - 1))
+    await deleteMessage(id)
+  }
+
+  const canToggleArchived = showArchived || archivedCount > 0
 
   return (
     <div ref={ref} className="relative">
@@ -83,17 +117,30 @@ export default function MessagesDropdown({
         >
           <div className="mb-2 flex items-center justify-between gap-2">
             <span className="text-xs font-bold uppercase tracking-wider text-[var(--fg-3)]">
-              Messages from disciples
+              {showArchived ? 'Archived messages' : 'Messages from disciples'}
             </span>
-            {unread.length > 1 && (
-              <button type="button" onClick={handleMarkAllRead} className="text-[10px] text-[var(--fg-3)] hover:text-[var(--fg-1)]">
-                Mark all read
-              </button>
-            )}
+            <div className="flex items-center gap-2.5">
+              {!showArchived && unread.length > 1 && (
+                <button type="button" onClick={handleMarkAllRead} className="text-[10px] text-[var(--fg-3)] hover:text-[var(--fg-1)]">
+                  Mark all read
+                </button>
+              )}
+              {canToggleArchived && (
+                <button
+                  type="button"
+                  onClick={() => setShowArchived(s => !s)}
+                  className="text-[10px] font-medium text-[var(--fg-3)] hover:text-[var(--fg-1)]"
+                >
+                  {showArchived ? 'Back to inbox' : `Show archived${archivedCount > 0 ? ` (${archivedCount})` : ''}`}
+                </button>
+              )}
+            </div>
           </div>
 
           {messages.length === 0 ? (
-            <p className="py-4 text-center text-sm text-[var(--fg-3)]">No messages yet</p>
+            <p className="py-4 text-center text-sm text-[var(--fg-3)]">
+              {showArchived ? 'No archived messages' : 'No messages yet'}
+            </p>
           ) : (
             <div className="max-h-[min(60vh,480px)] space-y-1.5 overflow-y-auto pr-0.5">
               {messages.map(m => {
@@ -123,24 +170,50 @@ export default function MessagesDropdown({
                       <p className="mt-0.5 text-xs leading-relaxed text-[var(--fg-2)]">{m.body}</p>
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-1">
-                      {onOpenMessageCenter && m.from && (
+                      {showArchived ? (
                         <button
                           type="button"
-                          onClick={() => { onOpenMessageCenter(m.from!.id); setOpen(false) }}
+                          onClick={() => handleUnarchive(m.id)}
                           className="rounded-full border border-[var(--line-2)] px-1.5 py-0.5 text-[9px] font-medium text-[var(--fg-2)] hover:border-[var(--gbm-cobalt-bright)] hover:text-[var(--fg-1)]"
                         >
-                          Reply
+                          Unarchive
                         </button>
+                      ) : (
+                        <>
+                          {onOpenMessageCenter && m.from && (
+                            <button
+                              type="button"
+                              onClick={() => { onOpenMessageCenter(m.from!.id); setOpen(false) }}
+                              className="rounded-full border border-[var(--line-2)] px-1.5 py-0.5 text-[9px] font-medium text-[var(--fg-2)] hover:border-[var(--gbm-cobalt-bright)] hover:text-[var(--fg-1)]"
+                            >
+                              Reply
+                            </button>
+                          )}
+                          {!m.read_at && (
+                            <button
+                              type="button"
+                              onClick={() => handleMarkRead(m.id)}
+                              className="text-[9px] text-[var(--fg-3)] hover:text-[var(--fg-1)]"
+                            >
+                              ✓ Read
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleArchive(m.id)}
+                            className="text-[9px] text-[var(--fg-3)] hover:text-[var(--fg-1)]"
+                          >
+                            Archive
+                          </button>
+                        </>
                       )}
-                      {!m.read_at && (
-                        <button
-                          type="button"
-                          onClick={() => handleMarkRead(m.id)}
-                          className="text-[9px] text-[var(--fg-3)] hover:text-[var(--fg-1)]"
-                        >
-                          ✓
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(m.id)}
+                        className="text-[9px] text-[var(--fg-3)] hover:text-[var(--danger,#E06B6B)]"
+                      >
+                        Delete
+                      </button>
                     </div>
                   </div>
                 )

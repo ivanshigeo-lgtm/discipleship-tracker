@@ -302,6 +302,7 @@ export type Message = {
   kind: 'greeting' | 'prayer' | 'note'
   body: string
   read_at: string | null
+  archived_at: string | null
   created_at: string
 }
 
