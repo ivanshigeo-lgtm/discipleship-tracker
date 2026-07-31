@@ -353,11 +353,13 @@ export const getPrayerWallForViewer = async (viewerPersonId: string, isAdmin: bo
   const { data, error } = await supabase
     .from('prayer_requests')
     .select('*, people!person_id(name, current_stage)')
-    .neq('visibility', 'private')
+    // Fully-private model: the wall shows YOUR OWN prayers (own + ones you
+    // created) plus anything explicitly shared to you. RLS already blocks other
+    // people's private rows from ever coming back, so no filter on visibility
+    // here — own private prayers must reach the wall. No admin see-all.
     .order('created_at', { ascending: false })
     .limit(300)
   if (error) return { data: null, error }
-  if (isAdmin) return { data, error: null }
 
   const { data: downlineRows } = await supabase.rpc('get_downline', { coach_person_id: viewerPersonId })
   const downline = new Set<string>((downlineRows ?? []).map((d: { person_id: string }) => d.person_id))
@@ -374,6 +376,8 @@ export const getPrayerWallForViewer = async (viewerPersonId: string, isAdmin: bo
   }
 
   const filtered = (data ?? []).filter(p => {
+    // Always show your own prayers and ones you logged for others.
+    if (p.person_id === viewerPersonId || p.created_by_person_id === viewerPersonId) return true
     if (p.visibility === 'constellation') return true
     if (p.visibility === 'coach') return downline.has(p.person_id)
     if (p.visibility === 'group') return groupMembers.has(p.person_id)
