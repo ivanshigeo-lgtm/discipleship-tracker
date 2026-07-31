@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { upsertPassionResult } from '../../lib/supabaseQueries'
 import {
   REFLECTIONS,
@@ -50,6 +50,13 @@ export default function PassionModal({
   const [copied, setCopied] = useState(false)
   // Free-text "Other" people-group being typed (added on Add / Enter).
   const [customPeople, setCustomPeople] = useState('')
+  const bodyRef = useRef<HTMLDivElement>(null)
+
+  // Each step must open at the top — the body keeps its scroll offset across
+  // view changes, so people landed mid-list with the step's blurb off-screen.
+  useEffect(() => {
+    bodyRef.current?.scrollTo({ top: 0 })
+  }, [view])
 
   // Resume an in-progress draft (only when there's no saved result yet).
   useEffect(() => {
@@ -198,7 +205,7 @@ export default function PassionModal({
         </div>
 
         {/* ── Body ───────────────────────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto px-6 pb-2 pt-3">
+        <div ref={bodyRef} className="flex-1 overflow-y-auto px-6 pb-2 pt-3">
           {view === 'intro' && (
             <div>
               <p className="text-sm leading-relaxed text-[var(--fg-2)]">
