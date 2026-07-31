@@ -8,9 +8,10 @@ import {
   getAllGroupMemberships,
   getConfirmedEngagementIds,
   getRecentGroupAttendance,
+  getGroupMeetingStatuses,
   updateEngagement,
 } from '../lib/supabaseQueries'
-import type { Person, Stage, Engagement, VictoryGroup } from '../types/database'
+import type { Person, Stage, Engagement, VictoryGroup, GroupMeetingStatus } from '../types/database'
 import VictoryGroupsList from './VictoryGroupsList'
 import MeetingBadges, { type MeetingCounts } from './MeetingBadges'
 import { SectionSkeleton } from './Skeleton'
@@ -39,11 +40,105 @@ type MeetingItem = {
   isUpcoming: boolean
 }
 
+// A single upcoming Grace Group meeting occurrence, surfaced on the agenda
+// alongside 1:1s (mirrors the native coach dashboard, which merges group
+// meetings into the day agenda). Derived from victory_groups.meeting_day/time
+// with any per-occurrence group_meeting_status override applied.
+type GroupMeetingItem = {
+  group: VictoryGroup
+  date: string          // effective occurrence date (YYYY-MM-DD, reschedule applied)
+  time: string | null   // effective time
+  memberCount: number
+  stage: Stage | null    // booklet stage of the group's focus, if any
+  daysUntil: number
+  isToday: boolean
+  cancelled: boolean
+}
+
 const STAGE_COLORS: Record<Stage, string> = {
   Engage: '#F4B650',
   Establish: '#36D6C3',
   Equip: '#5B8DF7',
   Empower: '#F0729F',
+}
+const GROUP_ACCENT = '#A78BFA' // Grace Groups accent for unfocused/general groups
+
+const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+// Next occurrence (today or later) of a weekly meeting_day, as YYYY-MM-DD.
+// Always lands within the next 7 days, so it is the group's occurrence for the
+// rolling window. Mirrors VictoryGroupsList.nextOccurrenceDate.
+const nextGroupOccurrence = (meetingDay: string | null): string | null => {
+  if (!meetingDay) return null
+  const target = WEEKDAY_NAMES.indexOf(meetingDay)
+  if (target < 0) return null
+  const d = new Date(); d.setHours(0, 0, 0, 0)
+  d.setDate(d.getDate() + ((target - d.getDay() + 7) % 7))
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function GroupMeetingCard({ item }: { item: GroupMeetingItem }) {
+  const accent = item.stage ? STAGE_COLORS[item.stage] : GROUP_ACCENT
+  const initials = item.group.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+  const dateLabel = item.cancelled
+    ? 'Cancelled'
+    : item.isToday
+    ? 'Today'
+    : item.daysUntil === 1
+    ? 'Tomorrow'
+    : `In ${item.daysUntil}d`
+
+  return (
+    <div
+      className="rounded-xl border border-[var(--line-1)] p-3"
+      style={{
+        background: 'var(--indigo-2)',
+        opacity: item.cancelled ? 0.75 : 1,
+        boxShadow: !item.cancelled && item.isToday ? '0 0 16px -4px rgba(167,139,250,.3)' : 'none',
+      }}
+    >
+      <div className="flex items-start gap-3">
+        <div
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold"
+          style={{ background: 'var(--indigo)', border: `2px solid ${accent}`, color: accent }}
+        >
+          {initials}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold text-[var(--fg-1)]">{item.group.name}</div>
+              <div className="mt-0.5 text-xs" style={{ color: accent }}>
+                Grace Group{item.stage ? ` · ${item.stage}` : ''}
+              </div>
+            </div>
+            <span
+              className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold"
+              style={{
+                background: item.cancelled ? 'rgba(240,114,159,.15)' : 'rgba(167,139,250,.15)',
+                color: item.cancelled ? '#F0729F' : accent,
+              }}
+            >
+              {dateLabel}
+            </span>
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium" style={{ background: 'rgba(167,139,250,.15)', color: accent }}>
+              {item.memberCount} {item.memberCount === 1 ? 'member' : 'members'}
+            </span>
+            {item.group.focus && (
+              <span className="truncate text-xs text-[var(--fg-2)]">{String(item.group.focus)}</span>
+            )}
+          </div>
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 text-[10px] text-[var(--fg-3)]">
+            <span className={item.cancelled ? 'line-through' : ''}>
+              {new Date(item.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+            </span>
+            {item.time && <span className={item.cancelled ? 'line-through' : ''}>@ {item.time.slice(0, 5)}</span>}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function MeetingCard({
@@ -219,6 +314,8 @@ export default function NeedAttentionSection({
   const [groupMemberships, setGroupMemberships] = useState<{ person_id: string; victory_group_id: string }[]>([])
   // Small-group attendance in the rolling last-7-day window (attended=true).
   const [recentAttn, setRecentAttn] = useState<{ person_id: string; victory_group_id: string }[]>([])
+  // Per-occurrence cancel/reschedule overrides for group meetings.
+  const [groupStatuses, setGroupStatuses] = useState<GroupMeetingStatus[]>([])
   const { profile } = useAuth()
   // Badge scope: GBC = whole church, mine = my constellation / my groups.
   const [badgeScope, setBadgeScope] = useState<'gbc' | 'mine'>('gbc')
@@ -232,12 +329,13 @@ export default function NeedAttentionSection({
     setLoading(true)
     setLoadError(false)
     try {
-      const [peopleResult, engagementsResult, groupsResult, membershipsResult] = await Promise.race([
+      const [peopleResult, engagementsResult, groupsResult, membershipsResult, statusesResult] = await Promise.race([
         Promise.all([
           getPeople(),
           getAllEngagements(),
           getVictoryGroups(),
           getAllGroupMemberships(),
+          getGroupMeetingStatuses(),
         ]),
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000))
       ])
@@ -245,6 +343,7 @@ export default function NeedAttentionSection({
       if (peopleResult.error || engagementsResult.error) setLoadError(true)
       if (peopleResult.data) setPeople(peopleResult.data as Person[])
       if (engagementsResult.data) setEngagements(engagementsResult.data as Engagement[])
+      setGroupStatuses((statusesResult.data as GroupMeetingStatus[]) ?? [])
       if (viewerPersonId) {
         const { data: cids } = await getConfirmedEngagementIds(viewerPersonId)
         setConfirmedIds(new Set(cids ?? []))
@@ -374,6 +473,50 @@ export default function NeedAttentionSection({
     items.sort((a, b) => a.daysUntil - b.daysUntil)
     return items
   }, [people, engagements, viewerPersonId, isAdmin, badgeScope, confirmedIds])
+
+  // Upcoming Grace Group meetings for the rolling window, merged onto the agenda
+  // like native. One occurrence per scoped group (weekly cadence → the next
+  // occurrence is always within 7 days), with any per-occurrence cancel/
+  // reschedule override applied. Honors the GBC/Mine scope like the badges.
+  const groupMeetings = useMemo(() => {
+    const today = new Date(); today.setHours(0, 0, 0, 0)
+    const effectiveScope = isAdmin ? badgeScope : 'mine'
+    const scopeGroup = (g: VictoryGroup) => effectiveScope === 'gbc' || g.owner_person_id === profile?.id
+
+    const membersByGroupId = new Map<string, number>()
+    for (const m of groupMemberships) {
+      membersByGroupId.set(m.victory_group_id, (membersByGroupId.get(m.victory_group_id) ?? 0) + 1)
+    }
+    const statusFor = (groupId: string, occDate: string) =>
+      groupStatuses.find(s => s.victory_group_id === groupId && s.meeting_date === occDate) ?? null
+
+    const items: GroupMeetingItem[] = []
+    for (const group of victoryGroups) {
+      if (!group.meeting_day || !scopeGroup(group)) continue
+      const occ = nextGroupOccurrence(group.meeting_day)
+      if (!occ) continue
+      const st = statusFor(group.id, occ)
+      const cancelled = st?.status === 'cancelled'
+      const date = st?.status === 'rescheduled' && st.rescheduled_to ? st.rescheduled_to : occ
+      const time = st?.status === 'rescheduled' ? st.rescheduled_time : group.meeting_time
+      const dt = new Date(date + 'T00:00:00')
+      const daysUntil = Math.round((dt.getTime() - today.getTime()) / 86_400_000)
+      items.push({
+        group,
+        date,
+        time,
+        memberCount: membersByGroupId.get(group.id) ?? 0,
+        stage: bookletStage(group.focus),
+        daysUntil,
+        isToday: daysUntil === 0,
+        cancelled,
+      })
+    }
+    items.sort((a, b) => a.date.localeCompare(b.date))
+    return items
+  }, [victoryGroups, groupMemberships, groupStatuses, isAdmin, badgeScope, profile?.id])
+
+  const activeGroupMeetings = groupMeetings.filter(g => !g.cancelled)
 
   const overdueCount = meetings.filter(m => m.isOverdue).length
   const todayCount = meetings.filter(m => m.isToday).length
@@ -637,7 +780,22 @@ export default function NeedAttentionSection({
             </>
           )}
 
-          {/* Grace Groups */}
+          {/* Grace Group Meetings — upcoming occurrences on the agenda (mirrors
+              native, which merges group meetings into the day agenda). */}
+          {groupMeetings.length > 0 && (
+            <>
+              <div className="mt-4 text-[10px] font-semibold uppercase tracking-wide text-[var(--fg-3)]">
+                Grace Group Meetings ({activeGroupMeetings.length})
+              </div>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {groupMeetings.slice(0, 12).map(item => (
+                  <GroupMeetingCard key={item.group.id} item={item} />
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* Grace Groups (management) */}
           <div className="mt-4">
             <VictoryGroupsList
               key={groupsKey}
