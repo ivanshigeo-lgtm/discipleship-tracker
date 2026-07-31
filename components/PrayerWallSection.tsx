@@ -312,7 +312,7 @@ export default function PrayerWallSection({
   const handleAddPraise = async () => {
     if (!praisePersonId || !praiseText.trim()) return
     setSavingPraise(true)
-    const { error } = await addPraise(praisePersonId, praiseText.trim(), null, 'constellation')
+    const { error } = await addPraise(praisePersonId, praiseText.trim(), null, 'private')
     if (!error) {
       setPraisePersonId('')
       setPraiseText('')
@@ -332,7 +332,7 @@ export default function PrayerWallSection({
       status: 'Active',
       answered_date: null,
       answer_notes: null,
-      visibility: 'constellation',
+      visibility: 'private',
     })
     if (!error) {
       setPrayerPersonId('')
