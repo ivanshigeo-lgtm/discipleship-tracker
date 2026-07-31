@@ -40,7 +40,7 @@ export default function StageDock({
 
   return (
     <div
-      className="jy-rise-in mt-6 rounded-2xl border p-4 text-left sm:p-5"
+      className="jy-rise-in rounded-2xl border p-4 text-left sm:p-5"
       style={{
         borderColor: locked ? 'var(--line-2)' : `${level.color}55`,
         background: 'rgba(15,21,48,.92)',

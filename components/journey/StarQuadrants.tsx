@@ -126,6 +126,7 @@ export default function StarQuadrants({
   demo = null,
   docked = false,
   onQuadrant,
+  selectedStage = null,
 }: {
   levels: JourneyLevel[]
   color: string
@@ -134,14 +135,31 @@ export default function StarQuadrants({
   onRequestSignoff?: (stage: string) => void
   /* first-visit coachmark: 'arrow' glides toward the quadrant, 'open' presses it */
   demo?: 'arrow' | 'open' | null
-  /* docked: don't pop a floating panel — report the chosen stage up so the page
-     can render the checklist below the star (matching the native home screen,
-     where the steps dock into the space the two CTAs used to occupy). */
+  /* docked: don't pop a floating panel here — report the chosen stage up so the
+     page can pop the checklist in an overlay OVER the star (see StageOverlay).
+     In docked mode the selection is CONTROLLED via selectedStage/onQuadrant, so
+     the page owns the single source of truth (closing the overlay clears it and
+     the star + labels stay in sync). */
   docked?: boolean
   onQuadrant?: (stage: Stage | null) => void
+  /* controlled selection for docked mode (mirrors the page's dockStage) */
+  selectedStage?: Stage | null
 }) {
   const [active, setActive] = useState<number | null>(null)
-  const [pinned, setPinned] = useState<number | null>(null)
+  const [pinnedInternal, setPinnedInternal] = useState<number | null>(null)
+
+  // In docked mode the pinned quadrant is controlled by the page (selectedStage);
+  // otherwise it's local state. setPinned routes to whichever owns it, so all the
+  // existing call sites (onClick toggle, demo, panel close) work in both modes.
+  const controlledPinned = selectedStage
+    ? (() => { const i = QUADRANT_META.findIndex(q => q.stage === selectedStage); return i === -1 ? null : i })()
+    : null
+  const pinned = docked ? controlledPinned : pinnedInternal
+  const setPinned = (updater: (number | null) | ((p: number | null) => number | null)) => {
+    const next = typeof updater === 'function' ? updater(pinned) : updater
+    if (docked) onQuadrant?.(next !== null ? QUADRANT_META[next].stage : null)
+    else setPinnedInternal(next)
+  }
   const containerRef = useRef<HTMLDivElement>(null)
   // The ring must breathe inside whatever width it's given — 375pt phones are
   // fine at 300, but zoomed-display minis and the app's padded WebView are not.
@@ -199,15 +217,11 @@ export default function StarQuadrants({
     return () => document.removeEventListener('pointerdown', close)
   }, [pinned, docked])
 
-  // Docked mode is tap-driven only (like native) so the panel below the star
-  // stays put; hover-preview is reserved for the floating (home-overlay) mode.
+  // Docked mode is tap-driven only (like native) so the overlay is stable; the
+  // hover-preview is reserved for the floating (non-docked) mode. In docked mode
+  // `pinned` is already the page-controlled selection, so no sync effect is
+  // needed — tapping a quadrant reports up through setPinned → onQuadrant.
   const shown = docked ? pinned : (pinned ?? active)
-
-  // Report the chosen stage up to the page so it can dock the checklist below.
-  const shownStage = shown !== null ? QUADRANT_META[shown].stage : null
-  useEffect(() => {
-    if (docked) onQuadrant?.(shownStage)
-  }, [docked, shownStage, onQuadrant])
 
   const ringProgress = ringProgressFromLevels(levels)
   const byStage = (stage: Stage) => levels.find(l => l.stage === stage)

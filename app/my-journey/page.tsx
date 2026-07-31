@@ -51,6 +51,7 @@ import SoapCalendarSection from '../../components/SoapCalendarSection'
 import SignoffNotice from '../../components/journey/SignoffNotice'
 import JourneyTabs, { type JourneyTab } from '../../components/journey/JourneyTabs'
 import StageDock from '../../components/journey/StageDock'
+import StageOverlay from '../../components/journey/StageOverlay'
 import PrayerLifeSection from '../../components/journey/PrayerLifeSection'
 import SoapFeedSection from '../../components/journey/SoapFeedSection'
 
@@ -772,6 +773,7 @@ export default function MyJourneyPage() {
               <div className="relative z-20 mt-2 w-full">
                 <StarQuadrants
                   docked
+                  selectedStage={dockStage}
                   onQuadrant={setDockStage}
                   onStepToggle={handleStepToggle}
                   onRequestSignoff={handleRequestSignoff}
@@ -797,17 +799,6 @@ export default function MyJourneyPage() {
                 )}
               </p>
 
-              {/* the steps dock here — the space the two blue CTAs used to hold */}
-              <div className="w-full">
-                <StageDock
-                  level={dockLevel}
-                  prev={dockPrev}
-                  onStepAction={handleStepAction}
-                  onStepToggle={handleStepToggle}
-                  onRequestSignoff={handleRequestSignoff}
-                  onClose={() => setDockStage(null)}
-                />
-              </div>
             </section>
 
             {/* Completed Empower but the coach hasn't signed off yet → no toggle to
@@ -831,32 +822,47 @@ export default function MyJourneyPage() {
               </section>
             )}
 
-            {/* Ministry fit — tied to the Equip stage sheet: it only appears while
-                the Equip dock is open, and disappears when you close it. Collapsible
-                so the long exec summary can be folded away without closing Equip. */}
-            {dockStage === 'Equip' && (
-            <MinistryFitCard
-              result={ministryFit}
-              generating={ministryFitGenerating}
-              collapsible
-              progress={(() => {
-                const completed = [giftsResult, bigFiveResult, passionResult].filter(Boolean).length
-                const next = !giftsResult
-                  ? { label: 'Spiritual Gifts', minutes: 10, action: 'spiritual-gifts' as const }
-                  : !bigFiveResult
-                    ? { label: 'Personality', minutes: 5, action: 'big-five' as const }
-                    : !passionResult
-                      ? { label: 'Passion', minutes: 5, action: 'passion' as const }
-                      : null
-                return {
-                  completed,
-                  total: 3,
-                  nextLabel: next?.label ?? null,
-                  nextMinutes: next?.minutes,
-                  onStartNext: next ? () => setActiveModal(next.action) : undefined,
-                }
-              })()}
-            />
+            {/* Steps overlay — pops OVER the star (always on-screen), replacing the
+                old in-flow dock that could fall off the bottom of the viewport.
+                Close via the ✕, the backdrop, or a downward swipe on the grabber.
+                For Equip, the Ministry-Fit card rides along inside the overlay. */}
+            {dockStage && dockLevel && (
+              <StageOverlay onClose={() => setDockStage(null)} color={dockLevel.color}>
+                <StageDock
+                  level={dockLevel}
+                  prev={dockPrev}
+                  onStepAction={handleStepAction}
+                  onStepToggle={handleStepToggle}
+                  onRequestSignoff={handleRequestSignoff}
+                  onClose={() => setDockStage(null)}
+                />
+                {dockStage === 'Equip' && (
+                  <div className="mt-3">
+                    <MinistryFitCard
+                      result={ministryFit}
+                      generating={ministryFitGenerating}
+                      collapsible
+                      progress={(() => {
+                        const completed = [giftsResult, bigFiveResult, passionResult].filter(Boolean).length
+                        const next = !giftsResult
+                          ? { label: 'Spiritual Gifts', minutes: 10, action: 'spiritual-gifts' as const }
+                          : !bigFiveResult
+                            ? { label: 'Personality', minutes: 5, action: 'big-five' as const }
+                            : !passionResult
+                              ? { label: 'Passion', minutes: 5, action: 'passion' as const }
+                              : null
+                        return {
+                          completed,
+                          total: 3,
+                          nextLabel: next?.label ?? null,
+                          nextMinutes: next?.minutes,
+                          onStartNext: next ? () => setActiveModal(next.action) : undefined,
+                        }
+                      })()}
+                    />
+                  </div>
+                )}
+              </StageOverlay>
             )}
 
             {/* footer */}
