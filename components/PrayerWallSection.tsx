@@ -60,13 +60,24 @@ function AnswerBtn({ id, onAnswer }: { id: string; onAnswer?: (id: string) => vo
   )
 }
 
+// These prayers are ALL authored by the viewer (created_by = me). The card is
+// grouped by who each prayer is FOR, so label it "Praying for <name>" — never
+// bare "<name>", which reads as though it were that person's own prayer.
+function prayerHeader(person: Person | undefined, viewerPersonId?: string) {
+  if (!person) return 'Unknown'
+  if (person.id === viewerPersonId) return person.name
+  return `Praying for ${person.name}`
+}
+
 function PrayerCard({
   group,
+  viewerPersonId,
   onClick,
   onDelete,
   onAnswer,
 }: {
   group: GroupedRequests
+  viewerPersonId?: string
   onClick?: () => void
   onDelete?: (id: string) => void
   onAnswer?: (id: string) => void
@@ -103,7 +114,7 @@ function PrayerCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
             <span className="truncate text-sm font-semibold text-[var(--fg-1)]">
-              {person?.name ?? 'Unknown'}
+              {prayerHeader(person, viewerPersonId)}
             </span>
             <span
               className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
@@ -130,10 +141,12 @@ function PrayerCard({
 
 function PraiseCard({
   group,
+  viewerPersonId,
   onClick,
   onDelete,
 }: {
   group: GroupedRequests
+  viewerPersonId?: string
   onClick?: () => void
   onDelete?: (id: string) => void
 }) {
@@ -171,7 +184,7 @@ function PraiseCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
             <span className="truncate text-sm font-semibold text-[var(--fg-1)]">
-              {person?.name ?? 'Unknown'}
+              {prayerHeader(person, viewerPersonId)}
             </span>
             <span
               className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
@@ -400,7 +413,7 @@ export default function PrayerWallSection({
       </div>
 
       <p className="mt-1 text-sm text-[var(--fg-2)]">
-        Prayer requests and answered prayers across all people
+        🔒 Private to you — only prayers you&rsquo;ve written. No one else, not even the people you&rsquo;re praying for, can see these.
       </p>
 
       {showPrayerForm && (
@@ -494,6 +507,7 @@ export default function PrayerWallSection({
                   <PrayerCard
                     key={group.person?.id ?? 'unknown'}
                     group={group}
+                    viewerPersonId={viewerPersonId}
                     onClick={
                       onPersonClick && group.person
                         ? () => onPersonClick(group.person!)
@@ -524,6 +538,7 @@ export default function PrayerWallSection({
                   <PraiseCard
                     key={group.person?.id ?? 'unknown'}
                     group={group}
+                    viewerPersonId={viewerPersonId}
                     onClick={
                       onPersonClick && group.person
                         ? () => onPersonClick(group.person!)

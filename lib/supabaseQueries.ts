@@ -386,17 +386,17 @@ export const getPrayerWallForViewer = async (viewerPersonId: string, isAdmin: bo
   return { data: filtered, error: null }
 }
 
-// A person's OWN private prayer wall: only prayers they are personally part of —
-// their own requests/praises (person_id = me, every visibility incl. private) and
-// the ones they logged for others (created_by = me). It is NOT a shared coach
-// wall: another person's prayer never appears here just because they're in your
-// coaching tree / group / constellation. (The `_isAdmin` arg is kept for a stable
-// signature but intentionally grants no extra visibility.)
+// A person's OWN private prayer wall: ONLY the prayers/praises they authored
+// (created_by = me), whoever they're about. Confirmed with user (2026-07-31):
+// prayers are author-only — the person you pray FOR must never see it, and you
+// never see anyone else's. A prayer written about you by someone else does NOT
+// appear here (that's theirs, not yours). RLS enforces the same rule server-side.
+// (The `_isAdmin` arg is kept for a stable signature but grants no extra access.)
 export const getPrayerLifeForPerson = async (personId: string, _isAdmin: boolean) => {
   const { data, error } = await supabase
     .from('prayer_requests')
     .select('*, people!person_id(name, current_stage)')
-    .or(`person_id.eq.${personId},created_by_person_id.eq.${personId}`)
+    .eq('created_by_person_id', personId)
     .order('created_at', { ascending: false })
   return { data: (data as PrayerRequest[]) ?? [], error }
 }

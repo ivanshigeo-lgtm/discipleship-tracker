@@ -1088,7 +1088,7 @@ export default function DiscipleshipTracker() {
 
           {activeSection === 'prayer' && (
             <div>
-              <SectionHeader title="Prayer Wall" subtitle="Requests and praises across your people" />
+              <SectionHeader title="Prayer Wall" subtitle="Private to you — only prayers you've written" />
               <ErrorBoundary name="PrayerWallSection">
                 <PrayerWallSection
                   refreshKey={refreshKey}
@@ -1143,7 +1143,7 @@ export default function DiscipleshipTracker() {
               )}
               {/* Prayer & praise wall so you can pray over your people while you SOAP */}
               <div className="mt-6">
-                <SectionHeader title="Prayer &amp; Praise Wall" subtitle="People and praises to lift up as you pray" />
+                <SectionHeader title="Prayer &amp; Praise Wall" subtitle="Private to you — only prayers you've written" />
                 <ErrorBoundary name="PrayerWallSection">
                   <PrayerWallSection
                     refreshKey={refreshKey}
