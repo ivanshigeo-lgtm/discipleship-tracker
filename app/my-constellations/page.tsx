@@ -521,12 +521,14 @@ export default function DiscipleshipTracker() {
     )
   }, [connections, profile?.id])
 
-  // Only admins may view the whole church (GBC). Everyone else is locked to
-  // their own circle so a coach never sees another coach's people/meetings —
+  // Admins AND empowered coaches (approved Empower sign-off) may view the whole
+  // church (GBC) — mirrors the native coach dashboard. Everyone else is locked
+  // to their own circle so a coach never sees another coach's people/meetings —
   // but anyone may narrow further to just their direct people.
   const isAdmin = Boolean(profile?.is_admin)
+  const canSeeAllChurch = empowerApproved === true
   const effectiveScope: 'gbc' | 'mine' | 'direct' =
-    isAdmin ? circleScope : circleScope === 'direct' ? 'direct' : 'mine'
+    canSeeAllChurch ? circleScope : circleScope === 'direct' ? 'direct' : 'mine'
   const allowedPersonIds = effectiveScope === 'direct' && myPeopleIds
     ? Array.from(myPeopleIds)
     : effectiveScope === 'mine' && myCircleIds
@@ -745,10 +747,10 @@ export default function DiscipleshipTracker() {
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    {/* Scope: whole church (admin only) vs full coaching tree vs direct people */}
+                    {/* Scope: whole church (admins + empowered coaches) vs full coaching tree vs direct people */}
                     <div className="flex rounded-full border border-[var(--line-2)] bg-[var(--indigo)] p-1">
                       {(
-                        (isAdmin
+                        (canSeeAllChurch
                           ? [['gbc', 'GBC'], ['mine', 'My Constellation'], ['direct', 'My People']]
                           : [['mine', 'My Constellation'], ['direct', 'My People']]) as ['gbc' | 'mine' | 'direct', string][]
                       ).map(([val, label]) => (
