@@ -262,6 +262,9 @@ export default function NextStepsList({
 
   const pending = engagements.filter(e => e.status === 'Pending')
   const completed = engagements.filter(e => e.status === 'Completed')
+  // Cancelled meetings stay visible here (red badge, out of the pending count) so
+  // the coach can always find one and Reopen it — they're hidden from My Meetings.
+  const cancelled = engagements.filter(e => e.status === 'Cancelled')
 
   return (
     <div className="space-y-3">
@@ -314,6 +317,31 @@ export default function NextStepsList({
           ))}
         </div>
       )}
+
+      {cancelled.length > 0 && (
+        <div className="space-y-1.5">
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--fg-3)]">
+            Cancelled ({cancelled.length})
+          </div>
+          {cancelled.map(eng => (
+            <EngagementCard
+              key={eng.id}
+              eng={eng}
+              isExpanded={expandedId === eng.id}
+              editingData={editingData}
+              savingId={savingId}
+              canSyncCalendar={!!coachPersonId && !!eng.follow_up_date && !eng.google_calendar_event_id}
+              onToggleComplete={() => handleToggleComplete(eng)}
+              onExpand={() => handleExpand(eng)}
+              onOpen={() => onOpenEngagement?.(eng, personName)}
+              onEditingChange={setEditingData}
+              onSave={() => handleSave(eng)}
+              onDelete={() => handleDelete(eng.id)}
+              onSyncToCalendar={() => handleSyncToCalendar(eng)}
+            />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -346,6 +374,7 @@ function EngagementCard({
   onSyncToCalendar: () => void
 }) {
   const isCompleted = eng.status === 'Completed'
+  const isCancelled = eng.status === 'Cancelled'
   const isSaving = savingId === eng.id
 
   const updateField = <K extends keyof EditingEngagement>(field: K, value: EditingEngagement[K]) => {
@@ -358,8 +387,8 @@ function EngagementCard({
     <div
       className="overflow-hidden rounded-xl border transition-all"
       style={{
-        borderColor: isCompleted ? 'rgba(54,214,195,.3)' : 'var(--line-1)',
-        background: isCompleted ? 'rgba(54,214,195,.05)' : 'var(--indigo-2)',
+        borderColor: isCancelled ? 'rgba(240,114,159,.3)' : isCompleted ? 'rgba(54,214,195,.3)' : 'var(--line-1)',
+        background: isCancelled ? 'rgba(240,114,159,.05)' : isCompleted ? 'rgba(54,214,195,.05)' : 'var(--indigo-2)',
       }}
     >
       <div className="flex items-start gap-3 p-3">
@@ -395,7 +424,7 @@ function EngagementCard({
               )}
               <span
                 className="text-sm text-[var(--fg-1)]"
-                style={{ textDecoration: isCompleted ? 'line-through' : 'none', opacity: isCompleted ? 0.7 : 1 }}
+                style={{ textDecoration: isCompleted || isCancelled ? 'line-through' : 'none', opacity: isCompleted || isCancelled ? 0.7 : 1 }}
               >
                 {eng.description}
               </span>
@@ -444,11 +473,11 @@ function EngagementCard({
           <span
             className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
             style={{
-              background: isCompleted ? 'rgba(54,214,195,.15)' : 'rgba(244,182,80,.15)',
-              color: isCompleted ? 'var(--establish)' : 'var(--engage)',
+              background: isCancelled ? 'rgba(240,114,159,.15)' : isCompleted ? 'rgba(54,214,195,.15)' : 'rgba(244,182,80,.15)',
+              color: isCancelled ? '#F0729F' : isCompleted ? 'var(--establish)' : 'var(--engage)',
             }}
           >
-            {isCompleted ? 'Met' : 'Pending'}
+            {isCancelled ? 'Cancelled' : isCompleted ? 'Met' : 'Pending'}
           </span>
         </div>
       </div>

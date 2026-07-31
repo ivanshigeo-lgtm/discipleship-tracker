@@ -52,12 +52,14 @@ function MeetingCard({
   onComplete,
   onOpenPerson,
   completing,
+  cancelled = false,
 }: {
   item: MeetingItem
   onClick: () => void
   onComplete: () => void
   onOpenPerson: () => void
   completing: boolean
+  cancelled?: boolean
 }) {
   const stageColor = STAGE_COLORS[item.person.current_stage]
 
@@ -82,7 +84,10 @@ function MeetingCard({
       className="group cursor-pointer rounded-xl border border-[var(--line-1)] p-3 transition-all hover:border-[var(--line-2)]"
       style={{
         background: 'var(--indigo-2)',
-        boxShadow: item.isOverdue
+        opacity: cancelled ? 0.75 : 1,
+        boxShadow: cancelled
+          ? 'none'
+          : item.isOverdue
           ? '0 0 16px -4px rgba(242,114,138,.3)'
           : item.isToday
           ? '0 0 16px -4px rgba(54,214,195,.3)'
@@ -118,37 +123,43 @@ function MeetingCard({
               <span
                 className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
                 style={{
-                  background: item.isOverdue
+                  background: cancelled
+                    ? 'rgba(240,114,159,.15)'
+                    : item.isOverdue
                     ? 'rgba(242,114,138,.15)'
                     : item.isToday
                     ? 'rgba(54,214,195,.15)'
                     : 'rgba(91,141,247,.15)',
-                  color: item.isOverdue
+                  color: cancelled
+                    ? '#F0729F'
+                    : item.isOverdue
                     ? '#F2728A'
                     : item.isToday
                     ? 'var(--establish)'
                     : 'var(--equip)',
                 }}
               >
-                {dateLabel}
+                {cancelled ? 'Cancelled' : dateLabel}
               </span>
-              <button
-                type="button"
-                title="Mark meeting as done"
-                disabled={completing}
-                onClick={e => {
-                  e.stopPropagation()
-                  onComplete()
-                }}
-                className="flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-bold transition-all hover:scale-110 disabled:opacity-50"
-                style={{
-                  borderColor: 'var(--establish)',
-                  color: 'var(--establish)',
-                  background: 'rgba(54,214,195,.1)',
-                }}
-              >
-                {completing ? '·' : '✓'}
-              </button>
+              {!cancelled && (
+                <button
+                  type="button"
+                  title="Mark meeting as done"
+                  disabled={completing}
+                  onClick={e => {
+                    e.stopPropagation()
+                    onComplete()
+                  }}
+                  className="flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-bold transition-all hover:scale-110 disabled:opacity-50"
+                  style={{
+                    borderColor: 'var(--establish)',
+                    color: 'var(--establish)',
+                    background: 'rgba(54,214,195,.1)',
+                  }}
+                >
+                  {completing ? '·' : '✓'}
+                </button>
+              )}
             </div>
           </div>
 
@@ -332,6 +343,35 @@ export default function NeedAttentionSection({
       return a.daysUntil - b.daysUntil
     })
 
+    return items
+  }, [people, engagements, viewerPersonId, isAdmin, badgeScope, confirmedIds])
+
+  // Cancelled 1:1s in the same window/scope. They stay on the agenda with a red
+  // badge (so the coach can reopen them) but never feed any count — hence a
+  // separate memo from `meetings`. Mirrors native's `cancelledEng`.
+  const cancelledMeetings = useMemo(() => {
+    const peopleById = new Map(people.map(p => [p.id, p]))
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const next7 = new Date(today)
+    next7.setDate(today.getDate() + 7)
+    const next7Str = next7.toISOString().split('T')[0]
+
+    const effectiveScope = isAdmin ? badgeScope : 'mine'
+    const inScope = (e: Engagement) =>
+      effectiveScope === 'gbc' || (!!viewerPersonId && (e.created_by_person_id === viewerPersonId || confirmedIds.has(e.id)))
+
+    const items: MeetingItem[] = []
+    engagements
+      .filter(e => e.status === 'Cancelled' && !!e.follow_up_date && inScope(e) && e.follow_up_date <= next7Str)
+      .forEach(engagement => {
+        const person = peopleById.get(engagement.person_id)
+        if (!person) return
+        const followUpDate = new Date(engagement.follow_up_date + 'T00:00:00')
+        const daysUntil = Math.round((followUpDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+        items.push({ engagement, person, daysUntil, isOverdue: daysUntil < 0, isToday: daysUntil === 0, isUpcoming: daysUntil > 0 && daysUntil <= 7 })
+      })
+    items.sort((a, b) => a.daysUntil - b.daysUntil)
     return items
   }, [people, engagements, viewerPersonId, isAdmin, badgeScope, confirmedIds])
 
@@ -573,6 +613,28 @@ export default function NeedAttentionSection({
             <p className="mt-4 text-sm text-[var(--fg-3)]">
               No one-to-one meetings scheduled. Add a follow-up date in someone's profile.
             </p>
+          )}
+
+          {/* Cancelled 1:1s — stay visible so they can be reopened; not counted */}
+          {cancelledMeetings.length > 0 && (
+            <>
+              <div className="mt-4 text-[10px] font-semibold uppercase tracking-wide text-[var(--fg-3)]">
+                Cancelled ({cancelledMeetings.length})
+              </div>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {cancelledMeetings.slice(0, 12).map(item => (
+                  <MeetingCard
+                    key={item.engagement.id}
+                    item={item}
+                    cancelled
+                    onClick={() => onOpenEngagement?.(item.engagement, item.person.name)}
+                    onComplete={() => {}}
+                    onOpenPerson={() => onPersonClick?.(item.person)}
+                    completing={false}
+                  />
+                ))}
+              </div>
+            </>
           )}
 
           {/* Grace Groups */}
