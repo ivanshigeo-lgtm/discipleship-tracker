@@ -10,8 +10,13 @@ import {
   getRecentGroupAttendance,
   getGroupMeetingStatuses,
   updateEngagement,
+  getGroupAttendance,
+  upsertGroupAttendance,
+  upsertGroupMeetingStatus,
+  clearGroupMeetingStatus,
+  updateVictoryGroup,
 } from '../lib/supabaseQueries'
-import type { Person, Stage, Engagement, VictoryGroup, GroupMeetingStatus } from '../types/database'
+import type { Person, Stage, Engagement, VictoryGroup, GroupMeetingStatus, GroupAttendance } from '../types/database'
 import VictoryGroupsList from './VictoryGroupsList'
 import MeetingBadges, { type MeetingCounts } from './MeetingBadges'
 import { SectionSkeleton } from './Skeleton'
@@ -46,6 +51,7 @@ type MeetingItem = {
 // with any per-occurrence group_meeting_status override applied.
 type GroupMeetingItem = {
   group: VictoryGroup
+  occDate: string       // original weekly occurrence date — the key for cancel/reschedule overrides
   date: string          // effective occurrence date (YYYY-MM-DD, reschedule applied)
   time: string | null   // effective time
   memberCount: number
@@ -53,6 +59,7 @@ type GroupMeetingItem = {
   daysUntil: number
   isToday: boolean
   cancelled: boolean
+  rescheduled: boolean
 }
 
 const STAGE_COLORS: Record<Stage, string> = {
@@ -75,8 +82,30 @@ const nextGroupOccurrence = (meetingDay: string | null): string | null => {
   d.setDate(d.getDate() + ((target - d.getDay() + 7) % 7))
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
+// The weekday name for a 'YYYY-MM-DD' date (for an "all future" reschedule, which
+// shifts the group's standing meeting_day). Mirrors VictoryGroupsList.weekdayOf.
+const weekdayOf = (dateStr: string) => WEEKDAY_NAMES[new Date(dateStr + 'T00:00:00').getDay()]
 
-function GroupMeetingCard({ item }: { item: GroupMeetingItem }) {
+// An interactive Grace Group meeting on the agenda. Mirrors native's group card
+// action sheet (openGroupActions): take attendance, reschedule (this week / all
+// future), cancel/undo. Attendance writes group_attendance and marks the card
+// done (hidden for the session, like native's groupDone set). Cancel/reschedule
+// write group_meeting_status and refresh the parent via onStatusChanged.
+function GroupMeetingCard({
+  item,
+  members,
+  canManage,
+  viewerPersonId,
+  onStatusChanged,
+  onDone,
+}: {
+  item: GroupMeetingItem
+  members: Person[]
+  canManage: boolean
+  viewerPersonId?: string
+  onStatusChanged: () => void | Promise<void>
+  onDone: (groupId: string, date: string) => void
+}) {
   const accent = item.stage ? STAGE_COLORS[item.stage] : GROUP_ACCENT
   const initials = item.group.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
   const dateLabel = item.cancelled
@@ -86,6 +115,109 @@ function GroupMeetingCard({ item }: { item: GroupMeetingItem }) {
     : item.daysUntil === 1
     ? 'Tomorrow'
     : `In ${item.daysUntil}d`
+
+  const [mode, setMode] = useState<null | 'attendance' | 'reschedule'>(null)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  // Attendance roster: person_id -> present. Defaults everyone present (native),
+  // then overlays any already-saved attendance for this occurrence date.
+  const [draft, setDraft] = useState<Record<string, boolean>>({})
+  // Reschedule form.
+  const [rsDate, setRsDate] = useState(item.date)
+  const [rsTime, setRsTime] = useState(item.time?.slice(0, 5) ?? '')
+  const [rsAll, setRsAll] = useState(false)
+
+  const openAttendance = async () => {
+    setErr('')
+    const base: Record<string, boolean> = {}
+    members.forEach(m => { base[m.id] = true })
+    setDraft(base)
+    setMode('attendance')
+    const { data } = await getGroupAttendance(item.group.id)
+    const saved = ((data ?? []) as GroupAttendance[]).filter(r => r.meeting_date === item.date)
+    if (saved.length) {
+      setDraft(prev => {
+        const next = { ...prev }
+        saved.forEach(r => { next[r.person_id] = r.attended })
+        return next
+      })
+    }
+  }
+
+  const saveAttendance = async () => {
+    setBusy(true); setErr('')
+    const results = await Promise.all(members.map(m =>
+      upsertGroupAttendance({
+        victory_group_id: item.group.id,
+        person_id: m.id,
+        meeting_date: item.date,
+        attended: draft[m.id] ?? false,
+      })
+    ))
+    setBusy(false)
+    if (results.some(r => r.error)) { setErr('Failed to save attendance.'); return }
+    onDone(item.group.id, item.date) // hide the card for the session, like native
+  }
+
+  const cancelOccurrence = async () => {
+    setBusy(true); setErr('')
+    const { error } = await upsertGroupMeetingStatus({
+      victory_group_id: item.group.id,
+      meeting_date: item.occDate,
+      status: 'cancelled',
+      created_by_person_id: viewerPersonId ?? null,
+    })
+    setBusy(false)
+    if (error) { setErr(error.message); return }
+    setMode(null)
+    await onStatusChanged()
+  }
+
+  const undoOverride = async () => {
+    setBusy(true); setErr('')
+    const { error } = await clearGroupMeetingStatus(item.group.id, item.occDate)
+    setBusy(false)
+    if (error) { setErr(error.message); return }
+    setMode(null)
+    await onStatusChanged()
+  }
+
+  const openReschedule = () => {
+    setRsDate(item.date)
+    setRsTime(item.time?.slice(0, 5) ?? '')
+    setRsAll(false)
+    setErr('')
+    setMode('reschedule')
+  }
+
+  const saveReschedule = async () => {
+    if (!rsDate) return
+    setBusy(true); setErr('')
+    let error
+    if (rsAll) {
+      // Shift the standing day/time for every future week; clear this occurrence's
+      // one-off override so it follows the new schedule.
+      const res = await updateVictoryGroup(item.group.id, { meeting_day: weekdayOf(rsDate), meeting_time: rsTime || null })
+      if (!res.error) await clearGroupMeetingStatus(item.group.id, item.occDate)
+      error = res.error
+    } else {
+      const res = await upsertGroupMeetingStatus({
+        victory_group_id: item.group.id,
+        meeting_date: item.occDate,
+        status: 'rescheduled',
+        rescheduled_to: rsDate,
+        rescheduled_time: rsTime || null,
+        created_by_person_id: viewerPersonId ?? null,
+      })
+      error = res.error
+    }
+    setBusy(false)
+    if (error) { setErr(error.message); return }
+    setMode(null)
+    await onStatusChanged()
+  }
+
+  const presentCount = Object.values(draft).filter(Boolean).length
 
   return (
     <div
@@ -134,7 +266,120 @@ function GroupMeetingCard({ item }: { item: GroupMeetingItem }) {
               {new Date(item.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
             </span>
             {item.time && <span className={item.cancelled ? 'line-through' : ''}>@ {item.time.slice(0, 5)}</span>}
+            {item.rescheduled && !item.cancelled && <span style={{ color: accent }}>· rescheduled</span>}
           </div>
+
+          {/* Quick actions — mirror native's group action sheet. Owner/admin only. */}
+          {canManage && mode === null && (
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              {item.cancelled || item.rescheduled ? (
+                <button
+                  type="button"
+                  onClick={undoOverride}
+                  disabled={busy}
+                  className="rounded-lg border border-[var(--line-2)] bg-[var(--indigo)] px-2 py-1 text-[11px] font-semibold text-[var(--fg-1)] transition-all hover:border-[var(--gbm-cobalt-bright)] disabled:opacity-50"
+                >
+                  {busy ? '…' : item.cancelled ? 'Reopen' : 'Undo reschedule'}
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={openAttendance}
+                    disabled={busy || members.length === 0}
+                    title={members.length === 0 ? 'No members to record' : 'Take attendance'}
+                    className="rounded-lg border px-2 py-1 text-[11px] font-semibold transition-all disabled:opacity-50"
+                    style={{ borderColor: 'var(--establish)', color: 'var(--establish)', background: 'rgba(54,214,195,.1)' }}
+                  >
+                    ✓ Attendance
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openReschedule}
+                    disabled={busy}
+                    className="rounded-lg border border-[var(--line-2)] bg-[var(--indigo)] px-2 py-1 text-[11px] font-semibold text-[var(--fg-1)] transition-all hover:border-[var(--gbm-cobalt-bright)] disabled:opacity-50"
+                  >
+                    Reschedule
+                  </button>
+                  <button
+                    type="button"
+                    onClick={cancelOccurrence}
+                    disabled={busy}
+                    className="rounded-lg border px-2 py-1 text-[11px] font-semibold transition-all disabled:opacity-50"
+                    style={{ borderColor: 'rgba(240,114,159,.4)', color: '#F0729F', background: 'rgba(240,114,159,.1)' }}
+                  >
+                    Cancel
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
+          {err && <p className="mt-2 rounded-lg bg-[rgba(240,114,159,.15)] px-2 py-1 text-[11px] text-[#F2728A]">{err}</p>}
+
+          {/* Attendance roster */}
+          {mode === 'attendance' && (
+            <div className="mt-2 rounded-lg border border-[var(--line-1)] bg-[var(--indigo)] p-2">
+              <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--fg-3)]">
+                Who attended · {new Date(item.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </div>
+              <div className="grid max-h-48 gap-1 overflow-auto">
+                {members.map(person => {
+                  const stageColor = STAGE_COLORS[person.current_stage]
+                  const checked = draft[person.id] ?? false
+                  return (
+                    <label
+                      key={person.id}
+                      className="flex cursor-pointer items-center gap-2 rounded-lg border px-2 py-1 transition-all"
+                      style={{ borderColor: checked ? 'var(--establish)' : 'var(--line-1)', background: 'var(--indigo-2)' }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => setDraft(prev => ({ ...prev, [person.id]: !prev[person.id] }))}
+                        className="h-4 w-4 shrink-0 rounded border-[var(--line-2)] bg-[var(--indigo)] accent-[var(--establish)]"
+                      />
+                      <span className="truncate text-xs font-semibold text-[var(--fg-1)]">{person.name}</span>
+                      <span className="ml-auto shrink-0 text-[10px]" style={{ color: stageColor }}>{person.current_stage}</span>
+                    </label>
+                  )
+                })}
+              </div>
+              <div className="mt-2 flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={saveAttendance}
+                  disabled={busy}
+                  className="flex-1 rounded-lg py-1.5 text-xs font-semibold transition-all disabled:opacity-50"
+                  style={{ background: 'var(--establish)', color: 'var(--void)' }}
+                >
+                  {busy ? 'Saving…' : `Save (${presentCount}/${members.length})`}
+                </button>
+                <button type="button" onClick={() => setMode(null)} disabled={busy} className="cn-chip !text-xs">Cancel</button>
+              </div>
+            </div>
+          )}
+
+          {/* Reschedule form */}
+          {mode === 'reschedule' && (
+            <div className="mt-2 rounded-lg border border-[var(--line-1)] bg-[var(--indigo)] p-2">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <input type="date" value={rsDate} onChange={e => setRsDate(e.target.value)} className="rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-2 py-1 text-xs text-[var(--fg-1)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none" />
+                <input type="time" value={rsTime} onChange={e => setRsTime(e.target.value)} className="rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-2 py-1 text-xs text-[var(--fg-1)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none" />
+                <label className="flex items-center gap-1 text-[10px] text-[var(--fg-2)]">
+                  <input type="checkbox" checked={rsAll} onChange={e => setRsAll(e.target.checked)} className="h-3.5 w-3.5 rounded border-[var(--line-2)] bg-[var(--indigo-2)] accent-[var(--gbm-cobalt-bright)]" />
+                  All future
+                </label>
+              </div>
+              {rsAll && rsDate && (
+                <p className="mt-1 text-[10px] text-[var(--fg-3)]">Moves the group’s regular meeting to {weekdayOf(rsDate)}{rsTime ? ` @ ${rsTime}` : ''} every week.</p>
+              )}
+              <div className="mt-2 flex items-center gap-1.5">
+                <button type="button" onClick={saveReschedule} disabled={busy || !rsDate} className="cn-btn cn-btn-primary !px-2.5 !py-1 !text-xs disabled:opacity-50">{busy ? 'Saving…' : 'Save'}</button>
+                <button type="button" onClick={() => setMode(null)} disabled={busy} className="cn-chip !text-xs">Cancel</button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -324,6 +569,10 @@ export default function NeedAttentionSection({
   const [loadError, setLoadError] = useState(false)
   const [isExpanded, setIsExpanded] = useState(true)
   const [completingId, setCompletingId] = useState<string | null>(null)
+  // Group meetings whose attendance was recorded this session — hidden from the
+  // agenda afterwards, mirroring native's session-local `groupDone` set. Keyed
+  // `${groupId}|${effectiveDate}`.
+  const [groupDone, setGroupDone] = useState<Set<string>>(new Set())
 
   const loadData = async () => {
     setLoading(true)
@@ -379,6 +628,13 @@ export default function NeedAttentionSection({
       )
     }
     setCompletingId(null)
+  }
+
+  // Re-pull just the per-occurrence cancel/reschedule overrides after a group card
+  // action, so the agenda reflects it without a full reload.
+  const reloadGroupStatuses = async () => {
+    const { data } = await getGroupMeetingStatuses()
+    setGroupStatuses((data as GroupMeetingStatus[]) ?? [])
   }
 
   useEffect(() => {
@@ -497,12 +753,14 @@ export default function NeedAttentionSection({
       if (!occ) continue
       const st = statusFor(group.id, occ)
       const cancelled = st?.status === 'cancelled'
-      const date = st?.status === 'rescheduled' && st.rescheduled_to ? st.rescheduled_to : occ
-      const time = st?.status === 'rescheduled' ? st.rescheduled_time : group.meeting_time
+      const rescheduled = st?.status === 'rescheduled'
+      const date = rescheduled && st?.rescheduled_to ? st.rescheduled_to : occ
+      const time = rescheduled ? st?.rescheduled_time ?? null : group.meeting_time
       const dt = new Date(date + 'T00:00:00')
       const daysUntil = Math.round((dt.getTime() - today.getTime()) / 86_400_000)
       items.push({
         group,
+        occDate: occ,
         date,
         time,
         memberCount: membersByGroupId.get(group.id) ?? 0,
@@ -510,13 +768,32 @@ export default function NeedAttentionSection({
         daysUntil,
         isToday: daysUntil === 0,
         cancelled,
+        rescheduled,
       })
     }
     items.sort((a, b) => a.date.localeCompare(b.date))
     return items
   }, [victoryGroups, groupMemberships, groupStatuses, isAdmin, badgeScope, profile?.id])
 
-  const activeGroupMeetings = groupMeetings.filter(g => !g.cancelled)
+  // Roster per group (resolved to Person for the attendance checklist), derived
+  // from the flat memberships + people already loaded.
+  const groupMembersById = useMemo(() => {
+    const peopleById = new Map(people.map(p => [p.id, p]))
+    const m = new Map<string, Person[]>()
+    for (const gm of groupMemberships) {
+      const p = peopleById.get(gm.person_id)
+      if (!p) continue
+      const arr = m.get(gm.victory_group_id) ?? []
+      arr.push(p)
+      m.set(gm.victory_group_id, arr)
+    }
+    for (const arr of m.values()) arr.sort((a, b) => a.name.localeCompare(b.name))
+    return m
+  }, [people, groupMemberships])
+
+  // Hide meetings whose attendance was taken this session (native parity).
+  const visibleGroupMeetings = groupMeetings.filter(g => !groupDone.has(`${g.group.id}|${g.date}`))
+  const activeGroupMeetings = visibleGroupMeetings.filter(g => !g.cancelled)
 
   const overdueCount = meetings.filter(m => m.isOverdue).length
   const todayCount = meetings.filter(m => m.isToday).length
@@ -781,15 +1058,24 @@ export default function NeedAttentionSection({
           )}
 
           {/* Grace Group Meetings — upcoming occurrences on the agenda (mirrors
-              native, which merges group meetings into the day agenda). */}
-          {groupMeetings.length > 0 && (
+              native, which merges group meetings into the day agenda). Cards are
+              interactive: take attendance, reschedule, cancel/undo. */}
+          {visibleGroupMeetings.length > 0 && (
             <>
               <div className="mt-4 text-[10px] font-semibold uppercase tracking-wide text-[var(--fg-3)]">
                 Grace Group Meetings ({activeGroupMeetings.length})
               </div>
               <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {groupMeetings.slice(0, 12).map(item => (
-                  <GroupMeetingCard key={item.group.id} item={item} />
+                {visibleGroupMeetings.slice(0, 12).map(item => (
+                  <GroupMeetingCard
+                    key={item.group.id}
+                    item={item}
+                    members={groupMembersById.get(item.group.id) ?? []}
+                    canManage={isAdmin || item.group.owner_person_id === profile?.id}
+                    viewerPersonId={profile?.id}
+                    onStatusChanged={reloadGroupStatuses}
+                    onDone={(groupId, date) => setGroupDone(prev => new Set(prev).add(`${groupId}|${date}`))}
+                  />
                 ))}
               </div>
             </>
