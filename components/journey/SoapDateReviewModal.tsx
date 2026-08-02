@@ -2,17 +2,19 @@
 
 import { useEffect, useState } from 'react'
 import { SoapJournal } from '../../types/database'
-import { updateSoapJournal, deleteSoapJournal, getPrevImportedEntry, mergeSoapEntries } from '../../lib/supabaseQueries'
+import { updateSoapJournal, deleteSoapJournal, bulkMarkSoapDateReviewed, getPrevImportedEntry, mergeSoapEntries } from '../../lib/supabaseQueries'
 
 // Step through imported pages that still need a date, with tools to fix the
 // common import issues: rotate a sideways page, delete a duplicate/non-SOAP,
 // or merge a left→right continuation back into the entry it belongs to.
 export default function SoapDateReviewModal({
   entries,
+  personId,
   onClose,
   onUpdated,
 }: {
   entries: SoapJournal[]
+  personId?: string
   onClose: () => void
   onUpdated: () => void
 }) {
@@ -39,10 +41,36 @@ export default function SoapDateReviewModal({
     else { if (justChanged || dirty || savedCount) onUpdated(); onClose() }
   }
 
+  // iSOAP-owned rows (entry.isoap) live in the iSOAP database under iSOAP ids —
+  // writing them to soap_journals silently matches nothing (the id spaces are
+  // disjoint), which is why Ignore/dates used to come back on every reload.
+  // Route those through /api/soap/update, which forwards to iSOAP.
+  const patchEntry = async (
+    entry: SoapJournal,
+    patch: { journal_date?: string; date_precision?: 'day'; date_reviewed?: boolean }
+  ): Promise<{ error: { message?: string } | null }> => {
+    if (!entry.isoap) return updateSoapJournal(entry.id, patch)
+    try {
+      const res = await fetch('/api/soap/update', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          personId: personId ?? entry.person_id,
+          entryId: entry.id,
+          ...(patch.journal_date ? { entry_date: patch.journal_date } : {}),
+          ...(patch.date_reviewed !== undefined ? { date_reviewed: patch.date_reviewed } : {}),
+        }),
+      })
+      if (!res.ok) return { error: await res.json().catch(() => ({ message: 'update failed' })) }
+      return { error: null }
+    } catch {
+      return { error: { message: 'update failed' } }
+    }
+  }
+
   const save = async () => {
     if (!current || !date || saving) return
     setSaving(true)
-    const { error } = await updateSoapJournal(current.id, { journal_date: date, date_precision: 'day' })
+    const { error } = await patchEntry(current, { journal_date: date, date_precision: 'day' })
     setSaving(false)
     if (error) { alert('Could not save the date. Please try again.'); return }
     setSavedCount(c => c + 1); setDirty(true)
@@ -52,11 +80,40 @@ export default function SoapDateReviewModal({
   const ignore = async () => {
     if (!current || saving) return
     setSaving(true)
-    const { error } = await updateSoapJournal(current.id, { date_reviewed: true })
+    const { error } = await patchEntry(current, { date_reviewed: true })
     setSaving(false)
     if (error) { alert('Could not save. Please try again.'); return }
     setDirty(true)
     advance(true)
+  }
+
+  // "These will never have dates" — one action, no more reminders. Marks every
+  // remaining entry date-reviewed: iSOAP rows in one bulk call, local rows in one
+  // bulk update.
+  const ignoreAll = async () => {
+    if (saving) return
+    if (!confirm(`Keep all ${entries.length} entries filed under their year and never ask about dates again?`)) return
+    setSaving(true)
+    const isoapIds = entries.filter(e => e.isoap).map(e => e.id)
+    const localIds = entries.filter(e => !e.isoap).map(e => e.id)
+    let failed = false
+    if (isoapIds.length) {
+      try {
+        const res = await fetch('/api/soap/update', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ personId: personId ?? entries[0]?.person_id, entryIds: isoapIds, date_reviewed: true }),
+        })
+        if (!res.ok) failed = true
+      } catch { failed = true }
+    }
+    if (localIds.length) {
+      const { error } = await bulkMarkSoapDateReviewed(localIds)
+      if (error) failed = true
+    }
+    setSaving(false)
+    if (failed) { alert('Some entries could not be updated. Please try again.'); return }
+    onUpdated()
+    onClose()
   }
 
   // Rotate the page; degrees are clockwise (270 = 90° counter-clockwise).
@@ -79,7 +136,18 @@ export default function SoapDateReviewModal({
     if (!current || saving) return
     if (!confirm('Delete this entry? (For duplicates or non-journal pages.)')) return
     setSaving(true)
-    const { error } = await deleteSoapJournal(current.id)
+    let error: { message?: string } | null = null
+    if (current.isoap) {
+      try {
+        const res = await fetch('/api/soap/delete', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ personId: personId ?? current.person_id, entryId: current.id }),
+        })
+        if (!res.ok) error = await res.json().catch(() => ({ message: 'delete failed' }))
+      } catch { error = { message: 'delete failed' } }
+    } else {
+      error = (await deleteSoapJournal(current.id)).error
+    }
     setSaving(false)
     if (error) { alert('Could not delete. Please try again.'); return }
     setDirty(true)
@@ -162,6 +230,15 @@ export default function SoapDateReviewModal({
             {saving ? '…' : idx + 1 < entries.length ? 'Save & next' : 'Save & finish'}
           </button>
         </div>
+        <button
+          type="button"
+          onClick={ignoreAll}
+          disabled={saving}
+          className="mt-3 w-full rounded-lg border border-[var(--line-2)] py-2 text-[11px] font-semibold text-[var(--fg-3)] transition-colors hover:border-[var(--fg-3)] disabled:opacity-40"
+          title="Keep every remaining entry under its year and stop the date reminders for good"
+        >
+          These will never have dates — ignore all {entries.length}
+        </button>
         <button type="button" onClick={() => { if (dirty || savedCount) onUpdated(); onClose() }} className="mt-3 w-full text-center text-[11px] text-[var(--fg-3)] underline">
           Close{savedCount > 0 ? ` (${savedCount} dated)` : ''}
         </button>

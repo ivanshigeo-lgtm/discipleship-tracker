@@ -26,10 +26,12 @@ export async function POST(request: NextRequest) {
   let body: {
     personId?: string
     entryId?: string
+    entryIds?: string[]
     entry_date?: string
     scripture?: string | null
     body?: string | null
     ocr_text?: string | null
+    date_reviewed?: boolean
     photo_base64?: string
     content_type?: string
   }
@@ -39,8 +41,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
   const { personId, entryId } = body
-  if (!personId || !entryId) {
-    return NextResponse.json({ error: 'personId and entryId required' }, { status: 400 })
+  const bulkIds = Array.isArray(body.entryIds)
+    ? body.entryIds.filter((id): id is string => typeof id === 'string' && !!id)
+    : null
+  if (!personId || (!entryId && !bulkIds?.length)) {
+    return NextResponse.json({ error: 'personId and entryId (or entryIds) required' }, { status: 400 })
   }
 
   const admin = getSupabaseAdmin()
@@ -59,10 +64,12 @@ export async function POST(request: NextRequest) {
     isoap_user_id: link.isoap_user_id,
     entry_id: entryId,
   }
+  if (bulkIds?.length) payload.entry_ids = bulkIds
   if (body.entry_date !== undefined) payload.entry_date = body.entry_date
   if (body.scripture !== undefined) payload.scripture = body.scripture
   if (body.body !== undefined) payload.body = body.body
   if (body.ocr_text !== undefined) payload.ocr_text = body.ocr_text
+  if (typeof body.date_reviewed === 'boolean') payload.date_reviewed = body.date_reviewed
   if (body.photo_base64 !== undefined) {
     payload.photo_base64 = body.photo_base64
     payload.content_type = body.content_type || 'image/jpeg'

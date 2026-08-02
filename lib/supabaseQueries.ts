@@ -1306,6 +1306,17 @@ export const deleteSoapJournal = async (id: string) => {
   return { error }
 }
 
+// Bulk "never ask about dates again" for LOCAL rows — iSOAP-owned rows go
+// through /api/soap/update with entryIds instead (disjoint id spaces).
+export const bulkMarkSoapDateReviewed = async (ids: string[]) => {
+  if (ids.length === 0) return { error: null }
+  const { error } = await supabase
+    .from('soap_journals')
+    .update({ date_reviewed: true, updated_at: new Date().toISOString() })
+    .in('id', ids)
+  return { error }
+}
+
 // The imported entry immediately before this one (by page order) — the likely
 // "start" of a left→right entry that got split.
 export const getPrevImportedEntry = async (personId: string, importSeq: number) => {

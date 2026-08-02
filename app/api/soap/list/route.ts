@@ -74,6 +74,7 @@ export async function POST(request: NextRequest) {
     kind?: string | null
     entry_date: string
     date_precision?: string
+    date_reviewed?: boolean | null
     scripture?: string | null
     ocr_text?: string | null
     body?: string | null
@@ -96,6 +97,7 @@ export async function POST(request: NextRequest) {
     summary: null,
     visibility: 'private' as 'private' | 'coach' | 'group' | 'constellation',
     date_precision: (e.date_precision === 'year' ? 'year' : 'day') as 'day' | 'year',
+    date_reviewed: e.date_reviewed ?? false,
     source: 'imported' as const,
     created_at: e.created_at,
     updated_at: e.updated_at,

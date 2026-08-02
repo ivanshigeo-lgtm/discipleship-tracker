@@ -293,8 +293,11 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
     [soaps]
   )
   // Imported pages not yet processed by the server (e.g. the app closed mid-import).
+  // iSOAP-owned rows are excluded: their import pipeline lives in iSOAP, so the
+  // local resume endpoint can't touch them — showing them here left a "Finish
+  // import" pill that could never finish.
   const pendingImports = useMemo(
-    () => soaps.filter(s => s.source === 'imported' && !s.ocr_text),
+    () => soaps.filter(s => s.source === 'imported' && !s.ocr_text && !s.isoap),
     [soaps]
   )
   // The self-driving chain claims photos as it reads them; a claim in the last
@@ -1643,6 +1646,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
       {showDateReview && undatedImports.length > 0 && (
         <SoapDateReviewModal
           entries={undatedImports}
+          personId={personId}
           onClose={() => setShowDateReview(false)}
           onUpdated={() => onRefresh?.()}
         />
