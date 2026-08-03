@@ -272,6 +272,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
   const [selectedEntryIdx, setSelectedEntryIdx] = useState(0)
   const [photoIdx, setPhotoIdx] = useState(0) // which page of the entry's photos is showing
   const [rotating, setRotating] = useState(false)
+  const [copied, setCopied] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [ocrLoading, setOcrLoading] = useState(false)
   const [ocrResult, setOcrResult] = useState<string | null>(null)
@@ -1503,6 +1504,54 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
               </p>
             )}
           </div>
+          {/* Copy the entry's words / hand them to the system share flow (mirrors the native viewer) */}
+          {(displayOcrText || selectedEntry.scripture_reference) && (
+            <div style={{ display: 'flex', gap: '10px', padding: '0 16px 4px' }}>
+              {displayOcrText && (
+                <button
+                  onClick={async () => {
+                    const full = [selectedEntry.scripture_reference, displayOcrText].filter(Boolean).join('\n\n')
+                    if (!full) return
+                    try {
+                      await navigator.clipboard.writeText(full)
+                      setCopied(true)
+                      setTimeout(() => setCopied(false), 2000)
+                    } catch {}
+                  }}
+                  style={{
+                    padding: '5px 12px', borderRadius: '8px',
+                    border: '1px solid var(--line-2)', background: 'transparent',
+                    color: 'var(--teal)', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+                  }}
+                  title="Copy this entry's text"
+                >
+                  {copied ? 'Copied ✓' : '⧉ Copy'}
+                </button>
+              )}
+              <button
+                onClick={async () => {
+                  const full = [selectedEntry.scripture_reference, displayOcrText].filter(Boolean).join('\n\n')
+                  if (!full) return
+                  try {
+                    if (navigator.share) await navigator.share({ text: full })
+                    else {
+                      await navigator.clipboard.writeText(full)
+                      setCopied(true)
+                      setTimeout(() => setCopied(false), 2000)
+                    }
+                  } catch {} // user dismissed the share sheet — nothing to clean up
+                }}
+                style={{
+                  padding: '5px 12px', borderRadius: '8px',
+                  border: '1px solid var(--line-2)', background: 'transparent',
+                  color: 'var(--teal)', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+                }}
+                title="Share this entry"
+              >
+                ↥ Share
+              </button>
+            </div>
+          )}
           {/* "Who can see this" labeled row below the entry (mirrors the native viewer) */}
           <div style={{
             display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px',
