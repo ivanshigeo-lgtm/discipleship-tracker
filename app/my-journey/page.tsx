@@ -43,6 +43,7 @@ import ConstellationRail, { useConstellationFeed } from '../../components/journe
 import StoryMusic from '../../components/journey/StoryMusic'
 import MessageCoachModal from '../../components/journey/MessageCoachModal'
 import MessageCenter from '../../components/MessageCenter'
+import MessagesInbox from '../../components/MessagesInbox'
 import JoinGroupModal from '../../components/journey/JoinGroupModal'
 import SelfConfirmModal, { type SelfConfirmKind } from '../../components/journey/SelfConfirmModal'
 import JourneyMenu, { EngagementsPanel } from '../../components/journey/JourneyMenu'
@@ -921,6 +922,7 @@ export default function MyJourneyPage() {
         {tab === 'feed' && (
           <section className="pt-2">
             <h2 className="mb-4 text-center text-2xl sm:text-3xl" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>Feed</h2>
+            <MessagesInbox personId={profile.id} />
             <SoapFeedSection personId={profile.id} />
           </section>
         )}
