@@ -178,10 +178,12 @@ export default function AssessmentScanSection({
   const addFiles = (list: FileList | null) => {
     if (!list?.length) return
     setError('')
+    // Snapshot now — the caller clears input.value right after, which empties the live FileList
+    const files = Array.from(list)
     setPhotos(current => {
       const room = MAX_PHOTOS - current.length
-      const added = Array.from(list).slice(0, room).map(file => ({ file, url: URL.createObjectURL(file) }))
-      if (list.length > room) setError(`Six pages max — kept the first ${room}.`)
+      const added = files.slice(0, room).map(file => ({ file, url: URL.createObjectURL(file) }))
+      if (files.length > room) setError(`Six pages max — kept the first ${room}.`)
       return [...current, ...added]
     })
   }
