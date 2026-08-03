@@ -64,10 +64,11 @@ export const ISSUES: string[] = [
   'Other',
 ]
 
-// How many people-groups / issues the person ranks. People-groups ask for two
-// (some genuinely only have two, and a forced third felt fake — Jul 31 2026
-// feedback); issues keep three. Custom "Other…" people-groups are stored as
-// plain strings alongside the preset options.
+// How many people-groups / issues the person ranks. Both lists ASK for three,
+// but people-groups only REQUIRE two — some genuinely only have two, and a
+// forced third felt fake (Jul 31 2026 feedback, refined Aug 2: ask 3, require 2).
+// PEOPLE_RANK_COUNT is that required minimum; RANK_COUNT caps both lists.
+// Custom "Other…" people-groups are stored as plain strings alongside presets.
 export const RANK_COUNT = 3
 export const PEOPLE_RANK_COUNT = 2
 export const TOTAL_REFLECTIONS = REFLECTIONS.length

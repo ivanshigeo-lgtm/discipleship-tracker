@@ -92,14 +92,14 @@ export default function PassionModal({
   const setReflection = (id: number, text: string) =>
     setAnswers(prev => ({ ...prev, reflections: { ...prev.reflections, [id]: text } }))
   const togglePeople = (opt: string) =>
-    setAnswers(prev => ({ ...prev, peopleGroups: toggleRanked(prev.peopleGroups, opt, PEOPLE_RANK_COUNT) }))
+    setAnswers(prev => ({ ...prev, peopleGroups: toggleRanked(prev.peopleGroups, opt, RANK_COUNT) }))
   const toggleIssue = (opt: string) =>
     setAnswers(prev => ({ ...prev, issues: toggleRanked(prev.issues, opt) }))
   const addCustomPeople = () => {
     const t = customPeople.trim()
     if (!t) return
     setAnswers(prev =>
-      prev.peopleGroups.some(g => g.toLowerCase() === t.toLowerCase()) || prev.peopleGroups.length >= PEOPLE_RANK_COUNT
+      prev.peopleGroups.some(g => g.toLowerCase() === t.toLowerCase()) || prev.peopleGroups.length >= RANK_COUNT
         ? prev
         : { ...prev, peopleGroups: [...prev.peopleGroups, t] }
     )
@@ -254,15 +254,15 @@ export default function PassionModal({
             <div>
               <div className="cn-label mb-1" style={{ color: 'var(--equip)' }}>Who · 2 of 3</div>
               <p className="text-sm leading-relaxed text-[var(--fg-2)]">
-                Select the two people-groups you&rsquo;re most passionate about serving. Tap to rank them
-                1–2; tap again to remove. Don&rsquo;t see yours? Add your own below.
-                ({answers.peopleGroups.length}/{PEOPLE_RANK_COUNT})
+                Select up to three people-groups you&rsquo;re most passionate about serving. Tap to rank
+                them 1–3; tap again to remove. Two is plenty if a third doesn&rsquo;t fit.
+                ({answers.peopleGroups.length}/{RANK_COUNT})
               </p>
               <RankList
                 options={PEOPLE_GROUPS}
                 selected={answers.peopleGroups}
                 onToggle={togglePeople}
-                cap={PEOPLE_RANK_COUNT}
+                cap={RANK_COUNT}
               />
               {/* Custom picks (added via the Other box) — click to remove, same as presets. */}
               <div className="mt-2 space-y-2">
@@ -294,7 +294,7 @@ export default function PassionModal({
                   <button
                     type="button"
                     onClick={addCustomPeople}
-                    disabled={!customPeople.trim() || answers.peopleGroups.length >= PEOPLE_RANK_COUNT}
+                    disabled={!customPeople.trim() || answers.peopleGroups.length >= RANK_COUNT}
                     className="shrink-0 rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-40"
                     style={{ background: 'var(--equip)', color: 'var(--void)' }}
                   >
