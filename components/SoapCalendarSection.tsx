@@ -1503,11 +1503,12 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
               </p>
             )}
           </div>
-          {/* Who-can-see pill lives below the entry (mirrors the native viewer) */}
+          {/* "Who can see this" labeled row below the entry (mirrors the native viewer) */}
           <div style={{
-            display: 'flex', justifyContent: 'flex-end', alignItems: 'center',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px',
             padding: '12px 16px 16px', borderTop: '1px solid var(--line-2)',
           }}>
+            <span style={{ color: 'var(--fg-3)', fontSize: '13px', fontWeight: 600 }}>Who can see this</span>
             <ShareControl
               key={selectedEntry.id}
               entry={selectedEntry}
