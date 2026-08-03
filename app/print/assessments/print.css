@@ -129,7 +129,7 @@ body:has(.assessment-print-root) {
   padding: 1pt 0;
   vertical-align: middle;
 }
-.bubble-table tr.shade td { background: #ececec; }
+.bubble-table tr.shade td { background: #e2e2e2; }
 .bubble-table .num {
   width: 0.28in;
   font-size: 6.5pt;
