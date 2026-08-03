@@ -24,6 +24,7 @@ export default function SoapDateReviewModal({
   const [savedCount, setSavedCount] = useState(0)
   const [dirty, setDirty] = useState(false) // did we change anything (for refresh on close)
   const [override, setOverride] = useState<Record<string, string>>({}) // id -> rotated photo url
+  const [rotDeg, setRotDeg] = useState<Record<string, number>>({}) // id -> CSS preview rotation (iSOAP rows)
 
   const current = entries[idx]
   const year = current ? current.journal_date.slice(0, 4) : String(new Date().getFullYear())
@@ -117,17 +118,34 @@ export default function SoapDateReviewModal({
   }
 
   // Rotate the page; degrees are clockwise (270 = 90° counter-clockwise).
+  // iSOAP-owned rows go through /api/soap/rotate-isoap (same id-space issue as
+  // patchEntry — /api/soap/rotate looks the id up in soap_journals and no-ops).
+  // iSOAP rotates the stored image in place and returns no new url, so preview
+  // the turn with a CSS transform on the cached image instead.
   const rotate = async (degrees: number) => {
     if (!current || saving) return
     setSaving(true)
     try {
-      const res = await fetch('/api/soap/rotate', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ journalId: current.id, degrees }),
-      })
-      const j = await res.json()
-      if (res.ok && j.url) { setOverride(o => ({ ...o, [current.id]: j.url })); setDirty(true) }
-      else alert('Could not rotate. Please try again.')
+      if (current.isoap) {
+        const res = await fetch('/api/soap/rotate-isoap', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            personId: personId ?? current.person_id,
+            entryId: current.id,
+            direction: degrees === 270 ? 'ccw' : 'cw',
+          }),
+        })
+        if (res.ok) { setRotDeg(o => ({ ...o, [current.id]: ((o[current.id] ?? 0) + degrees) % 360 })); setDirty(true) }
+        else alert('Could not rotate. Please try again.')
+      } else {
+        const res = await fetch('/api/soap/rotate', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ journalId: current.id, degrees }),
+        })
+        const j = await res.json()
+        if (res.ok && j.url) { setOverride(o => ({ ...o, [current.id]: j.url })); setDirty(true) }
+        else alert('Could not rotate. Please try again.')
+      }
     } catch { alert('Could not rotate. Please try again.') }
     setSaving(false)
   }
@@ -189,7 +207,13 @@ export default function SoapDateReviewModal({
             src={photo}
             alt="Journal page"
             className="mt-3 w-full rounded-lg bg-black object-contain"
-            style={{ maxHeight: 340 }}
+            style={{
+              maxHeight: 340,
+              // Sideways previews shrink a bit so the turned page stays inside its box.
+              ...(rotDeg[current.id]
+                ? { transform: `rotate(${rotDeg[current.id]}deg)${rotDeg[current.id] % 180 ? ' scale(0.82)' : ''}` }
+                : {}),
+            }}
           />
         )}
 
