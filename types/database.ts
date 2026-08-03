@@ -143,6 +143,9 @@ export type PrayerRequest = {
   is_praise: boolean
   engagement_id: string | null
   media_url: string | null
+  // Author of the row — may differ from person_id when a coach logged it.
+  // Private rows stay visible to their author.
+  created_by_person_id: string | null
   created_at: string
   updated_at: string
 }

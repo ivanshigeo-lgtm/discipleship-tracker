@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useAuth } from '../contexts/AuthContext'
 import { getPrayerRequestsByPerson, markPrayerAnswered, updatePrayerAnswerNotes, updatePrayerRequestText, deletePrayerRequest } from '../lib/supabaseQueries'
 import type { PrayerRequest } from '../types/database'
 
@@ -13,6 +14,7 @@ export default function PrayerRequestsList({
   refreshKey?: number
   onUpdate?: () => void
 }) {
+  const { profile } = useAuth()
   const [requests, setRequests] = useState<PrayerRequest[]>([])
   const [answeringId, setAnsweringId] = useState<string | null>(null)
   const [answerNotes, setAnswerNotes] = useState('')
@@ -36,8 +38,9 @@ export default function PrayerRequestsList({
         return
       }
       // Private prayers belong only to the individual — never surface them
-      // here (this list is the coach's view of a disciple's profile).
-      if (result.data) setRequests(result.data.filter(r => r.visibility !== 'private'))
+      // here (this list is the coach's view of a disciple's profile), except
+      // the viewer's own: prayers they authored stay visible to them.
+      if (result.data) setRequests(result.data.filter(r => r.visibility !== 'private' || r.created_by_person_id === profile?.id))
     } catch (err) {
       console.error('PrayerRequestsList load error:', err)
       setError('Failed to load prayer requests')
@@ -46,7 +49,7 @@ export default function PrayerRequestsList({
 
   useEffect(() => {
     loadRequests()
-  }, [personId, refreshKey])
+  }, [personId, refreshKey, profile?.id])
 
   const handleStartAnswering = (id: string) => {
     setAnsweringId(id)

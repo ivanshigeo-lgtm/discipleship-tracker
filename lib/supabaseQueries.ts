@@ -442,8 +442,8 @@ export const getPrayerLifeForPerson = async (personId: string, _isAdmin: boolean
 }
 
 export const addPrayerRequest = async (
-  request: Omit<PrayerRequest, 'id' | 'created_at' | 'updated_at' | 'visibility' | 'is_praise' | 'engagement_id' | 'media_url'> &
-    Partial<Pick<PrayerRequest, 'visibility' | 'is_praise' | 'engagement_id' | 'media_url'>>
+  request: Omit<PrayerRequest, 'id' | 'created_at' | 'updated_at' | 'visibility' | 'is_praise' | 'engagement_id' | 'media_url' | 'created_by_person_id'> &
+    Partial<Pick<PrayerRequest, 'visibility' | 'is_praise' | 'engagement_id' | 'media_url' | 'created_by_person_id'>>
 ) => {
   const { data, error } = await supabase
     .from('prayer_requests')
