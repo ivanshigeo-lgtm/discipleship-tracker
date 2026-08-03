@@ -8,7 +8,7 @@
 import './print.css'
 import { QUESTIONS as GIFT_QUESTIONS, SCALE as GIFT_SCALE } from '../../../lib/spiritualGifts'
 import { QUESTIONS as BIG5_QUESTIONS, SCALE as BIG5_SCALE } from '../../../lib/bigFive'
-import { REFLECTIONS, PEOPLE_GROUPS, ISSUES, PEOPLE_RANK_COUNT, RANK_COUNT } from '../../../lib/passion'
+import { REFLECTIONS, PEOPLE_GROUPS, ISSUES, RANK_COUNT } from '../../../lib/passion'
 
 function Corners() {
   return (
@@ -180,7 +180,7 @@ export default function PrintAssessmentsPage() {
           ))}
           <RankSection
             title="PEOPLE I'M MOST DRAWN TO SERVE"
-            hint={`write 1 and 2 in the boxes next to your top ${PEOPLE_RANK_COUNT}`}
+            hint={`write 1, 2, 3 in the boxes next to your top ${RANK_COUNT}`}
             options={PEOPLE_GROUPS}
             other
           />
