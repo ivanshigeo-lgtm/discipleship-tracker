@@ -44,15 +44,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Authorization runs under the CALLER's JWT so RLS decides, not us.
+    // The anon key stored in Vercel env is line-wrapped (a newline mid-key),
+    // which Headers.set rejects — strip ALL whitespace or every delete 403s.
     const asCaller = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      process.env.NEXT_PUBLIC_SUPABASE_URL!.replace(/\s+/g, ''),
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!.replace(/\s+/g, ''),
       { global: { headers: { Authorization: `Bearer ${accessToken}` } } }
     )
     const { data: canEdit, error: authzError } = await asCaller.rpc('can_edit_person', {
       target_person_id: personId,
     })
     if (authzError || canEdit !== true) {
+      if (authzError) console.error('person delete: can_edit_person rpc failed', authzError)
       return NextResponse.json({ error: 'Not allowed to delete this person' }, { status: 403 })
     }
 
