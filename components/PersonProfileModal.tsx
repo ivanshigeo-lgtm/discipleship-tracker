@@ -14,6 +14,7 @@ import PersonGroupsSection from './PersonGroupsSection'
 import PrayerRequestsList from './PrayerRequestsList'
 import AddPrayerRequestForm from './AddPrayerRequestForm'
 import DiscipleStarCard from './DiscipleStarCard'
+import AssessmentScanSection from './AssessmentScanSection'
 
 const stages: Stage[] = stageOrder
 
@@ -153,6 +154,9 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
   const [activeSection, setActiveSection] = useState<ModalSection>(initialTab)
   const [ministryFit, setMinistryFit] = useState<MinistryFitResult | null>(null)
   const [ministryFitGenerating, setMinistryFitGenerating] = useState(false)
+  // Bumped after a paper-assessment scan commits, so the ministry-fit fetch and
+  // the Equip nudge re-run against the freshly saved results.
+  const [ministryFitRefresh, setMinistryFitRefresh] = useState(0)
   // #3 coach-side Equip progress: which of the three Equip assessments this
   // disciple still hasn't done, so a coach can personally nudge them to finish
   // and unlock their Ministry Fit. Null once all three are complete.
@@ -229,7 +233,7 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
       .catch(() => { /* non-fatal */ })
       .finally(() => { if (!cancelled) setMinistryFitGenerating(false) })
     return () => { cancelled = true }
-  }, [activeSection, savedPerson.id])
+  }, [activeSection, savedPerson.id, ministryFitRefresh])
 
   const applySavedPerson = (nextPerson: Person, successMessage: string, syncFormFields = true) => {
     setSavedPerson(nextPerson)
@@ -652,6 +656,18 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
               result={ministryFit}
               title={`${savedPerson.name.split(' ')[0]}'s Ministry Fit`}
               generating={ministryFitGenerating}
+            />
+          )}
+
+          {activeSection === 'journey' && (
+            <AssessmentScanSection
+              personId={savedPerson.id}
+              personName={savedPerson.name}
+              onCommitted={() => {
+                setMinistryFitRefresh(key => key + 1)
+                setStarRefreshKey(key => key + 1)
+                setRefreshKey(key => key + 1)
+              }}
             />
           )}
 
