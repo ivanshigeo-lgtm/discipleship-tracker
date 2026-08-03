@@ -1329,12 +1329,6 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                   {selectedEntry.scripture_reference}
                 </span>
               )}
-              <ShareControl
-                key={selectedEntry.id}
-                entry={selectedEntry}
-                personId={personId}
-                onChanged={onRefresh}
-              />
             </div>
             <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
               {onEditEntry && (
@@ -1508,6 +1502,18 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
                 No content yet
               </p>
             )}
+          </div>
+          {/* Who-can-see pill lives below the entry (mirrors the native viewer) */}
+          <div style={{
+            display: 'flex', justifyContent: 'flex-end', alignItems: 'center',
+            padding: '12px 16px 16px', borderTop: '1px solid var(--line-2)',
+          }}>
+            <ShareControl
+              key={selectedEntry.id}
+              entry={selectedEntry}
+              personId={personId}
+              onChanged={onRefresh}
+            />
           </div>
         </div>
       )}

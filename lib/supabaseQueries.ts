@@ -1620,28 +1620,45 @@ export const getGroupSharedSoaps = async (personId: string, limit = 20) => {
 const SHARED_PRAYER_COLS = 'id, person_id, request, is_praise, status, answer_notes, visibility, media_url, created_at, people!person_id(name)'
 
 // Prayers/praises a coach's disciples shared with their coach (visibility='coach').
-// ── Per-viewer archive of shared SOAPs (hide from my feed; never deletes) ──────
-export const getArchivedSoapIds = async (personId: string) => {
+// ── Per-viewer state of shared feed items (archived = recoverable via "Show
+// archived"; deleted = permanently hidden for this viewer — never touches the
+// author's row). target_id spans two id spaces (soap_journals or iSOAP), so no FK.
+export type FeedTargetType = 'soap' | 'prayer_request'
+
+export const getFeedItemStates = async (personId: string, targetType: FeedTargetType) => {
   const { data, error } = await supabase
-    .from('soap_archives')
-    .select('soap_journal_id')
+    .from('feed_item_states')
+    .select('target_id, state')
     .eq('person_id', personId)
-  return { data: (data ?? []).map(r => r.soap_journal_id as string), error }
+    .eq('target_type', targetType)
+  const archived = new Set<string>()
+  const deleted = new Set<string>()
+  for (const r of data ?? []) (r.state === 'deleted' ? deleted : archived).add(r.target_id as string)
+  return { archived, deleted, error }
 }
 
-export const archiveSoap = async (personId: string, soapJournalId: string) => {
+export const setFeedItemState = async (
+  personId: string,
+  targetType: FeedTargetType,
+  targetId: string,
+  state: 'archived' | 'deleted',
+) => {
   const { error } = await supabase
-    .from('soap_archives')
-    .upsert({ person_id: personId, soap_journal_id: soapJournalId }, { onConflict: 'person_id,soap_journal_id', ignoreDuplicates: true })
+    .from('feed_item_states')
+    .upsert(
+      { person_id: personId, target_type: targetType, target_id: targetId, state },
+      { onConflict: 'person_id,target_type,target_id' },
+    )
   return { error }
 }
 
-export const unarchiveSoap = async (personId: string, soapJournalId: string) => {
+export const clearFeedItemState = async (personId: string, targetType: FeedTargetType, targetId: string) => {
   const { error } = await supabase
-    .from('soap_archives')
+    .from('feed_item_states')
     .delete()
     .eq('person_id', personId)
-    .eq('soap_journal_id', soapJournalId)
+    .eq('target_type', targetType)
+    .eq('target_id', targetId)
   return { error }
 }
 

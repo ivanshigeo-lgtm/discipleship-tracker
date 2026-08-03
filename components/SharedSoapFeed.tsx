@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getCoachSharedSoaps, getGroupSharedSoaps, getSharedSoaps, getArchivedSoapIds, archiveSoap, unarchiveSoap } from '../lib/supabaseQueries'
+import { getCoachSharedSoaps, getGroupSharedSoaps, getSharedSoaps, getFeedItemStates, setFeedItemState, clearFeedItemState } from '../lib/supabaseQueries'
 import ReplyModal from './ReplyModal'
 
 type SharedSoap = {
@@ -34,6 +34,7 @@ export default function SharedSoapFeed({
 }) {
   const [items, setItems] = useState<SharedSoap[]>([])
   const [archivedIds, setArchivedIds] = useState<Set<string>>(new Set())
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set())
   const [showArchived, setShowArchived] = useState(false)
   const [loading, setLoading] = useState(true)
   const [collapsed, setCollapsed] = useState(false)
@@ -46,15 +47,16 @@ export default function SharedSoapFeed({
       scope === 'coach' ? getCoachSharedSoaps(personId)
       : scope === 'group' ? getGroupSharedSoaps(personId)
       : getSharedSoaps(20)
-    Promise.all([Promise.resolve(p), getArchivedSoapIds(personId)]).then(([res, arch]) => {
+    Promise.all([Promise.resolve(p), getFeedItemStates(personId, 'soap')]).then(([res, states]) => {
       if (cancelled) return
       const list = (res.data as unknown as SharedSoap[]) ?? []
       setItems(list)
-      setArchivedIds(new Set(arch.data ?? []))
+      setArchivedIds(states.archived)
+      setDeletedIds(states.deleted)
       setLoading(false)
       if (seenKey) {
         const lastSeen = localStorage.getItem(seenKey) ?? '0'
-        setUnread(list.filter(i => (i.created_at ?? '') > lastSeen).length)
+        setUnread(list.filter(i => (i.created_at ?? '') > lastSeen && !states.deleted.has(i.id)).length)
       }
     })
     return () => { cancelled = true }
@@ -67,16 +69,21 @@ export default function SharedSoapFeed({
     : 'SOAP reflections shared with everyone'
   )
 
-  const visible = items.filter(i => !archivedIds.has(i.id))
-  const archived = items.filter(i => archivedIds.has(i.id))
+  const visible = items.filter(i => !archivedIds.has(i.id) && !deletedIds.has(i.id))
+  const archived = items.filter(i => archivedIds.has(i.id) && !deletedIds.has(i.id))
 
   const doArchive = async (id: string) => {
     setArchivedIds(prev => new Set(prev).add(id))
-    await archiveSoap(personId, id)
+    await setFeedItemState(personId, 'soap', id, 'archived')
   }
   const doUnarchive = async (id: string) => {
     setArchivedIds(prev => { const n = new Set(prev); n.delete(id); return n })
-    await unarchiveSoap(personId, id)
+    await clearFeedItemState(personId, 'soap', id)
+  }
+  const doDelete = async (id: string) => {
+    if (!window.confirm('Remove this from your feed for good? The author keeps their entry.')) return
+    setDeletedIds(prev => new Set(prev).add(id))
+    await setFeedItemState(personId, 'soap', id, 'deleted')
   }
 
   const fmtDate = (d: string | null) =>
@@ -94,7 +101,7 @@ export default function SharedSoapFeed({
           <p className="mt-0.5 text-xs font-medium" style={{ color: 'var(--establish)' }}>{s.scripture_reference}</p>
         )}
         {body && <p className="mt-1 line-clamp-4 whitespace-pre-wrap text-sm leading-relaxed text-[var(--fg-2)]">{body}</p>}
-        <div className="mt-2 flex justify-end gap-2">
+        <div className="mt-2 flex items-center justify-end gap-3">
           {!isArchived && s.person_id !== personId && (
             <button type="button" onClick={() => setReply(s)} className="text-[11px] font-semibold text-[var(--gbm-cobalt-soft)] hover:text-[var(--fg-1)]">↩ Reply</button>
           )}
@@ -103,6 +110,7 @@ export default function SharedSoapFeed({
           ) : (
             <button type="button" onClick={() => doArchive(s.id)} className="text-[11px] font-semibold text-[var(--fg-3)] hover:text-[var(--fg-1)]">Archive</button>
           )}
+          <button type="button" onClick={() => doDelete(s.id)} className="text-[11px] font-semibold text-red-400 hover:text-red-300">Delete</button>
         </div>
       </div>
     )
