@@ -5,24 +5,47 @@ import type { Person } from '../types/database'
 
 // A searchable replacement for a person <select>: type to filter instead of
 // scrolling. Renders the list inline so it's never clipped by a card.
+// With onCreateNew, a typed name that matches nobody exactly offers an
+// "Add as a new person" row — search-first IS the duplicate check.
 export default function PersonSearchSelect({
   people,
   value,
   onChange,
   placeholder = 'Select person…',
+  onCreateNew,
 }: {
   people: Person[]
   value: string
   onChange: (id: string) => void
   placeholder?: string
+  onCreateNew?: (name: string) => Promise<void>
 }) {
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
+  const [creating, setCreating] = useState(false)
   const selected = people.find(p => p.id === value)
   const matches = useMemo(() => {
     const term = q.trim().toLowerCase()
     return people.filter(p => p.name.toLowerCase().includes(term)).slice(0, 50)
   }, [people, q])
+  const newName = q.trim()
+  const showCreate = Boolean(
+    onCreateNew &&
+    newName.length >= 2 &&
+    !people.some(p => p.name.trim().toLowerCase() === newName.toLowerCase())
+  )
+
+  const handleCreate = async () => {
+    if (!onCreateNew || creating) return
+    setCreating(true)
+    try {
+      await onCreateNew(newName)
+      setOpen(false)
+      setQ('')
+    } finally {
+      setCreating(false)
+    }
+  }
 
   return (
     <div>
@@ -55,7 +78,18 @@ export default function PersonSearchSelect({
                 <span className="shrink-0 text-[10px] text-[var(--fg-3)]">{p.current_stage}</span>
               </button>
             ))}
-            {matches.length === 0 && <p className="px-3 py-2 text-xs text-[var(--fg-3)]">No matches</p>}
+            {showCreate && (
+              <button
+                type="button"
+                onClick={handleCreate}
+                disabled={creating}
+                className="mx-2 my-1.5 flex w-[calc(100%-1rem)] items-center gap-1.5 rounded-lg border border-dashed px-3 py-1.5 text-left text-xs font-semibold disabled:opacity-60"
+                style={{ borderColor: 'rgba(212,175,55,0.45)', color: 'var(--gold)' }}
+              >
+                {creating ? 'Adding…' : <>＋ Add &ldquo;{newName}&rdquo; as a new person</>}
+              </button>
+            )}
+            {matches.length === 0 && !showCreate && <p className="px-3 py-2 text-xs text-[var(--fg-3)]">No matches</p>}
           </div>
         </div>
       )}

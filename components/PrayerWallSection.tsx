@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
-import { getPrayerLifeForPerson, getConstellationPrayerRequests, getPeople, addPraise, addPrayerRequest, deletePrayerRequest, markPrayerAnswered } from '../lib/supabaseQueries'
+import { getPrayerLifeForPerson, getConstellationPrayerRequests, getPeople, addPerson, addPraise, addPrayerRequest, deletePrayerRequest, markPrayerAnswered } from '../lib/supabaseQueries'
 import PersonSearchSelect from './PersonSearchSelect'
 import type { PrayerRequest, Person, Stage } from '../types/database'
 
@@ -322,6 +322,28 @@ export default function PrayerWallSection({
     onChanged?.()
   }
 
+  // A typed name that matches nobody becomes a new Engage-stage person,
+  // connected to the viewer — same flow as the disciple-side prayer picker.
+  const createPersonInline = async (name: string): Promise<string | null> => {
+    if (!viewerPersonId) return null
+    const { data, error } = await addPerson({
+      name,
+      email: null,
+      phone: null,
+      current_stage: 'Engage',
+      spiritual_birthday: null,
+      baptism_date: null,
+      notes: null,
+      status: 'Active',
+      priority: false,
+      victory_group_id: null,
+    }, viewerPersonId)
+    if (error || !data) { alert('Could not add that person. Please try again.'); return null }
+    setPeople(ps => [...ps, data as Person])
+    onChanged?.()
+    return (data as Person).id
+  }
+
   const handleAddPraise = async () => {
     if (!praisePersonId || !praiseText.trim()) return
     setSavingPraise(true)
@@ -420,7 +442,12 @@ export default function PrayerWallSection({
         <div className="mt-3 rounded-lg border bg-[var(--indigo)] p-3" style={{ borderColor: '#9B80FF' }}>
           <div className="mb-2 text-xs font-semibold" style={{ color: '#9B80FF' }}>Add Prayer Request</div>
           <div className="space-y-2">
-            <PersonSearchSelect people={people} value={prayerPersonId} onChange={setPrayerPersonId} />
+            <PersonSearchSelect
+              people={people}
+              value={prayerPersonId}
+              onChange={setPrayerPersonId}
+              onCreateNew={viewerPersonId ? async name => { const id = await createPersonInline(name); if (id) setPrayerPersonId(id) } : undefined}
+            />
             <textarea
               value={prayerText}
               onChange={(e) => setPrayerText(e.target.value)}
@@ -454,7 +481,12 @@ export default function PrayerWallSection({
         <div className="mt-3 rounded-lg border border-[var(--establish)] bg-[var(--indigo)] p-3">
           <div className="mb-2 text-xs font-semibold text-[var(--establish)]">Add Testimony / Praise</div>
           <div className="space-y-2">
-            <PersonSearchSelect people={people} value={praisePersonId} onChange={setPraisePersonId} />
+            <PersonSearchSelect
+              people={people}
+              value={praisePersonId}
+              onChange={setPraisePersonId}
+              onCreateNew={viewerPersonId ? async name => { const id = await createPersonInline(name); if (id) setPraisePersonId(id) } : undefined}
+            />
             <textarea
               value={praiseText}
               onChange={(e) => setPraiseText(e.target.value)}

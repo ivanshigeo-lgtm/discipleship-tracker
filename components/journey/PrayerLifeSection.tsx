@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { getPrayerLifeForPerson, addPrayerRequest, deletePrayerRequest, markPrayerAnswered } from '../../lib/supabaseQueries'
-import type { PrayerRequest, ShareVisibility, Stage } from '../../types/database'
+import { getPrayerLifeForPerson, getPeople, addPerson, addPrayerRequest, deletePrayerRequest, markPrayerAnswered } from '../../lib/supabaseQueries'
+import PersonSearchSelect from '../PersonSearchSelect'
+import type { Person, PrayerRequest, ShareVisibility, Stage } from '../../types/database'
 
 /*
  * PrayerLifeSection — the disciple's whole prayer life as a first-class
@@ -43,6 +44,8 @@ const initialsOf = (name: string) =>
 
 export default function PrayerLifeSection({ personId, isAdmin = false }: { personId: string; isAdmin?: boolean }) {
   const [requests, setRequests] = useState<PrayerRow[]>([])
+  const [people, setPeople] = useState<Person[]>([])
+  const [forPersonId, setForPersonId] = useState(personId)
   const [loading, setLoading] = useState(true)
   const [text, setText] = useState('')
   const [visibility, setVisibility] = useState<ShareVisibility>('private')
@@ -56,12 +59,42 @@ export default function PrayerLifeSection({ personId, isAdmin = false }: { perso
     })
 
   useEffect(() => { load() }, [personId]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    getPeople().then(({ data }) => { if (data) setPeople(data as Person[]) })
+  }, [])
+
+  // Self pinned first so "praying for myself" stays the one-tap default.
+  const pickerPeople = useMemo(() => {
+    const self = people.find(p => p.id === personId)
+    return self ? [self, ...people.filter(p => p.id !== personId)] : people
+  }, [people, personId])
+
+  // Someone you pray for IS someone you're engaging: they join the shared
+  // people list at Engage, connected to you — not an orphan side-list.
+  const createPersonToPrayFor = async (name: string) => {
+    const { data, error } = await addPerson({
+      name,
+      email: null,
+      phone: null,
+      current_stage: 'Engage',
+      spiritual_birthday: null,
+      baptism_date: null,
+      notes: null,
+      status: 'Active',
+      priority: false,
+      victory_group_id: null,
+    }, personId)
+    if (error || !data) { alert('Could not add that person. Please try again.'); return }
+    setPeople(ps => [...ps, data as Person])
+    setForPersonId((data as Person).id)
+  }
 
   const submit = async () => {
-    if (!text.trim()) return
+    if (!text.trim() || !forPersonId) return
     setSaving(true)
-    await addPrayerRequest({ person_id: personId, request: text.trim(), status: 'Active', answered_date: null, answer_notes: null, visibility })
+    await addPrayerRequest({ person_id: forPersonId, request: text.trim(), status: 'Active', answered_date: null, answer_notes: null, visibility })
     setText('')
+    setForPersonId(personId)
     await load()
     setSaving(false)
   }
@@ -170,6 +203,16 @@ export default function PrayerLifeSection({ personId, isAdmin = false }: { perso
 
   return (
     <div className="mx-auto max-w-2xl">
+      {/* Who the request is for — anyone in the church, or a brand-new name */}
+      <div className="mb-2">
+        <PersonSearchSelect
+          people={pickerPeople}
+          value={forPersonId}
+          onChange={setForPersonId}
+          placeholder="Who are you praying for?"
+          onCreateNew={createPersonToPrayFor}
+        />
+      </div>
       <div className="mb-2 flex gap-2">
         <textarea
           value={text}
