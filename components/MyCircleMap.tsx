@@ -408,6 +408,10 @@ const starKeyframes = `
   30% { opacity: 0.4; }
   70% { opacity: 0.2; }
 }
+@keyframes searchPulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.9; }
+  50% { transform: translate(-50%, -50%) scale(1.25); opacity: 0.4; }
+}
 `
 
 const STAR_COLORS: Record<Stage, { core: string; glow: string }> = {
@@ -417,7 +421,28 @@ const STAR_COLORS: Record<Stage, { core: string; glow: string }> = {
   Empower: { core: '#FFFFFF', glow: '#FF80B0' },
 }
 
-function StarNode({ node, isSelected, onClick, onMouseEnter, onMouseLeave }: { node: MapNode; isSelected: boolean; onClick: (e: React.MouseEvent) => void; onMouseEnter?: () => void; onMouseLeave?: () => void }) {
+// A person's map neighborhood: themselves, their direct connections in both
+// directions (their coach + their disciples), and their entire downline —
+// disciple edges followed recursively.
+function neighborhoodOf(rootIds: Set<string>, connections: DiscipleshipConnection[]): Set<string> {
+  const included = new Set(rootIds)
+  connections.forEach(c => {
+    if (c.disciple_person_id && rootIds.has(c.disciple_person_id)) included.add(c.discipler_person_id)
+  })
+  const queue = Array.from(rootIds)
+  while (queue.length) {
+    const id = queue.pop()!
+    for (const c of connections) {
+      if (c.discipler_person_id === id && c.disciple_person_id && !included.has(c.disciple_person_id)) {
+        included.add(c.disciple_person_id)
+        queue.push(c.disciple_person_id)
+      }
+    }
+  }
+  return included
+}
+
+function StarNode({ node, isSelected, isHighlighted, onClick, onMouseEnter, onMouseLeave }: { node: MapNode; isSelected: boolean; isHighlighted?: boolean; onClick: (e: React.MouseEvent) => void; onMouseEnter?: () => void; onMouseLeave?: () => void }) {
   const starColor = STAR_COLORS[node.current_stage]
   const stageIndex = STAGE_ORDER.indexOf(node.current_stage)
 
@@ -444,12 +469,26 @@ function StarNode({ node, isSelected, onClick, onMouseEnter, onMouseLeave }: { n
       style={{
         left: `${node.x}%`,
         top: `${node.y}%`,
-        animation: `${twinkleAnim} ${twinkleDuration}s ease-in-out infinite`,
-        animationDelay: `${twinkleDelay}s`,
+        // Matched search results stay at full brightness so the pulse ring reads clearly
+        animation: isHighlighted ? 'none' : `${twinkleAnim} ${twinkleDuration}s ease-in-out ${twinkleDelay}s infinite`,
       }}
     >
       <style>{starKeyframes}</style>
       <div className="relative" style={{ width: totalSize, height: totalSize }}>
+        {/* Gold pulse ring on search-matched stars */}
+        {isHighlighted && (
+          <div
+            className="pointer-events-none absolute left-1/2 top-1/2 rounded-full"
+            style={{
+              width: Math.max(coreSize * 6, 34),
+              height: Math.max(coreSize * 6, 34),
+              transform: 'translate(-50%, -50%)',
+              border: '1.5px solid #F2C879',
+              boxShadow: '0 0 12px 2px rgba(242,200,121,0.5), inset 0 0 8px rgba(242,200,121,0.3)',
+              animation: 'searchPulse 1.8s ease-in-out infinite',
+            }}
+          />
+        )}
         {/* Subtle glow halo */}
         <div
           className="pointer-events-none absolute left-1/2 top-1/2"
@@ -661,6 +700,19 @@ export default function MyCircleMap({
     loadMap()
   }, [refreshKey, mapRefreshKey, filterKey, sortMode])
 
+  // Stars whose name matches the search text — they get the gold pulse ring,
+  // and the map keeps them plus their connections + downline visible.
+  const searchMatchedIds = useMemo(() => {
+    if (!searchQuery) return null
+    const q = searchQuery.toLowerCase()
+    let pool = people
+    if (allowedPersonIds) {
+      const allow = new Set(allowedPersonIds)
+      pool = pool.filter(person => allow.has(person.id))
+    }
+    return new Set(pool.filter(person => person.name.toLowerCase().includes(q)).map(person => person.id))
+  }, [people, searchQuery, allowedPersonIds])
+
   const visiblePeopleForMap = useMemo(() => {
     let filtered = people
 
@@ -670,10 +722,10 @@ export default function MyCircleMap({
       filtered = filtered.filter(person => allow.has(person.id))
     }
 
-    // Filter by search query
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase()
-      filtered = filtered.filter(person => person.name.toLowerCase().includes(q))
+    // Filter by search query: keep matches plus their connections + downline
+    if (searchMatchedIds) {
+      const included = neighborhoodOf(searchMatchedIds, connections)
+      filtered = filtered.filter(person => included.has(person.id))
     }
 
     // Filter by active stages
@@ -691,23 +743,10 @@ export default function MyCircleMap({
       filtered = filtered.filter(person => personIdsInSelectedGroups.has(person.id))
     }
 
-    // If focused on a person, show only their connections
+    // If focused on a person, show their connections + full downline
     if (focusedPersonId) {
-      const connectedPersonIds = new Set<string>([focusedPersonId])
-
-      connections.forEach(connection => {
-        if (!connection.disciple_person_id) return
-
-        if (connection.discipler_person_id === focusedPersonId) {
-          connectedPersonIds.add(connection.disciple_person_id)
-        }
-
-        if (connection.disciple_person_id === focusedPersonId) {
-          connectedPersonIds.add(connection.discipler_person_id)
-        }
-      })
-
-      return filtered.filter(person => connectedPersonIds.has(person.id))
+      const included = neighborhoodOf(new Set([focusedPersonId]), connections)
+      return filtered.filter(person => included.has(person.id))
     }
 
     // Legacy external filter (from parent component)
@@ -716,16 +755,18 @@ export default function MyCircleMap({
     }
 
     return filtered
-  }, [people, connections, focusedPersonId, filterStages, activeStages, selectedGroupIds, groupMemberships, searchQuery, allowedPersonIds])
+  }, [people, connections, focusedPersonId, filterStages, activeStages, selectedGroupIds, groupMemberships, searchMatchedIds, allowedPersonIds])
 
   const focusedPerson = focusedPersonId ? people.find(person => person.id === focusedPersonId) : undefined
 
   const visibleConnectionsForMap = useMemo(() => {
     if (!focusedPersonId) return connections
 
+    const included = neighborhoodOf(new Set([focusedPersonId]), connections)
     return connections.filter(connection => (
       connection.disciple_person_id &&
-      (connection.discipler_person_id === focusedPersonId || connection.disciple_person_id === focusedPersonId)
+      included.has(connection.discipler_person_id) &&
+      included.has(connection.disciple_person_id)
     ))
   }, [connections, focusedPersonId])
 
@@ -907,7 +948,7 @@ export default function MyCircleMap({
         {focusedPerson && (
           <div className="mt-3 flex flex-col gap-2 rounded-xl border border-[var(--line-1)] bg-[var(--indigo)] p-3 text-sm text-[var(--fg-2)] sm:flex-row sm:items-center sm:justify-between">
             <div>
-              Showing direct connections for <span className="font-semibold text-[var(--fg-1)]">{focusedPerson.name}</span>
+              Showing connections + downline for <span className="font-semibold text-[var(--fg-1)]">{focusedPerson.name}</span>
               <span className="text-[var(--fg-3)]"> · {visibleConnections.length} connection {visibleConnections.length === 1 ? 'line' : 'lines'}</span>
             </div>
             <button
@@ -985,9 +1026,11 @@ export default function MyCircleMap({
 
           {/* Connection lines SVG */}
           <svg className="pointer-events-none absolute inset-0 h-full w-full" style={{ width: '100%', height: '100%' }}>
-            {/* Christ lines - only show for hovered node or when toggle is on */}
+            {/* Christ lines - only show for hovered node or when toggle is on;
+                always on while a search or focus narrows the map to a neighborhood */}
             {nodes.map(node => {
-              const showLine = showAllConnections || hoveredPersonId === node.id || focusedPersonId === node.id
+              const showLine = showAllConnections || Boolean(searchMatchedIds) || Boolean(focusedPersonId) ||
+                hoveredPersonId === node.id
               if (!showLine) return null
 
               const christLine = christLineStyle[node.current_stage]
@@ -1012,9 +1055,8 @@ export default function MyCircleMap({
               const to = connection.disciple_person_id ? nodeById.get(connection.disciple_person_id) : undefined
               if (!from || !to) return null
 
-              const showLine = showAllConnections ||
-                hoveredPersonId === from.id || hoveredPersonId === to.id ||
-                focusedPersonId === from.id || focusedPersonId === to.id
+              const showLine = showAllConnections || Boolean(searchMatchedIds) || Boolean(focusedPersonId) ||
+                hoveredPersonId === from.id || hoveredPersonId === to.id
               if (!showLine) return null
 
               const relationshipLine = relationshipLineStyleForDistance(from, to)
@@ -1138,6 +1180,7 @@ export default function MyCircleMap({
               key={node.id}
               node={node}
               isSelected={selectedNode?.id === node.id}
+              isHighlighted={Boolean(searchMatchedIds?.has(node.id))}
               onClick={(e) => handleNodeClick(node, e)}
               onMouseEnter={() => enterNode(node.id)}
               onMouseLeave={() => setHoveredPersonId(null)}
