@@ -6,6 +6,13 @@
 // code the in-app assessments use (the model reads marks, never does math).
 // Nothing is persisted to the result tables here — the leader reviews the draft
 // and /api/assessments/commit writes it.
+//
+// Two ways in (Vercel rejects request bodies over ~4.5MB at the edge, so a
+// multi-photo upload of real camera frames can never ride in one request):
+//   1. multipart with store=1 + one photo  → stores it, returns { path }
+//   2. JSON { paths: [...] }               → parses previously stored photos
+// The legacy single-request multipart form (all photos at once) still works
+// for payloads small enough to fit — build 79 clients use it.
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { anthropic } from '@ai-sdk/anthropic'
@@ -63,7 +70,123 @@ async function cropRowStrip(buffer: Buffer, page: string, ids: number[]): Promis
   }
 }
 
+// Full-sheet read, then a focused second pass over rows the grid read left
+// blank or unclear — recovers marks the full read slipped past, while genuine
+// blanks stay blank (and stay flagged for the leader). Alongside the full
+// sheet the recheck gets a zoomed crop strip: the model's internal downscale
+// makes 50-row grids marginal, and the crop restores the lost resolution.
+async function parseSheet(buffer: Buffer): Promise<ParsedPage> {
+  const { object } = await generateObject({
+    model: anthropic(MODEL),
+    schema: parsedPageSchema,
+    maxOutputTokens: 16000,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'image', image: buffer },
+          { type: 'text', text: SCAN_PROMPT },
+        ],
+      },
+    ],
+  })
+
+  let parsed = object
+  const recheckIds = idsNeedingRecheck(parsed)
+  if (recheckIds.length) {
+    try {
+      const images: Buffer[] = [buffer]
+      const strip = await cropRowStrip(buffer, parsed.page, recheckIds)
+      if (strip) images.push(strip)
+      const { object: recheck } = await generateObject({
+        model: anthropic(MODEL),
+        schema: recheckItemsSchema,
+        maxOutputTokens: 4000,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              ...images.map(img => ({ type: 'image' as const, image: img })),
+              {
+                type: 'text' as const,
+                text:
+                  buildRecheckPrompt(parsed.page, recheckIds) +
+                  (strip
+                    ? '\n\nThe second image is a zoomed crop of the sheet around the rows in question — use it for the close look, and the full sheet to confirm row numbers.'
+                    : ''),
+              },
+            ],
+          },
+        ],
+      })
+      parsed = mergeRecheckedItems(parsed, recheckIds, recheck.items)
+    } catch (e) {
+      console.error('recheck pass failed (keeping first-pass flags):', e)
+    }
+  }
+  return parsed
+}
+
+function scanResponse(
+  person: { id: string; name: string },
+  results: { path: string; parsed: ParsedPage }[]
+) {
+  return NextResponse.json({
+    status: 'parsed',
+    person,
+    pages: results.map(r => ({ code: r.parsed.page, path: r.path })),
+    draft: assembleDraft(results.map(r => r.parsed)),
+    model: MODEL,
+  })
+}
+
 export async function POST(request: NextRequest) {
+  // JSON body = parse-by-path (photos already stored via store=1 requests).
+  if (request.headers.get('content-type')?.includes('application/json')) {
+    let body: { accessToken?: unknown; personId?: unknown; paths?: unknown }
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
+    const { accessToken, personId, paths } = body
+    if (typeof personId !== 'string' || !personId) {
+      return NextResponse.json({ error: 'personId required' }, { status: 400 })
+    }
+    if (!Array.isArray(paths) || !paths.length || !paths.every(p => typeof p === 'string')) {
+      return NextResponse.json({ error: 'paths required' }, { status: 400 })
+    }
+    if (paths.length > MAX_PHOTOS) {
+      return NextResponse.json({ error: `Too many photos (${MAX_PHOTOS} max)` }, { status: 400 })
+    }
+    // Stored paths are namespaced by person — refuse anything outside it so a
+    // token can't point the parser at another person's photos.
+    if (!paths.every(p => p.startsWith(`${personId}/`) && !p.includes('..'))) {
+      return NextResponse.json({ error: 'Invalid path' }, { status: 400 })
+    }
+
+    const auth = await authorizeScanCaller(supabase, typeof accessToken === 'string' ? accessToken : null)
+    if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+    const { data: person } = await supabase.from('people').select('id, name').eq('id', personId).maybeSingle()
+    if (!person) return NextResponse.json({ error: 'Person not found' }, { status: 404 })
+
+    let results: { path: string; parsed: ParsedPage }[]
+    try {
+      results = await Promise.all(
+        paths.map(async path => {
+          const { data, error } = await supabase.storage.from('assessment-scans').download(path)
+          if (error || !data) throw new Error(`Stored photo missing: ${path}`)
+          return { path, parsed: await parseSheet(Buffer.from(await data.arrayBuffer())) }
+        })
+      )
+    } catch (e) {
+      const detail = e instanceof Error ? e.message : String(e)
+      return NextResponse.json({ error: 'Scan failed', detail }, { status: 502 })
+    }
+    return scanResponse(person, results)
+  }
+
   let form: FormData
   try {
     form = await request.formData()
@@ -73,6 +196,7 @@ export async function POST(request: NextRequest) {
 
   const accessToken = form.get('accessToken')
   const personId = form.get('personId')
+  const storeOnly = form.get('store') === '1'
   const photos = form.getAll('photos').filter((f): f is File => f instanceof File)
 
   if (typeof personId !== 'string' || !personId) {
@@ -81,8 +205,8 @@ export async function POST(request: NextRequest) {
   if (!photos.length) {
     return NextResponse.json({ error: 'At least one photo required' }, { status: 400 })
   }
-  if (photos.length > MAX_PHOTOS) {
-    return NextResponse.json({ error: `Too many photos (${MAX_PHOTOS} max)` }, { status: 400 })
+  if (photos.length > (storeOnly ? 1 : MAX_PHOTOS)) {
+    return NextResponse.json({ error: storeOnly ? 'One photo per store request' : `Too many photos (${MAX_PHOTOS} max)` }, { status: 400 })
   }
   for (const p of photos) {
     if (p.size > MAX_BYTES) return NextResponse.json({ error: `${p.name}: file too large (10MB max)` }, { status: 400 })
@@ -110,76 +234,17 @@ export async function POST(request: NextRequest) {
           .from('assessment-scans')
           .upload(path, buffer, { contentType: photo.type || 'image/jpeg', upsert: false })
         if (upErr) throw new Error(`Photo upload failed: ${upErr.message}`)
-
-        const { object } = await generateObject({
-          model: anthropic(MODEL),
-          schema: parsedPageSchema,
-          maxOutputTokens: 16000,
-          messages: [
-            {
-              role: 'user',
-              content: [
-                { type: 'image', image: buffer },
-                { type: 'text', text: SCAN_PROMPT },
-              ],
-            },
-          ],
-        })
-
-        // Second, focused pass over rows the full-sheet read left blank or
-        // unclear — recovers marks the grid read slipped past, while genuine
-        // blanks stay blank (and stay flagged for the leader). Alongside the
-        // full sheet we send a zoomed crop strip around the flagged rows: the
-        // model's internal downscale makes 50-row grids marginal, and the crop
-        // restores the lost resolution.
-        let parsed = object
-        const recheckIds = idsNeedingRecheck(parsed)
-        if (recheckIds.length) {
-          try {
-            const images: Buffer[] = [buffer]
-            const strip = await cropRowStrip(buffer, parsed.page, recheckIds)
-            if (strip) images.push(strip)
-            const { object: recheck } = await generateObject({
-              model: anthropic(MODEL),
-              schema: recheckItemsSchema,
-              maxOutputTokens: 4000,
-              messages: [
-                {
-                  role: 'user',
-                  content: [
-                    ...images.map(img => ({ type: 'image' as const, image: img })),
-                    {
-                      type: 'text' as const,
-                      text:
-                        buildRecheckPrompt(parsed.page, recheckIds) +
-                        (strip
-                          ? '\n\nThe second image is a zoomed crop of the sheet around the rows in question — use it for the close look, and the full sheet to confirm row numbers.'
-                          : ''),
-                    },
-                  ],
-                },
-              ],
-            })
-            parsed = mergeRecheckedItems(parsed, recheckIds, recheck.items)
-          } catch (e) {
-            console.error('recheck pass failed (keeping first-pass flags):', e)
-          }
-        }
-        return { path, parsed }
+        if (storeOnly) return { path, parsed: null as unknown as ParsedPage }
+        return { path, parsed: await parseSheet(buffer) }
       })
     )
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e)
-    return NextResponse.json({ error: 'Scan failed', detail }, { status: 502 })
+    return NextResponse.json({ error: storeOnly ? 'Upload failed' : 'Scan failed', detail }, { status: 502 })
   }
 
-  const draft = assembleDraft(results.map(r => r.parsed))
-
-  return NextResponse.json({
-    status: 'parsed',
-    person: { id: person.id, name: person.name },
-    pages: results.map(r => ({ code: r.parsed.page, path: r.path })),
-    draft,
-    model: MODEL,
-  })
+  if (storeOnly) {
+    return NextResponse.json({ status: 'stored', path: results[0].path })
+  }
+  return scanResponse(person, results)
 }
