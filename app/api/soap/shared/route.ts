@@ -46,13 +46,16 @@ type SharedRow = {
 // Determine which authors' shares this request may read, per scope. Returns the
 // list of allowed author person-ids, or `null` for church-wide (constellation)
 // where no author restriction applies. A non-null empty array means "authorized
-// but no one qualifies" → the caller returns an empty feed.
+// but no one qualifies" → the caller returns an empty feed. For 'group', also
+// returns the viewer's own group ids (approved memberships ∪ groups they own —
+// leaders may lack a membership row) so targeted shares can be filtered to
+// groups the VIEWER is actually in.
 async function resolveAuthors(
   admin: ReturnType<typeof getSupabaseAdmin>,
   scope: Level,
   coachPersonId: string | undefined,
   personId: string | undefined
-): Promise<{ authorIds: string[] | null } | { error: string }> {
+): Promise<{ authorIds: string[] | null; gids?: string[] } | { error: string }> {
   if (scope === 'constellation') return { authorIds: null }
 
   if (scope === 'coach') {
@@ -71,17 +74,28 @@ async function resolveAuthors(
   }
 
   // scope === 'group': approved co-members of the viewer's Grace Group(s).
+  // The viewer's groups = approved memberships ∪ groups they own (a leader may
+  // have no person_victory_groups row of their own).
   if (!personId) return { error: 'personId required' }
-  const { data: myGroups, error: gErr } = await admin
-    .from('person_victory_groups')
-    .select('victory_group_id')
-    .eq('person_id', personId)
-    .eq('status', 'approved')
-  if (gErr) return { error: 'Could not read groups' }
+  const [{ data: myGroups, error: gErr }, { data: ownedGroups, error: oErr }] =
+    await Promise.all([
+      admin
+        .from('person_victory_groups')
+        .select('victory_group_id')
+        .eq('person_id', personId)
+        .eq('status', 'approved'),
+      admin.from('victory_groups').select('id').eq('owner_person_id', personId),
+    ])
+  if (gErr || oErr) return { error: 'Could not read groups' }
   const gids = Array.from(
-    new Set((myGroups ?? []).map((g) => g.victory_group_id).filter(Boolean))
+    new Set(
+      [
+        ...(myGroups ?? []).map((g) => g.victory_group_id),
+        ...(ownedGroups ?? []).map((g) => g.id),
+      ].filter(Boolean)
+    )
   )
-  if (gids.length === 0) return { authorIds: [] }
+  if (gids.length === 0) return { authorIds: [], gids }
   const { data: members, error: mErr } = await admin
     .from('person_victory_groups')
     .select('person_id')
@@ -92,6 +106,7 @@ async function resolveAuthors(
     authorIds: Array.from(
       new Set((members ?? []).map((m) => m.person_id).filter(Boolean))
     ),
+    gids,
   }
 }
 
@@ -120,6 +135,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: resolved.error }, { status })
   }
   const { authorIds } = resolved
+  const viewerGids = 'gids' in resolved ? resolved.gids ?? [] : []
   // Authorized but nobody qualifies (e.g. coach with no disciples, or viewer in
   // no group) → empty feed. `null` = church-wide, which never short-circuits.
   if (authorIds !== null && authorIds.length === 0) return NextResponse.json({ entries: [] })
@@ -128,7 +144,7 @@ export async function POST(request: NextRequest) {
   //    ordered newest-first; the final slice is applied after content is fetched.
   let shareQuery = admin
     .from('isoap_entry_visibility')
-    .select('isoap_entry_id, wc_person_id, journal_date')
+    .select('isoap_entry_id, wc_person_id, journal_date, victory_group_id')
     .eq('visibility', scope)
     .order('journal_date', { ascending: false })
     .limit(limit * 4)
@@ -139,10 +155,14 @@ export async function POST(request: NextRequest) {
   }
   if (!shares?.length) return NextResponse.json({ entries: [] })
 
-  // Group shared entry ids by disciple.
+  // Group shared entry ids by disciple. A share targeted at a specific group
+  // (victory_group_id set) is only delivered when the VIEWER is in that group;
+  // untargeted 'group' shares broadcast to all the author's co-members.
   const idsByPerson = new Map<string, string[]>()
   for (const s of shares) {
     if (!s.isoap_entry_id || !s.wc_person_id) continue
+    if (scope === 'group' && s.victory_group_id && !viewerGids.includes(s.victory_group_id))
+      continue
     const arr = idsByPerson.get(s.wc_person_id) ?? []
     arr.push(s.isoap_entry_id)
     idsByPerson.set(s.wc_person_id, arr)
