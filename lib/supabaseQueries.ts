@@ -191,26 +191,30 @@ export const getPipelineEvents = async () => {
   return { data, error }
 }
 
+// Goes through the server so NO ACTION references (prayers they authored,
+// engagements/sign-offs they created for others) are cleared or de-attributed
+// first — a plain client-side delete fails on those, and RLS stops a non-admin
+// coach from clearing another person's authored prayers. The route re-checks
+// authorization with this caller's own JWT (can_edit_person).
 export const deletePerson = async (personId: string) => {
-  const { data, error } = await supabase
-    .from('people')
-    .delete()
-    .eq('id', personId)
-    .select('id')
-    .maybeSingle()
-
-  if (error) return { data, error }
-
-  if (!data) {
-    return {
-      data,
-      error: {
-        message: 'Profile was not deleted. Supabase may be missing a delete policy for people.',
-      },
-    }
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.access_token) {
+    return { data: null, error: { message: 'Not signed in.' } }
   }
-
-  return { data, error: null }
+  try {
+    const res = await fetch('/api/people/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accessToken: session.access_token, personId }),
+    })
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      return { data: null, error: { message: json.error || 'Profile was not deleted.' } }
+    }
+    return { data: { id: personId }, error: null }
+  } catch {
+    return { data: null, error: { message: 'Profile was not deleted. Please try again.' } }
+  }
 }
 
 export const updatePersonVictoryGroup = async (personId: string, victoryGroupId: string | null) => {
