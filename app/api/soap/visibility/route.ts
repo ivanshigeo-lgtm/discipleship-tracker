@@ -128,5 +128,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Could not update sharing' }, { status: 500 })
   }
 
+  // Sharing an entry says "I want this on the feed" — so clear any archive or
+  // delete the AUTHOR previously applied to it on their own feed, or the entry
+  // silently never reappears for them (the June-1 "still not sharing" report).
+  // Other viewers' states are untouched.
+  await admin
+    .from('feed_item_states')
+    .delete()
+    .eq('person_id', personId)
+    .eq('target_type', 'soap')
+    .eq('target_id', isoapEntryId)
+
   return NextResponse.json({ ok: true, visibility })
 }
