@@ -63,8 +63,10 @@ function ShareControl({
   const [failed, setFailed] = useState(false)
   // Group targeting (iSOAP entries only — local rows never reach the shared
   // feed, matching native). Empty selection = broadcast to ALL my groups.
+  // Seeded from the entry's stored targets so reopening the control shows the
+  // CURRENT selection, not a blank "All my groups".
   const [groups, setGroups] = useState<{ id: string; name: string }[]>([])
-  const [groupIds, setGroupIds] = useState<string[]>([])
+  const [groupIds, setGroupIds] = useState<string[]>(entry.victory_group_ids ?? [])
 
   useEffect(() => {
     if (!entry.isoap || !personId) return

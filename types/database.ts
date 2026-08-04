@@ -284,6 +284,9 @@ export type SoapJournal = {
   // than the local soap_journals table. Editable from WikiChurch via
   // /api/soap/update (which forwards the edit to iSOAP by entry id).
   isoap?: boolean
+  // For a 'group'-shared iSOAP entry: the group ids it targets (null/absent =
+  // all my groups). Seeds ShareControl's picker with the current selection.
+  victory_group_ids?: string[] | null
 }
 
 export type LevelSignoff = {
