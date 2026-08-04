@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
   //    ordered newest-first; the final slice is applied after content is fetched.
   let shareQuery = admin
     .from('isoap_entry_visibility')
-    .select('isoap_entry_id, wc_person_id, journal_date, victory_group_id')
+    .select('isoap_entry_id, wc_person_id, journal_date, victory_group_id, victory_group_ids')
     .eq('visibility', scope)
     .order('journal_date', { ascending: false })
     .limit(limit * 4)
@@ -155,14 +155,18 @@ export async function POST(request: NextRequest) {
   }
   if (!shares?.length) return NextResponse.json({ entries: [] })
 
-  // Group shared entry ids by disciple. A share targeted at a specific group
-  // (victory_group_id set) is only delivered when the VIEWER is in that group;
-  // untargeted 'group' shares broadcast to all the author's co-members.
+  // Group shared entry ids by disciple. A share targeted at specific group(s)
+  // is only delivered when the VIEWER is in at least one of them; untargeted
+  // 'group' shares broadcast to all the author's co-members.
   const idsByPerson = new Map<string, string[]>()
   for (const s of shares) {
     if (!s.isoap_entry_id || !s.wc_person_id) continue
-    if (scope === 'group' && s.victory_group_id && !viewerGids.includes(s.victory_group_id))
-      continue
+    const targets: string[] | null = s.victory_group_ids?.length
+      ? s.victory_group_ids
+      : s.victory_group_id
+        ? [s.victory_group_id]
+        : null
+    if (scope === 'group' && targets && !targets.some((g) => viewerGids.includes(g))) continue
     const arr = idsByPerson.get(s.wc_person_id) ?? []
     arr.push(s.isoap_entry_id)
     idsByPerson.set(s.wc_person_id, arr)
