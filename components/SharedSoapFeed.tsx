@@ -40,6 +40,7 @@ export default function SharedSoapFeed({
   const [archivedIds, setArchivedIds] = useState<Set<string>>(new Set())
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set())
   const [showArchived, setShowArchived] = useState(false)
+  const [showDeleted, setShowDeleted] = useState(false)
   const [loading, setLoading] = useState(true)
   const [collapsed, setCollapsed] = useState(false)
   const [unread, setUnread] = useState(0)
@@ -75,6 +76,7 @@ export default function SharedSoapFeed({
 
   const visible = items.filter(i => !archivedIds.has(i.id) && !deletedIds.has(i.id))
   const archived = items.filter(i => archivedIds.has(i.id) && !deletedIds.has(i.id))
+  const deleted = items.filter(i => deletedIds.has(i.id))
 
   const doArchive = async (id: string) => {
     setArchivedIds(prev => new Set(prev).add(id))
@@ -85,9 +87,13 @@ export default function SharedSoapFeed({
     await clearFeedItemState(personId, 'soap', id)
   }
   const doDelete = async (id: string) => {
-    if (!window.confirm('Remove this from your feed for good? The author keeps their entry.')) return
+    if (!window.confirm('Delete this from your feed? You can bring it back anytime from "Show deleted" at the bottom of the feed.')) return
     setDeletedIds(prev => new Set(prev).add(id))
     await setFeedItemState(personId, 'soap', id, 'deleted')
+  }
+  const doRestore = async (id: string) => {
+    setDeletedIds(prev => { const n = new Set(prev); n.delete(id); return n })
+    await clearFeedItemState(personId, 'soap', id)
   }
 
   const fmtDate = (d: string | null) =>
@@ -104,7 +110,7 @@ export default function SharedSoapFeed({
     return 'Whole church'
   }
 
-  const Card = ({ s, isArchived }: { s: SharedSoap; isArchived?: boolean }) => {
+  const Card = ({ s, isArchived, isDeleted }: { s: SharedSoap; isArchived?: boolean; isDeleted?: boolean }) => {
     const body = (s.summary || s.ocr_text || '').trim()
     const mine = s.own || s.person_id === personId
     return (
@@ -127,15 +133,21 @@ export default function SharedSoapFeed({
         )}
         {body && <p className="mt-1 line-clamp-4 whitespace-pre-wrap text-sm leading-relaxed text-[var(--fg-2)]">{body}</p>}
         <div className="mt-2 flex items-center justify-end gap-3">
-          {!isArchived && s.person_id !== personId && (
-            <button type="button" onClick={() => setReply(s)} className="text-[11px] font-semibold text-[var(--gbm-cobalt-soft)] hover:text-[var(--fg-1)]">↩ Reply</button>
-          )}
-          {isArchived ? (
-            <button type="button" onClick={() => doUnarchive(s.id)} className="text-[11px] font-semibold text-[var(--fg-3)] hover:text-[var(--fg-1)]">Unarchive</button>
+          {isDeleted ? (
+            <button type="button" onClick={() => doRestore(s.id)} className="text-[11px] font-semibold text-[var(--gbm-cobalt-soft)] hover:text-[var(--fg-1)]">Restore to feed</button>
           ) : (
-            <button type="button" onClick={() => doArchive(s.id)} className="text-[11px] font-semibold text-[var(--fg-3)] hover:text-[var(--fg-1)]">Archive</button>
+            <>
+              {!isArchived && s.person_id !== personId && (
+                <button type="button" onClick={() => setReply(s)} className="text-[11px] font-semibold text-[var(--gbm-cobalt-soft)] hover:text-[var(--fg-1)]">↩ Reply</button>
+              )}
+              {isArchived ? (
+                <button type="button" onClick={() => doUnarchive(s.id)} className="text-[11px] font-semibold text-[var(--fg-3)] hover:text-[var(--fg-1)]">Unarchive</button>
+              ) : (
+                <button type="button" onClick={() => doArchive(s.id)} className="text-[11px] font-semibold text-[var(--fg-3)] hover:text-[var(--fg-1)]">Archive</button>
+              )}
+              <button type="button" onClick={() => doDelete(s.id)} className="text-[11px] font-semibold text-red-400 hover:text-red-300">Delete</button>
+            </>
           )}
-          <button type="button" onClick={() => doDelete(s.id)} className="text-[11px] font-semibold text-red-400 hover:text-red-300">Delete</button>
         </div>
       </div>
     )
@@ -148,7 +160,7 @@ export default function SharedSoapFeed({
       </div>
     )
   }
-  if (visible.length === 0 && archived.length === 0 && !showEmpty) return null
+  if (visible.length === 0 && archived.length === 0 && deleted.length === 0 && !showEmpty) return null
 
   return (
     <section className="cn-card mb-6 p-4">
@@ -158,13 +170,13 @@ export default function SharedSoapFeed({
         {unread > 0 && (
           <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: 'var(--gbm-cobalt-bright)', color: '#fff' }}>{unread} new</span>
         )}
-        {(visible.length > 0 || archived.length > 0) && (
+        {(visible.length > 0 || archived.length > 0 || deleted.length > 0) && (
           <button type="button" onClick={() => setCollapsed(c => !c)} className="ml-auto cn-chip">{collapsed ? 'Expand' : 'Collapse'}</button>
         )}
       </div>
       {collapsed ? null : (
         <>
-          {visible.length === 0 && archived.length === 0 ? (
+          {visible.length === 0 && archived.length === 0 && deleted.length === 0 ? (
             <p className="mt-1 text-sm text-[var(--fg-3)]">Nothing shared here yet.</p>
           ) : (
             <>
@@ -181,6 +193,18 @@ export default function SharedSoapFeed({
                   {showArchived && (
                     <div className="mt-2 space-y-2 opacity-70">
                       {archived.map(s => <Card key={s.id} s={s} isArchived />)}
+                    </div>
+                  )}
+                </div>
+              )}
+              {deleted.length > 0 && (
+                <div className="mt-3">
+                  <button type="button" onClick={() => setShowDeleted(v => !v)} className="text-[11px] font-semibold text-[var(--fg-3)] hover:text-[var(--fg-1)]">
+                    {showDeleted ? 'Hide' : 'Show'} deleted ({deleted.length})
+                  </button>
+                  {showDeleted && (
+                    <div className="mt-2 space-y-2 opacity-50">
+                      {deleted.map(s => <Card key={s.id} s={s} isDeleted />)}
                     </div>
                   )}
                 </div>

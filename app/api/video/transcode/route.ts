@@ -16,9 +16,11 @@ const supabase = createClient(
 
 // Transcode an uploaded video to MP4 (H.264/AAC) so it plays on EVERY device —
 // iPhones/Safari can't play webm at all. Returns the new public MP4 url.
+// With audioOnly: true, strips video and outputs an AAC-in-MP4 voice clip
+// (MediaRecorder voice notes arrive as webm/opus, which iOS also can't play).
 export async function POST(req: NextRequest) {
   try {
-    const { bucket, path } = await req.json()
+    const { bucket, path, audioOnly } = await req.json()
     if (!bucket || !path) return NextResponse.json({ error: 'bucket and path required' }, { status: 400 })
 
     // Already MP4 — nothing to do.
@@ -45,13 +47,16 @@ export async function POST(req: NextRequest) {
     await writeFile(inPath, inBuf)
 
     await new Promise<void>((resolve, reject) => {
-      const p = spawn(binPath, [
-        '-y', '-i', inPath,
-        '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '26',
-        '-vf', "scale='min(1280,iw)':-2",
-        '-c:a', 'aac', '-b:a', '128k',
-        '-movflags', '+faststart', outPath,
-      ])
+      const args = audioOnly
+        ? ['-y', '-i', inPath, '-vn', '-c:a', 'aac', '-b:a', '96k', '-movflags', '+faststart', outPath]
+        : [
+            '-y', '-i', inPath,
+            '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '26',
+            '-vf', "scale='min(1280,iw)':-2",
+            '-c:a', 'aac', '-b:a', '128k',
+            '-movflags', '+faststart', outPath,
+          ]
+      const p = spawn(binPath, args)
       let err = ''
       p.stderr.on('data', d => { err += d.toString() })
       p.on('error', reject)

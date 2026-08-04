@@ -166,6 +166,12 @@ export default function MessagesInbox({
                   </span>
                 </div>
                 <p className="mt-1 text-sm leading-relaxed text-[var(--fg-2)]">{m.body}</p>
+                {m.media_url && m.media_kind === 'audio' && (
+                  <audio src={m.media_url} controls className="mt-2 w-full" />
+                )}
+                {m.media_url && m.media_kind === 'video' && (
+                  <video src={m.media_url} controls playsInline className="mt-2 w-full rounded-lg" style={{ maxHeight: 280, background: '#000' }} />
+                )}
                 <div className="mt-2.5 flex items-center gap-4">
                   {showArchived ? (
                     <button

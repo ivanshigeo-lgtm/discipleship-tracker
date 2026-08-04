@@ -14,6 +14,7 @@ import GroupJoinRequests from '../../components/GroupJoinRequests'
 import NewDiscipleRequests from '../../components/NewDiscipleRequests'
 import MeetingInvites from '../../components/MeetingInvites'
 import MessagesInbox from '../../components/MessagesInbox'
+import BroadcastComposer from '../../components/BroadcastComposer'
 import NewMeetingModal from '../../components/NewMeetingModal'
 import SharedSoapFeed from '../../components/SharedSoapFeed'
 import PointsOfActionSection from '../../components/PointsOfActionSection'
@@ -1040,6 +1041,9 @@ export default function DiscipleshipTracker() {
                   refreshKey={refreshKey}
                   onChanged={() => setRefreshKey(p => p + 1)}
                 />
+              </ErrorBoundary>
+              <ErrorBoundary name="BroadcastComposer">
+                <BroadcastComposer personId={profile.id} />
               </ErrorBoundary>
               <ErrorBoundary name="MessagesInbox">
                 <MessagesInbox

@@ -307,6 +307,8 @@ export type Message = {
   to_person_id: string
   kind: 'greeting' | 'prayer' | 'note'
   body: string
+  media_url: string | null
+  media_kind: 'audio' | 'video' | null
   read_at: string | null
   archived_at: string | null
   created_at: string

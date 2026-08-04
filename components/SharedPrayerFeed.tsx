@@ -37,6 +37,7 @@ export default function SharedPrayerFeed({
   const [archivedIds, setArchivedIds] = useState<Set<string>>(new Set())
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set())
   const [showArchived, setShowArchived] = useState(false)
+  const [showDeleted, setShowDeleted] = useState(false)
   const [loading, setLoading] = useState(true)
   const [collapsed, setCollapsed] = useState(false)
   const [unread, setUnread] = useState(0)
@@ -72,6 +73,7 @@ export default function SharedPrayerFeed({
 
   const visible = items.filter(i => !archivedIds.has(i.id) && !deletedIds.has(i.id))
   const archived = items.filter(i => archivedIds.has(i.id) && !deletedIds.has(i.id))
+  const deleted = items.filter(i => deletedIds.has(i.id))
 
   const doArchive = async (id: string) => {
     setArchivedIds(prev => new Set(prev).add(id))
@@ -82,12 +84,16 @@ export default function SharedPrayerFeed({
     await clearFeedItemState(personId, 'prayer_request', id)
   }
   const doDelete = async (id: string) => {
-    if (!window.confirm('Remove this from your feed for good? The author keeps their prayer.')) return
+    if (!window.confirm('Delete this from your feed? You can bring it back anytime from "Show deleted" at the bottom of the feed.')) return
     setDeletedIds(prev => new Set(prev).add(id))
     await setFeedItemState(personId, 'prayer_request', id, 'deleted')
   }
+  const doRestore = async (id: string) => {
+    setDeletedIds(prev => { const n = new Set(prev); n.delete(id); return n })
+    await clearFeedItemState(personId, 'prayer_request', id)
+  }
 
-  const Card = ({ p, isArchived }: { p: SharedPrayer; isArchived?: boolean }) => (
+  const Card = ({ p, isArchived, isDeleted }: { p: SharedPrayer; isArchived?: boolean; isDeleted?: boolean }) => (
     <div className="rounded-xl border border-[var(--line-1)] p-3" style={{ background: p.is_praise ? 'rgba(242,200,121,.08)' : 'var(--indigo-2)' }}>
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-semibold text-[var(--fg-1)]">{p.people?.name ?? 'A disciple'}</span>
@@ -101,15 +107,21 @@ export default function SharedPrayerFeed({
       )}
       {p.answer_notes && <p className="mt-1 text-xs text-[var(--establish)]">— {p.answer_notes}</p>}
       <div className="mt-2 flex items-center justify-end gap-3">
-        {!isArchived && p.person_id !== personId && (
-          <button type="button" onClick={() => setReply(p)} className="text-[11px] font-semibold text-[var(--gbm-cobalt-soft)] hover:text-[var(--fg-1)]">↩ Reply</button>
-        )}
-        {isArchived ? (
-          <button type="button" onClick={() => doUnarchive(p.id)} className="text-[11px] font-semibold text-[var(--fg-3)] hover:text-[var(--fg-1)]">Unarchive</button>
+        {isDeleted ? (
+          <button type="button" onClick={() => doRestore(p.id)} className="text-[11px] font-semibold text-[var(--gbm-cobalt-soft)] hover:text-[var(--fg-1)]">Restore to feed</button>
         ) : (
-          <button type="button" onClick={() => doArchive(p.id)} className="text-[11px] font-semibold text-[var(--fg-3)] hover:text-[var(--fg-1)]">Archive</button>
+          <>
+            {!isArchived && p.person_id !== personId && (
+              <button type="button" onClick={() => setReply(p)} className="text-[11px] font-semibold text-[var(--gbm-cobalt-soft)] hover:text-[var(--fg-1)]">↩ Reply</button>
+            )}
+            {isArchived ? (
+              <button type="button" onClick={() => doUnarchive(p.id)} className="text-[11px] font-semibold text-[var(--fg-3)] hover:text-[var(--fg-1)]">Unarchive</button>
+            ) : (
+              <button type="button" onClick={() => doArchive(p.id)} className="text-[11px] font-semibold text-[var(--fg-3)] hover:text-[var(--fg-1)]">Archive</button>
+            )}
+            <button type="button" onClick={() => doDelete(p.id)} className="text-[11px] font-semibold text-red-400 hover:text-red-300">Delete</button>
+          </>
         )}
-        <button type="button" onClick={() => doDelete(p.id)} className="text-[11px] font-semibold text-red-400 hover:text-red-300">Delete</button>
       </div>
     </div>
   )
@@ -121,7 +133,7 @@ export default function SharedPrayerFeed({
       </div>
     )
   }
-  if (visible.length === 0 && archived.length === 0 && !showEmpty) return null
+  if (visible.length === 0 && archived.length === 0 && deleted.length === 0 && !showEmpty) return null
 
   return (
     <section className="cn-card mb-6 p-4">
@@ -131,11 +143,11 @@ export default function SharedPrayerFeed({
         {unread > 0 && (
           <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: '#9B80FF', color: '#fff' }}>{unread} new</span>
         )}
-        {(visible.length > 0 || archived.length > 0) && (
+        {(visible.length > 0 || archived.length > 0 || deleted.length > 0) && (
           <button type="button" onClick={() => setCollapsed(c => !c)} className="ml-auto cn-chip">{collapsed ? 'Expand' : 'Collapse'}</button>
         )}
       </div>
-      {visible.length === 0 && archived.length === 0 ? (
+      {visible.length === 0 && archived.length === 0 && deleted.length === 0 ? (
         <p className="mt-1 text-sm text-[var(--fg-3)]">Nothing shared here yet.</p>
       ) : collapsed ? null : (
         <>
@@ -152,6 +164,18 @@ export default function SharedPrayerFeed({
               {showArchived && (
                 <div className="mt-2 space-y-2 opacity-70">
                   {archived.map(p => <Card key={p.id} p={p} isArchived />)}
+                </div>
+              )}
+            </div>
+          )}
+          {deleted.length > 0 && (
+            <div className="mt-3">
+              <button type="button" onClick={() => setShowDeleted(v => !v)} className="text-[11px] font-semibold text-[var(--fg-3)] hover:text-[var(--fg-1)]">
+                {showDeleted ? 'Hide' : 'Show'} deleted ({deleted.length})
+              </button>
+              {showDeleted && (
+                <div className="mt-2 space-y-2 opacity-50">
+                  {deleted.map(p => <Card key={p.id} p={p} isDeleted />)}
                 </div>
               )}
             </div>
