@@ -186,6 +186,7 @@ export async function POST(request: NextRequest) {
     entry_date: string
     scripture?: string | null
     ocr_text?: string | null
+    body?: string | null
     photo_url?: string | null
     created_at: string
   }
@@ -214,7 +215,10 @@ export async function POST(request: NextRequest) {
           person_id: pid,
           journal_date: e.entry_date ?? null,
           scripture_reference: e.scripture ?? null,
-          ocr_text: e.ocr_text ?? null,
+          // A photo entry's words are ocr_text; a typed entry's are body. The
+          // feed shows whichever the entry has — without this, typed SOAPs
+          // surfaced as empty "Shared a SOAP" cards.
+          ocr_text: e.ocr_text ?? e.body ?? null,
           summary: null,
           visibility: scope,
           created_at: e.created_at,
