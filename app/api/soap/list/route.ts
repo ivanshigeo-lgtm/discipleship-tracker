@@ -96,6 +96,9 @@ export async function POST(request: NextRequest) {
     scripture_reference: e.scripture ?? null,
     summary: null,
     visibility: 'private' as 'private' | 'coach' | 'group' | 'constellation',
+    // Group ids a 'group'-shared entry targets; null = all my groups. Lets
+    // clients preload the share picker with the current selection.
+    victory_group_ids: null as string[] | null,
     date_precision: (e.date_precision === 'year' ? 'year' : 'day') as 'day' | 'year',
     date_reviewed: e.date_reviewed ?? false,
     source: 'imported' as const,
@@ -110,17 +113,32 @@ export async function POST(request: NextRequest) {
   // may have opted specific entries into sharing (isoap_entry_visibility). This
   // is a self-view, so reflect the owner's chosen level back to them — the coach
   // read path (/api/soap/shared) enforces who may actually see a shared entry.
+  // Fetch by person, not by entry id: a decade-scale journal is thousands of
+  // ids, and an .in() that long overflows the request URL and fails silently —
+  // which showed every entry as "Just me". Overlay rows only exist for entries
+  // the person actually shared, so the per-person set is always small.
   if (mapped.length > 0) {
-    const { data: overrides } = await admin
+    const { data: overrides, error: ovErr } = await admin
       .from('isoap_entry_visibility')
-      .select('isoap_entry_id, visibility')
+      .select('isoap_entry_id, visibility, victory_group_ids, victory_group_id')
       .eq('wc_person_id', personId)
-      .in('isoap_entry_id', mapped.map((m) => m.id))
+    if (ovErr) console.error('visibility overlay read failed:', ovErr)
     if (overrides?.length) {
-      const level = new Map(overrides.map((o) => [o.isoap_entry_id, o.visibility]))
+      const byId = new Map(overrides.map((o) => [o.isoap_entry_id, o]))
       for (const m of mapped) {
-        const v = level.get(m.id)
-        if (v === 'coach' || v === 'group' || v === 'constellation') m.visibility = v
+        const o = byId.get(m.id)
+        if (!o) continue
+        const v = o.visibility
+        if (v === 'coach' || v === 'group' || v === 'constellation') {
+          m.visibility = v
+          // Stored group targets, so share pickers can preload the current
+          // selection instead of reopening blind to "All my groups".
+          m.victory_group_ids = o.victory_group_ids?.length
+            ? o.victory_group_ids
+            : o.victory_group_id
+              ? [o.victory_group_id]
+              : null
+        }
       }
     }
   }
