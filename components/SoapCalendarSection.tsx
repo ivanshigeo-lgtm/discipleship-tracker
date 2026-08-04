@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import type { ReactNode } from 'react'
 import { SoapJournal } from '../types/database'
 import { cleanInsight } from './journey/WeeklyInsightCard'
 import SoapImportModal from './journey/SoapImportModal'
 import SoapDateReviewModal from './journey/SoapDateReviewModal'
-import { updateSoapJournal } from '../lib/supabaseQueries'
+import { updateSoapJournal, getMyShareGroups } from '../lib/supabaseQueries'
 
 interface Props {
   soaps: SoapJournal[]
@@ -61,6 +61,21 @@ function ShareControl({
   const [value, setValue] = useState<SoapJournal['visibility']>(entry.visibility ?? 'private')
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState(false)
+  // Group targeting (iSOAP entries only — local rows never reach the shared
+  // feed, matching native). Empty selection = broadcast to ALL my groups.
+  const [groups, setGroups] = useState<{ id: string; name: string }[]>([])
+  const [groupIds, setGroupIds] = useState<string[]>([])
+
+  useEffect(() => {
+    if (!entry.isoap || !personId) return
+    let alive = true
+    getMyShareGroups(personId).then(gs => {
+      if (alive) setGroups(gs)
+    })
+    return () => {
+      alive = false
+    }
+  }, [entry.isoap, personId])
 
   // iSOAP writes need the owner's personId; without it we can only show, not edit.
   if (entry.isoap && !personId) {
@@ -74,10 +89,7 @@ function ShareControl({
     )
   }
 
-  const change = async (next: SoapJournal['visibility']) => {
-    if (busy || next === value) return
-    const prev = value
-    setValue(next) // optimistic
+  const post = async (next: SoapJournal['visibility'], gids: string[]) => {
     setBusy(true)
     setFailed(false)
     let ok = false
@@ -91,6 +103,7 @@ function ShareControl({
             isoap_entry_id: entry.id,
             journal_date: entry.journal_date,
             visibility: next,
+            victory_group_ids: next === 'group' && gids.length ? gids : null,
           }),
         })
         ok = res.ok
@@ -102,7 +115,14 @@ function ShareControl({
       ok = false
     }
     setBusy(false)
-    if (!ok) {
+    return ok
+  }
+
+  const change = async (next: SoapJournal['visibility']) => {
+    if (busy || next === value) return
+    const prev = value
+    setValue(next) // optimistic
+    if (!(await post(next, groupIds))) {
       setValue(prev)
       setFailed(true)
       return
@@ -110,36 +130,80 @@ function ShareControl({
     onChanged?.()
   }
 
+  // Toggle one group target (null = "All my groups" clears the set) and re-post
+  // the share with the new target list.
+  const toggleGroup = async (id: string | null) => {
+    if (busy) return
+    const prev = groupIds
+    const next = id === null ? [] : prev.includes(id) ? prev.filter(g => g !== id) : [...prev, id]
+    setGroupIds(next) // optimistic
+    if (!(await post('group', next))) {
+      setGroupIds(prev)
+      setFailed(true)
+      return
+    }
+    onChanged?.()
+  }
+
   return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: '2px',
-      padding: '2px 4px 2px 10px', borderRadius: '999px',
-      background: value === 'private' ? 'rgba(246,241,231,.06)' : 'rgba(54,214,195,.12)',
-      border: `1px solid ${value === 'private' ? 'var(--line-2)' : 'rgba(54,214,195,.4)'}`,
-      color: 'var(--fg-3)', fontSize: '12px', letterSpacing: '0.06em', width: 'fit-content',
-    }}>
-      <span aria-hidden style={{ opacity: 0.7 }}>{value === 'private' ? '🔒' : '✦'}</span>
-      <select
-        aria-label="Who can see this entry"
-        value={value}
-        disabled={busy}
-        onChange={(e) => change(e.target.value as SoapJournal['visibility'])}
-        style={{
-          appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none',
-          background: 'transparent', border: 'none', outline: 'none',
-          color: value === 'private' ? 'var(--fg-3)' : 'var(--establish, #36D6C3)',
-          fontSize: '12px', fontWeight: 600, letterSpacing: '0.04em',
-          cursor: busy ? 'wait' : 'pointer', paddingRight: '14px',
-        }}
-      >
-        {SHARE_OPTIONS.map((v) => (
-          <option key={v} value={v} style={{ color: '#111' }}>
-            {visibilityLabel(v)}
-          </option>
-        ))}
-      </select>
-      {busy && <span style={{ opacity: 0.6 }}>…</span>}
-      {failed && <span style={{ color: 'var(--danger, #f66)' }} title="Couldn’t update">!</span>}
+    <span style={{ display: 'inline-flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end' }}>
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: '2px',
+        padding: '2px 4px 2px 10px', borderRadius: '999px',
+        background: value === 'private' ? 'rgba(246,241,231,.06)' : 'rgba(54,214,195,.12)',
+        border: `1px solid ${value === 'private' ? 'var(--line-2)' : 'rgba(54,214,195,.4)'}`,
+        color: 'var(--fg-3)', fontSize: '12px', letterSpacing: '0.06em', width: 'fit-content',
+      }}>
+        <span aria-hidden style={{ opacity: 0.7 }}>{value === 'private' ? '🔒' : '✦'}</span>
+        <select
+          aria-label="Who can see this entry"
+          value={value}
+          disabled={busy}
+          onChange={(e) => change(e.target.value as SoapJournal['visibility'])}
+          style={{
+            appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none',
+            background: 'transparent', border: 'none', outline: 'none',
+            color: value === 'private' ? 'var(--fg-3)' : 'var(--establish, #36D6C3)',
+            fontSize: '12px', fontWeight: 600, letterSpacing: '0.04em',
+            cursor: busy ? 'wait' : 'pointer', paddingRight: '14px',
+          }}
+        >
+          {SHARE_OPTIONS.map((v) => (
+            <option key={v} value={v} style={{ color: '#111' }}>
+              {visibilityLabel(v)}
+            </option>
+          ))}
+        </select>
+        {busy && <span style={{ opacity: 0.6 }}>…</span>}
+        {failed && <span style={{ color: 'var(--danger, #f66)' }} title="Couldn’t update">!</span>}
+      </span>
+      {value === 'group' && entry.isoap && groups.length > 0 && (
+        <span style={{
+          display: 'flex', flexWrap: 'wrap', gap: '6px', justifyContent: 'flex-end',
+          maxWidth: '280px',
+        }}>
+          {[{ id: null as string | null, name: 'All my groups' }, ...groups].map(g => {
+            const on = g.id === null ? groupIds.length === 0 : groupIds.includes(g.id)
+            return (
+              <button
+                key={g.id ?? 'all'}
+                onClick={() => toggleGroup(g.id)}
+                disabled={busy}
+                aria-pressed={on}
+                style={{
+                  padding: '3px 10px', borderRadius: '999px', fontSize: '12px', fontWeight: 600,
+                  letterSpacing: '0.03em', cursor: busy ? 'wait' : 'pointer',
+                  background: on ? 'rgba(54,214,195,.14)' : 'transparent',
+                  border: `1px solid ${on ? 'rgba(54,214,195,.5)' : 'var(--line-2)'}`,
+                  color: on ? 'var(--establish, #36D6C3)' : 'var(--fg-3)',
+                }}
+              >
+                {on ? '✓ ' : ''}{g.name}
+              </button>
+            )
+          })}
+        </span>
+      )}
     </span>
   )
 }

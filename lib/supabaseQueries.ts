@@ -888,6 +888,29 @@ export const getMinistryFitResult = async (personId: string) => {
   return { data, error }
 }
 
+// The groups this person may target a SOAP share to: approved memberships ∪
+// groups they own (a leader may have no membership row of their own). Mirrors
+// the native app's getMyShareGroups and the server-side check in
+// /api/soap/visibility, so the picker never offers a group the share would be
+// rejected for.
+export const getMyShareGroups = async (personId: string): Promise<{ id: string; name: string }[]> => {
+  const [{ data: memberRows }, { data: ownedRows }] = await Promise.all([
+    supabase
+      .from('person_victory_groups')
+      .select('status, victory_groups(id, name)')
+      .eq('person_id', personId)
+      .eq('status', 'approved'),
+    supabase.from('victory_groups').select('id, name').eq('owner_person_id', personId),
+  ])
+  const byId = new Map<string, string>()
+  for (const r of ownedRows ?? []) byId.set(r.id, r.name)
+  for (const r of memberRows ?? []) {
+    const g = r.victory_groups as unknown as { id: string; name: string } | null
+    if (g) byId.set(g.id, g.name)
+  }
+  return Array.from(byId, ([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
+}
+
 export const getGroupsForPerson = async (personId: string) => {
   const { data, error } = await supabase
     .from('person_victory_groups')
