@@ -217,6 +217,65 @@ export const deletePerson = async (personId: string) => {
   }
 }
 
+// Folds a duplicate person into a keeper. All data movement happens inside the
+// merge_people() DB function (one transaction, service-role only) behind
+// /api/people/merge; the route re-checks authorization (admin/approved-Empower,
+// or can_edit_person on both). Refuses to merge two claimed profiles.
+export const mergePeople = async (keepId: string, dupId: string) => {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.access_token) {
+    return { data: null, error: { message: 'Not signed in.' } }
+  }
+  try {
+    const res = await fetch('/api/people/merge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accessToken: session.access_token, keepId, dupId }),
+    })
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      return { data: null, error: { message: json.error || 'Profiles were not merged.' } }
+    }
+    return { data: json as { ok: boolean; kept: string; removed: string }, error: null }
+  } catch {
+    return { data: null, error: { message: 'Profiles were not merged. Please try again.' } }
+  }
+}
+
+// Side-by-side context for the merge review: who coaches this person, what
+// groups they're in, and how much checklist history each row carries — enough
+// to tell the "real" profile from the accidental re-add.
+export type MergeCompareInfo = {
+  coaches: { name: string; isPrimary: boolean }[]
+  groups: string[]
+  checklistCount: number
+}
+
+export const getMergeCompareInfo = async (personId: string): Promise<MergeCompareInfo> => {
+  const [connRes, groupRes, checklistRes] = await Promise.all([
+    supabase
+      .from('discipleship_connections')
+      .select('is_primary, discipler:people!discipler_person_id(name)')
+      .eq('disciple_person_id', personId),
+    supabase
+      .from('person_victory_groups')
+      .select('victory_groups(name)')
+      .eq('person_id', personId),
+    supabase
+      .from('stage_checklist_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('person_id', personId),
+  ])
+  const coaches = ((connRes.data ?? []) as unknown as { is_primary: boolean; discipler: { name: string } | null }[])
+    .filter(c => c.discipler?.name)
+    .map(c => ({ name: c.discipler!.name, isPrimary: c.is_primary }))
+    .sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary))
+  const groups = ((groupRes.data ?? []) as unknown as { victory_groups: { name: string } | null }[])
+    .map(g => g.victory_groups?.name)
+    .filter((name): name is string => Boolean(name))
+  return { coaches, groups, checklistCount: checklistRes.count ?? 0 }
+}
+
 export const updatePersonVictoryGroup = async (personId: string, victoryGroupId: string | null) => {
   const { data, error } = await supabase
     .from('people')

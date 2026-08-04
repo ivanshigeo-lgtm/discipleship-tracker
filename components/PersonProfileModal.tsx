@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { deletePerson, updatePerson } from '../lib/supabaseQueries'
+import { deletePerson, getLevelSignoffs, updatePerson } from '../lib/supabaseQueries'
+import MergePeopleModal from './MergePeopleModal'
 import { useAuth } from '../contexts/AuthContext'
 import type { Person, Stage, Engagement, MinistryFitResult } from '../types/database'
 import { stageLabels, stageOrder } from '../lib/stageLabels'
@@ -162,6 +163,10 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
   // and unlock their Ministry Fit. Null once all three are complete.
   const [equipMissing, setEquipMissing] = useState<{ gifts: boolean; bigFive: boolean; passion: boolean } | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showMergeModal, setShowMergeModal] = useState(false)
+  // Merge is the church-wide cleanup tool — admins and approved-Empower coaches
+  // only (the same people who get the GBC scope on the dashboard).
+  const [canMergeContacts, setCanMergeContacts] = useState(false)
   const [inviteCopied, setInviteCopied] = useState(false)
   const [accessState, setAccessState] = useState<'idle' | 'copied'>('idle')
 
@@ -234,6 +239,17 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
       .finally(() => { if (!cancelled) setMinistryFitGenerating(false) })
     return () => { cancelled = true }
   }, [activeSection, savedPerson.id, ministryFitRefresh])
+
+  useEffect(() => {
+    if (!profile?.id) return
+    if (profile.is_admin) {
+      setCanMergeContacts(true)
+      return
+    }
+    getLevelSignoffs(profile.id).then(({ data }) => {
+      setCanMergeContacts(Boolean(data?.some(s => s.stage === 'Empower' && s.status === 'approved')))
+    })
+  }, [profile?.id, profile?.is_admin])
 
   const applySavedPerson = (nextPerson: Person, successMessage: string, syncFormFields = true) => {
     setSavedPerson(nextPerson)
@@ -552,18 +568,30 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
                   <div className="flex items-center justify-between gap-2 border-t border-[var(--line-1)] pt-3">
                     <div>
                       {!showDeleteConfirm ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowDeleteConfirm(true)
-                            setError('')
-                            setMessage('')
-                          }}
-                          disabled={loading}
-                          className="text-xs text-[#F2728A] hover:underline disabled:opacity-60"
-                        >
-                          Delete Profile
-                        </button>
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowDeleteConfirm(true)
+                              setError('')
+                              setMessage('')
+                            }}
+                            disabled={loading}
+                            className="text-xs text-[#F2728A] hover:underline disabled:opacity-60"
+                          >
+                            Delete Profile
+                          </button>
+                          {canMergeContacts && (
+                            <button
+                              type="button"
+                              onClick={() => setShowMergeModal(true)}
+                              disabled={loading}
+                              className="text-xs text-[var(--fg-3)] hover:text-[var(--fg-1)] hover:underline disabled:opacity-60"
+                            >
+                              Merge duplicate…
+                            </button>
+                          )}
+                        </div>
                       ) : (
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-[#F2728A]">Delete {savedPerson.name}?</span>
@@ -739,6 +767,20 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
 
         </div>
       </div>
+
+      {showMergeModal && (
+        <MergePeopleModal
+          personA={savedPerson}
+          onClose={() => setShowMergeModal(false)}
+          onMerged={(keptId, removedId) => {
+            setShowMergeModal(false)
+            // Whichever row survived, this modal's person data is stale — hand
+            // control back to the list so it refetches and closes us.
+            onDeleted?.(removedId)
+            onClose()
+          }}
+        />
+      )}
     </div>
   )
 }

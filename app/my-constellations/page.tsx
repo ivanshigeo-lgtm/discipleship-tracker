@@ -33,6 +33,7 @@ import type { Person, SoapJournal, Stage, DiscipleshipConnection, Engagement } f
 import EngagementDetailModal from '../../components/EngagementDetailModal'
 import { DashboardSkeleton } from '../../components/Skeleton'
 import MobileConstellation from '../../components/mobile/MobileConstellation'
+import PossibleDuplicatesPanel from '../../components/PossibleDuplicatesPanel'
 
 // True at phone widths — drives the mobile "Our Journey" redesign overlay.
 // Matches Tailwind's `sm` breakpoint (640px) used throughout this page.
@@ -735,6 +736,12 @@ export default function DiscipleshipTracker() {
           {activeSection === 'journey' && !isMobile && (
             <div>
               <CoachCodeCard code={profile.id.slice(-6).toUpperCase()} />
+              {/* Church-wide duplicate scan — admins and approved-Empower coaches only */}
+              {canSeeAllChurch && (
+                <ErrorBoundary name="PossibleDuplicatesPanel">
+                  <PossibleDuplicatesPanel refreshKey={refreshKey} onMerged={() => setRefreshKey(p => p + 1)} />
+                </ErrorBoundary>
+              )}
               <div className="cn-card mb-6 p-4">
                 {/* Header row */}
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
