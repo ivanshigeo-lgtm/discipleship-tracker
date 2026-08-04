@@ -13,6 +13,10 @@ type SharedSoap = {
   summary: string | null
   created_at: string
   people?: { name: string } | null
+  // Set by /api/soap/shared on rows the viewer authored: the card labels WHO
+  // it's shared with. target_group_names is null for "all my groups".
+  own?: boolean
+  target_group_names?: string[] | null
 }
 
 export default function SharedSoapFeed({
@@ -89,13 +93,34 @@ export default function SharedSoapFeed({
   const fmtDate = (d: string | null) =>
     d ? new Date(d + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : ''
 
+  // On the viewer's own rows the card answers "who did I share this with?" —
+  // group shares name the target groups (null target list = every group).
+  // Same strings as the native feed pill (soap-feed.tsx ownShareLabel).
+  const ownShareLabel = (s: SharedSoap): string => {
+    if (scope === 'coach') return 'Shared with my coach'
+    if (scope === 'group') {
+      return s.target_group_names?.length ? s.target_group_names.join(', ') : 'All my groups'
+    }
+    return 'Whole church'
+  }
+
   const Card = ({ s, isArchived }: { s: SharedSoap; isArchived?: boolean }) => {
     const body = (s.summary || s.ocr_text || '').trim()
+    const mine = s.own || s.person_id === personId
     return (
       <div className="rounded-xl border border-[var(--line-1)] bg-[var(--indigo-2)] p-3">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-semibold text-[var(--fg-1)]">{s.people?.name ?? 'A disciple'}</span>
-          <span className="shrink-0 text-[11px] text-[var(--fg-3)]">{fmtDate(s.journal_date)}</span>
+          <span className="min-w-0 truncate text-sm font-semibold text-[var(--fg-1)]">{s.people?.name ?? 'A disciple'}</span>
+          {mine && (
+            <span
+              className="min-w-0 truncate rounded-full px-2 py-0.5 text-[10px] font-semibold"
+              style={{ background: 'rgba(91,141,247,0.14)', color: 'var(--gbm-cobalt-soft)' }}
+              title={ownShareLabel(s)}
+            >
+              {ownShareLabel(s)}
+            </span>
+          )}
+          <span className="ml-auto shrink-0 text-[11px] text-[var(--fg-3)]">{fmtDate(s.journal_date)}</span>
         </div>
         {s.scripture_reference && (
           <p className="mt-0.5 text-xs font-medium" style={{ color: 'var(--establish)' }}>{s.scripture_reference}</p>
