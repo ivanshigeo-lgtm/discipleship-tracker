@@ -6,6 +6,53 @@ import { getPeople, getVictoryGroups } from '../lib/supabaseQueries'
 import type { Person, Stage, VictoryGroup } from '../types/database'
 
 const STAGES: Stage[] = ['Engage', 'Establish', 'Equip', 'Empower']
+const MODE_LABEL = { stages: 'By stage', groups: 'By group', people: 'By name' } as const
+
+// One rung of the audience step-ladder: a select-style field that expands its
+// option list beneath it. Mirrors the native composer's DropdownField.
+function Dd({ placeholder, value, open, onToggle, children }: {
+  placeholder: string
+  value: string | null
+  open: boolean
+  onToggle: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <div className="mb-2">
+      <button
+        type="button"
+        onClick={onToggle}
+        className={`flex w-full items-center justify-between rounded-xl border bg-[var(--indigo-2)] px-3 py-2 text-left text-sm font-semibold ${open ? 'border-[var(--gbm-cobalt-bright)]' : 'border-[var(--line-2)]'}`}
+      >
+        <span className={`truncate ${value ? 'text-[var(--fg-1)]' : 'text-[var(--fg-3)]'}`}>{value ?? placeholder}</span>
+        <span className="ml-2 shrink-0 text-xs text-[var(--fg-3)]">{open ? '▴' : '▾'}</span>
+      </button>
+      {open && (
+        <div className="-mt-1 overflow-hidden rounded-b-xl border border-t-0 border-[var(--line-2)] bg-[var(--indigo-2)] pt-1">
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DdRow({ label, selected, color, onClick }: {
+  label: string
+  selected?: boolean
+  color?: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center justify-between border-t border-[var(--line-1)] px-3 py-2 text-left text-sm font-semibold hover:bg-[var(--indigo-3)]"
+    >
+      <span className="truncate" style={{ color: color ?? (selected ? 'var(--fg-1)' : 'var(--fg-2)') }}>{label}</span>
+      {selected && <span className="ml-2 shrink-0 text-[var(--gbm-cobalt-soft)]">✓</span>}
+    </button>
+  )
+}
 
 // Coach broadcast: one message — text, voice note, or video — sent to a whole
 // stage, to groups, or to hand-picked people. The server fans it out into each
@@ -20,7 +67,10 @@ export default function BroadcastComposer({
   onSent?: () => void
 }) {
   const [open, setOpen] = useState(false)
-  const [mode, setMode] = useState<'stages' | 'groups' | 'people'>('stages')
+  const [mode, setMode] = useState<'stages' | 'groups' | 'people' | null>(null)
+  // Which ladder rung's option list is open — one at a time.
+  const [openDd, setOpenDd] = useState<'mode' | 'stage' | 'day' | 'group' | 'person' | null>('mode')
+  const [day, setDay] = useState<string | null>(null)
   const [stages, setStages] = useState<Set<Stage>>(new Set())
   const [groups, setGroups] = useState<VictoryGroup[]>([])
   const [groupIds, setGroupIds] = useState<Set<string>>(new Set())
@@ -180,13 +230,6 @@ export default function BroadcastComposer({
     setter(n)
   }
 
-  const chip = (active: boolean) =>
-    `rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
-      active
-        ? 'border-[var(--gbm-cobalt-bright)] bg-[rgba(91,141,247,0.18)] text-[var(--fg-1)]'
-        : 'border-[var(--line-2)] text-[var(--fg-2)] hover:border-[var(--line-3)]'
-    }`
-
   const filteredPeople = people.filter(p =>
     p.id !== personId && (!personQuery || p.name.toLowerCase().includes(personQuery.toLowerCase()))
   )
@@ -219,45 +262,99 @@ export default function BroadcastComposer({
         </p>
       )}
 
-      <div className="mb-3 flex gap-2">
+      {/* audience — step-ladder of dropdowns: pick the kind, then the rest appear */}
+      <Dd
+        placeholder="Who is this for?"
+        value={mode ? MODE_LABEL[mode] : null}
+        open={openDd === 'mode'}
+        onToggle={() => setOpenDd(openDd === 'mode' ? null : 'mode')}
+      >
         {(['stages', 'groups', 'people'] as const).map(m => (
-          <button key={m} type="button" onClick={() => setMode(m)} className={chip(mode === m)}>
-            {m === 'stages' ? 'By stage' : m === 'groups' ? 'By group' : 'Individuals'}
-          </button>
+          <DdRow key={m} label={MODE_LABEL[m]} selected={mode === m} onClick={() => {
+            setMode(m)
+            setStages(new Set()); setGroupIds(new Set()); setPersonIds(new Set())
+            setDay(null); setPersonQuery('')
+            setOpenDd(m === 'stages' ? 'stage' : m === 'groups' ? 'day' : 'person')
+          }} />
         ))}
-      </div>
+      </Dd>
 
       {mode === 'stages' && (
-        <div className="mb-3 flex flex-wrap gap-2">
+        <Dd
+          placeholder="Which stage(s)?"
+          value={stages.size ? STAGES.filter(s => stages.has(s)).join(', ') : null}
+          open={openDd === 'stage'}
+          onToggle={() => setOpenDd(openDd === 'stage' ? null : 'stage')}
+        >
           {STAGES.map(s => (
-            <button key={s} type="button" onClick={() => toggle(stages, s, setStages)} className={chip(stages.has(s))}>{s}</button>
+            <DdRow key={s} label={s} selected={stages.has(s)}
+              color={stages.has(s) ? `var(--${s.toLowerCase()})` : undefined}
+              onClick={() => toggle(stages, s, setStages)} />
           ))}
-        </div>
+        </Dd>
       )}
-      {mode === 'groups' && (
-        <div className="mb-3 flex flex-wrap gap-2">
-          {groups.length === 0 && <p className="text-sm text-[var(--fg-3)]">No groups yet.</p>}
-          {groups.map(g => (
-            <button key={g.id} type="button" onClick={() => toggle(groupIds, g.id, setGroupIds)} className={chip(groupIds.has(g.id))}>{g.name}</button>
-          ))}
-        </div>
-      )}
+
+      {mode === 'groups' && (() => {
+        const dayOf = (g: VictoryGroup) => g.meeting_day || 'No set day'
+        const days = [...new Set(groups.map(dayOf))]
+        const dayGroups = groups.filter(g => !day || day === 'Any day' || dayOf(g) === day)
+        return (
+          <>
+            <Dd
+              placeholder="Meeting day"
+              value={day}
+              open={openDd === 'day'}
+              onToggle={() => setOpenDd(openDd === 'day' ? null : 'day')}
+            >
+              {['Any day', ...days].map(d => (
+                <DdRow key={d} label={d} selected={day === d}
+                  onClick={() => { setDay(d); setGroupIds(new Set()); setOpenDd('group') }} />
+              ))}
+            </Dd>
+            <Dd
+              placeholder="Which group(s)?"
+              value={groupIds.size ? groups.filter(g => groupIds.has(g.id)).map(g => g.name).join(', ') : null}
+              open={openDd === 'group'}
+              onToggle={() => setOpenDd(openDd === 'group' ? null : 'group')}
+            >
+              {dayGroups.length === 0 && (
+                <p className="border-t border-[var(--line-1)] px-3 py-2 text-sm text-[var(--fg-3)]">
+                  No groups{day && day !== 'Any day' ? ` on ${day}` : ' yet'}.
+                </p>
+              )}
+              {dayGroups.map(g => (
+                <DdRow key={g.id} label={g.name} selected={groupIds.has(g.id)}
+                  onClick={() => toggle(groupIds, g.id, setGroupIds)} />
+              ))}
+            </Dd>
+          </>
+        )
+      })()}
+
       {mode === 'people' && (
-        <div className="mb-3">
-          <input
-            value={personQuery}
-            onChange={e => setPersonQuery(e.target.value)}
-            placeholder="Search people…"
-            className="mb-2 w-full rounded-xl border border-[var(--line-2)] bg-[var(--indigo-2)] px-3 py-2 text-sm text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
-          />
-          <div className="flex max-h-40 flex-wrap gap-2 overflow-y-auto">
+        <Dd
+          placeholder="Choose people"
+          value={personIds.size
+            ? people.filter(p => personIds.has(p.id)).map(p => p.name).slice(0, 3).join(', ') + (personIds.size > 3 ? ` +${personIds.size - 3}` : '')
+            : null}
+          open={openDd === 'person'}
+          onToggle={() => setOpenDd(openDd === 'person' ? null : 'person')}
+        >
+          <div className="px-2 pt-2">
+            <input
+              value={personQuery}
+              onChange={e => setPersonQuery(e.target.value)}
+              placeholder="Search people…"
+              className="mb-1 w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-3)] px-3 py-2 text-sm text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
+            />
+          </div>
+          <div className="max-h-52 overflow-y-auto">
             {filteredPeople.slice(0, 60).map(p => (
-              <button key={p.id} type="button" onClick={() => toggle(personIds, p.id, setPersonIds)} className={chip(personIds.has(p.id))}>
-                {p.name}
-              </button>
+              <DdRow key={p.id} label={p.name} selected={personIds.has(p.id)}
+                onClick={() => toggle(personIds, p.id, setPersonIds)} />
             ))}
           </div>
-        </div>
+        </Dd>
       )}
 
       <textarea
