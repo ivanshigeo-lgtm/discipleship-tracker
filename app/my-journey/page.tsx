@@ -685,13 +685,9 @@ export default function MyJourneyPage() {
         onChange={t => { setTab(t); window.scrollTo({ top: 0, behavior: 'auto' }) }}
         onMessage={() => { setMsgCenterOpen(true); setUnreadMsgCount(0) }}
         onEngagements={() => {
-          // Empowered people are coaches too — send them to the real
-          // My Constellations page (mirrors JourneyMenu's handleItem).
-          if (Boolean(profile.is_admin) || signoffs.some(s => s.stage === 'Empower' && s.status === 'approved')) {
-            router.push('/my-constellations?section=engagements')
-          } else {
-            setEngagementsOpen(true)
-          }
+          // Your own meetings stay in My Journey — even for coaches (mirrors
+          // JourneyMenu's handleItem, which no longer redirects engagements).
+          setEngagementsOpen(true)
         }}
       />
 

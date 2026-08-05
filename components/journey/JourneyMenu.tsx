@@ -559,8 +559,9 @@ export default function JourneyMenu({
     setActive(id)
     setOpen(false)
     // Empowered people are coaches too — send these straight to the real
-    // My Constellations pages rather than a My Journey overlay.
-    if (empowered && (id === 'engagements' || id === 'prayer' || id === 'soaps')) {
+    // My Constellations pages rather than a My Journey overlay. Engagements is
+    // the exception: your own meetings belong in My Journey, coach or not.
+    if (empowered && (id === 'prayer' || id === 'soaps')) {
       router.push(`/my-constellations?section=${id}`)
       return
     }
