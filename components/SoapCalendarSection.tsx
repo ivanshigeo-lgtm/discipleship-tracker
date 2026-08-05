@@ -576,9 +576,16 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
   }
 
   async function runInsight(question?: string) {
-    const ids = Array.from(selectedInsightDates)
-      .flatMap(d => (soapMap.get(d) ?? []).map(e => e.id))
-    if (!ids.length) return
+    // Send the entry text itself, not ids: iSOAP-native entries don't exist in
+    // soap_journals, so an id lookup server-side returns zero rows for them.
+    const entries = Array.from(selectedInsightDates)
+      .flatMap(d => (soapMap.get(d) ?? []))
+      .map(e => ({
+        journal_date: e.journal_date,
+        ocr_text: e.ocr_text ?? null,
+        scripture_reference: e.scripture_reference ?? null,
+      }))
+    if (!entries.length) return
     setInsightLoading(true)
     setInsightResponse(null)
     setInsightError('')
@@ -586,7 +593,7 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
       const res = await fetch('/api/soap/insights', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ journalIds: ids, question: question?.trim() || undefined }),
+        body: JSON.stringify({ entries, question: question?.trim() || undefined }),
       })
       const json = await res.json()
       if (!res.ok) setInsightError(json.error || 'Something went wrong.')
