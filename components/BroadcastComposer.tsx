@@ -37,7 +37,9 @@ export default function BroadcastComposer({
   const [mediaKind, setMediaKind] = useState<'audio' | 'video' | null>(null)
   const [mediaPreview, setMediaPreview] = useState<string | null>(null)
   const [recording, setRecording] = useState(false)
+  const [recKind, setRecKind] = useState<'audio' | 'video'>('audio')
   const [recSeconds, setRecSeconds] = useState(0)
+  const [liveStream, setLiveStream] = useState<MediaStream | null>(null)
   const recorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -55,29 +57,45 @@ export default function BroadcastComposer({
     setMediaPreview(null)
   }
 
-  const startRecording = async () => {
+  const startRecording = async (kind: 'audio' | 'video') => {
     setError('')
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const mime = MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : 'audio/webm'
-      const rec = new MediaRecorder(stream, { mimeType: mime })
+      // Video is capped at 720p / ~1.5Mbps — phone-friendly clips that stay small.
+      const stream = await navigator.mediaDevices.getUserMedia(
+        kind === 'audio'
+          ? { audio: true }
+          : { video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' }, audio: true }
+      )
+      const mime = kind === 'audio'
+        ? (MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : 'audio/webm')
+        : MediaRecorder.isTypeSupported('video/mp4')
+          ? 'video/mp4'
+          : MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
+            ? 'video/webm;codecs=vp8,opus'
+            : 'video/webm'
+      const rec = new MediaRecorder(stream, kind === 'audio'
+        ? { mimeType: mime }
+        : { mimeType: mime, videoBitsPerSecond: 1_500_000, audioBitsPerSecond: 96_000 })
       chunksRef.current = []
       rec.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
       rec.onstop = () => {
         stream.getTracks().forEach(t => t.stop())
-        const blob = new Blob(chunksRef.current, { type: mime })
+        setLiveStream(null)
+        const blob = new Blob(chunksRef.current, { type: mime.split(';')[0] })
         clearMedia()
         setMediaBlob(blob)
-        setMediaKind('audio')
+        setMediaKind(kind)
         setMediaPreview(URL.createObjectURL(blob))
       }
       recorderRef.current = rec
       rec.start()
+      setRecKind(kind)
+      if (kind === 'video') setLiveStream(stream)
       setRecording(true)
       setRecSeconds(0)
       timerRef.current = setInterval(() => setRecSeconds(s => s + 1), 1000)
     } catch {
-      setError('Could not access the microphone.')
+      setError(kind === 'audio' ? 'Could not access the microphone.' : 'Could not access the camera.')
     }
   }
 
@@ -175,7 +193,7 @@ export default function BroadcastComposer({
 
   if (!open) {
     return (
-      <div className="mb-6 flex justify-end">
+      <div className="mb-3 flex justify-end">
         <button
           type="button"
           onClick={() => { setOpen(true); setDone(null) }}
@@ -188,7 +206,7 @@ export default function BroadcastComposer({
   }
 
   return (
-    <section className="cn-card mb-6 p-4">
+    <section className="cn-card mb-3 p-4">
       <div className="mb-3 flex items-center gap-3">
         <h2 className="cn-h3">Message people</h2>
         <div className="flex-1" />
@@ -253,15 +271,20 @@ export default function BroadcastComposer({
       <div className="mt-2 flex flex-wrap items-center gap-3">
         {recording ? (
           <button type="button" onClick={stopRecording} className="rounded-full border border-red-400 px-3 py-1 text-xs font-semibold text-red-400">
-            ■ Stop ({Math.floor(recSeconds / 60)}:{String(recSeconds % 60).padStart(2, '0')})
+            ■ Stop {recKind === 'video' ? 'video' : ''} ({Math.floor(recSeconds / 60)}:{String(recSeconds % 60).padStart(2, '0')})
           </button>
         ) : (
-          <button type="button" onClick={startRecording} className="rounded-full border border-[var(--line-2)] px-3 py-1 text-xs font-semibold text-[var(--fg-2)] hover:border-[var(--line-3)]">
-            🎙 Record voice
-          </button>
+          <>
+            <button type="button" onClick={() => startRecording('audio')} className="rounded-full border border-[var(--line-2)] px-3 py-1 text-xs font-semibold text-[var(--fg-2)] hover:border-[var(--line-3)]">
+              🎙 Record voice
+            </button>
+            <button type="button" onClick={() => startRecording('video')} className="rounded-full border border-[var(--line-2)] px-3 py-1 text-xs font-semibold text-[var(--fg-2)] hover:border-[var(--line-3)]">
+              📹 Record video
+            </button>
+          </>
         )}
         <label className="cursor-pointer rounded-full border border-[var(--line-2)] px-3 py-1 text-xs font-semibold text-[var(--fg-2)] hover:border-[var(--line-3)]">
-          🎥 Add video
+          🎥 Upload video
           <input type="file" accept="video/*" capture className="hidden" onChange={e => { pickVideo(e.target.files); e.target.value = '' }} />
         </label>
         {mediaBlob && !recording && (
@@ -270,6 +293,21 @@ export default function BroadcastComposer({
           </button>
         )}
       </div>
+
+      {recording && recKind === 'video' && liveStream && (
+        <video
+          ref={el => {
+            if (el && el.srcObject !== liveStream) {
+              el.srcObject = liveStream
+              el.play().catch(() => {})
+            }
+          }}
+          muted
+          playsInline
+          className="mt-2 w-full rounded-lg"
+          style={{ maxHeight: 240, background: '#000', transform: 'scaleX(-1)' }}
+        />
+      )}
 
       {mediaPreview && mediaKind === 'audio' && <audio src={mediaPreview} controls className="mt-2 w-full" />}
       {mediaPreview && mediaKind === 'video' && (

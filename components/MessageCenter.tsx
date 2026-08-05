@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import MessageSignoffInbox from './MessageSignoffInbox'
+import BroadcastComposer from './BroadcastComposer'
 import {
   getMyConversations,
   getOrCreateDM,
@@ -38,6 +39,7 @@ export default function MessageCenter({
   onClose,
   initialTargetPersonId,
   onConsumedTarget,
+  canBroadcast = false,
 }: {
   myPersonId: string
   myName: string
@@ -45,6 +47,7 @@ export default function MessageCenter({
   onClose: () => void
   initialTargetPersonId?: string | null
   onConsumedTarget?: () => void
+  canBroadcast?: boolean
 }) {
   const [convs, setConvs] = useState<ConversationSummary[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -292,6 +295,14 @@ export default function MessageCenter({
             <button type="button" onClick={onClose} className="text-lg leading-none text-[var(--fg-3)] hover:text-[var(--fg-1)]">×</button>
           </div>
         </div>
+
+        {/* Coach broadcast — message a stage, group, or hand-picked people from
+            the same place conversations live. */}
+        {canBroadcast && (
+          <div className="max-h-[60vh] shrink-0 overflow-y-auto border-b border-[var(--line-2)] px-4 pt-3">
+            <BroadcastComposer personId={myPersonId} />
+          </div>
+        )}
 
         {/* Body */}
         <div className="flex min-h-0 flex-1">

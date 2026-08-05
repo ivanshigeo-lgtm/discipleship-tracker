@@ -12,6 +12,7 @@ type SharedSoap = {
   ocr_text: string | null
   summary: string | null
   created_at: string
+  photo_url?: string | null
   people?: { name: string } | null
   // Set by /api/soap/shared on rows the viewer authored: the card labels WHO
   // it's shared with. target_group_names is null for "all my groups".
@@ -45,6 +46,8 @@ export default function SharedSoapFeed({
   const [collapsed, setCollapsed] = useState(false)
   const [unread, setUnread] = useState(0)
   const [reply, setReply] = useState<SharedSoap | null>(null)
+  // Card is redefined every render (remounts), so expansion lives up here.
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     let cancelled = false
@@ -110,8 +113,20 @@ export default function SharedSoapFeed({
     return 'Whole church'
   }
 
+  const toggleExpanded = (id: string) =>
+    setExpandedIds(prev => {
+      const n = new Set(prev)
+      if (n.has(id)) n.delete(id); else n.add(id)
+      return n
+    })
+
   const Card = ({ s, isArchived, isDeleted }: { s: SharedSoap; isArchived?: boolean; isDeleted?: boolean }) => {
-    const body = (s.summary || s.ocr_text || '').trim()
+    // Expanded shows the whole entry (full text + photo); collapsed clamps to a
+    // few lines, which for a SOAP is usually just the Scripture.
+    const body = ((expandedIds.has(s.id) ? s.ocr_text : null) || s.summary || s.ocr_text || '').trim()
+    const expanded = expandedIds.has(s.id)
+    const fullText = (s.ocr_text || '').trim()
+    const expandable = fullText.length > 220 || fullText.split('\n').length > 4 || !!s.photo_url
     const mine = s.own || s.person_id === personId
     return (
       <div className="rounded-xl border border-[var(--line-1)] bg-[var(--indigo-2)] p-3">
@@ -131,8 +146,29 @@ export default function SharedSoapFeed({
         {s.scripture_reference && (
           <p className="mt-0.5 text-xs font-medium" style={{ color: 'var(--establish)' }}>{s.scripture_reference}</p>
         )}
-        {body && <p className="mt-1 line-clamp-4 whitespace-pre-wrap text-sm leading-relaxed text-[var(--fg-2)]">{body}</p>}
-        <div className="mt-2 flex items-center justify-end gap-3">
+        {body && (
+          <p
+            className={`mt-1 whitespace-pre-wrap text-sm leading-relaxed text-[var(--fg-2)] ${expanded ? '' : 'line-clamp-4 cursor-pointer'}`}
+            onClick={expanded || !expandable ? undefined : () => toggleExpanded(s.id)}
+          >
+            {body}
+          </p>
+        )}
+        {expanded && s.photo_url && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={s.photo_url} alt="SOAP journal page" className="mt-2 w-full rounded-lg" />
+        )}
+        <div className="mt-2 flex items-center justify-between gap-3">
+          {expandable ? (
+            <button
+              type="button"
+              onClick={() => toggleExpanded(s.id)}
+              className="text-[11px] font-semibold text-[var(--gbm-cobalt-soft)] hover:text-[var(--fg-1)]"
+            >
+              {expanded ? '▴ Show less' : '▾ Read full entry'}
+            </button>
+          ) : <span />}
+          <div className="flex items-center gap-3">
           {isDeleted ? (
             <button type="button" onClick={() => doRestore(s.id)} className="text-[11px] font-semibold text-[var(--gbm-cobalt-soft)] hover:text-[var(--fg-1)]">Restore to feed</button>
           ) : (
@@ -148,6 +184,7 @@ export default function SharedSoapFeed({
               <button type="button" onClick={() => doDelete(s.id)} className="text-[11px] font-semibold text-red-400 hover:text-red-300">Delete</button>
             </>
           )}
+          </div>
         </div>
       </div>
     )
