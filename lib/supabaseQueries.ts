@@ -1599,7 +1599,7 @@ export const getSharedPraises = async (limit = 12) => {
   return { data, error }
 }
 
-const SHARED_SOAP_COLS = 'id, person_id, journal_date, scripture_reference, ocr_text, summary, visibility, created_at, people(name)'
+const SHARED_SOAP_COLS = 'id, person_id, journal_date, scripture_reference, ocr_text, summary, visibility, created_at, photo_url, people(name)'
 
 // iSOAP-sourced SOAPs shared at a given level. iSOAP has no coach/group concept,
 // so the share level lives in WikiChurch's isoap_entry_visibility overlay; the
