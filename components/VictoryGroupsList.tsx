@@ -344,6 +344,9 @@ export default function VictoryGroupsList({
     const payload = {
       name: name.trim(),
       meeting_day: meetingDay || null,
+      // Keep the plural column in sync from day one — the multi-select UI
+      // lands next; until then a group's list is just its single day.
+      meeting_days: meetingDay ? [meetingDay] : null,
       meeting_time: meetingTime || null,
       focus: (focus || null) as GroupFocus | null,
     }

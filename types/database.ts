@@ -174,6 +174,9 @@ export type VictoryGroup = {
   id: string
   name: string
   meeting_day: string | null
+  // All weekly meeting days (a group can meet e.g. Tue AND Thu). meeting_day
+  // stays the first/primary day for legacy readers; writes keep them in sync.
+  meeting_days: string[] | null
   meeting_time: string | null
   google_calendar_event_id: string | null
   owner_person_id: string | null
