@@ -45,6 +45,7 @@ import MessageCoachModal from '../../components/journey/MessageCoachModal'
 import MessageCenter from '../../components/MessageCenter'
 import MessagesInbox from '../../components/MessagesInbox'
 import JoinGroupModal from '../../components/journey/JoinGroupModal'
+import WeekMeetings from '../../components/journey/WeekMeetings'
 import SelfConfirmModal, { type SelfConfirmKind } from '../../components/journey/SelfConfirmModal'
 import JourneyMenu, { EngagementsPanel } from '../../components/journey/JourneyMenu'
 import EmpoweredCoachmark from '../../components/journey/EmpoweredCoachmark'
@@ -809,6 +810,9 @@ export default function MyJourneyPage() {
               </p>
 
             </section>
+
+            {/* This week — the viewer's group meetings + 1:1s for the next 7 days */}
+            <WeekMeetings personId={profile.id} groups={groups} />
 
             {/* Completed Empower but the coach hasn't signed off yet → no toggle to
                 point at, so keep an informative note. (Once signed off, the toggle

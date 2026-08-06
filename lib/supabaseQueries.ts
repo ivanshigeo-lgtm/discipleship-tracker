@@ -316,6 +316,38 @@ export const getEngagementsForPerson = async (personId: string) => {
   return { data, error }
 }
 
+// Pending 1:1s in a date window for the My Journey "This week" strip: meetings
+// ABOUT the person (person_id — coach-created 1:1s), ones they created, and
+// ones they've confirmed. Confirmed ids are queried in chunks so the URL never
+// overflows on an unbounded id list.
+export const getWeekEngagementsForPerson = async (personId: string, fromDate: string, toDate: string) => {
+  const { data: confirmedRows } = await supabase
+    .from('engagement_participants')
+    .select('engagement_id')
+    .eq('person_id', personId)
+    .eq('status', 'confirmed')
+  const ids = (confirmedRows ?? []).map(r => r.engagement_id).filter(Boolean)
+  const inWindow = () =>
+    supabase
+      .from('engagements')
+      .select('*')
+      .eq('status', 'Pending')
+      .gte('follow_up_date', fromDate)
+      .lte('follow_up_date', toDate)
+  const { data: own, error } = await inWindow().or(`person_id.eq.${personId},created_by_person_id.eq.${personId}`)
+  if (error) return { data: null, error }
+  const rows = [...(own ?? [])]
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data: chunk } = await inWindow().in('id', ids.slice(i, i + 200))
+    if (chunk) rows.push(...chunk)
+  }
+  const seen = new Set<string>()
+  const data = rows
+    .filter(r => (seen.has(r.id) ? false : (seen.add(r.id), true)))
+    .sort((a, b) => (a.follow_up_date ?? '').localeCompare(b.follow_up_date ?? '') || (a.follow_up_time ?? '').localeCompare(b.follow_up_time ?? ''))
+  return { data, error: null }
+}
+
 // Meetings someone has been invited to but hasn't confirmed/declined yet.
 export const getPendingMeetingInvites = async (personId: string) => {
   const { data: rows } = await supabase
