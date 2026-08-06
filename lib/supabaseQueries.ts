@@ -914,7 +914,7 @@ export const getMyShareGroups = async (personId: string): Promise<{ id: string; 
 export const getGroupsForPerson = async (personId: string) => {
   const { data, error } = await supabase
     .from('person_victory_groups')
-    .select('id, person_id, victory_group_id, created_at, victory_groups(id, name, meeting_day, meeting_time, created_at)')
+    .select('id, person_id, victory_group_id, created_at, victory_groups(id, name, meeting_day, meeting_days, meeting_time, created_at)')
     .eq('person_id', personId)
     .order('created_at', { ascending: true })
   return { data, error }

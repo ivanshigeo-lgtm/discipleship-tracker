@@ -23,6 +23,7 @@ import {
 } from '../../lib/supabaseQueries'
 import { stageLabels, stageOrder } from '../../lib/stageLabels'
 import { bookletStage } from '../../lib/curriculum'
+import { daysOf } from '../../lib/meetingDays'
 import type { Person, Stage, Engagement, PrayerRequest, StageChecklistItem, VictoryGroup } from '../../types/database'
 import PipelineMomentum from '../PipelineMomentum'
 
@@ -555,7 +556,11 @@ export default function MobileConstellation({
       : groups
     const totalMembers = visibleGroups.reduce((s, g) => s + (membersByGroup.get(g.id)?.length ?? 0), 0)
     const byDay = new Map<string, VictoryGroup[]>()
-    visibleGroups.forEach(g => { const d = g.meeting_day || 'Unscheduled'; const l = byDay.get(d) || []; l.push(g); byDay.set(d, l) })
+    // A multi-day group is listed under each of its meeting days.
+    visibleGroups.forEach(g => {
+      const ds = daysOf(g).length ? daysOf(g) : ['Unscheduled']
+      ds.forEach(d => { const l = byDay.get(d) || []; l.push(g); byDay.set(d, l) })
+    })
     const dayKeys = [...byDay.keys()].sort((a, b) => {
       const ia = DAY_ORDER.indexOf(a), ib = DAY_ORDER.indexOf(b)
       return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib)

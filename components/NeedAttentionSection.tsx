@@ -21,6 +21,7 @@ import VictoryGroupsList from './VictoryGroupsList'
 import MeetingBadges, { type MeetingCounts } from './MeetingBadges'
 import { SectionSkeleton } from './Skeleton'
 import { bookletStage } from '../lib/curriculum'
+import { daysOf, fmtDaysShort, occurrencesWithin, weekdayOf, shiftDayInSchedule } from '../lib/meetingDays'
 import { useAuth } from '../contexts/AuthContext'
 
 interface MyOneToOnesSectionProps {
@@ -70,21 +71,6 @@ const STAGE_COLORS: Record<Stage, string> = {
 }
 const GROUP_ACCENT = '#A78BFA' // Grace Groups accent for unfocused/general groups
 
-const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-// Next occurrence (today or later) of a weekly meeting_day, as YYYY-MM-DD.
-// Always lands within the next 7 days, so it is the group's occurrence for the
-// rolling window. Mirrors VictoryGroupsList.nextOccurrenceDate.
-const nextGroupOccurrence = (meetingDay: string | null): string | null => {
-  if (!meetingDay) return null
-  const target = WEEKDAY_NAMES.indexOf(meetingDay)
-  if (target < 0) return null
-  const d = new Date(); d.setHours(0, 0, 0, 0)
-  d.setDate(d.getDate() + ((target - d.getDay() + 7) % 7))
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-// The weekday name for a 'YYYY-MM-DD' date (for an "all future" reschedule, which
-// shifts the group's standing meeting_day). Mirrors VictoryGroupsList.weekdayOf.
-const weekdayOf = (dateStr: string) => WEEKDAY_NAMES[new Date(dateStr + 'T00:00:00').getDay()]
 
 // An interactive Grace Group meeting on the agenda. Mirrors native's group card
 // action sheet (openGroupActions): take attendance, reschedule (this week / all
@@ -125,7 +111,8 @@ function GroupMeetingCard({
   // Reschedule form.
   const [rsDate, setRsDate] = useState(item.date)
   const [rsTime, setRsTime] = useState(item.time?.slice(0, 5) ?? '')
-  const [rsAll, setRsAll] = useState(false)
+  // Explicit scope: just this occurrence vs the standing weekly schedule.
+  const [rsScope, setRsScope] = useState<'one' | 'all'>('one')
 
   const openAttendance = async () => {
     setErr('')
@@ -185,7 +172,7 @@ function GroupMeetingCard({
   const openReschedule = () => {
     setRsDate(item.date)
     setRsTime(item.time?.slice(0, 5) ?? '')
-    setRsAll(false)
+    setRsScope('one')
     setErr('')
     setMode('reschedule')
   }
@@ -194,10 +181,10 @@ function GroupMeetingCard({
     if (!rsDate) return
     setBusy(true); setErr('')
     let error
-    if (rsAll) {
-      // Shift the standing day/time for every future week; clear this occurrence's
-      // one-off override so it follows the new schedule.
-      const res = await updateVictoryGroup(item.group.id, { meeting_day: weekdayOf(rsDate), meeting_time: rsTime || null })
+    if (rsScope === 'all') {
+      // Shift the standing schedule for every future week — only this
+      // occurrence's weekday moves; a multi-day group keeps its other days.
+      const res = await updateVictoryGroup(item.group.id, { ...shiftDayInSchedule(daysOf(item.group), item.occDate, rsDate), meeting_time: rsTime || null })
       if (!res.error) await clearGroupMeetingStatus(item.group.id, item.occDate)
       error = res.error
     } else {
@@ -366,13 +353,25 @@ function GroupMeetingCard({
               <div className="flex flex-wrap items-center gap-1.5">
                 <input type="date" value={rsDate} onChange={e => setRsDate(e.target.value)} className="rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-2 py-1 text-xs text-[var(--fg-1)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none" />
                 <input type="time" value={rsTime} onChange={e => setRsTime(e.target.value)} className="rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-2 py-1 text-xs text-[var(--fg-1)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none" />
-                <label className="flex items-center gap-1 text-[10px] text-[var(--fg-2)]">
-                  <input type="checkbox" checked={rsAll} onChange={e => setRsAll(e.target.checked)} className="h-3.5 w-3.5 rounded border-[var(--line-2)] bg-[var(--indigo-2)] accent-[var(--gbm-cobalt-bright)]" />
-                  All future
-                </label>
               </div>
-              {rsAll && rsDate && (
-                <p className="mt-1 text-[10px] text-[var(--fg-3)]">Moves the group’s regular meeting to {weekdayOf(rsDate)}{rsTime ? ` @ ${rsTime}` : ''} every week.</p>
+              {/* Explicit scope — pick which meetings move before saving. */}
+              <div className="mt-1.5 flex flex-col gap-1">
+                {([
+                  ['one', `Just this meeting (${new Date(item.occDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })})`],
+                  ['all', `All future ${weekdayOf(item.occDate)}s${rsDate ? ` → ${weekdayOf(rsDate)}s` : ''}`],
+                ] as const).map(([val, label]) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setRsScope(val)}
+                    className={`rounded-lg border px-2 py-1.5 text-left text-[11px] font-semibold transition-all ${rsScope === val ? 'border-[var(--gbm-cobalt-bright)] bg-[rgba(91,141,247,.15)] text-[var(--fg-1)]' : 'border-[var(--line-2)] bg-[var(--indigo-2)] text-[var(--fg-2)] hover:border-[var(--line-3)]'}`}
+                  >
+                    {rsScope === val ? '● ' : '○ '}{label}
+                  </button>
+                ))}
+              </div>
+              {rsScope === 'all' && rsDate && (
+                <p className="mt-1 text-[10px] text-[var(--fg-3)]">Moves the group’s regular {weekdayOf(item.occDate)} meeting to {weekdayOf(rsDate)}{rsTime ? ` @ ${rsTime}` : ''} every week{daysOf(item.group).length > 1 ? ' — other meeting days stay the same' : ''}.</p>
               )}
               <div className="mt-2 flex items-center gap-1.5">
                 <button type="button" onClick={saveReschedule} disabled={busy || !rsDate} className="cn-btn cn-btn-primary !px-2.5 !py-1 !text-xs disabled:opacity-50">{busy ? 'Saving…' : 'Save'}</button>
@@ -731,9 +730,9 @@ export default function NeedAttentionSection({
   }, [people, engagements, viewerPersonId, isAdmin, badgeScope, confirmedIds])
 
   // Upcoming Grace Group meetings for the rolling window, merged onto the agenda
-  // like native. One occurrence per scoped group (weekly cadence → the next
-  // occurrence is always within 7 days), with any per-occurrence cancel/
-  // reschedule override applied. Honors the GBC/Mine scope like the badges.
+  // like native. One card per occurrence in the next 7 days — a multi-day group
+  // (e.g. Tue & Thu) surfaces each of its meetings — with any per-occurrence
+  // cancel/reschedule override applied. Honors the GBC/Mine scope like the badges.
   const groupMeetings = useMemo(() => {
     const today = new Date(); today.setHours(0, 0, 0, 0)
     const effectiveScope = isAdmin ? badgeScope : 'mine'
@@ -748,28 +747,29 @@ export default function NeedAttentionSection({
 
     const items: GroupMeetingItem[] = []
     for (const group of victoryGroups) {
-      if (!group.meeting_day || !scopeGroup(group)) continue
-      const occ = nextGroupOccurrence(group.meeting_day)
-      if (!occ) continue
-      const st = statusFor(group.id, occ)
-      const cancelled = st?.status === 'cancelled'
-      const rescheduled = st?.status === 'rescheduled'
-      const date = rescheduled && st?.rescheduled_to ? st.rescheduled_to : occ
-      const time = rescheduled ? st?.rescheduled_time ?? null : group.meeting_time
-      const dt = new Date(date + 'T00:00:00')
-      const daysUntil = Math.round((dt.getTime() - today.getTime()) / 86_400_000)
-      items.push({
-        group,
-        occDate: occ,
-        date,
-        time,
-        memberCount: membersByGroupId.get(group.id) ?? 0,
-        stage: bookletStage(group.focus),
-        daysUntil,
-        isToday: daysUntil === 0,
-        cancelled,
-        rescheduled,
-      })
+      if (!scopeGroup(group)) continue
+      // 6 days ahead covers each weekday exactly once (weekly cadence).
+      for (const occ of occurrencesWithin(daysOf(group), 6)) {
+        const st = statusFor(group.id, occ)
+        const cancelled = st?.status === 'cancelled'
+        const rescheduled = st?.status === 'rescheduled'
+        const date = rescheduled && st?.rescheduled_to ? st.rescheduled_to : occ
+        const time = rescheduled ? st?.rescheduled_time ?? null : group.meeting_time
+        const dt = new Date(date + 'T00:00:00')
+        const daysUntil = Math.round((dt.getTime() - today.getTime()) / 86_400_000)
+        items.push({
+          group,
+          occDate: occ,
+          date,
+          time,
+          memberCount: membersByGroupId.get(group.id) ?? 0,
+          stage: bookletStage(group.focus),
+          daysUntil,
+          isToday: daysUntil === 0,
+          cancelled,
+          rescheduled,
+        })
+      }
     }
     items.sort((a, b) => a.date.localeCompare(b.date))
     return items
@@ -868,16 +868,13 @@ export default function NeedAttentionSection({
     victoryGroups.forEach(group => {
       if (!scopeGroup(group)) return
       const memberCount = membersByGroupId.get(group.id) ?? 0
-      if (group.meeting_day) {
-        const meetingDayNum = dayMap[group.meeting_day]
-        if (meetingDayNum !== undefined) {
-          // Count for the week
-          counts['Grace Groups'].week++
-          counts['Grace Groups'].names.push(group.name)
-          // Check if it's today
-          if (meetingDayNum === todayDayOfWeek) {
-            counts['Grace Groups'].today++
-          }
+      const groupDays = daysOf(group)
+      if (groupDays.length) {
+        // Each meeting day counts as a meeting this week (Tue & Thu = 2).
+        counts['Grace Groups'].week += groupDays.length
+        counts['Grace Groups'].names.push(group.name)
+        if (groupDays.some(d => dayMap[d] === todayDayOfWeek)) {
+          counts['Grace Groups'].today++
         }
       }
       // Groups gem total = everyone in the scoped groups (so GBC, with more

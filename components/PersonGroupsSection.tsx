@@ -8,6 +8,7 @@ import {
   removePersonFromVictoryGroup,
 } from '../lib/supabaseQueries'
 import type { PersonVictoryGroupWithGroup, VictoryGroup } from '../types/database'
+import { daysOf, fmtDaysShort } from '../lib/meetingDays'
 
 export default function PersonGroupsSection({
   personId,
@@ -92,8 +93,8 @@ export default function PersonGroupsSection({
                 <div className="min-w-0">
                   <div className="text-xs font-semibold text-[var(--fg-1)]">{group.name}</div>
                   <div className="mt-0.5 text-[10px] text-[var(--fg-3)]">
-                    {group.meeting_day || group.meeting_time ? (
-                      <span>{group.meeting_day ?? ''}{group.meeting_time ? ` @ ${group.meeting_time}` : ''}</span>
+                    {daysOf(group).length || group.meeting_time ? (
+                      <span>{fmtDaysShort(daysOf(group))}{group.meeting_time ? ` @ ${group.meeting_time}` : ''}</span>
                     ) : (
                       <span>No time set</span>
                     )}
@@ -123,7 +124,7 @@ export default function PersonGroupsSection({
           <option value="">+ Add to group...</option>
           {availableGroups.map(group => (
             <option key={group.id} value={group.id}>
-              {group.name}{group.meeting_day ? ` — ${group.meeting_day}` : ''}
+              {group.name}{daysOf(group).length ? ` — ${fmtDaysShort(daysOf(group))}` : ''}
             </option>
           ))}
         </select>

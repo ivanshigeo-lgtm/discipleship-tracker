@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { getPeople, getVictoryGroups } from '../lib/supabaseQueries'
 import type { Person, Stage, VictoryGroup } from '../types/database'
+import { WEEKDAY_NAMES, daysOf } from '../lib/meetingDays'
 
 const STAGES: Stage[] = ['Engage', 'Establish', 'Equip', 'Empower']
 const MODE_LABEL = { stages: 'By stage', groups: 'By group', people: 'By name' } as const
@@ -295,9 +296,11 @@ export default function BroadcastComposer({
       )}
 
       {mode === 'groups' && (() => {
-        const dayOf = (g: VictoryGroup) => g.meeting_day || 'No set day'
-        const days = [...new Set(groups.map(dayOf))]
-        const dayGroups = groups.filter(g => !day || day === 'Any day' || dayOf(g) === day)
+        // A multi-day group appears under EACH of its meeting days.
+        const daysListOf = (g: VictoryGroup) => (daysOf(g).length ? daysOf(g) : ['No set day'])
+        const days = [...new Set(groups.flatMap(daysListOf))]
+          .sort((a, b) => (WEEKDAY_NAMES.indexOf(a) + 8) % 8 - (WEEKDAY_NAMES.indexOf(b) + 8) % 8)
+        const dayGroups = groups.filter(g => !day || day === 'Any day' || daysListOf(g).includes(day))
         return (
           <>
             <Dd

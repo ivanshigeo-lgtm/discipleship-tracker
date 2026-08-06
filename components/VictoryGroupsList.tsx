@@ -18,10 +18,10 @@ import {
 } from '../lib/supabaseQueries'
 import type { Person, PersonVictoryGroupWithPerson, Stage, VictoryGroup, GroupAttendance, GroupMeetingStatus, GroupFocus } from '../types/database'
 import { stageLabels } from '../lib/stageLabels'
+import { WEEKDAY_NAMES, daysOf, fmtDaysShort, nextOccurrenceDate, weekdayOf, shiftDayInSchedule } from '../lib/meetingDays'
 import { GROUP_FOCUS_OPTIONS, bookletStage } from '../lib/curriculum'
 import { useAuth } from '../contexts/AuthContext'
 
-const meetingDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const stageRank: Record<Stage, number> = { Empower: 0, Equip: 1, Establish: 2, Engage: 3 }
 
 const STAGE_COLORS: Record<Stage, string> = {
@@ -32,21 +32,6 @@ const STAGE_COLORS: Record<Stage, string> = {
 }
 
 const toDateInputValue = (date: Date) => date.toISOString().split('T')[0]
-
-// The next date (today or later) matching a group's weekly meeting day, as a
-// local 'YYYY-MM-DD'. This is the occurrence a per-meeting cancel/reschedule
-// acts on. Null when the group has no set day.
-const nextOccurrenceDate = (meetingDay: string | null): string | null => {
-  if (!meetingDay) return null
-  const target = meetingDays.indexOf(meetingDay)
-  if (target < 0) return null
-  const d = new Date(); d.setHours(0, 0, 0, 0)
-  d.setDate(d.getDate() + ((target - d.getDay() + 7) % 7))
-  return toDateInputValue(d)
-}
-// The weekday name for a 'YYYY-MM-DD' date (for "all future" reschedule, which
-// shifts the group's standing meeting_day).
-const weekdayOf = (dateStr: string) => meetingDays[new Date(dateStr + 'T00:00:00').getDay()]
 
 // Attendance-history derivations, mirroring the native app's history sheet: consecutive
 // missed-meeting streak per member (stops at first attended), and per-meeting totals.
@@ -118,7 +103,7 @@ export default function VictoryGroupsList({
   const [showForm, setShowForm] = useState(startWithForm)
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
   const [name, setName] = useState('')
-  const [meetingDay, setMeetingDay] = useState('')
+  const [formDays, setFormDays] = useState<string[]>([])
   const [meetingTime, setMeetingTime] = useState('')
   const [focus, setFocus] = useState<GroupFocus | ''>('')
   const [loading, setLoading] = useState(false)
@@ -180,7 +165,10 @@ export default function VictoryGroupsList({
   const [rsGroupId, setRsGroupId] = useState<string | null>(null) // which group's reschedule form is open
   const [rsDate, setRsDate] = useState('')
   const [rsTime, setRsTime] = useState('')
-  const [rsAll, setRsAll] = useState(false)
+  // Explicit scope choice: move just this occurrence, or shift the standing
+  // schedule for every future week. No default-hidden checkbox — the user
+  // picks one of the two before saving.
+  const [rsScope, setRsScope] = useState<'one' | 'all'>('one')
   const [rsSaving, setRsSaving] = useState(false)
 
   const statusFor = (groupId: string, occDate: string) =>
@@ -216,21 +204,23 @@ export default function VictoryGroupsList({
     setRsGroupId(group.id)
     setRsDate(st?.rescheduled_to ?? occDate)
     setRsTime(st?.rescheduled_time ?? group.meeting_time ?? '')
-    setRsAll(false)
+    setRsScope('one')
     setError('')
   }
 
   const saveReschedule = async (group: VictoryGroup, occDate: string) => {
     if (!rsDate) return
     setRsSaving(true)
-    if (rsAll) {
-      // Shift the standing day/time for every future occurrence, and clear any
-      // one-off override for this occurrence so it follows the new schedule.
-      const res = await updateVictoryGroup(group.id, { meeting_day: weekdayOf(rsDate), meeting_time: rsTime || null })
+    if (rsScope === 'all') {
+      // Shift the standing schedule for every future occurrence — only this
+      // occurrence's weekday moves; a multi-day group keeps its other days.
+      // Clear any one-off override so this occurrence follows the new schedule.
+      const schedule = shiftDayInSchedule(daysOf(group), occDate, rsDate)
+      const res = await updateVictoryGroup(group.id, { ...schedule, meeting_time: rsTime || null })
       if (!res.error) await clearGroupMeetingStatus(group.id, occDate)
       if (res.error) setError(res.error.message)
       else if (group.google_calendar_event_id) {
-        await syncGroupToCalendar('update', group.id, { ...group, meeting_day: weekdayOf(rsDate), meeting_time: rsTime || null })
+        await syncGroupToCalendar('update', group.id, { ...group, ...schedule, meeting_time: rsTime || null })
       }
     } else {
       const { error } = await upsertGroupMeetingStatus({
@@ -326,7 +316,7 @@ export default function VictoryGroupsList({
 
   const resetForm = () => {
     setName('')
-    setMeetingDay('')
+    setFormDays([])
     setMeetingTime('')
     setFocus('')
     setEditingGroupId(null)
@@ -341,12 +331,12 @@ export default function VictoryGroupsList({
     setLoading(true)
     setError('')
 
+    // meeting_day = first selected day, kept in sync for legacy readers.
+    const sortedDays = [...formDays].sort((a, b) => WEEKDAY_NAMES.indexOf(a) - WEEKDAY_NAMES.indexOf(b))
     const payload = {
       name: name.trim(),
-      meeting_day: meetingDay || null,
-      // Keep the plural column in sync from day one — the multi-select UI
-      // lands next; until then a group's list is just its single day.
-      meeting_days: meetingDay ? [meetingDay] : null,
+      meeting_day: sortedDays[0] ?? null,
+      meeting_days: sortedDays.length ? sortedDays : null,
       meeting_time: meetingTime || null,
       focus: (focus || null) as GroupFocus | null,
     }
@@ -387,7 +377,7 @@ export default function VictoryGroupsList({
     // Open the edit form
     setEditingGroupId(group.id)
     setName(group.name)
-    setMeetingDay(group.meeting_day ?? '')
+    setFormDays(daysOf(group))
     setMeetingTime(group.meeting_time ?? '')
     setFocus(group.focus ?? '')
     setShowForm(true)
@@ -583,19 +573,27 @@ export default function VictoryGroupsList({
                 className="w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] p-2 text-sm text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
               />
             </div>
-            <select
-              value={meetingDay}
-              onChange={e => setMeetingDay(e.target.value)}
-              className="rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] p-2 text-sm text-[var(--fg-1)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
-            >
-              <option value="">Day</option>
-              {meetingDays.map(day => <option key={day} value={day}>{day}</option>)}
-            </select>
+            {/* Meeting days — tap to toggle; a group can meet several days a week. */}
+            <div className="col-span-2 flex flex-wrap items-center gap-1">
+              {WEEKDAY_NAMES.map(day => {
+                const on = formDays.includes(day)
+                return (
+                  <button
+                    key={day}
+                    type="button"
+                    onClick={() => setFormDays(prev => on ? prev.filter(d => d !== day) : [...prev, day])}
+                    className={`rounded-full border px-2 py-1 text-[11px] font-semibold transition-all ${on ? 'border-[var(--gbm-cobalt-bright)] bg-[var(--gbm-cobalt-bright)] text-[var(--fg-1)]' : 'border-[var(--line-2)] bg-[var(--indigo-2)] text-[var(--fg-2)] hover:border-[var(--line-3)]'}`}
+                  >
+                    {day.slice(0, 3)}
+                  </button>
+                )
+              })}
+            </div>
             <input
               type="time"
               value={meetingTime}
               onChange={e => setMeetingTime(e.target.value)}
-              className="rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] p-2 text-sm text-[var(--fg-1)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
+              className="col-span-2 rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] p-2 text-sm text-[var(--fg-1)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
             />
             {/* Focus: which booklet this group takes people through (sets the 4E stage) */}
             <select
@@ -675,7 +673,7 @@ export default function VictoryGroupsList({
                     </span>
                     <span className="shrink-0 text-[10px] text-[var(--fg-3)]">
                       {group.google_calendar_event_id && <span title="Synced to Google Calendar">📅 </span>}
-                      {group.meeting_day ?? ''}{group.meeting_time ? ` @ ${fmtTime(group.meeting_time)}` : ''} · {memberships.length}
+                      {fmtDaysShort(daysOf(group))}{group.meeting_time ? ` @ ${fmtTime(group.meeting_time)}` : ''} · {memberships.length}
                     </span>
                   </button>
                   {canManage && group.meeting_day && !group.google_calendar_event_id && (
@@ -797,8 +795,8 @@ export default function VictoryGroupsList({
                     {/* This week's meeting — per-occurrence cancel / reschedule.
                         "All future meetings" instead shifts the group's standing
                         day/time. Mirrors the native group action sheet. */}
-                    {group.meeting_day && !isAttendanceMode && !isHistoryMode && (() => {
-                      const occ = nextOccurrenceDate(group.meeting_day)
+                    {daysOf(group).length > 0 && !isAttendanceMode && !isHistoryMode && (() => {
+                      const occ = nextOccurrenceDate(daysOf(group))
                       if (!occ) return null
                       const st = statusFor(group.id, occ)
                       const isRsOpen = rsGroupId === group.id
@@ -839,16 +837,32 @@ export default function VictoryGroupsList({
                               <div className="mt-2 flex flex-wrap items-center gap-1.5">
                                 <input type="date" value={rsDate} onChange={e => setRsDate(e.target.value)} className="rounded-lg border border-[var(--line-2)] bg-[var(--indigo)] px-2 py-1 text-xs text-[var(--fg-1)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none" />
                                 <input type="time" value={rsTime} onChange={e => setRsTime(e.target.value)} className="rounded-lg border border-[var(--line-2)] bg-[var(--indigo)] px-2 py-1 text-xs text-[var(--fg-1)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none" />
-                                <label className="flex items-center gap-1 text-[10px] text-[var(--fg-2)]">
-                                  <input type="checkbox" checked={rsAll} onChange={e => setRsAll(e.target.checked)} className="h-3.5 w-3.5 rounded border-[var(--line-2)] bg-[var(--indigo)] accent-[var(--gbm-cobalt-bright)]" />
-                                  All future meetings
-                                </label>
+                              </div>
+                              {/* Explicit scope — the user picks which meetings move before saving. */}
+                              <div className="mt-1.5 flex flex-col gap-1">
+                                {([
+                                  ['one', `Just this meeting (${fmtHistDate(occ)})`],
+                                  ['all', `All future ${weekdayOf(occ)}s${rsDate ? ` → ${weekdayOf(rsDate)}s` : ''}`],
+                                ] as const).map(([val, label]) => (
+                                  <button
+                                    key={val}
+                                    type="button"
+                                    onClick={() => setRsScope(val)}
+                                    className={`rounded-lg border px-2 py-1.5 text-left text-[11px] font-semibold transition-all ${rsScope === val ? 'border-[var(--gbm-cobalt-bright)] bg-[rgba(91,141,247,.15)] text-[var(--fg-1)]' : 'border-[var(--line-2)] bg-[var(--indigo)] text-[var(--fg-2)] hover:border-[var(--line-3)]'}`}
+                                  >
+                                    {rsScope === val ? '● ' : '○ '}{label}
+                                  </button>
+                                ))}
+                              </div>
+                              {rsScope === 'all' && rsDate && (
+                                <p className="mt-1 text-[10px] text-[var(--fg-3)]">
+                                  Moves the group’s regular {weekdayOf(occ)} meeting to {weekdayOf(rsDate)}{rsTime ? ` @ ${rsTime}` : ''} every week{daysOf(group).length > 1 ? ' — other meeting days stay the same' : ''}.
+                                </p>
+                              )}
+                              <div className="mt-2 flex items-center gap-1.5">
                                 <button type="button" onClick={() => saveReschedule(group, occ)} disabled={rsSaving || !rsDate} className="cn-btn cn-btn-primary !px-2.5 !py-1 !text-xs disabled:opacity-50">{rsSaving ? 'Saving…' : 'Save'}</button>
                                 <button type="button" onClick={() => setRsGroupId(null)} className="cn-chip !text-xs">Cancel</button>
                               </div>
-                              {rsAll && rsDate && (
-                                <p className="mt-1 text-[10px] text-[var(--fg-3)]">Moves the group’s regular meeting to {weekdayOf(rsDate)}{rsTime ? ` @ ${rsTime}` : ''} for every future week.</p>
-                              )}
                             </>
                           )}
                         </div>

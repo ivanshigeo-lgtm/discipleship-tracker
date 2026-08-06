@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { addEngagement, addMeetingParticipants, getPeople } from '../lib/supabaseQueries'
 import { useAuth } from '../contexts/AuthContext'
 import type { MeetingType, Person } from '../types/database'
-import { type Recurrence, RECURRENCE_OPTIONS, recurrenceDates, recurrenceLabel } from '../lib/recurrence'
+import { type Recurrence, RECURRENCE_OPTIONS, recurrenceDatesMultiDay, recurrenceLabel } from '../lib/recurrence'
+import { WEEKDAY_NAMES } from '../lib/meetingDays'
 
 const MEETING_TYPES: MeetingType[] = ['One2One', 'Making Disciples', 'Coffee', 'Church Community', 'Empowering Leaders']
 
@@ -26,6 +27,9 @@ export default function NewMeetingModal({ onClose, onCreated }: { onClose: () =>
   const [location, setLocation] = useState('')
   const [recurrence, setRecurrence] = useState<Recurrence>('none')
   const [repeatUntil, setRepeatUntil] = useState('')
+  // Extra weekdays for weekly cadences — a recurring 1:1 can meet on several
+  // days a week. The start date's own weekday is always included.
+  const [repeatDays, setRepeatDays] = useState<number[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -45,7 +49,14 @@ export default function NewMeetingModal({ onClose, onCreated }: { onClose: () =>
   }, [search, people, profile?.id, participantIds])
   const nameOf = (id: string) => people.find(p => p.id === id)?.name ?? 'Someone'
 
-  const repeatCount = recurrence !== 'none' && date && repeatUntil ? recurrenceDates(date, repeatUntil, recurrence).length : 0
+  const isWeeklyCadence = recurrence === 'weekly' || recurrence === 'biweekly' || recurrence === 'triweekly'
+  const startWeekday = date ? new Date(date + 'T00:00:00').getDay() : null
+  const allRepeatDays = startWeekday === null ? repeatDays : [...new Set([startWeekday, ...repeatDays])]
+  const plannedDates = useMemo(() => {
+    if (recurrence === 'none' || !date || !repeatUntil) return [date || '']
+    return recurrenceDatesMultiDay(date, repeatUntil, recurrence, isWeeklyCadence ? allRepeatDays : [])
+  }, [recurrence, date, repeatUntil, isWeeklyCadence, allRepeatDays.join(',')])
+  const repeatCount = recurrence !== 'none' && date && repeatUntil ? plannedDates.length : 0
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -55,8 +66,7 @@ export default function NewMeetingModal({ onClose, onCreated }: { onClose: () =>
     setLoading(true)
     setError('')
 
-    const dates = recurrence !== 'none' && date && repeatUntil ? recurrenceDates(date, repeatUntil, recurrence) : [date || '']
-    for (const d of dates) {
+    for (const d of plannedDates) {
       const { data: eng, error: insErr } = await addEngagement({
         person_id: participantIds[0],
         created_by_person_id: profile.id,
@@ -143,10 +153,34 @@ export default function NewMeetingModal({ onClose, onCreated }: { onClose: () =>
             <>
               <span className="text-xs text-[var(--fg-3)]">until</span>
               <input type="date" value={repeatUntil} min={addDaysStr(date, 1)} onChange={e => setRepeatUntil(e.target.value)} className={`${inputClass} w-32`} required />
-              {repeatCount > 1 && <span className="text-[10px] text-[var(--fg-3)]">{recurrenceLabel(recurrence, date)} · {repeatCount} meetings</span>}
+              {repeatCount > 1 && <span className="text-[10px] text-[var(--fg-3)]">{recurrenceLabel(recurrence, date)}{allRepeatDays.length > 1 ? ` on ${allRepeatDays.length} days` : ''} · {repeatCount} meetings</span>}
             </>
           )}
         </div>
+
+        {/* Which days of the week — a recurring 1:1 can meet several days a week.
+            The start date's weekday is always part of the series. */}
+        {isWeeklyCadence && date && (
+          <div className="flex flex-wrap items-center gap-1">
+            <span className="mr-1 text-xs text-[var(--fg-3)]">on</span>
+            {WEEKDAY_NAMES.map((day, i) => {
+              const isStart = i === startWeekday
+              const on = isStart || repeatDays.includes(i)
+              return (
+                <button
+                  key={day}
+                  type="button"
+                  disabled={isStart}
+                  title={isStart ? 'Start date — always included' : undefined}
+                  onClick={() => setRepeatDays(prev => on ? prev.filter(d => d !== i) : [...prev, i])}
+                  className={`rounded-full border px-2 py-1 text-[11px] font-semibold transition-all ${on ? 'border-[var(--gbm-cobalt-bright)] bg-[var(--gbm-cobalt-bright)] text-[var(--fg-1)]' : 'border-[var(--line-2)] bg-[var(--indigo-2)] text-[var(--fg-2)] hover:border-[var(--line-3)]'} ${isStart ? 'opacity-90' : ''}`}
+                >
+                  {day.slice(0, 3)}
+                </button>
+              )
+            })}
+          </div>
+        )}
 
         <div className="flex justify-end gap-2 pt-1">
           <button type="button" onClick={onClose} className="cn-chip">Cancel</button>

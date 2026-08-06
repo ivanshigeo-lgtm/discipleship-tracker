@@ -16,12 +16,33 @@ type EditingEngagement = {
   notes: string
   recurrence: Recurrence
   repeatUntil: string
+  // When the date/time moves and the meeting has future recurring siblings:
+  // move just this one, or this and all future ones (explicit choice).
+  applyScope: 'one' | 'future'
 }
 
 function addDaysStr(dateStr: string, days: number): string {
   const d = new Date(dateStr + 'T00:00:00')
   d.setDate(d.getDate() + days)
   return d.toISOString().split('T')[0]
+}
+
+function daysBetween(a: string, b: string): number {
+  return Math.round((new Date(b + 'T00:00:00').getTime() - new Date(a + 'T00:00:00').getTime()) / 86_400_000)
+}
+
+// Future recurring siblings of a 1:1 — same person and meeting type, still
+// Pending, dated after this one. There is no series id; this mirrors the
+// native app's sibling rule for "apply to all future".
+function futureSiblings(all: Engagement[], eng: Engagement): Engagement[] {
+  if (!eng.follow_up_date) return []
+  return all.filter(e =>
+    e.id !== eng.id &&
+    e.status === 'Pending' &&
+    e.person_id === eng.person_id &&
+    (e.meeting_type ?? null) === (eng.meeting_type ?? null) &&
+    !!e.follow_up_date && e.follow_up_date > eng.follow_up_date!
+  )
 }
 
 // Future occurrences only (the engagement being edited already covers `start`).
@@ -123,6 +144,22 @@ export default function NextStepsList({
       setEngagements(current =>
         current.map(e => e.id === eng.id ? updatedEng : e)
       )
+      // "This and all future meetings": shift each future sibling by the same
+      // number of days this one moved, and carry the new time along.
+      if (
+        editingData.applyScope === 'future' &&
+        eng.follow_up_date && updates.follow_up_date &&
+        (updates.follow_up_date !== eng.follow_up_date || (updates.follow_up_time ?? '') !== (eng.follow_up_time ?? ''))
+      ) {
+        const delta = daysBetween(eng.follow_up_date, updates.follow_up_date)
+        for (const sib of futureSiblings(engagements, eng)) {
+          await updateEngagement(sib.id, {
+            follow_up_date: delta ? addDaysStr(sib.follow_up_date!, delta) : sib.follow_up_date,
+            follow_up_time: updates.follow_up_time || sib.follow_up_time,
+          })
+        }
+        await loadEngagements()
+      }
       setExpandedId(null)
       setEditingData(null)
       onUpdate?.()
@@ -213,6 +250,7 @@ export default function NextStepsList({
         notes: eng.notes || '',
         recurrence: 'none',
         repeatUntil: '',
+        applyScope: 'one',
       })
     }
   }
@@ -277,6 +315,7 @@ export default function NextStepsList({
             <EngagementCard
               key={eng.id}
               eng={eng}
+              futureSiblingCount={futureSiblings(engagements, eng).length}
               isExpanded={expandedId === eng.id}
               editingData={editingData}
               savingId={savingId}
@@ -302,6 +341,7 @@ export default function NextStepsList({
             <EngagementCard
               key={eng.id}
               eng={eng}
+              futureSiblingCount={futureSiblings(engagements, eng).length}
               isExpanded={expandedId === eng.id}
               editingData={editingData}
               savingId={savingId}
@@ -327,6 +367,7 @@ export default function NextStepsList({
             <EngagementCard
               key={eng.id}
               eng={eng}
+              futureSiblingCount={futureSiblings(engagements, eng).length}
               isExpanded={expandedId === eng.id}
               editingData={editingData}
               savingId={savingId}
@@ -348,6 +389,7 @@ export default function NextStepsList({
 
 function EngagementCard({
   eng,
+  futureSiblingCount,
   isExpanded,
   editingData,
   savingId,
@@ -361,6 +403,7 @@ function EngagementCard({
   onSyncToCalendar,
 }: {
   eng: Engagement
+  futureSiblingCount: number
   isExpanded: boolean
   editingData: EditingEngagement | null
   savingId: string | null
@@ -588,6 +631,30 @@ function EngagementCard({
               <span className="text-[10px] text-[var(--fg-3)]">set a date first</span>
             )}
           </div>
+
+          {/* Rescheduling a recurring 1:1 — explicit choice of which meetings move. */}
+          {eng.status === 'Pending' && futureSiblingCount > 0 && eng.follow_up_date && editingData.follow_up_date &&
+            (editingData.follow_up_date !== eng.follow_up_date || editingData.follow_up_time !== (eng.follow_up_time ?? '')) && (
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--fg-3)]">Apply to</span>
+              {([
+                ['one', `Just this meeting (${new Date(eng.follow_up_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })})`],
+                ['future', `This and all ${futureSiblingCount} future ${futureSiblingCount === 1 ? 'meeting' : 'meetings'}`],
+              ] as const).map(([val, label]) => (
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => updateField('applyScope', val)}
+                  className={`rounded-lg border px-2 py-1.5 text-left text-[11px] font-semibold transition-all ${editingData.applyScope === val ? 'border-[var(--gbm-cobalt-bright)] bg-[rgba(91,141,247,.15)] text-[var(--fg-1)]' : 'border-[var(--line-2)] bg-[var(--indigo-2)] text-[var(--fg-2)] hover:border-[var(--line-3)]'}`}
+                >
+                  {editingData.applyScope === val ? '● ' : '○ '}{label}
+                </button>
+              ))}
+              {editingData.applyScope === 'future' && (
+                <p className="text-[10px] text-[var(--fg-3)]">Each future meeting shifts by the same number of days{editingData.follow_up_time ? ` and moves to ${editingData.follow_up_time}` : ''}.</p>
+              )}
+            </div>
+          )}
 
           <div>
             <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[var(--fg-3)]">

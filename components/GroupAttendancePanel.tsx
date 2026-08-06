@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { getGroupAttendance, upsertGroupAttendance } from '../lib/supabaseQueries'
 import type { GroupAttendance, PersonVictoryGroupWithPerson, Stage, VictoryGroup } from '../types/database'
 import { stageLabels } from '../lib/stageLabels'
+import { daysOf, fmtDaysShort } from '../lib/meetingDays'
 
 const STAGE_COLORS: Record<Stage, string> = {
   Engage: '#F4B650',
@@ -25,32 +26,36 @@ const dayNameToIndex: Record<string, number> = {
 const toDateInputValue = (date: Date) => date.toISOString().split('T')[0]
 const parseLocalDate = (date: string) => new Date(`${date}T00:00:00`)
 
-const getMostRecentMeetingDate = (meetingDay: string | null, createdAt: string) => {
+// Most recent occurrence of ANY of the group's meeting days (a Tue & Thu
+// group defaults to whichever of those most recently passed).
+const getMostRecentMeetingDate = (meetingDaysList: string[], createdAt: string) => {
   const today = new Date()
   const createdDate = parseLocalDate(toDateInputValue(new Date(createdAt)))
+  const targets = meetingDaysList.map(d => dayNameToIndex[d]).filter(i => i !== undefined)
 
-  if (!meetingDay || dayNameToIndex[meetingDay] === undefined) {
+  if (targets.length === 0) {
     return toDateInputValue(today < createdDate ? createdDate : today)
   }
 
-  const targetDay = dayNameToIndex[meetingDay]
+  const daysSince = Math.min(...targets.map(t => (today.getDay() - t + 7) % 7))
   const date = new Date(today)
-  const daysSinceMeetingDay = (date.getDay() - targetDay + 7) % 7
-  date.setDate(date.getDate() - daysSinceMeetingDay)
+  date.setDate(date.getDate() - daysSince)
 
   if (date < createdDate) {
+    const daysUntil = Math.min(...targets.map(t => (t - createdDate.getDay() + 7) % 7))
     const firstMeetingDate = new Date(createdDate)
-    const daysUntilMeetingDay = (targetDay - firstMeetingDate.getDay() + 7) % 7
-    firstMeetingDate.setDate(firstMeetingDate.getDate() + daysUntilMeetingDay)
+    firstMeetingDate.setDate(firstMeetingDate.getDate() + daysUntil)
     return toDateInputValue(firstMeetingDate)
   }
 
   return toDateInputValue(date)
 }
 
-const isMeetingDay = (date: string, meetingDay: string | null) => {
-  if (!meetingDay || dayNameToIndex[meetingDay] === undefined) return true
-  return parseLocalDate(date).getDay() === dayNameToIndex[meetingDay]
+// A date qualifies when it lands on any of the group's meeting days.
+const isMeetingDay = (date: string, meetingDaysList: string[]) => {
+  const targets = meetingDaysList.map(d => dayNameToIndex[d]).filter(i => i !== undefined)
+  if (targets.length === 0) return true
+  return targets.includes(parseLocalDate(date).getDay())
 }
 
 export default function GroupAttendancePanel({
@@ -60,7 +65,7 @@ export default function GroupAttendancePanel({
   group: VictoryGroup
   memberships: PersonVictoryGroupWithPerson[]
 }) {
-  const [meetingDate, setMeetingDate] = useState(getMostRecentMeetingDate(group.meeting_day, group.created_at))
+  const [meetingDate, setMeetingDate] = useState(getMostRecentMeetingDate(daysOf(group), group.created_at))
   const [attendance, setAttendance] = useState<GroupAttendance[]>([])
   const [draftAttendance, setDraftAttendance] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(true)
@@ -74,7 +79,7 @@ export default function GroupAttendancePanel({
 
   const createdDate = toDateInputValue(new Date(group.created_at))
   const dateIsBeforeGroupCreated = meetingDate < createdDate
-  const dateIsCorrectMeetingDay = isMeetingDay(meetingDate, group.meeting_day)
+  const dateIsCorrectMeetingDay = isMeetingDay(meetingDate, daysOf(group))
 
   const attendanceForDate = (personId: string, date: string) => {
     return attendance.find(record => record.person_id === personId && record.meeting_date === date)
@@ -117,7 +122,7 @@ export default function GroupAttendancePanel({
         record.victory_group_id === group.id &&
         recordDate >= created &&
         recordDate <= selected &&
-        isMeetingDay(record.meeting_date, group.meeting_day)
+        isMeetingDay(record.meeting_date, daysOf(group))
       ) {
         dates.add(record.meeting_date)
       }
@@ -161,7 +166,7 @@ export default function GroupAttendancePanel({
     }
 
     if (!dateIsCorrectMeetingDay) {
-      setError(`This Grace Group meets on ${group.meeting_day}. Choose a ${group.meeting_day} date.`)
+      setError(`This Grace Group meets on ${fmtDaysShort(daysOf(group))}. Choose a matching date.`)
       return
     }
 
@@ -204,7 +209,7 @@ export default function GroupAttendancePanel({
         <div>
           <div className="text-sm font-semibold text-[var(--fg-1)]">Weekly Attendance</div>
           <div className="mt-1 text-xs leading-5 text-[var(--fg-3)]">
-            Absences only count for submitted {group.meeting_day ? `${group.meeting_day} ` : ''}meetings after this group was created.
+            Absences only count for submitted {daysOf(group).length ? `${fmtDaysShort(daysOf(group))} ` : ''}meetings after this group was created.
           </div>
         </div>
         <label className="block">
@@ -217,9 +222,9 @@ export default function GroupAttendancePanel({
             className="w-full rounded-xl border border-[var(--line-2)] bg-[var(--indigo)] p-2.5 text-sm text-[var(--fg-1)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
           />
         </label>
-        {group.meeting_day && !dateIsCorrectMeetingDay && (
+        {daysOf(group).length > 0 && !dateIsCorrectMeetingDay && (
           <p className="rounded-xl bg-[rgba(244,182,80,.15)] p-2.5 text-xs font-medium text-[#F4B650]">
-            This group meets on {group.meeting_day}. Pick a {group.meeting_day} to submit attendance.
+            This group meets on {fmtDaysShort(daysOf(group))}. Pick one of those days to submit attendance.
           </p>
         )}
       </div>

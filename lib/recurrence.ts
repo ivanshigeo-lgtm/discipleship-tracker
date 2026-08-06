@@ -74,6 +74,28 @@ function daySuffix(n: number): string {
   }
 }
 
+// Weekly cadences across multiple weekdays (a 1:1 that meets Tue AND Thu):
+// each selected weekday runs as its own series — every `weeks` weeks from its
+// first occurrence on or after `start`. Non-weekly cadences and an empty day
+// list fall back to the single-series expansion.
+export function recurrenceDatesMultiDay(start: string, until: string, rec: Recurrence, weekdays: number[]): string[] {
+  const weeks = WEEKS_PER[rec]
+  if (!start || !weeks || weekdays.length === 0) return recurrenceDates(start, until, rec)
+  if (!until || until < start) return [start]
+
+  const startDate = parse(start)
+  const untilDate = parse(until)
+  const out = new Set<string>()
+  for (const wd of weekdays) {
+    let cur = addDays(startDate, (wd - startDate.getDay() + 7) % 7)
+    while (cur <= untilDate && out.size < MAX_OCCURRENCES) {
+      out.add(fmt(cur))
+      cur = addDays(cur, weeks * 7)
+    }
+  }
+  return [...out].sort()
+}
+
 // Expand a recurrence into occurrence dates from `start` up to and including
 // `until`. 'none' (or a missing until) yields just the start date.
 export function recurrenceDates(start: string, until: string, rec: Recurrence): string[] {
