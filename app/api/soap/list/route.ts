@@ -79,6 +79,7 @@ export async function POST(request: NextRequest) {
     ocr_text?: string | null
     body?: string | null
     photo_url?: string | null
+    photo_urls?: string[] | null
     created_at: string
     updated_at: string
   }
@@ -89,7 +90,8 @@ export async function POST(request: NextRequest) {
     person_id: personId,
     journal_date: e.entry_date,
     photo_url: e.photo_url ?? null,
-    photo_urls: null,
+    // Multi-page entries: every page signed, main photo first (null when single).
+    photo_urls: e.photo_urls?.length ? e.photo_urls : null,
     // Text-only entries carry their content in `body`; photo entries in `ocr_text`.
     // Fold both into ocr_text so the existing display + search path renders them.
     ocr_text: e.ocr_text ?? e.body ?? null,

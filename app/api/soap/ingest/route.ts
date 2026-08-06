@@ -34,6 +34,10 @@ export async function POST(request: NextRequest) {
   const journalDate = formData.get('journal_date') as string | null
   const scriptureField = formData.get('scripture')
   const scripture = typeof scriptureField === 'string' && scriptureField.trim() ? scriptureField.trim() : null
+  // Multi-page captures: pages after the first arrive one per request and are
+  // appended to the entry the first page created (see iSOAP ingest).
+  const appendField = formData.get('append_to_entry_id')
+  const appendToEntryId = typeof appendField === 'string' && appendField.trim() ? appendField.trim() : null
 
   if (!personId || (!file && !text)) {
     return NextResponse.json({ error: 'personId and (file or text) required' }, { status: 400 })
@@ -97,6 +101,7 @@ export async function POST(request: NextRequest) {
           : { text }),
         scripture,
         entry_date: journalDate || undefined,
+        append_to_entry_id: appendToEntryId || undefined,
       }),
     })
   } catch (e) {
