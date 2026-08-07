@@ -43,6 +43,7 @@ type SharedRow = {
   summary: string | null
   visibility: Level
   created_at: string
+  shared_at: string | null
   people: { name: string } | null
   photo_url: string | null
   isoap: true
@@ -156,9 +157,11 @@ export async function POST(request: NextRequest) {
   //    ordered newest-first; the final slice is applied after content is fetched.
   let shareQuery = admin
     .from('isoap_entry_visibility')
-    .select('isoap_entry_id, wc_person_id, journal_date, victory_group_id, victory_group_ids')
+    .select(
+      'isoap_entry_id, wc_person_id, journal_date, victory_group_id, victory_group_ids, updated_at'
+    )
     .eq('visibility', scope)
-    .order('journal_date', { ascending: false })
+    .order('updated_at', { ascending: false })
     .limit(limit * 4)
   if (authorIds !== null) shareQuery = shareQuery.in('wc_person_id', authorIds)
   const { data: shares, error: shareErr } = await shareQuery
@@ -176,6 +179,7 @@ export async function POST(request: NextRequest) {
   const viewerId = (scope === 'coach' ? body.coachPersonId : body.personId) ?? body.personId ?? null
   const idsByPerson = new Map<string, string[]>()
   const ownTargetsByEntry = new Map<string, string[] | null>() // null = all my groups
+  const sharedAtByEntry = new Map<string, string>()
   for (const s of shares) {
     if (!s.isoap_entry_id || !s.wc_person_id) continue
     const targets: string[] | null = s.victory_group_ids?.length
@@ -190,6 +194,10 @@ export async function POST(request: NextRequest) {
     const arr = idsByPerson.get(s.wc_person_id) ?? []
     arr.push(s.isoap_entry_id)
     idsByPerson.set(s.wc_person_id, arr)
+    const prev = sharedAtByEntry.get(s.isoap_entry_id)
+    if (s.updated_at && (!prev || s.updated_at > prev)) {
+      sharedAtByEntry.set(s.isoap_entry_id, s.updated_at)
+    }
   }
   const personIds = Array.from(idsByPerson.keys())
 
@@ -255,6 +263,7 @@ export async function POST(request: NextRequest) {
           summary: null,
           visibility: scope,
           created_at: e.created_at,
+          shared_at: sharedAtByEntry.get(e.id) ?? e.created_at ?? null,
           people: name ? { name } : null,
           photo_url: e.photo_url ?? null,
           isoap: true as const,
@@ -275,11 +284,13 @@ export async function POST(request: NextRequest) {
     })
   )
 
+  // Newest SHARE first — an old SOAP shared today belongs at the top of the
+  // feed, so ordering follows the share timestamp, not the journal date.
   const entries = perPerson
     .flat()
     .sort((a, b) => {
-      const da = a.journal_date ?? ''
-      const db = b.journal_date ?? ''
+      const da = a.shared_at ?? a.journal_date ?? ''
+      const db = b.shared_at ?? b.journal_date ?? ''
       return da === db ? b.id.localeCompare(a.id) : db.localeCompare(da)
     })
     .slice(0, limit)

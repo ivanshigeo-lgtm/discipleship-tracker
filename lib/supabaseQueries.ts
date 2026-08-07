@@ -1662,12 +1662,16 @@ const fetchIsoapSharedSoaps = async (body: Record<string, unknown>) => {
   }
 }
 
-// Newest-journal-date-first, tiebreak id — the order used to interleave merged
-// local + iSOAP shared rows into one devotional feed.
-const sortSharedByDate = <T extends { journal_date: string | null; id: string }>(rows: T[]) =>
+// Newest SHARE first, tiebreak id — the order used to interleave merged
+// local + iSOAP shared rows into one devotional feed. iSOAP rows carry
+// shared_at (when the share happened); local rows fall back to created_at.
+// journal_date is last resort — sorting by it buried old SOAPs shared today.
+const sortSharedByDate = <
+  T extends { journal_date: string | null; id: string; shared_at?: string | null; created_at?: string | null },
+>(rows: T[]) =>
   rows.sort((a, b) => {
-    const da = a.journal_date ?? ''
-    const db = b.journal_date ?? ''
+    const da = a.shared_at ?? a.created_at ?? a.journal_date ?? ''
+    const db = b.shared_at ?? b.created_at ?? b.journal_date ?? ''
     return da === db ? String(b.id).localeCompare(String(a.id)) : db.localeCompare(da)
   })
 
