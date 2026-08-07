@@ -34,6 +34,11 @@ import EngagementDetailModal from '../../components/EngagementDetailModal'
 import { DashboardSkeleton } from '../../components/Skeleton'
 import MobileConstellation from '../../components/mobile/MobileConstellation'
 import PossibleDuplicatesPanel from '../../components/PossibleDuplicatesPanel'
+import TodayStrip from '../../components/coach/TodayStrip'
+import SignalsRow from '../../components/coach/SignalsRow'
+import NeedsATouch from '../../components/coach/NeedsATouch'
+import MomentumCard from '../../components/coach/MomentumCard'
+import ConstellationLens from '../../components/coach/ConstellationLens'
 
 // True at phone widths — drives the mobile "Our Journey" redesign overlay.
 // Matches Tailwind's `sm` breakpoint (640px) used throughout this page.
@@ -115,43 +120,8 @@ async function shareInvite(code: string) {
   alert('Invite copied — paste it into a text or email to your disciple.')
 }
 
-// Prominent labeled coach-code card for the top of "Our Journey". Tap the code
-// to copy it; "Invite a disciple" shares a ready-made sign-up link with the code
-// baked in.
-function CoachCodeCard({ code }: { code: string }) {
-  const [copied, setCopied] = useState(false)
-  const copy = async () => {
-    try { await navigator.clipboard.writeText(code) } catch { return }
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
-  }
-  return (
-    <div className="cn-card mb-6 flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <p className="text-[10px] font-semibold uppercase tracking-[.14em] text-[var(--fg-3)]">Your coach code</p>
-        <div className="mt-1 flex items-center gap-3">
-          <button
-            type="button"
-            onClick={copy}
-            title="Copy code"
-            className="font-mono text-2xl font-semibold tracking-[.2em] text-[var(--fg-1)] transition-colors hover:text-[var(--gbm-cobalt-bright)]"
-          >
-            {code}
-          </button>
-          <span className="text-xs text-[var(--fg-3)]">{copied ? 'Copied ✓' : 'tap to copy'}</span>
-        </div>
-        <p className="mt-1 text-xs text-[var(--fg-2)]">Disciples enter this to connect with you.</p>
-      </div>
-      <button
-        type="button"
-        onClick={() => shareInvite(code)}
-        className="shrink-0 rounded-lg border border-[rgba(91,141,247,.4)] px-4 py-2 text-sm font-medium text-[var(--gbm-cobalt-bright)] transition-colors hover:bg-[rgba(91,141,247,.1)]"
-      >
-        ✦ Invite a disciple
-      </button>
-    </div>
-  )
-}
+// The coach-code banner that used to live here folded into the briefing's
+// constellation-lens "Invite someone" CTA (shareInvite) and the sidebar footer.
 
 // ─── Sidebar component ────────────────────────────────────────────────────────
 function CoachSidebar({
@@ -356,6 +326,19 @@ export default function DiscipleshipTracker() {
   const [refreshKey, setRefreshKey] = useState(0)
   const [activeSection, setActiveSection] = useState<SectionId>('journey')
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  // Coach home: 'briefing' = the 5-zone daily surface; 'explore' = the full
+  // pipeline/map/list workspace behind the constellation lens. Per-device.
+  const [homeView, setHomeView] = useState<'briefing' | 'explore'>('briefing')
+  const [homeViewRestored, setHomeViewRestored] = useState(false)
+  useEffect(() => {
+    const saved = localStorage.getItem('cn-home-view-v1')
+    if (saved === 'briefing' || saved === 'explore') setHomeView(saved)
+    setHomeViewRestored(true)
+  }, [])
+  useEffect(() => {
+    if (homeViewRestored) localStorage.setItem('cn-home-view-v1', homeView)
+  }, [homeView, homeViewRestored])
 
   // Circle / journey view state
   const [circleFilters, setCircleFilters] = useState<CircleFilter[]>([])
@@ -588,6 +571,7 @@ export default function DiscipleshipTracker() {
   // Count badges for the sidebar — same data each page shows inside.
   const [sidebarBadges, setSidebarBadges] = useState<Record<string, { text: string; title: string }>>({})
   const [pendingSignoffs, setPendingSignoffs] = useState(0)
+  const [unreadTotal, setUnreadTotal] = useState(0)
   useEffect(() => {
     if (!profile) return
     let cancelled = false
@@ -626,6 +610,7 @@ export default function DiscipleshipTracker() {
       // "Mine" = the groups you own (not all GBC groups, even for admins).
       const groups = ((groupsRes.data as { owner_person_id: string | null }[]) ?? []).filter(g => g.owner_person_id === profile.id).length
       const unread = ((convRes.data as { unreadCount?: number }[]) ?? []).reduce((s, c) => s + (c.unreadCount ?? 0), 0)
+      setUnreadTotal(unread)
       setSidebarBadges({
         engagements: { text: `${eng7}`, title: 'Meetings in the next 7 days' },
         points: { text: `${openPoints}`, title: 'Open action points' },
@@ -666,6 +651,13 @@ export default function DiscipleshipTracker() {
   const openPerson = (person: Person, tab?: typeof initialProfileTab) => {
     setSelectedPerson(person)
     setInitialProfileTab(tab ?? 'profile')
+  }
+
+  // Open the message center, optionally straight into a DM with someone
+  // (MessageCenter creates the conversation from initialTargetPersonId).
+  const openMessages = (targetPersonId?: string) => {
+    if (targetPersonId) setMsgCenterTarget(targetPersonId)
+    setMsgCenterOpen(true)
   }
 
   const handleSignOut = async () => { await signOut(); window.location.href = '/my-journey' }
@@ -733,9 +725,67 @@ export default function DiscipleshipTracker() {
         <main className="flex-1 p-3 sm:p-4">
 
           {/* ── Our Journey (default) — desktop; mobile uses MobileConstellation overlay ── */}
-          {activeSection === 'journey' && !isMobile && (
+          {/* ── Coach home briefing (default) — the 5-zone daily surface ── */}
+          {activeSection === 'journey' && !isMobile && homeView === 'briefing' && (
+            <div className="mx-auto w-full max-w-2xl">
+              <ErrorBoundary name="TodayStrip">
+                <TodayStrip
+                  personId={profile.id}
+                  refreshKey={refreshKey}
+                  onOpenMessages={openMessages}
+                  onGoToEngagements={() => setActiveSection('engagements')}
+                />
+              </ErrorBoundary>
+              <ErrorBoundary name="SignalsRow">
+                <SignalsRow
+                  personId={profile.id}
+                  refreshKey={refreshKey}
+                  onOpenMessages={openMessages}
+                  onGoToEngagements={() => setActiveSection('engagements')}
+                />
+              </ErrorBoundary>
+              <ErrorBoundary name="NeedsATouch">
+                <NeedsATouch
+                  personId={profile.id}
+                  allowedPersonIds={myCircleIds ? Array.from(myCircleIds) : undefined}
+                  refreshKey={refreshKey}
+                  onPersonClick={p => openPerson(p)}
+                  onOpenMessages={openMessages}
+                />
+              </ErrorBoundary>
+              <ErrorBoundary name="MomentumCard">
+                <MomentumCard
+                  personId={profile.id}
+                  myPersonIds={myCircleIds ? Array.from(myCircleIds) : undefined}
+                  canSeeAllChurch={canSeeAllChurch}
+                  refreshKey={refreshKey}
+                  onPersonClick={p => openPerson(p)}
+                />
+              </ErrorBoundary>
+              <ErrorBoundary name="ConstellationLens">
+                <ConstellationLens
+                  personId={profile.id}
+                  myPersonIds={myCircleIds ? Array.from(myCircleIds) : undefined}
+                  canSeeAllChurch={canSeeAllChurch}
+                  refreshKey={refreshKey}
+                  onInvite={() => shareInvite(profile.id.slice(-6).toUpperCase())}
+                  onOpenExplore={() => setHomeView('explore')}
+                  onPersonClick={p => openPerson(p)}
+                />
+              </ErrorBoundary>
+            </div>
+          )}
+
+          {/* ── Explore — the full pipeline/map/list workspace behind the lens ── */}
+          {activeSection === 'journey' && !isMobile && homeView === 'explore' && (
             <div>
-              <CoachCodeCard code={profile.id.slice(-6).toUpperCase()} />
+              <button
+                type="button"
+                onClick={() => setHomeView('briefing')}
+                className="mb-4 flex items-center gap-1.5 text-sm font-medium text-[var(--gbm-cobalt-soft)] transition-colors hover:text-[var(--fg-1)]"
+              >
+                ← Back to briefing
+              </button>
               {/* Church-wide duplicate scan — admins and approved-Empower coaches only */}
               {canSeeAllChurch && (
                 <ErrorBoundary name="PossibleDuplicatesPanel">
@@ -1199,11 +1249,14 @@ export default function DiscipleshipTracker() {
           onChanged={() => setRefreshKey(p => p + 1)}
           onAddPerson={() => { setNewPersonName(''); setShowAddPerson(true) }}
           onOpenFullProfile={(person, tab) => openPerson(person, tab)}
+          unreadCount={unreadTotal}
           onTab={t => {
             // Pass 2: People + Groups are now real in-overlay mobile screens
             // (handled inside MobileConstellation without leaving activeSection
-            // 'journey', so the overlay stays mounted). Only Me routes out, to
-            // the coach's own mobile journey page.
+            // 'journey', so the overlay stays mounted). Messages opens the
+            // MessageCenter overlay; only Me routes out, to the coach's own
+            // mobile journey page.
+            if (t === 'messages') setMsgCenterOpen(true)
             if (t === 'me') window.location.href = '/my-journey'
           }}
         />

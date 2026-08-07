@@ -97,6 +97,7 @@ export default function MobileConstellation({
   onAddPerson,
   onOpenFullProfile,
   onTab,
+  unreadCount = 0,
 }: {
   allowedPersonIds?: string[]
   effectiveScope: 'gbc' | 'mine' | 'direct'
@@ -107,7 +108,9 @@ export default function MobileConstellation({
   onChanged: () => void
   onAddPerson: () => void
   onOpenFullProfile: (person: Person, tab?: 'engagements') => void
-  onTab: (tab: 'people' | 'groups' | 'me') => void
+  onTab: (tab: 'people' | 'groups' | 'me' | 'messages') => void
+  // Unread conversation total for the Messages tab dot (page-supplied).
+  unreadCount?: number
 }) {
   const [people, setPeople] = useState<Person[]>([])
   const [engagements, setEngagements] = useState<Engagement[]>([])
@@ -290,9 +293,10 @@ export default function MobileConstellation({
   )
 
   const TabBar = () => {
-    const item = (active: boolean, label: string, path: React.ReactNode, onClick: () => void) => (
-      <button type="button" onClick={onClick} style={{ background: 'none', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, color: active ? '#8FB0FA' : '#7A82A8', minWidth: 64, paddingTop: 4 }}>
+    const item = (active: boolean, label: string, path: React.ReactNode, onClick: () => void, dot = false) => (
+      <button type="button" onClick={onClick} style={{ background: 'none', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, color: active ? '#8FB0FA' : '#7A82A8', minWidth: 58, paddingTop: 4, position: 'relative' }}>
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">{path}</svg>
+        {dot && <span style={{ position: 'absolute', top: 2, right: 14, width: 8, height: 8, borderRadius: 999, background: '#F2728A', boxShadow: '0 0 8px rgba(242,114,138,.8)' }} />}
         <span style={{ fontSize: 10, fontWeight: 600 }}>{label}</span>
       </button>
     )
@@ -301,6 +305,7 @@ export default function MobileConstellation({
         {item(tab === 'journey', 'Journey', <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />, () => { setTab('journey'); setActiveStage(null) })}
         {item(tab === 'people', 'People', <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></>, () => { setTab('people'); setActiveStage(null) })}
         {item(tab === 'groups', 'Groups', <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />, () => { setTab('groups'); setActiveStage(null) })}
+        {item(false, 'Messages', <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />, () => onTab('messages'), unreadCount > 0)}
         {item(false, 'Me', <><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></>, () => onTab('me'))}
       </div>
     )
