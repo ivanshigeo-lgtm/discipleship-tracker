@@ -32,12 +32,16 @@ export default function SoapEntryModal({
   onClose,
   onSaved,
   initialDate,
+  initialText,
   editEntry,
 }: {
   personId: string
   onClose: () => void
   onSaved: () => void
   initialDate?: string
+  // Pre-seeds a NEW entry's text (e.g. home's "Sit with this verse" passes the
+  // Scripture line). Ignored when editing — the existing entry's text wins.
+  initialText?: string
   // When present the modal edits an existing SOAP in place (create otherwise).
   // Edits to an iSOAP row route through /api/soap/update; local rows update
   // soap_journals directly.
@@ -46,7 +50,7 @@ export default function SoapEntryModal({
   const isEdit = !!editEntry
   const todayIso = new Date().toISOString().split('T')[0]
   const [entryDate, setEntryDate] = useState(editEntry?.journal_date ?? initialDate ?? todayIso)
-  const [entry, setEntry] = useState(editEntry?.ocr_text ?? '')
+  const [entry, setEntry] = useState(editEntry?.ocr_text ?? initialText ?? '')
   const [visibility, setVisibility] = useState<ShareVisibility>(editEntry?.visibility ?? 'private')
   const [photo, setPhoto] = useState<File | null>(null)
   // A newly-taken photo (File) replaces the entry image; on edit we seed the

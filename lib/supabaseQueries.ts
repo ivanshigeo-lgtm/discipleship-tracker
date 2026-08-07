@@ -1733,6 +1733,38 @@ export const getGroupSharedSoaps = async (personId: string, limit = 20) => {
 
 const SHARED_PRAYER_COLS = 'id, person_id, request, is_praise, status, answer_notes, visibility, media_url, created_at, people!person_id(name)'
 
+// The newest still-active prayer requests shared with this person's Grace
+// Group(s) by fellow members — the home page's feed preview shows one so a
+// newcomer sees prayer modeled (and can go pray). Same membership walk as
+// getGroupSharedSoaps; a group's member list is small, so .in() is safe here.
+export const getGroupPrayerPreview = async (personId: string, limit = 2) => {
+  const { data: myGroups, error: gErr } = await supabase
+    .from('person_victory_groups')
+    .select('victory_group_id')
+    .eq('person_id', personId)
+    .eq('status', 'approved')
+  if (gErr) return { data: null, error: gErr }
+  const gids = (myGroups ?? []).map(g => g.victory_group_id).filter(Boolean)
+  if (gids.length === 0) return { data: [], error: null }
+  const { data: members, error: mErr } = await supabase
+    .from('person_victory_groups')
+    .select('person_id')
+    .in('victory_group_id', gids)
+    .eq('status', 'approved')
+  if (mErr) return { data: null, error: mErr }
+  const pids = Array.from(new Set((members ?? []).map(m => m.person_id).filter(Boolean))).filter(p => p !== personId)
+  if (pids.length === 0) return { data: [], error: null }
+  const { data, error } = await supabase
+    .from('prayer_requests')
+    .select(SHARED_PRAYER_COLS)
+    .eq('visibility', 'group')
+    .eq('status', 'Active')
+    .in('person_id', pids)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  return { data, error }
+}
+
 // Prayers/praises a coach's disciples shared with their coach (visibility='coach').
 // ── Per-viewer state of shared feed items (archived = recoverable via "Show
 // archived"; deleted = permanently hidden for this viewer — never touches the

@@ -45,7 +45,10 @@ import MessageCoachModal from '../../components/journey/MessageCoachModal'
 import MessageCenter from '../../components/MessageCenter'
 import MessagesInbox from '../../components/MessagesInbox'
 import JoinGroupModal from '../../components/journey/JoinGroupModal'
-import WeekMeetings from '../../components/journey/WeekMeetings'
+import NextStepCard from '../../components/journey/NextStepCard'
+import NextMeetingCard from '../../components/journey/NextMeetingCard'
+import FeedPreview from '../../components/journey/FeedPreview'
+import VerseCard from '../../components/journey/VerseCard'
 import SelfConfirmModal, { type SelfConfirmKind } from '../../components/journey/SelfConfirmModal'
 import JourneyMenu, { EngagementsPanel } from '../../components/journey/JourneyMenu'
 import EmpoweredCoachmark from '../../components/journey/EmpoweredCoachmark'
@@ -241,6 +244,8 @@ export default function MyJourneyPage() {
   const justSavedEquipRef = useRef(false)
   const [soapEntryDate, setSoapEntryDate] = useState<string | null>(null)
   const [soapEditEntry, setSoapEditEntry] = useState<SoapJournal | null>(null)
+  // Verse-card on-ramp: pre-seeds a fresh SOAP entry with today's Scripture line.
+  const [soapSeedText, setSoapSeedText] = useState<string | null>(null)
   const [msgCenterOpen, setMsgCenterOpen] = useState(false)
   const [unreadMsgCount, setUnreadMsgCount] = useState(0)
   const [engagementsOpen, setEngagementsOpen] = useState(false)
@@ -811,8 +816,15 @@ export default function MyJourneyPage() {
 
             </section>
 
-            {/* This week — the viewer's group meetings + 1:1s for the next 7 days */}
-            <WeekMeetings personId={profile.id} groups={groups} />
+            {/* Your next step — the one loud element: exactly one doable ask */}
+            <NextStepCard
+              level={currentLevel}
+              onStepAction={handleStepAction}
+              onRequestSignoff={handleRequestSignoff}
+            />
+
+            {/* Next meeting — the single next group gathering or 1:1 */}
+            <NextMeetingCard personId={profile.id} groups={groups} />
 
             {/* Completed Empower but the coach hasn't signed off yet → no toggle to
                 point at, so keep an informative note. (Once signed off, the toggle
@@ -877,6 +889,19 @@ export default function MyJourneyPage() {
                 )}
               </StageOverlay>
             )}
+
+            {/* Feed preview — the group models the form; See all → Feed tab */}
+            <FeedPreview
+              personId={profile.id}
+              onSeeAll={() => { setTab('feed'); window.scrollTo({ top: 0, behavior: 'auto' }) }}
+              onPray={() => { setTab('prayer'); window.scrollTo({ top: 0, behavior: 'auto' }) }}
+            />
+
+            {/* Today's verse — the quiet SOAP on-ramp */}
+            <VerseCard
+              soapCount={soapJournals.length}
+              onStart={seed => { setSoapSeedText(seed); setSoapEntryDate(null); setSoapEditEntry(null); setActiveModal('soap') }}
+            />
 
             {/* footer */}
             <footer className="mt-14 flex flex-col items-center gap-2 text-center">
@@ -949,8 +974,9 @@ export default function MyJourneyPage() {
         <SoapEntryModal
           personId={profile.id}
           initialDate={soapEntryDate ?? undefined}
+          initialText={soapSeedText ?? undefined}
           editEntry={soapEditEntry ?? undefined}
-          onClose={() => { setActiveModal(null); setSoapEntryDate(null); setSoapEditEntry(null) }}
+          onClose={() => { setActiveModal(null); setSoapEntryDate(null); setSoapEditEntry(null); setSoapSeedText(null) }}
           onSaved={loadData}
         />
       )}
