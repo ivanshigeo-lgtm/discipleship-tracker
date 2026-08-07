@@ -565,6 +565,7 @@ export default function JourneyMenu({
       router.push(`/my-constellations?section=${id}`)
       return
     }
+    if (id === 'engagements') { router.push('/my-journey/engagements'); return }
     if (id === 'soaps') { onSoaps(); return }
     if (id === 'message') { onMessage(); return }
     setPanel(id)

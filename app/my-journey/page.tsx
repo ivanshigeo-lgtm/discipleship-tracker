@@ -50,7 +50,7 @@ import NextMeetingCard from '../../components/journey/NextMeetingCard'
 import FeedPreview from '../../components/journey/FeedPreview'
 import VerseCard from '../../components/journey/VerseCard'
 import SelfConfirmModal, { type SelfConfirmKind } from '../../components/journey/SelfConfirmModal'
-import JourneyMenu, { EngagementsPanel } from '../../components/journey/JourneyMenu'
+import JourneyMenu from '../../components/journey/JourneyMenu'
 import EmpoweredCoachmark from '../../components/journey/EmpoweredCoachmark'
 import SoapCalendarSection from '../../components/SoapCalendarSection'
 import SignoffGate from '../../components/journey/SignoffGate'
@@ -248,7 +248,6 @@ export default function MyJourneyPage() {
   const [soapSeedText, setSoapSeedText] = useState<string | null>(null)
   const [msgCenterOpen, setMsgCenterOpen] = useState(false)
   const [unreadMsgCount, setUnreadMsgCount] = useState(0)
-  const [engagementsOpen, setEngagementsOpen] = useState(false)
   const [selfConfirm, setSelfConfirm] = useState<SelfConfirmKind | null>(null)
   const [selectedJournal, setSelectedJournal] = useState<SoapJournal | null>(null)
   const [processingOcr, setProcessingOcr] = useState(false)
@@ -691,9 +690,9 @@ export default function MyJourneyPage() {
         onChange={t => { setTab(t); window.scrollTo({ top: 0, behavior: 'auto' }) }}
         onMessage={() => { setMsgCenterOpen(true); setUnreadMsgCount(0) }}
         onEngagements={() => {
-          // Your own meetings stay in My Journey — even for coaches (mirrors
-          // JourneyMenu's handleItem, which no longer redirects engagements).
-          setEngagementsOpen(true)
+          // Your own meetings stay in My Journey — even for coaches. A real
+          // page (not a popup): every meeting laid out at once.
+          router.push('/my-journey/engagements')
         }}
       />
 
@@ -1049,11 +1048,6 @@ export default function MyJourneyPage() {
         isAdmin={Boolean(profile.is_admin)}
         empowered={Boolean(profile.is_admin) || signoffs.some(s => s.stage === 'Empower' && s.status === 'approved')}
       />
-
-      {/* Engagements overlay — opened from the desktop rail (non-empowered users) */}
-      {engagementsOpen && (
-        <EngagementsPanel personId={profile.id} onClose={() => setEngagementsOpen(false)} />
-      )}
 
       {/* Message Center */}
       <MessageCenter
