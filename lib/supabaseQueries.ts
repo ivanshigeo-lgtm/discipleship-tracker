@@ -1820,6 +1820,45 @@ export const clearFeedItemState = async (personId: string, targetType: FeedTarge
   return { error }
 }
 
+// ── Likes on shared feed items. A like belongs to the POST (cumulative across
+// viewers); a viewer archiving/deleting the item from their own feed never
+// subtracts it. Feed id lists are bounded (~20-50), so .in() is safe here.
+export const getFeedLikes = async (personId: string, targetType: FeedTargetType, targetIds: string[]) => {
+  const counts = new Map<string, number>()
+  const mine = new Set<string>()
+  if (targetIds.length === 0) return { counts, mine, error: null }
+  const { data, error } = await supabase
+    .from('feed_likes')
+    .select('person_id, target_id')
+    .eq('target_type', targetType)
+    .in('target_id', targetIds)
+  for (const r of data ?? []) {
+    const id = r.target_id as string
+    counts.set(id, (counts.get(id) ?? 0) + 1)
+    if (r.person_id === personId) mine.add(id)
+  }
+  return { counts, mine, error }
+}
+
+export const setFeedLike = async (personId: string, targetType: FeedTargetType, targetId: string, liked: boolean) => {
+  if (liked) {
+    const { error } = await supabase
+      .from('feed_likes')
+      .upsert(
+        { person_id: personId, target_type: targetType, target_id: targetId },
+        { onConflict: 'person_id,target_type,target_id', ignoreDuplicates: true },
+      )
+    return { error }
+  }
+  const { error } = await supabase
+    .from('feed_likes')
+    .delete()
+    .eq('person_id', personId)
+    .eq('target_type', targetType)
+    .eq('target_id', targetId)
+  return { error }
+}
+
 // Prayers/praises a person has authored and shared out (to coach/group/GBC).
 export const getSentPrayers = async (personId: string, limit = 50) => {
   const { data, error } = await supabase

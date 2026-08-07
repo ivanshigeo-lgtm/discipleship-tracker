@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getCoachSharedPrayers, getGroupSharedPrayers, getConstellationSharedPrayers, getFeedItemStates, setFeedItemState, clearFeedItemState } from '../lib/supabaseQueries'
+import { getCoachSharedPrayers, getGroupSharedPrayers, getConstellationSharedPrayers, getFeedItemStates, setFeedItemState, clearFeedItemState, getFeedLikes, setFeedLike } from '../lib/supabaseQueries'
 import ReplyModal from './ReplyModal'
 
 type SharedPrayer = {
@@ -42,6 +42,8 @@ export default function SharedPrayerFeed({
   const [collapsed, setCollapsed] = useState(false)
   const [unread, setUnread] = useState(0)
   const [reply, setReply] = useState<SharedPrayer | null>(null)
+  const [likeCounts, setLikeCounts] = useState<Map<string, number>>(new Map())
+  const [myLikes, setMyLikes] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     let cancelled = false
@@ -60,6 +62,11 @@ export default function SharedPrayerFeed({
         const lastSeen = localStorage.getItem(seenKey) ?? '0'
         setUnread(list.filter(i => (i.created_at ?? '') > lastSeen && !states.deleted.has(i.id)).length)
       }
+      getFeedLikes(personId, 'prayer_request', list.map(i => i.id)).then(likes => {
+        if (cancelled) return
+        setLikeCounts(likes.counts)
+        setMyLikes(likes.mine)
+      })
     })
     return () => { cancelled = true }
   }, [personId, scope, refreshKey, seenKey])
@@ -92,6 +99,12 @@ export default function SharedPrayerFeed({
     setDeletedIds(prev => { const n = new Set(prev); n.delete(id); return n })
     await clearFeedItemState(personId, 'prayer_request', id)
   }
+  const toggleLike = async (id: string) => {
+    const liked = !myLikes.has(id)
+    setMyLikes(prev => { const n = new Set(prev); if (liked) n.add(id); else n.delete(id); return n })
+    setLikeCounts(prev => { const n = new Map(prev); n.set(id, Math.max(0, (n.get(id) ?? 0) + (liked ? 1 : -1))); return n })
+    await setFeedLike(personId, 'prayer_request', id, liked)
+  }
 
   const Card = ({ p, isArchived, isDeleted }: { p: SharedPrayer; isArchived?: boolean; isDeleted?: boolean }) => (
     <div className="rounded-xl border border-[var(--line-1)] p-3" style={{ background: p.is_praise ? 'rgba(242,200,121,.08)' : 'var(--indigo-2)' }}>
@@ -111,6 +124,15 @@ export default function SharedPrayerFeed({
           <button type="button" onClick={() => doRestore(p.id)} className="text-[11px] font-semibold text-[var(--gbm-cobalt-soft)] hover:text-[var(--fg-1)]">Restore to feed</button>
         ) : (
           <>
+            <button
+              type="button"
+              onClick={() => toggleLike(p.id)}
+              className="text-[11px] font-semibold hover:text-[var(--fg-1)]"
+              style={{ color: myLikes.has(p.id) ? 'var(--gold)' : 'var(--gbm-cobalt-soft)' }}
+              title={myLikes.has(p.id) ? 'Unlike' : 'Like'}
+            >
+              {myLikes.has(p.id) ? '♥' : '♡'}{(likeCounts.get(p.id) ?? 0) > 0 ? ` ${likeCounts.get(p.id)}` : ''}
+            </button>
             {!isArchived && p.person_id !== personId && (
               <button type="button" onClick={() => setReply(p)} className="text-[11px] font-semibold text-[var(--gbm-cobalt-soft)] hover:text-[var(--fg-1)]">↩ Reply</button>
             )}

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getCoachSharedSoaps, getGroupSharedSoaps, getSharedSoaps, getFeedItemStates, setFeedItemState, clearFeedItemState } from '../lib/supabaseQueries'
+import { getCoachSharedSoaps, getGroupSharedSoaps, getSharedSoaps, getFeedItemStates, setFeedItemState, clearFeedItemState, getFeedLikes, setFeedLike } from '../lib/supabaseQueries'
 import ReplyModal from './ReplyModal'
 
 type SharedSoap = {
@@ -48,6 +48,8 @@ export default function SharedSoapFeed({
   const [reply, setReply] = useState<SharedSoap | null>(null)
   // Card is redefined every render (remounts), so expansion lives up here.
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+  const [likeCounts, setLikeCounts] = useState<Map<string, number>>(new Map())
+  const [myLikes, setMyLikes] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     let cancelled = false
@@ -66,6 +68,11 @@ export default function SharedSoapFeed({
         const lastSeen = localStorage.getItem(seenKey) ?? '0'
         setUnread(list.filter(i => (i.created_at ?? '') > lastSeen && !states.deleted.has(i.id)).length)
       }
+      getFeedLikes(personId, 'soap', list.map(i => i.id)).then(likes => {
+        if (cancelled) return
+        setLikeCounts(likes.counts)
+        setMyLikes(likes.mine)
+      })
     })
     return () => { cancelled = true }
   }, [personId, scope, refreshKey, seenKey])
@@ -97,6 +104,12 @@ export default function SharedSoapFeed({
   const doRestore = async (id: string) => {
     setDeletedIds(prev => { const n = new Set(prev); n.delete(id); return n })
     await clearFeedItemState(personId, 'soap', id)
+  }
+  const toggleLike = async (id: string) => {
+    const liked = !myLikes.has(id)
+    setMyLikes(prev => { const n = new Set(prev); if (liked) n.add(id); else n.delete(id); return n })
+    setLikeCounts(prev => { const n = new Map(prev); n.set(id, Math.max(0, (n.get(id) ?? 0) + (liked ? 1 : -1))); return n })
+    await setFeedLike(personId, 'soap', id, liked)
   }
 
   const fmtDate = (d: string | null) =>
@@ -173,6 +186,15 @@ export default function SharedSoapFeed({
             <button type="button" onClick={() => doRestore(s.id)} className="text-[11px] font-semibold text-[var(--gbm-cobalt-soft)] hover:text-[var(--fg-1)]">Restore to feed</button>
           ) : (
             <>
+              <button
+                type="button"
+                onClick={() => toggleLike(s.id)}
+                className="text-[11px] font-semibold hover:text-[var(--fg-1)]"
+                style={{ color: myLikes.has(s.id) ? 'var(--gold)' : 'var(--gbm-cobalt-soft)' }}
+                title={myLikes.has(s.id) ? 'Unlike' : 'Like'}
+              >
+                {myLikes.has(s.id) ? '♥' : '♡'}{(likeCounts.get(s.id) ?? 0) > 0 ? ` ${likeCounts.get(s.id)}` : ''}
+              </button>
               {!isArchived && s.person_id !== personId && (
                 <button type="button" onClick={() => setReply(s)} className="text-[11px] font-semibold text-[var(--gbm-cobalt-soft)] hover:text-[var(--fg-1)]">↩ Reply</button>
               )}
