@@ -365,6 +365,14 @@ export const getPendingMeetingInvites = async (personId: string) => {
   return { data, error }
 }
 
+// Names for a small bounded id list (a meeting's few heads) — never call with
+// an unbounded list (.in() URL overflow silently fails).
+export const getPeopleNames = async (ids: string[]) => {
+  if (ids.length === 0) return { data: [] as { id: string; name: string }[], error: null }
+  const { data, error } = await supabase.from('people').select('id, name').in('id', ids.slice(0, 20))
+  return { data: (data as { id: string; name: string }[]) ?? [], error }
+}
+
 // All participants of a meeting + their confirm status (for the owner to see
 // who's in and who's confirmed).
 export const getMeetingParticipants = async (engagementId: string) => {
