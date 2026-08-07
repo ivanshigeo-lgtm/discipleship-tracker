@@ -2,12 +2,13 @@
 
 // Today's verse — the quiet SOAP on-ramp at the bottom of home. Verses come
 // from /api/verse-week (a 7-verse set themed to last Sunday's message, one per
-// weekday) with attribution back to the sermon; if that's unavailable for any
-// reason we fall back to the original static rotation by day-of-year.
+// weekday) with attribution back to the sermon; the whole week is swipeable
+// (snap carousel, lands on today) so you can look ahead or back. Falls back
+// to a single static day-of-year verse if the week is unavailable.
 // "Sit with this verse" opens the SOAP editor pre-seeded with the Scripture
 // line. Deliberately no glow, no streak, no guilt.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { E_VERSES } from './journeyModel'
 
 const VERSES: { text: string; ref: string }[] = [
@@ -28,6 +29,8 @@ const VERSES: { text: string; ref: string }[] = [
   { text: 'Do not merely listen to the word, and so deceive yourselves. Do what it says.', ref: 'James 1:22' },
 ]
 
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
 type WeekVerse = { ref: string; text: string; whyLine?: string }
 type VerseWeek = { sermon_title: string; verses: WeekVerse[] }
 
@@ -38,7 +41,10 @@ export default function VerseCard({
   soapCount: number
   onStart: (seedText: string) => void
 }) {
+  const today = new Date().getDay()
   const [week, setWeek] = useState<VerseWeek | null>(null)
+  const [idx, setIdx] = useState(today)
+  const trackRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -55,24 +61,79 @@ export default function VerseCard({
     }
   }, [])
 
+  // Land on today's slide once the week renders (no animation on first paint).
+  useEffect(() => {
+    const el = trackRef.current
+    if (week && el) el.scrollLeft = el.clientWidth * today
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [week])
+
+  const scrollToSlide = (i: number) => {
+    const el = trackRef.current
+    if (el) el.scrollTo({ left: el.clientWidth * i, behavior: 'smooth' })
+  }
+
   const now = new Date()
   const dayOfYear = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 86_400_000)
-  const fromSermon = week?.verses[now.getDay()]
-  const verse = fromSermon ?? VERSES[dayOfYear % VERSES.length]
+  const staticVerse = VERSES[dayOfYear % VERSES.length]
+  const verse = week ? week.verses[idx] : staticVerse
   const seasoned = soapCount >= 3
 
   return (
     <section className="mt-8 rounded-[var(--r-xl)] border border-[var(--line-2)] bg-[rgba(9,12,26,.55)] p-5 text-center">
-      <p className="cn-label" style={{ color: 'var(--fg-3)' }}>Today&rsquo;s verse</p>
-      <p className="mx-auto mt-2 max-w-md text-lg italic leading-relaxed" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>
-        &ldquo;{verse.text}&rdquo;
+      <p className="cn-label" style={{ color: 'var(--fg-3)' }}>
+        {!week || idx === today ? 'Today’s verse' : `${DAY_NAMES[idx]}’s verse`}
       </p>
-      <p className="mt-1.5 text-xs font-medium" style={{ color: 'var(--establish)' }}>{verse.ref}</p>
-      {fromSermon && (
-        <p className="mt-1 text-[11px]" style={{ color: 'var(--fg-3)' }}>
-          {fromSermon.whyLine ? `${fromSermon.whyLine} · ` : ''}From Sunday&rsquo;s message · {week!.sermon_title}
-        </p>
+
+      {week ? (
+        <>
+          <div
+            ref={trackRef}
+            onScroll={(e) => {
+              const el = e.currentTarget
+              const i = Math.round(el.scrollLeft / el.clientWidth)
+              if (i !== idx && i >= 0 && i < 7) setIdx(i)
+            }}
+            className="mt-2 flex snap-x snap-mandatory overflow-x-auto"
+            style={{ scrollbarWidth: 'none' }}
+          >
+            {week.verses.map((v, i) => (
+              <div key={i} className="w-full shrink-0 snap-center px-1">
+                <p className="mx-auto max-w-md text-lg italic leading-relaxed" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>
+                  &ldquo;{v.text}&rdquo;
+                </p>
+                <p className="mt-1.5 text-xs font-medium" style={{ color: 'var(--establish)' }}>{v.ref}</p>
+                <p className="mx-auto mt-1 max-w-sm text-[11px]" style={{ color: 'var(--fg-3)' }}>
+                  {v.whyLine ? `${v.whyLine} · ` : ''}From Sunday&rsquo;s message · {week.sermon_title}
+                </p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 flex items-center justify-center gap-1.5">
+            {week.verses.map((_, i) => (
+              <button
+                key={i}
+                type="button"
+                aria-label={`${DAY_NAMES[i]}'s verse`}
+                onClick={() => scrollToSlide(i)}
+                className="h-1.5 rounded-full transition-all"
+                style={{
+                  width: i === idx ? 16 : 6,
+                  background: i === idx ? 'var(--establish)' : 'var(--line-2)',
+                }}
+              />
+            ))}
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="mx-auto mt-2 max-w-md text-lg italic leading-relaxed" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>
+            &ldquo;{staticVerse.text}&rdquo;
+          </p>
+          <p className="mt-1.5 text-xs font-medium" style={{ color: 'var(--establish)' }}>{staticVerse.ref}</p>
+        </>
       )}
+
       <button
         type="button"
         onClick={() => onStart(`S — Scripture: "${verse.text}" — ${verse.ref}\n\n`)}

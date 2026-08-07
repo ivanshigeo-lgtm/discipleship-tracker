@@ -823,9 +823,9 @@ export default function MyJourneyPage() {
               onRequestSignoff={handleRequestSignoff}
             />
 
-            {/* Next meeting — the single next group gathering or 1:1; tapping
-                it opens the Engagements panel (your meetings hub, disciple-safe) */}
-            <NextMeetingCard personId={profile.id} groups={groups} onOpen={() => setEngagementsOpen(true)} />
+            {/* Next meeting — upcoming gatherings one at a time, swipe for the
+                rest (Engagements panel stays reachable from the nav rail) */}
+            <NextMeetingCard personId={profile.id} groups={groups} />
 
             {/* Completed Empower but the coach hasn't signed off yet → no toggle to
                 point at, so keep an informative note. (Once signed off, the toggle

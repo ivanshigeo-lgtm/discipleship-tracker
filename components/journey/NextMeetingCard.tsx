@@ -1,17 +1,14 @@
 'use client'
 
-// "Next meeting" on My Journey home: the single NEXT gathering — the earliest
-// upcoming occurrence of the viewer's Grace Groups (multi-day schedules, with
-// per-occurrence cancel/reschedule overrides applied) or their own pending
-// 1:1s, whichever comes first. The full week strip (WeekMeetings) stays on
-// coach surfaces; the home page asks for one date, not a calendar. Renders
-// nothing while loading or when nothing is coming up.
-// Shows WHO the meeting is with (1:1 heads / group members, viewer excluded)
-// and, when onOpen is passed, the card opens the Engagements panel — the
-// viewer's meetings hub on My Journey (works for disciples; My Constellations
-// is coach-gated).
+// "Next meeting" on My Journey home: upcoming gatherings — occurrences of the
+// viewer's Grace Groups (multi-day schedules, with per-occurrence
+// cancel/reschedule overrides applied) and their own pending 1:1s — shown one
+// at a time, soonest first, swipeable to peek at what's after (snap carousel
+// with dots; no tap-through — the Engagements panel stays reachable from the
+// nav rail). Shows WHO each meeting is with (1:1 heads / group members,
+// viewer excluded). Renders nothing while loading or when nothing is coming up.
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   getWeekEngagementsForPerson,
   getGroupMeetingStatuses,
@@ -22,7 +19,7 @@ import {
 import { daysOf, occurrencesWithin } from '../../lib/meetingDays'
 import type { Engagement, VictoryGroup, GroupMeetingStatus } from '../../types/database'
 
-type NextItem = {
+type MeetingItem = {
   kind: 'group' | 'one-on-one'
   title: string
   date: string // local YYYY-MM-DD (post-reschedule for groups)
@@ -54,19 +51,22 @@ const fmtWith = (names: string[]) => {
   return `${names[0]}, ${names[1]} +${names.length - 2}`
 }
 
+const itemKey = (m: MeetingItem) => `${m.kind}:${m.groupId ?? m.engagementId}:${m.date}`
+
 export default function NextMeetingCard({
   personId,
   groups,
-  onOpen,
 }: {
   personId: string
   groups: VictoryGroup[]
-  onOpen?: () => void
 }) {
   const [engagements, setEngagements] = useState<Engagement[]>([])
   const [statuses, setStatuses] = useState<GroupMeetingStatus[]>([])
   const [ready, setReady] = useState(false)
-  const [withNames, setWithNames] = useState<string[]>([])
+  const [idx, setIdx] = useState(0)
+  // who-with names per meeting, filled lazily as slides come into view
+  const [namesByKey, setNamesByKey] = useState<Record<string, string[]>>({})
+  const trackRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let alive = true
@@ -84,8 +84,8 @@ export default function NextMeetingCard({
     return () => { alive = false }
   }, [personId, groups.length])
 
-  const next = useMemo<NextItem | null>(() => {
-    const out: (NextItem & { cancelled: boolean })[] = []
+  const upcoming = useMemo<MeetingItem[]>(() => {
+    const out: (MeetingItem & { cancelled: boolean })[] = []
     for (const g of groups) {
       // 6 days ahead covers each weekday exactly once (weekly cadence).
       for (const occ of occurrencesWithin(daysOf(g), 6)) {
@@ -119,26 +119,30 @@ export default function NextMeetingCard({
       })
     }
     out.sort((a, b) => a.date.localeCompare(b.date) || (a.time ?? '99').localeCompare(b.time ?? '99'))
-    return out.find(i => !i.cancelled) ?? null
+    return out.filter(i => !i.cancelled)
   }, [groups, statuses, engagements])
+
+  const current = upcoming[idx] ?? null
 
   // Who it's with — group members, or a 1:1's heads (subject/creator) plus
   // invited participants; the viewer never lists themselves.
   useEffect(() => {
-    if (!next) return
+    if (!current) return
+    const key = itemKey(current)
+    if (namesByKey[key]) return
     let alive = true
     ;(async () => {
       let names: string[] = []
-      if (next.kind === 'group' && next.groupId) {
-        const { data } = await getPeopleByVictoryGroup(next.groupId)
+      if (current.kind === 'group' && current.groupId) {
+        const { data } = await getPeopleByVictoryGroup(current.groupId)
         names = ((data as { person_id: string; people: { name: string } | null }[] | null) ?? [])
           .filter(m => m.person_id !== personId)
           // `||` not `??` — rows can carry empty-string names
           .map(m => m.people?.name || '')
           .filter(Boolean)
-      } else if (next.engagementId) {
-        const { data: parts } = await getMeetingParticipants(next.engagementId)
-        const ids = new Set(next.headIds)
+      } else if (current.engagementId) {
+        const { data: parts } = await getMeetingParticipants(current.engagementId)
+        const ids = new Set(current.headIds)
         for (const p of (parts as { person_id: string }[] | null) ?? []) {
           if (p.person_id) ids.add(p.person_id)
         }
@@ -146,61 +150,88 @@ export default function NextMeetingCard({
         const { data: people } = await getPeopleNames(Array.from(ids))
         names = (people ?? []).map(p => p.name || '').filter(Boolean)
       }
-      if (alive) setWithNames(names)
+      if (alive) setNamesByKey(prev => ({ ...prev, [key]: names }))
     })()
     return () => { alive = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [next?.kind, next?.groupId, next?.engagementId, personId])
+  }, [current ? itemKey(current) : null, personId])
 
-  if (!ready || !next) return null
-
-  const d = new Date(next.date + 'T00:00:00')
-  const withLine = fmtWith(withNames)
+  if (!ready || upcoming.length === 0) return null
 
   return (
     <section className="mt-4">
-      <button
-        type="button"
-        onClick={onOpen}
-        disabled={!onOpen}
-        aria-label={`Open meeting: ${next.title}`}
-        className="flex w-full items-center gap-4 rounded-[var(--r-xl)] border border-[var(--line-2)] bg-[rgba(9,12,26,.55)] p-4 text-left transition-colors enabled:cursor-pointer enabled:hover:border-[rgba(91,141,247,.45)]"
-      >
-        {/* date box */}
-        <div className="flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-xl border border-[var(--line-2)] bg-[var(--indigo-2)]">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--fg-3)]">
-            {d.toLocaleDateString(undefined, { month: 'short' })}
-          </span>
-          <span className="text-xl leading-none" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>
-            {d.getDate()}
-          </span>
+      <div className="rounded-[var(--r-xl)] border border-[var(--line-2)] bg-[rgba(9,12,26,.55)]">
+        <div
+          ref={trackRef}
+          onScroll={(e) => {
+            const el = e.currentTarget
+            const i = Math.round(el.scrollLeft / el.clientWidth)
+            if (i !== idx && i >= 0 && i < upcoming.length) setIdx(i)
+          }}
+          className="flex snap-x snap-mandatory overflow-x-auto"
+          style={{ scrollbarWidth: 'none' }}
+        >
+          {upcoming.map(item => {
+            const d = new Date(item.date + 'T00:00:00')
+            const withLine = fmtWith(namesByKey[itemKey(item)] ?? [])
+            return (
+              <div key={itemKey(item)} className="flex w-full shrink-0 snap-center items-center gap-4 p-4">
+                {/* date box */}
+                <div className="flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-xl border border-[var(--line-2)] bg-[var(--indigo-2)]">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--fg-3)]">
+                    {d.toLocaleDateString(undefined, { month: 'short' })}
+                  </span>
+                  <span className="text-xl leading-none" style={{ fontFamily: 'var(--font-display)', color: 'var(--fg-1)' }}>
+                    {d.getDate()}
+                  </span>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span
+                    className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
+                    style={{
+                      background: item.kind === 'group' ? 'rgba(167,139,250,.15)' : 'rgba(244,182,80,.15)',
+                      color: item.kind === 'group' ? '#A78BFA' : '#F4B650',
+                    }}
+                  >
+                    {item.kind === 'group' ? 'Group' : '1-on-1'}
+                  </span>
+                  <p className="mt-1 truncate text-base font-medium text-[var(--fg-1)]">{item.title}</p>
+                  {withLine && (
+                    <p className="truncate text-xs text-[var(--fg-2)]">
+                      With <span className="font-medium text-[var(--fg-1)]">{withLine}</span>
+                    </p>
+                  )}
+                  <p className="text-xs text-[var(--fg-2)]">
+                    <span className={dayLabel(item.date) === 'Today' ? 'font-semibold text-[var(--fg-1)]' : ''}>{dayLabel(item.date)}</span>
+                    {item.time && <span className="text-[var(--fg-3)]"> · {item.time.slice(0, 5)}</span>}
+                    {item.rescheduled && <span style={{ color: '#A78BFA' }}> · rescheduled</span>}
+                  </p>
+                </div>
+              </div>
+            )
+          })}
         </div>
-        <div className="min-w-0 flex-1">
-          <span
-            className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
-            style={{
-              background: next.kind === 'group' ? 'rgba(167,139,250,.15)' : 'rgba(244,182,80,.15)',
-              color: next.kind === 'group' ? '#A78BFA' : '#F4B650',
-            }}
-          >
-            {next.kind === 'group' ? 'Group' : '1-on-1'}
-          </span>
-          <p className="mt-1 truncate text-base font-medium text-[var(--fg-1)]">{next.title}</p>
-          {withLine && (
-            <p className="truncate text-xs text-[var(--fg-2)]">
-              With <span className="font-medium text-[var(--fg-1)]">{withLine}</span>
-            </p>
-          )}
-          <p className="text-xs text-[var(--fg-2)]">
-            <span className={dayLabel(next.date) === 'Today' ? 'font-semibold text-[var(--fg-1)]' : ''}>{dayLabel(next.date)}</span>
-            {next.time && <span className="text-[var(--fg-3)]"> · {next.time.slice(0, 5)}</span>}
-            {next.rescheduled && <span style={{ color: '#A78BFA' }}> · rescheduled</span>}
-          </p>
-        </div>
-        {onOpen && (
-          <span className="shrink-0 text-xs font-semibold text-[var(--fg-3)]">Open →</span>
+        {upcoming.length > 1 && (
+          <div className="flex items-center justify-center gap-1.5 pb-3">
+            {upcoming.map((item, i) => (
+              <button
+                key={itemKey(item)}
+                type="button"
+                aria-label={`Meeting ${i + 1} of ${upcoming.length}`}
+                onClick={() => {
+                  const el = trackRef.current
+                  if (el) el.scrollTo({ left: el.clientWidth * i, behavior: 'smooth' })
+                }}
+                className="h-1.5 rounded-full transition-all"
+                style={{
+                  width: i === idx ? 16 : 6,
+                  background: i === idx ? '#A78BFA' : 'var(--line-2)',
+                }}
+              />
+            ))}
+          </div>
         )}
-      </button>
+      </div>
     </section>
   )
 }
