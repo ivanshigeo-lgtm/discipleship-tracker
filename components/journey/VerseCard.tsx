@@ -1,11 +1,13 @@
 'use client'
 
-// Today's verse — the quiet SOAP on-ramp at the bottom of home. One curated
-// verse rotates by day-of-year; "Sit with this verse" opens the SOAP editor
-// pre-seeded with the Scripture line, so the very first entry starts already
-// half-written. Once someone has a few entries the copy grows up into a real
-// SOAP prompt. Deliberately no glow, no streak, no guilt.
+// Today's verse — the quiet SOAP on-ramp at the bottom of home. Verses come
+// from /api/verse-week (a 7-verse set themed to last Sunday's message, one per
+// weekday) with attribution back to the sermon; if that's unavailable for any
+// reason we fall back to the original static rotation by day-of-year.
+// "Sit with this verse" opens the SOAP editor pre-seeded with the Scripture
+// line. Deliberately no glow, no streak, no guilt.
 
+import { useEffect, useState } from 'react'
 import { E_VERSES } from './journeyModel'
 
 const VERSES: { text: string; ref: string }[] = [
@@ -26,6 +28,9 @@ const VERSES: { text: string; ref: string }[] = [
   { text: 'Do not merely listen to the word, and so deceive yourselves. Do what it says.', ref: 'James 1:22' },
 ]
 
+type WeekVerse = { ref: string; text: string; whyLine?: string }
+type VerseWeek = { sermon_title: string; verses: WeekVerse[] }
+
 export default function VerseCard({
   soapCount,
   onStart,
@@ -33,9 +38,27 @@ export default function VerseCard({
   soapCount: number
   onStart: (seedText: string) => void
 }) {
+  const [week, setWeek] = useState<VerseWeek | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/verse-week')
+      .then((r) => r.json())
+      .then((j) => {
+        if (cancelled || j?.status !== 'ready') return
+        const w = j.week as VerseWeek
+        if (Array.isArray(w?.verses) && w.verses.length === 7) setWeek(w)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const now = new Date()
   const dayOfYear = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 86_400_000)
-  const verse = VERSES[dayOfYear % VERSES.length]
+  const fromSermon = week?.verses[now.getDay()]
+  const verse = fromSermon ?? VERSES[dayOfYear % VERSES.length]
   const seasoned = soapCount >= 3
 
   return (
@@ -45,6 +68,11 @@ export default function VerseCard({
         &ldquo;{verse.text}&rdquo;
       </p>
       <p className="mt-1.5 text-xs font-medium" style={{ color: 'var(--establish)' }}>{verse.ref}</p>
+      {fromSermon && (
+        <p className="mt-1 text-[11px]" style={{ color: 'var(--fg-3)' }}>
+          {fromSermon.whyLine ? `${fromSermon.whyLine} · ` : ''}From Sunday&rsquo;s message · {week!.sermon_title}
+        </p>
+      )}
       <button
         type="button"
         onClick={() => onStart(`S — Scripture: "${verse.text}" — ${verse.ref}\n\n`)}
