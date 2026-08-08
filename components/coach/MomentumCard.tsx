@@ -17,8 +17,11 @@ import { topRisers, ZoneLabel } from './coachModel'
 import type { BookletProgress, Person, StageChecklistItem } from '../../types/database'
 
 const DAY_MS = 86_400_000
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 type Mode = 'direct' | 'my' | 'gbc'
+// One row in the bar-tap popup: a distinct person the bar represents + what they did.
+type BarRow = { id: string; name: string; sub: string }
 
 export default function MomentumCard({
   personId,
@@ -45,6 +48,8 @@ export default function MomentumCard({
   const [win, setWin] = useState<'week' | '30d'>('week')
   // Which metric the weekly bar chart plots — tap a tile to switch.
   const [metric, setMetric] = useState<'people' | 'milestones' | 'chapters'>('milestones')
+  // Tapping a bar opens a popup listing the people that bar represents.
+  const [barSheet, setBarSheet] = useState<{ title: string; sub: string; rows: BarRow[] } | null>(null)
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
@@ -79,14 +84,14 @@ export default function MomentumCard({
     // "step". Flatten both into one {id, at} list so every window/bucket below is a
     // single pass. booklet_progress keeps only the latest advance's timestamp,
     // which is exactly what buckets the most recent chapter move into its week.
-    const events: { id: string; at: number; chapter: boolean }[] = []
+    const events: { id: string; at: number; chapter: boolean; label: string }[] = []
     for (const it of items) {
       if (it.completed && it.completed_at && it.label.startsWith('Completed ') && activeIds.has(it.person_id))
-        events.push({ id: it.person_id, at: new Date(it.completed_at).getTime(), chapter: false })
+        events.push({ id: it.person_id, at: new Date(it.completed_at).getTime(), chapter: false, label: it.label.replace(/^Completed /, '') })
     }
     for (const bp of bookletProgress) {
       if (bp.current_chapter > 0 && bp.updated_at && activeIds.has(bp.person_id))
-        events.push({ id: bp.person_id, at: new Date(bp.updated_at).getTime(), chapter: true })
+        events.push({ id: bp.person_id, at: new Date(bp.updated_at).getTime(), chapter: true, label: `Chapter ${bp.current_chapter}` })
     }
     const moversIn = (a: number, b: number) => {
       const s = new Set<string>()
@@ -126,13 +131,31 @@ export default function MomentumCard({
     const peopleBuckets: number[] = []    // new people / week
     const chapterBuckets: number[] = []   // chapter advances / week
     const rates: number[] = []
+    // Per-bar drill-down: the distinct people each bar represents, so a tap can
+    // list them. weekStarts feeds the popup's "week of MMM D" heading.
+    const weekStarts: number[] = []
+    const peopleRows: BarRow[][] = []
+    const milestoneRows: BarRow[][] = []
+    const chapterRows: BarRow[][] = []
+    const nameById = new Map(people.map(p => [p.id, p]))
+    // Collapse a week's events to one row per person (sub = their single label,
+    // or an "N milestones" count when a person logged several that week).
+    const distinctRows = (evs: typeof events): BarRow[] => {
+      const m = new Map<string, { count: number; label: string }>()
+      for (const e of evs) { const c = m.get(e.id); if (c) c.count++; else m.set(e.id, { count: 1, label: e.label }) }
+      return [...m.entries()].map(([id, v]) => ({ id, name: nameById.get(id)?.name ?? 'Someone', sub: v.count > 1 ? `${v.count} milestones` : v.label }))
+    }
     for (let i = 0; i < NW; i++) {
       const a = weekStart - (NW - 1 - i) * WEEK
       const b = i === NW - 1 ? now + 1 : a + WEEK
+      weekStarts.push(a)
       weekBuckets.push(countIn(a, b))
       chapterBuckets.push(events.filter(e => e.chapter && e.at >= a && e.at < b).length)
       peopleBuckets.push(active.filter(p => { const t = peopleAt(p); return t >= a && t < b }).length)
       rates.push(n ? (moversIn(a, b) / n) * 100 : 0)
+      peopleRows.push(active.filter(p => { const t = peopleAt(p); return t >= a && t < b }).map(p => ({ id: p.id, name: p.name, sub: p.current_stage ?? 'New' })))
+      milestoneRows.push(distinctRows(events.filter(e => e.at >= a && e.at < b)))
+      chapterRows.push(distinctRows(events.filter(e => e.chapter && e.at >= a && e.at < b)))
     }
     const peak = Math.max(1, ...weekBuckets)
 
@@ -143,7 +166,7 @@ export default function MomentumCard({
 
     const risers = topRisers(people, items, allow).slice(0, 2)
 
-    return { n, small, rates, weekMovers, prevWeekMovers, newPeople, winMilestones, winChapters, weekBuckets, peopleBuckets, chapterBuckets, peak, leaders, carried, ratio, sinceSunday, checklistSinceSunday, chapterSinceSunday, risers }
+    return { n, small, rates, weekMovers, prevWeekMovers, newPeople, winMilestones, winChapters, weekBuckets, peopleBuckets, chapterBuckets, peak, leaders, carried, ratio, sinceSunday, checklistSinceSunday, chapterSinceSunday, risers, weekStarts, peopleRows, milestoneRows, chapterRows }
   }, [people, items, bookletProgress, myPersonIds, myDirectIds, mode, win])
 
   if (!ready) return null
@@ -201,13 +224,24 @@ export default function MomentumCard({
   // Tappable stat tiles — each drives the weekly bar chart below.
   const winSub = win === 'week' ? 'since Sun' : 'last 30d'
   const tiles = [
-    { key: 'people' as const, label: 'New people', num: data.newPeople, color: 'var(--gbm-cobalt-soft,#8FA6E8)', buckets: data.peopleBuckets, chart: 'New people / week' },
-    { key: 'milestones' as const, label: 'Milestones', num: data.winMilestones, color: 'var(--success)', buckets: data.weekBuckets, chart: 'Milestones / week' },
-    { key: 'chapters' as const, label: 'Chapters', num: data.winChapters, color: 'var(--gold)', buckets: data.chapterBuckets, chart: 'Chapters / week' },
+    { key: 'people' as const, label: 'New people', noun: 'new', num: data.newPeople, color: 'var(--gbm-cobalt-soft,#8FA6E8)', buckets: data.peopleBuckets, rows: data.peopleRows, chart: 'New people / week' },
+    { key: 'milestones' as const, label: 'Milestones', noun: 'milestones', num: data.winMilestones, color: 'var(--success)', buckets: data.weekBuckets, rows: data.milestoneRows, chart: 'Milestones / week' },
+    { key: 'chapters' as const, label: 'Chapters', noun: 'chapter advances', num: data.winChapters, color: 'var(--gold)', buckets: data.chapterBuckets, rows: data.chapterRows, chart: 'Chapters / week' },
   ]
   const activeTile = tiles.find(t => t.key === metric) ?? tiles[1]
   const activeBuckets = activeTile.buckets
   const activePeak = Math.max(1, ...activeBuckets)
+
+  // Open the bar-tap popup for week index i of the active metric.
+  const openBar = (i: number) => {
+    const rows = activeTile.rows[i] ?? []
+    if (!rows.length) return
+    const d = new Date(data.weekStarts[i])
+    const when = i === activeBuckets.length - 1 ? 'This week' : `Week of ${MON[d.getMonth()]} ${d.getDate()}`
+    const count = activeBuckets[i]
+    const peopleLabel = rows.length !== count ? ` · ${rows.length} ${rows.length === 1 ? 'person' : 'people'}` : ''
+    setBarSheet({ title: activeTile.label, sub: `${when} · ${count} ${activeTile.noun}${peopleLabel}`, rows })
+  }
 
   return (
     <section className="mb-5">
@@ -301,20 +335,63 @@ export default function MomentumCard({
           </div>
           <div className="flex h-11 items-end gap-[5px]">
             {activeBuckets.map((v, i) => (
-              <div key={i} className="flex h-11 flex-1 items-end">
+              <button
+                key={i}
+                type="button"
+                onClick={() => openBar(i)}
+                disabled={v === 0}
+                className={`flex h-11 flex-1 items-end ${v > 0 ? 'cursor-pointer' : 'cursor-default'}`}
+              >
                 <div
                   className="w-full rounded-[3px]"
                   style={{ height: Math.max(3, (v / activePeak) * 40), background: v > 0 ? activeTile.color : 'rgba(246,241,231,.12)' }}
                 />
-              </div>
+              </button>
             ))}
           </div>
+          <p className="text-center text-[9.5px] text-[var(--fg-3)] opacity-70">Tap a bar to see who</p>
           <div className="flex items-center justify-between">
             <p className="text-[9.5px] text-[var(--fg-3)]">{activeBuckets.length}w ago</p>
             <p className="text-[9.5px] text-[var(--fg-3)]">this week</p>
           </div>
         </div>
       </div>
+
+      {barSheet && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(4,6,16,.72)] sm:items-center"
+          onClick={() => setBarSheet(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-t-2xl border border-[var(--line-1)] bg-[var(--indigo-2)] px-5 pb-6 pt-4 sm:rounded-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <p className="text-[19px] font-semibold text-[var(--fg-1)]" style={{ fontFamily: 'var(--font-display)' }}>{barSheet.title}</p>
+            <p className="mb-2.5 mt-0.5 text-[12px] text-[var(--fg-3)]">{barSheet.sub}</p>
+            <div className="max-h-[min(60vh,320px)] overflow-y-auto">
+              {barSheet.rows.map(r => (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => { const p = people.find(x => x.id === r.id); setBarSheet(null); if (p) onPersonClick(p) }}
+                  className="flex w-full items-center gap-2.5 rounded-[10px] px-2 py-2.5 text-left hover:bg-[var(--indigo-3)]"
+                >
+                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: activeTile.color }} />
+                  <span className="shrink truncate text-[14.5px] font-semibold text-[var(--fg-1)]">{r.name}</span>
+                  <span className="ml-auto shrink-0 pl-2 text-[12px] text-[var(--fg-3)]">{r.sub}</span>
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setBarSheet(null)}
+              className="mx-auto mt-3 block rounded-full border border-[var(--line-1)] px-7 py-2.5 text-[13px] font-semibold text-[var(--fg-2)]"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </section>
   )
 }
