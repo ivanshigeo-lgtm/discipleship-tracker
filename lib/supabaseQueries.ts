@@ -28,6 +28,19 @@ function dedup<T>(key: string, fn: () => Promise<T>): Promise<T> {
   return p
 }
 
+// ==================== TEST-DATA SCOPE ====================
+// The App Review demo rig (claude.tester = Kai Nakamura + fictional downline +
+// their Grace Group) lives in the same database as the real church, flagged
+// is_test. Real users must never see those rows; the demo account still must,
+// or App Review breaks. AuthContext sets the viewer here as soon as the profile
+// loads — before any data query runs, since pages gate their loads on profile.
+// Default (signed out / not yet loaded) is the safe side: test rows hidden.
+let _viewer: { personId: string | null; isTest: boolean } = { personId: null, isTest: false }
+export const setViewerContext = (personId: string | null, isTest: boolean) => {
+  _viewer = { personId, isTest }
+}
+const hideTestRows = () => !_viewer.isTest
+
 // ==================== PEOPLE ====================
 export const getPeople = (stage?: Stage | Stage[]) =>
   dedup(`getPeople:${Array.isArray(stage) ? stage.join(',') : stage ?? ''}`, async () => {
@@ -35,6 +48,7 @@ export const getPeople = (stage?: Stage | Stage[]) =>
       .from('people')
       .select('*')
       .order('created_at', { ascending: false })
+    if (hideTestRows()) query = query.eq('is_test', false)
 
     if (Array.isArray(stage) && stage.length > 0) {
       query = query.in('current_stage', stage)
@@ -47,7 +61,7 @@ export const getPeople = (stage?: Stage | Stage[]) =>
   })
 
 export const addPerson = async (
-  person: Omit<Person, 'id' | 'created_at' | 'updated_at' | 'auth_user_id' | 'is_admin' | 'testimony_text' | 'testimony_video_url'>,
+  person: Omit<Person, 'id' | 'created_at' | 'updated_at' | 'auth_user_id' | 'is_admin' | 'is_test' | 'testimony_text' | 'testimony_video_url'>,
   // Whoever inputs a person becomes their coach. Without this connection a
   // non-admin can't see the person they just added — "My Constellation" only
   // shows your own downline.
@@ -96,12 +110,16 @@ export const findPotentialDuplicatePeople = async ({
 
   // Email is the strongest signal — ilike with no wildcards = case-insensitive equality.
   if (trimmedEmail) {
-    const { data } = await supabase.from('people').select(cols).ilike('email', trimmedEmail).limit(5)
+    let q = supabase.from('people').select(cols).ilike('email', trimmedEmail).limit(5)
+    if (hideTestRows()) q = q.eq('is_test', false)
+    const { data } = await q
     for (const p of (data ?? []) as DuplicatePersonCandidate[]) matches.set(p.id, p)
   }
   // Name catches dups that were added without an email.
   if (trimmedName) {
-    const { data } = await supabase.from('people').select(cols).ilike('name', trimmedName).limit(5)
+    let q = supabase.from('people').select(cols).ilike('name', trimmedName).limit(5)
+    if (hideTestRows()) q = q.eq('is_test', false)
+    const { data } = await q
     for (const p of (data ?? []) as DuplicatePersonCandidate[]) matches.set(p.id, p)
   }
   return { data: Array.from(matches.values()), error: null }
@@ -734,14 +752,16 @@ export const deletePrayerRequest = async (id: string) => {
 // ==================== VICTORY GROUPS ====================
 export const getVictoryGroups = () =>
   dedup('getVictoryGroups', async () => {
-    const { data, error } = await supabase
+    let query = supabase
       .from('victory_groups')
       .select('*')
       .order('name', { ascending: true })
+    if (hideTestRows()) query = query.eq('is_test', false)
+    const { data, error } = await query
     return { data, error }
   })
 
-export const addVictoryGroup = async (group: Omit<VictoryGroup, 'id' | 'created_at' | 'google_calendar_event_id' | 'last_edited_by'>) => {
+export const addVictoryGroup = async (group: Omit<VictoryGroup, 'id' | 'created_at' | 'google_calendar_event_id' | 'last_edited_by' | 'is_test'>) => {
   const { data, error } = await supabase
     .from('victory_groups')
     .insert(group)
@@ -1612,13 +1632,17 @@ export const getGroupsOwnedByPerson = async (personId: string) => {
 // getCoachSharedSoaps. Helpers below are referenced at call time (post module
 // init), so their later declaration in this file is fine.
 export const getSharedSoaps = async (limit = 12) => {
-  const isoapPromise = fetchIsoapSharedSoaps({ scope: 'constellation', limit })
-  const { data, error } = await supabase
+  // viewerPersonId lets the server route keep test-authored shares visible to
+  // the test viewer while hiding them from everyone else.
+  const isoapPromise = fetchIsoapSharedSoaps({ scope: 'constellation', limit, viewerPersonId: _viewer.personId })
+  let query = supabase
     .from('soap_journals')
-    .select(SHARED_SOAP_COLS)
+    .select(hideTestRows() ? SHARED_SOAP_COLS_NO_TEST : SHARED_SOAP_COLS)
     .eq('visibility', 'constellation')
     .order('created_at', { ascending: false })
     .limit(limit)
+  if (hideTestRows()) query = query.eq('people.is_test', false)
+  const { data, error } = await query
   if (error) return { data, error }
 
   const isoap = await isoapPromise
@@ -1630,16 +1654,25 @@ export const getSharedSoaps = async (limit = 12) => {
 }
 
 export const getSharedPraises = async (limit = 12) => {
-  const { data, error } = await supabase
+  let query = supabase
     .from('prayer_requests')
-    .select('id, request, is_praise, status, created_at, people!person_id(name)')
+    .select(
+      hideTestRows()
+        ? 'id, request, is_praise, status, created_at, people!person_id!inner(name, is_test)'
+        : 'id, request, is_praise, status, created_at, people!person_id(name)'
+    )
     .eq('visibility', 'constellation')
     .order('created_at', { ascending: false })
     .limit(limit)
+  if (hideTestRows()) query = query.eq('people.is_test', false)
+  const { data, error } = await query
   return { data, error }
 }
 
 const SHARED_SOAP_COLS = 'id, person_id, journal_date, scripture_reference, ocr_text, summary, visibility, created_at, photo_url, people(name)'
+// Inner-join variant so `.eq('people.is_test', false)` can drop test authors'
+// church-wide shares for real viewers.
+const SHARED_SOAP_COLS_NO_TEST = 'id, person_id, journal_date, scripture_reference, ocr_text, summary, visibility, created_at, photo_url, people!inner(name, is_test)'
 
 // iSOAP-sourced SOAPs shared at a given level. iSOAP has no coach/group concept,
 // so the share level lives in WikiChurch's isoap_entry_visibility overlay; the

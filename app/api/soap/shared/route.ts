@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'ISOAP_INGEST_SECRET not configured' }, { status: 500 })
   }
 
-  let body: { scope?: string; coachPersonId?: string; personId?: string; limit?: number }
+  let body: { scope?: string; coachPersonId?: string; personId?: string; viewerPersonId?: string; limit?: number }
   try {
     body = await request.json()
   } catch {
@@ -176,7 +176,11 @@ export async function POST(request: NextRequest) {
   // every group they target (enforced at write), so their own shares always
   // pass. For the viewer's own group shares, remember the targets so the feed
   // can label who the entry is shared with.
-  const viewerId = (scope === 'coach' ? body.coachPersonId : body.personId) ?? body.personId ?? null
+  const viewerId =
+    (scope === 'coach' ? body.coachPersonId : body.personId) ??
+    body.personId ??
+    body.viewerPersonId ??
+    null
   const idsByPerson = new Map<string, string[]>()
   const ownTargetsByEntry = new Map<string, string[] | null>() // null = all my groups
   const sharedAtByEntry = new Map<string, string>()
@@ -206,13 +210,24 @@ export async function POST(request: NextRequest) {
   const ownTargetGids = Array.from(
     new Set(Array.from(ownTargetsByEntry.values()).flat().filter(Boolean) as string[])
   )
-  const [{ data: people }, { data: links }, { data: targetGroups }] = await Promise.all([
-    admin.from('people').select('id, name').in('id', personIds),
-    admin.from('isoap_links').select('wc_person_id, isoap_user_id').in('wc_person_id', personIds),
-    ownTargetGids.length
-      ? admin.from('victory_groups').select('id, name').in('id', ownTargetGids)
-      : Promise.resolve({ data: [] as { id: string; name: string }[] }),
-  ])
+  const [{ data: people }, { data: links }, { data: targetGroups }, { data: viewerRow }] =
+    await Promise.all([
+      admin.from('people').select('id, name, is_test').in('id', personIds),
+      admin.from('isoap_links').select('wc_person_id, isoap_user_id').in('wc_person_id', personIds),
+      ownTargetGids.length
+        ? admin.from('victory_groups').select('id, name').in('id', ownTargetGids)
+        : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+      viewerId
+        ? admin.from('people').select('is_test').eq('id', viewerId).maybeSingle()
+        : Promise.resolve({ data: null as { is_test: boolean } | null }),
+    ])
+  // Test-rig authors (App Review demo accounts) are only delivered to a viewer
+  // who is themselves a test account; an unidentified viewer gets none.
+  const viewerIsTest = !!viewerRow?.is_test
+  const testAuthorIds = new Set(
+    ((people ?? []) as { id: string; is_test?: boolean }[]).filter((p) => p.is_test).map((p) => p.id)
+  )
+  if (!viewerIsTest) for (const id of testAuthorIds) idsByPerson.delete(id)
   const nameById = new Map((people ?? []).map((p) => [p.id, p.name as string]))
   const isoapUserById = new Map(
     (links ?? []).map((l) => [l.wc_person_id, l.isoap_user_id as string])

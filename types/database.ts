@@ -103,6 +103,9 @@ export type Person = {
   victory_group_id: string | null
   auth_user_id: string | null
   is_admin: boolean
+  // App Review demo rig rows (claude.tester + fictional downline). Hidden from
+  // real viewers' church-wide reads; the test viewer still sees them.
+  is_test: boolean
   testimony_text: string | null
   testimony_video_url: string | null
   created_at: string
@@ -181,6 +184,8 @@ export type VictoryGroup = {
   google_calendar_event_id: string | null
   owner_person_id: string | null
   focus: GroupFocus | null
+  // Test-rig group (App Review demo). Hidden from real viewers.
+  is_test: boolean
   created_at: string
   last_edited_by: string | null
 }

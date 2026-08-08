@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import { setViewerContext } from '../lib/supabaseQueries'
 import type { User, Session } from '@supabase/supabase-js'
 import type { Person } from '../types/database'
 
@@ -46,6 +47,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // INITIAL_SESSION auth event both fire on load; only one should hit the DB
   const fetchingFor = useRef<string | null>(null)
 
+  // Every profile change also updates the query layer's viewer context, which
+  // decides whether is_test (App Review demo) rows are visible.
+  const applyProfile = (p: Person | null) => {
+    setProfile(p)
+    setViewerContext(p?.id ?? null, !!p?.is_test)
+  }
+
   // Hydrate profile+downline instantly from the last visit; the network fetch
   // still runs and overwrites.
   const hydrateProfileFromCache = (userId: string): boolean => {
@@ -54,7 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!raw) return false
       const cached = JSON.parse(raw) as { profile: Person; downline: string[] }
       if (!cached?.profile) return false
-      setProfile(cached.profile)
+      applyProfile(cached.profile)
       setDownline(cached.downline ?? [])
       return true
     } catch {
@@ -91,7 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (personData) {
         console.log('is_admin:', personData.is_admin)
-        setProfile(personData as Person)
+        applyProfile(personData as Person)
 
         let downlineIds: string[] = []
         try {
@@ -136,7 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               .eq('id', match.id)
             const linked = { ...match, auth_user_id: userId } as Person
             console.log('Auto-relinked profile by email:', match.id)
-            setProfile(linked)
+            applyProfile(linked)
             let downlineIds: string[] = []
             try {
               const { data: downlineData } = await supabase.rpc('get_downline', { coach_person_id: linked.id })
@@ -154,7 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
         console.log('No profile found for user')
-        setProfile(null)
+        applyProfile(null)
         setDownline([])
         return false
       }
@@ -239,7 +247,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const u = session.user
           setTimeout(() => { loadProfileFor(u.id, u.email) }, 0)
         } else {
-          setProfile(null)
+          applyProfile(null)
           setDownline([])
           setProfileLoading(false)
         }
@@ -325,7 +333,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Clear local state immediately so the UI reacts instantly...
     setUser(null)
     setSession(null)
-    setProfile(null)
+    applyProfile(null)
     setDownline([])
     // Let one-per-sign-in nudges (e.g. the empowered coachmark) fire again next
     // time they sign in.
