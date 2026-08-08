@@ -7,7 +7,7 @@
 // priority stars. Each row also carries the person's NEXT journey step, so the
 // touch always points at the mission.
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   getPeople,
   getAllEngagements,
@@ -17,6 +17,7 @@ import {
   getAllGroupMemberships,
   getRecentGroupAttendance,
   addEngagement,
+  deleteEngagement,
 } from '../../lib/supabaseQueries'
 import { daysOf, WEEKDAY_NAMES } from '../../lib/meetingDays'
 import { STAGE_COLORS, initials, nextStepFor, silenceDays, toLocalDateStr, ZoneLabel } from './coachModel'
@@ -53,8 +54,22 @@ export default function NeedsATouch({
   const [groups, setGroups] = useState<VictoryGroup[]>([])
   const [memberships, setMemberships] = useState<{ person_id: string; victory_group_id: string }[]>([])
   const [attendance, setAttendance] = useState<{ person_id: string; victory_group_id: string; meeting_date: string }[]>([])
-  const [logged, setLogged] = useState<Set<string>>(new Set())
   const [ready, setReady] = useState(false)
+  // Optimistic per-person override for the checkmark (true = logged, false =
+  // un-logged) so a tap reads instantly; the persisted engagement is the source
+  // of truth once it lands. `pending` disables re-tap while a write is in flight.
+  const [override, setOverride] = useState<Record<string, boolean>>({})
+  const [pending, setPending] = useState<Set<string>>(new Set())
+  // Ids of quick-touches created THIS session — bridges un-log before the
+  // engagements state round-trips, so a second tap can find the row to delete.
+  const localIds = useRef<Map<string, string>>(new Map())
+  // Freeze which engagements drive the RANKING for this viewing, so logging a
+  // touch (which resets a person's silence) doesn't yank their row out from
+  // under the tap. The roster re-evaluates only on refresh (refreshKey) or when
+  // the section remounts — that's when quiet-only people drop off, exactly the
+  // "gone when I come back" behavior we want; the checkmark itself stays live.
+  const [baseEngs, setBaseEngs] = useState<Engagement[]>([])
+  const today = toLocalDateStr(new Date())
 
   useEffect(() => {
     let alive = true
@@ -71,7 +86,7 @@ export default function NeedsATouch({
       ])
       if (!alive) return
       if (p.data) setPeople(p.data as Person[])
-      if (e.data) setEngagements(e.data as Engagement[])
+      if (e.data) { setEngagements(e.data as Engagement[]); setBaseEngs(e.data as Engagement[]) }
       setPriorityIds(prio.ids)
       if (cl.data) setChecklist(cl.data as StageChecklistItem[])
       if (g.data) setGroups(g.data as VictoryGroup[])
@@ -84,10 +99,9 @@ export default function NeedsATouch({
 
   const ranked = useMemo<Ranked[]>(() => {
     const allow = allowedPersonIds ? new Set(allowedPersonIds) : null
-    const today = toLocalDateStr(new Date())
 
     const engByPerson = new Map<string, Engagement[]>()
-    engagements.forEach(e => {
+    baseEngs.forEach(e => {
       const l = engByPerson.get(e.person_id) ?? []
       l.push(e); engByPerson.set(e.person_id, l)
     })
@@ -164,23 +178,53 @@ export default function NeedsATouch({
       })
     }
     return out.sort((a, b) => b.score - a.score).slice(0, 5)
-  }, [people, engagements, priorityIds, checklist, groups, memberships, attendance, allowedPersonIds, personId])
+  }, [people, baseEngs, priorityIds, checklist, groups, memberships, attendance, allowedPersonIds, personId, today])
+
+  // Persisted source of truth for the checkmark: a Completed "Quick touch" dated
+  // today. Maps person → that engagement's id so a second tap can delete it.
+  const touchIdByPerson = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const e of engagements) {
+      if (e.status === 'Completed' && e.description === 'Quick touch' && e.follow_up_date === today) m.set(e.person_id, e.id)
+    }
+    return m
+  }, [engagements, today])
 
   if (!ready || ranked.length === 0) return null
 
-  const logTouch = async (p: Person) => {
-    setLogged(prev => new Set(prev).add(p.id))
-    const { error } = await addEngagement({
-      person_id: p.id,
-      created_by_person_id: personId,
-      description: 'Quick touch',
-      follow_up_date: toLocalDateStr(new Date()),
-      follow_up_time: null,
-      location: null,
-      meeting_type: 'One2One',
-      status: 'Completed',
-    })
-    if (error) setLogged(prev => { const n = new Set(prev); n.delete(p.id); return n })
+  const isLogged = (pid: string) => override[pid] ?? touchIdByPerson.has(pid)
+
+  // Toggle a quick touch. Optimistic checkmark first, then persist; on error we
+  // roll the override back. Logging adds the row to engagements (source of truth
+  // for the checkmark) so it survives a refresh; un-logging deletes today's row.
+  const toggleTouch = async (p: Person) => {
+    if (pending.has(p.id)) return
+    const logged = isLogged(p.id)
+    setPending(s => new Set(s).add(p.id))
+    if (logged) {
+      const id = touchIdByPerson.get(p.id) ?? localIds.current.get(p.id)
+      setOverride(o => ({ ...o, [p.id]: false }))
+      if (id) {
+        const { error } = await deleteEngagement(id)
+        if (error) setOverride(o => ({ ...o, [p.id]: true }))
+        else { localIds.current.delete(p.id); setEngagements(prev => prev.filter(e => e.id !== id)) }
+      }
+    } else {
+      setOverride(o => ({ ...o, [p.id]: true }))
+      const { data, error } = await addEngagement({
+        person_id: p.id,
+        created_by_person_id: personId,
+        description: 'Quick touch',
+        follow_up_date: today,
+        follow_up_time: null,
+        location: null,
+        meeting_type: 'One2One',
+        status: 'Completed',
+      })
+      if (error || !data) setOverride(o => ({ ...o, [p.id]: false }))
+      else { localIds.current.set(p.id, (data as Engagement).id); setEngagements(prev => [...prev, data as Engagement]) }
+    }
+    setPending(s => { const n = new Set(s); n.delete(p.id); return n })
   }
 
   const IconChip = ({ title, onClick, children }: { title: string; onClick?: () => void; children: React.ReactNode }) => (
@@ -238,10 +282,17 @@ export default function NeedsATouch({
                     <svg {...svgProps}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z" /></svg>
                   </a>
                 )}
-                {logged.has(r.person.id) ? (
-                  <span className="grid h-8 place-items-center px-1 text-[11px] font-semibold text-[var(--success)]">Logged ✓</span>
+                {isLogged(r.person.id) ? (
+                  <button
+                    type="button"
+                    title="Un-log this touch"
+                    onClick={e => { e.stopPropagation(); toggleTouch(r.person) }}
+                    className="grid h-8 place-items-center rounded-full border border-[var(--success)] bg-[var(--indigo-3)] px-2.5 text-[11px] font-semibold text-[var(--success)] transition-all hover:opacity-80"
+                  >
+                    Logged ✓
+                  </button>
                 ) : (
-                  <IconChip title="Log a touch" onClick={() => logTouch(r.person)}>
+                  <IconChip title="Log a touch" onClick={() => toggleTouch(r.person)}>
                     <svg {...svgProps}><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
                   </IconChip>
                 )}
