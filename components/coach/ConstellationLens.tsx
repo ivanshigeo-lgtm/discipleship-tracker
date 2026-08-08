@@ -79,10 +79,11 @@ export default function ConstellationLens({
     const mineDist: Record<Stage, number> = { Engage: 0, Establish: 0, Equip: 0, Empower: 0 }
     mine.forEach(p => { mineDist[p.current_stage]++ })
 
-    // "+X this week" velocity — people who ENTERED each stage in the last 7 days
+    // "+X this week" velocity — people who ENTERED each stage since Sunday 00:00
     // (pipeline_events, scope-aware) plus net-new people added (people.created_at).
-    // Same source the explore ring uses, so home + explore agree.
-    const WK = Date.now() - 7 * 86_400_000
+    // Sunday-anchored week-to-date (matches momentum-card + pipeline deltas). Ivan's directive.
+    const sunday = new Date(); sunday.setHours(0, 0, 0, 0); sunday.setDate(sunday.getDate() - sunday.getDay())
+    const WK = sunday.getTime()
     const at = (iso?: string | null) => (iso ? new Date(iso).getTime() : NaN)
     const churchWk: Record<Stage, number> = { Engage: 0, Establish: 0, Equip: 0, Empower: 0 }
     const mineWk: Record<Stage, number> = { Engage: 0, Establish: 0, Equip: 0, Empower: 0 }

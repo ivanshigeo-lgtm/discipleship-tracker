@@ -735,22 +735,8 @@ export default function DiscipleshipTracker() {
           {/* ── Coach home briefing (default) — the 5-zone daily surface ── */}
           {activeSection === 'journey' && !isMobile && homeView === 'briefing' && (
             <div className="mx-auto w-full max-w-2xl">
-              <ErrorBoundary name="TodayStrip">
-                <TodayStrip
-                  personId={profile.id}
-                  refreshKey={refreshKey}
-                  onOpenMessages={openMessages}
-                  onGoToEngagements={() => setActiveSection('engagements')}
-                />
-              </ErrorBoundary>
-              <ErrorBoundary name="SignalsRow">
-                <SignalsRow
-                  personId={profile.id}
-                  refreshKey={refreshKey}
-                  onOpenMessages={openMessages}
-                  onGoToEngagements={() => setActiveSection('engagements')}
-                />
-              </ErrorBoundary>
+              {/* TodayStrip + SignalsRow removed from the briefing to match native
+                  redesign v2 (Ivan): the briefing now leads with the pipeline. */}
               <ErrorBoundary name="NeedsATouch">
                 <NeedsATouch
                   personId={profile.id}

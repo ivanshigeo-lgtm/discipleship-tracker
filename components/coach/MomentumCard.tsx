@@ -36,6 +36,9 @@ export default function MomentumCard({
   const [bookletProgress, setBookletProgress] = useState<BookletProgress[]>([])
   const [pendingSignoffs, setPendingSignoffs] = useState(0)
   const [mode, setMode] = useState<'my' | 'gbc'>('my')
+  // The Wk/30d window controls only the new-people count + milestones chart.
+  // The weekly signals (% moving, Since Sunday) are ALWAYS Sunday-anchored.
+  const [win, setWin] = useState<'week' | '30d'>('week')
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
@@ -62,55 +65,77 @@ export default function MomentumCard({
     const activeIds = new Set(active.map(p => p.id))
     const small = n < 10
 
-    const completions = items.filter(it => it.completed && it.completed_at && activeIds.has(it.person_id))
-    // A step = a checklist completion OR a booklet chapter advance. booklet_progress
-    // keeps only the latest advance's timestamp, which is exactly what buckets the
-    // most recent chapter move into the right week.
-    const chapterMoves = bookletProgress.filter(
-      bp => bp.current_chapter > 0 && bp.updated_at && activeIds.has(bp.person_id),
-    )
-    // Distinct movers per bucket, newest bucket last. Small scopes bucket by
-    // 30-day "months", larger by weeks.
-    const bucketDays = small ? 30 : 7
-    const numBuckets = small ? 4 : 8
     const now = Date.now()
-    const buckets: Set<string>[] = Array.from({ length: numBuckets }, () => new Set<string>())
-    const bucketMove = (id: string, at: string) => {
-      const ago = Math.floor((now - new Date(at).getTime()) / (bucketDays * DAY_MS))
-      if (ago >= 0 && ago < numBuckets) buckets[numBuckets - 1 - ago].add(id)
+    const WEEK = 7 * DAY_MS
+    // Movement events — a checklist completion OR a booklet chapter advance is a
+    // "step". Flatten both into one {id, at} list so every window/bucket below is a
+    // single pass. booklet_progress keeps only the latest advance's timestamp,
+    // which is exactly what buckets the most recent chapter move into its week.
+    const events: { id: string; at: number; chapter: boolean }[] = []
+    for (const it of items) {
+      if (it.completed && it.completed_at && it.label.startsWith('Completed ') && activeIds.has(it.person_id))
+        events.push({ id: it.person_id, at: new Date(it.completed_at).getTime(), chapter: false })
     }
-    for (const it of completions) bucketMove(it.person_id, it.completed_at!)
-    for (const bp of chapterMoves) bucketMove(bp.person_id, bp.updated_at)
-    const rates = buckets.map(b => (n ? (b.size / n) * 100 : 0))
-    const moversNow = buckets[numBuckets - 1].size
-    const moversPrev = buckets[numBuckets - 2].size
+    for (const bp of bookletProgress) {
+      if (bp.current_chapter > 0 && bp.updated_at && activeIds.has(bp.person_id))
+        events.push({ id: bp.person_id, at: new Date(bp.updated_at).getTime(), chapter: true })
+    }
+    const moversIn = (a: number, b: number) => {
+      const s = new Set<string>()
+      for (const e of events) if (e.at >= a && e.at < b) s.add(e.id)
+      return s.size
+    }
+    const countIn = (a: number, b: number) => events.filter(e => e.at >= a && e.at < b).length
+
+    // Sunday 00:00 local. `elapsed` is how far into this week we are, so the
+    // week-over-week comparison is same-slice: Sun→now this week vs Sun→(same
+    // weekday/time) last week — a true partial-week compare that grows daily.
+    const sunday = new Date(); sunday.setHours(0, 0, 0, 0); sunday.setDate(sunday.getDate() - sunday.getDay())
+    const weekStart = sunday.getTime()
+    const elapsed = now - weekStart
+
+    // ALWAYS-ON weekly signal (Sunday-anchored, never toggle-controlled).
+    const weekMovers = moversIn(weekStart, now + 1)
+    const prevWeekMovers = moversIn(weekStart - WEEK, weekStart - WEEK + elapsed)
+
+    // Since Sunday raw milestone volume + type breakdown.
+    const checklistSinceSunday = events.filter(e => !e.chapter && e.at >= weekStart).length
+    const chapterSinceSunday = events.filter(e => e.chapter && e.at >= weekStart).length
+    const sinceSunday = checklistSinceSunday + chapterSinceSunday
+
+    // Toggle-controlled window: new people + milestone volume for the window.
+    const winStart = win === 'week' ? weekStart : now - 30 * DAY_MS
+    const newPeople = active.filter(p => p.created_at && new Date(p.created_at).getTime() >= winStart).length
+    const winMilestones = countIn(winStart, now + 1)
+
+    // Milestones-per-week chart + movement-rate sparkline over the last 8 Sunday
+    // weeks (the current, partial week is the last bar/point).
+    const NW = 8
+    const weekBuckets: number[] = []
+    const rates: number[] = []
+    for (let i = 0; i < NW; i++) {
+      const a = weekStart - (NW - 1 - i) * WEEK
+      const b = i === NW - 1 ? now + 1 : a + WEEK
+      weekBuckets.push(countIn(a, b))
+      rates.push(n ? (moversIn(a, b) / n) * 100 : 0)
+    }
+    const peak = Math.max(1, ...weekBuckets)
 
     // Leader health across the scope.
     const leaders = active.filter(p => p.current_stage === 'Equip' || p.current_stage === 'Empower').length
     const carried = n - leaders
     const ratio = leaders > 0 ? carried / leaders : null
 
-    // Since the most recent Sunday 00:00 local: raw milestone volume. A milestone
-    // is a checklist completion OR a booklet chapter advance (both are "movement").
-    const sunday = new Date(); sunday.setHours(0, 0, 0, 0); sunday.setDate(sunday.getDate() - sunday.getDay())
-    const checklistSinceSunday = completions.filter(it =>
-      it.label.startsWith('Completed ') && new Date(it.completed_at!).getTime() >= sunday.getTime()
-    ).length
-    const chapterSinceSunday = chapterMoves.filter(
-      bp => new Date(bp.updated_at).getTime() >= sunday.getTime()
-    ).length
-    const sinceSunday = checklistSinceSunday + chapterSinceSunday
-
     const risers = topRisers(people, items, allow).slice(0, 2)
 
-    return { n, small, rates, moversNow, moversPrev, leaders, carried, ratio, sinceSunday, checklistSinceSunday, chapterSinceSunday, risers }
-  }, [people, items, bookletProgress, myPersonIds, mode])
+    return { n, small, rates, weekMovers, prevWeekMovers, newPeople, winMilestones, weekBuckets, peak, leaders, carried, ratio, sinceSunday, checklistSinceSunday, chapterSinceSunday, risers }
+  }, [people, items, bookletProgress, myPersonIds, mode, win])
 
   if (!ready) return null
 
-  const { n, small, rates, moversNow, moversPrev, ratio, risers } = data
-  const pctNow = Math.round(rates[rates.length - 1])
-  const pctPrev = Math.round(rates[rates.length - 2])
+  const { n, small, rates, weekMovers, prevWeekMovers, ratio, risers } = data
+  const pctNow = n ? Math.round((weekMovers / n) * 100) : 0
+  const pctPrev = n ? Math.round((prevWeekMovers / n) * 100) : 0
   const deltaPts = pctNow - pctPrev
 
   // Sparkline of the rate vs the scope's own average (mock's scaling ported).
@@ -130,17 +155,24 @@ export default function MomentumCard({
       ? <>Across Grace Bible, every leader is carrying <b className="font-semibold text-[var(--gold)]">{ratio.toFixed(1).replace(/\.0$/, '')}</b> people.</>
       : <>Across Grace Bible, <b className="font-semibold text-[var(--gold)]">{n}</b> people are on the journey.</>
 
+  // Everything below is Sunday-to-date (week-to-date), compared to the same slice
+  // of last week — so the trend reads honestly from Monday on, no full-week wait.
   const moveLine = small
-    ? <><b className="font-semibold text-[var(--fg-1)]">{moversNow} of your {n}</b> took a step this month</>
+    ? <><b className="font-semibold text-[var(--fg-1)]">{weekMovers} of your {n}</b> took a step this week</>
     : <><b className="font-semibold text-[var(--fg-1)]">{pctNow}%</b> of {mode === 'gbc' ? 'GBC' : 'your constellation'} took a step this week</>
 
+  const deltaUp = small ? weekMovers >= prevWeekMovers : deltaPts >= 0
   const deltaLine = small
-    ? moversNow >= moversPrev
-      ? <><span className="font-bold text-[var(--success)]">▲</span> up from {moversPrev} of {n} last month</>
-      : <>down from {moversPrev} of {n} last month</>
-    : deltaPts >= 0
-      ? <><span className="font-bold text-[var(--success)]">▲ {deltaPts} pts</span> vs last week</>
-      : <>▼ {Math.abs(deltaPts)} pts vs last week</>
+    ? weekMovers === prevWeekMovers
+      ? <>even with last week to date ({prevWeekMovers})</>
+      : deltaUp
+        ? <><span className="font-bold text-[var(--success)]">▲</span> up from {prevWeekMovers} last week to date</>
+        : <>▼ down from {prevWeekMovers} last week to date</>
+    : deltaPts === 0
+      ? <>even with last week to date</>
+      : deltaUp
+        ? <><span className="font-bold text-[var(--success)]">▲ {deltaPts} pts</span> vs last week to date</>
+        : <>▼ {Math.abs(deltaPts)} pts vs last week to date</>
 
   return (
     <section className="mb-5">
@@ -185,6 +217,55 @@ export default function MomentumCard({
           Since Sunday: {data.sinceSunday} {data.sinceSunday === 1 ? 'milestone' : 'milestones'} logged
           {data.chapterSinceSunday > 0 ? ` (${data.checklistSinceSunday} checklist + ${data.chapterSinceSunday} chapter ${data.chapterSinceSunday === 1 ? 'advance' : 'advances'})` : ''} · {pendingSignoffs} {pendingSignoffs === 1 ? 'sign-off' : 'sign-offs'} waiting
         </p>
+
+        {/* ── Window block: new people + milestone volume (Wk/30d controls THIS only) ── */}
+        <div className="flex flex-col gap-2.5 border-t border-[var(--line-1)] pt-3">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-bold uppercase tracking-[.14em] text-[var(--fg-3)]">The numbers</p>
+            <div className="flex rounded-full bg-[rgba(6,8,20,.5)] p-[3px]">
+              {(['week', '30d'] as const).map(w => (
+                <button
+                  key={w}
+                  type="button"
+                  onClick={() => setWin(w)}
+                  className={`rounded-full px-3 py-1 text-[11.5px] font-semibold transition-all ${win === w ? 'bg-[var(--gbm-cobalt,#5B8DF7)] text-white' : 'text-[var(--fg-3)] hover:text-[var(--fg-1)]'}`}
+                >
+                  {w === 'week' ? 'Week' : '30d'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex gap-2.5">
+            <div className="flex-1 rounded-xl border border-[var(--line-1)] bg-[var(--indigo)] px-3 py-2.5">
+              <p className="text-[24px] font-semibold leading-7 text-[var(--gbm-cobalt-soft,#8FA6E8)]" style={{ fontFamily: 'var(--font-display)' }}>{data.newPeople}</p>
+              <p className="mt-0.5 text-[10.5px] text-[var(--fg-3)]">New people · {win === 'week' ? 'since Sun' : '30d'}</p>
+            </div>
+            <div className="flex-1 rounded-xl border border-[var(--line-1)] bg-[var(--indigo)] px-3 py-2.5">
+              <p className="text-[24px] font-semibold leading-7 text-[var(--success)]" style={{ fontFamily: 'var(--font-display)' }}>{data.winMilestones}</p>
+              <p className="mt-0.5 text-[10.5px] text-[var(--fg-3)]">Milestones · {win === 'week' ? 'since Sun' : '30d'}</p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <p className="text-[9.5px] font-semibold uppercase tracking-[.08em] text-[var(--fg-3)]">Milestones / week</p>
+            <p className="text-[9.5px] font-semibold uppercase tracking-[.08em] text-[var(--fg-3)]">Peak {data.peak}</p>
+          </div>
+          <div className="flex h-11 items-end gap-[5px]">
+            {data.weekBuckets.map((v, i) => (
+              <div key={i} className="flex h-11 flex-1 items-end">
+                <div
+                  className="w-full rounded-[3px]"
+                  style={{ height: Math.max(3, (v / data.peak) * 40), background: v > 0 ? 'var(--success)' : 'rgba(246,241,231,.12)' }}
+                />
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center justify-between">
+            <p className="text-[9.5px] text-[var(--fg-3)]">{data.weekBuckets.length}w ago</p>
+            <p className="text-[9.5px] text-[var(--fg-3)]">this week</p>
+          </div>
+        </div>
 
         {risers.length > 0 && (
           <div className="flex flex-col gap-2 border-t border-[var(--line-1)] pt-3">

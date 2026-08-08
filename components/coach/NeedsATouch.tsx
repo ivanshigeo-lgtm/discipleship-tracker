@@ -262,10 +262,11 @@ export default function NeedsATouch({
     return !!t && Date.now() - new Date(t.created_at).getTime() < COOLDOWN_MS
   }
 
+  // Needs-a-touch is personal-only: a coach nudges people they're walking with,
+  // not the whole church. GBC chip dropped to match native (Ivan's redesign v2).
   const modes: [Mode, string][] = [
     ['mine', 'My constellation'],
     ['direct', 'My people'],
-    ...(canSeeAllChurch ? [['gbc', 'GBC'] as [Mode, string]] : []),
   ]
 
   // Toggle a quick touch. Optimistic checkmark first, then persist; on error we

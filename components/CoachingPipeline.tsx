@@ -328,7 +328,9 @@ export default function CoachingPipeline({
   // updatePersonStage count; profile-correction stage sets don't. Mirrors the
   // native explore ring.
   const weeklyEntered = useMemo(() => {
-    const cutoff = Date.now() - 7 * 86_400_000
+    // Sunday-anchored week-to-date (matches momentum-card + lens). Ivan's directive.
+    const sunday = new Date(); sunday.setHours(0, 0, 0, 0); sunday.setDate(sunday.getDate() - sunday.getDay())
+    const cutoff = sunday.getTime()
     const allow = allowedPersonIds ? new Set(allowedPersonIds) : null
     const byStage: Record<Stage, number> = { Engage: 0, Establish: 0, Equip: 0, Empower: 0 }
     for (const ev of pipelineEvents) {
