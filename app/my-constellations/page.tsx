@@ -762,6 +762,7 @@ export default function DiscipleshipTracker() {
                 <MomentumCard
                   personId={profile.id}
                   myPersonIds={myCircleIds ? Array.from(myCircleIds) : undefined}
+                  myDirectIds={myPeopleIds ? Array.from(myPeopleIds) : undefined}
                   canSeeAllChurch={canSeeAllChurch}
                   refreshKey={refreshKey}
                   onPersonClick={p => openPerson(p)}

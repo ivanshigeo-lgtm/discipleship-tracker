@@ -18,15 +18,19 @@ import type { BookletProgress, Person, StageChecklistItem } from '../../types/da
 
 const DAY_MS = 86_400_000
 
+type Mode = 'direct' | 'my' | 'gbc'
+
 export default function MomentumCard({
   personId,
   myPersonIds,
+  myDirectIds,
   canSeeAllChurch,
   refreshKey,
   onPersonClick,
 }: {
   personId: string
   myPersonIds?: string[]
+  myDirectIds?: string[]
   canSeeAllChurch: boolean
   refreshKey: number
   onPersonClick: (person: Person) => void
@@ -35,10 +39,12 @@ export default function MomentumCard({
   const [items, setItems] = useState<StageChecklistItem[]>([])
   const [bookletProgress, setBookletProgress] = useState<BookletProgress[]>([])
   const [pendingSignoffs, setPendingSignoffs] = useState(0)
-  const [mode, setMode] = useState<'my' | 'gbc'>('my')
-  // The Wk/30d window controls only the new-people count + milestones chart.
-  // The weekly signals (% moving, Since Sunday) are ALWAYS Sunday-anchored.
+  const [mode, setMode] = useState<Mode>('my')
+  // The Wk/30d window controls only the tile counts (new people / milestones /
+  // chapters). The weekly signals (% moving, Since Sunday) are ALWAYS Sunday-anchored.
   const [win, setWin] = useState<'week' | '30d'>('week')
+  // Which metric the weekly bar chart plots — tap a tile to switch.
+  const [metric, setMetric] = useState<'people' | 'milestones' | 'chapters'>('milestones')
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
@@ -58,7 +64,9 @@ export default function MomentumCard({
   }, [personId, refreshKey])
 
   const data = useMemo(() => {
-    const allow = mode === 'my' && myPersonIds ? new Set(myPersonIds) : null
+    const allow = mode === 'direct' && myDirectIds ? new Set(myDirectIds)
+      : mode === 'my' && myPersonIds ? new Set(myPersonIds)
+      : null
     const inScope = (id: string) => !allow || allow.has(id)
     const active = people.filter(p => p.status !== 'Inactive' && inScope(p.id))
     const n = active.length
@@ -103,20 +111,27 @@ export default function MomentumCard({
     const chapterSinceSunday = events.filter(e => e.chapter && e.at >= weekStart).length
     const sinceSunday = checklistSinceSunday + chapterSinceSunday
 
-    // Toggle-controlled window: new people + milestone volume for the window.
+    // Toggle-controlled window: new people + milestone + chapter volume.
     const winStart = win === 'week' ? weekStart : now - 30 * DAY_MS
-    const newPeople = active.filter(p => p.created_at && new Date(p.created_at).getTime() >= winStart).length
+    const peopleAt = (p: Person) => (p.created_at ? new Date(p.created_at).getTime() : -1)
+    const newPeople = active.filter(p => peopleAt(p) >= winStart).length
     const winMilestones = countIn(winStart, now + 1)
+    const winChapters = events.filter(e => e.chapter && e.at >= winStart).length
 
-    // Milestones-per-week chart + movement-rate sparkline over the last 8 Sunday
-    // weeks (the current, partial week is the last bar/point).
+    // Per-metric weekly series + movement-rate sparkline over the last 8 Sunday
+    // weeks (the current, partial week is the last bar/point). One bucket array
+    // per tappable tile so the chart can plot whichever metric is selected.
     const NW = 8
-    const weekBuckets: number[] = []
+    const weekBuckets: number[] = []      // milestones (checklist + chapter) / week
+    const peopleBuckets: number[] = []    // new people / week
+    const chapterBuckets: number[] = []   // chapter advances / week
     const rates: number[] = []
     for (let i = 0; i < NW; i++) {
       const a = weekStart - (NW - 1 - i) * WEEK
       const b = i === NW - 1 ? now + 1 : a + WEEK
       weekBuckets.push(countIn(a, b))
+      chapterBuckets.push(events.filter(e => e.chapter && e.at >= a && e.at < b).length)
+      peopleBuckets.push(active.filter(p => { const t = peopleAt(p); return t >= a && t < b }).length)
       rates.push(n ? (moversIn(a, b) / n) * 100 : 0)
     }
     const peak = Math.max(1, ...weekBuckets)
@@ -128,8 +143,8 @@ export default function MomentumCard({
 
     const risers = topRisers(people, items, allow).slice(0, 2)
 
-    return { n, small, rates, weekMovers, prevWeekMovers, newPeople, winMilestones, weekBuckets, peak, leaders, carried, ratio, sinceSunday, checklistSinceSunday, chapterSinceSunday, risers }
-  }, [people, items, bookletProgress, myPersonIds, mode, win])
+    return { n, small, rates, weekMovers, prevWeekMovers, newPeople, winMilestones, winChapters, weekBuckets, peopleBuckets, chapterBuckets, peak, leaders, carried, ratio, sinceSunday, checklistSinceSunday, chapterSinceSunday, risers }
+  }, [people, items, bookletProgress, myPersonIds, myDirectIds, mode, win])
 
   if (!ready) return null
 
@@ -147,7 +162,7 @@ export default function MomentumCard({
   const avg = rates.reduce((a, b) => a + b, 0) / rates.length
   const baseY = y(avg).toFixed(1)
 
-  const ratioLine = mode === 'my'
+  const ratioLine = mode !== 'gbc'
     ? n === 0
       ? <>No one in your constellation yet — invite someone below.</>
       : <>You&rsquo;re walking with <b className="font-semibold text-[var(--gold)]">{n}</b>{risers.length > 0 && risers[0].pct >= 50 && <> — and <b className="font-semibold text-[var(--gold)]">{risers.filter(r => r.pct >= 50).length}</b> {risers.filter(r => r.pct >= 50).length === 1 ? 'of them is' : 'of them are'} nearly ready to lead.</>}</>
@@ -157,9 +172,12 @@ export default function MomentumCard({
 
   // Everything below is Sunday-to-date (week-to-date), compared to the same slice
   // of last week — so the trend reads honestly from Monday on, no full-week wait.
+  // Always show the raw fraction (movers OF the scope total) so the percent is
+  // transparent and the denominator visibly tracks the My people/constellation/GBC
+  // toggle — a "mover" is a distinct PERSON, not a milestone count.
   const moveLine = small
-    ? <><b className="font-semibold text-[var(--fg-1)]">{weekMovers} of your {n}</b> took a step this week</>
-    : <><b className="font-semibold text-[var(--fg-1)]">{pctNow}%</b> of {mode === 'gbc' ? 'GBC' : 'your constellation'} took a step this week</>
+    ? <><b className="font-semibold text-[var(--fg-1)]">{weekMovers} of {n}</b> took a step this week</>
+    : <><b className="font-semibold text-[var(--fg-1)]">{weekMovers} of {n} people</b> took a step this week ({pctNow}%)</>
 
   const deltaUp = small ? weekMovers >= prevWeekMovers : deltaPts >= 0
   const deltaLine = small
@@ -174,13 +192,30 @@ export default function MomentumCard({
         ? <><span className="font-bold text-[var(--success)]">▲ {deltaPts} pts</span> vs last week to date</>
         : <>▼ {Math.abs(deltaPts)} pts vs last week to date</>
 
+  const modes: [Mode, string][] = [
+    ['direct', 'My people'],
+    ['my', 'My constellation'],
+    ...(canSeeAllChurch ? [['gbc', 'GBC'] as [Mode, string]] : []),
+  ]
+
+  // Tappable stat tiles — each drives the weekly bar chart below.
+  const winSub = win === 'week' ? 'since Sun' : 'last 30d'
+  const tiles = [
+    { key: 'people' as const, label: 'New people', num: data.newPeople, color: 'var(--gbm-cobalt-soft,#8FA6E8)', buckets: data.peopleBuckets, chart: 'New people / week' },
+    { key: 'milestones' as const, label: 'Milestones', num: data.winMilestones, color: 'var(--success)', buckets: data.weekBuckets, chart: 'Milestones / week' },
+    { key: 'chapters' as const, label: 'Chapters', num: data.winChapters, color: 'var(--gold)', buckets: data.chapterBuckets, chart: 'Chapters / week' },
+  ]
+  const activeTile = tiles.find(t => t.key === metric) ?? tiles[1]
+  const activeBuckets = activeTile.buckets
+  const activePeak = Math.max(1, ...activeBuckets)
+
   return (
     <section className="mb-5">
       <ZoneLabel label="Leadership momentum" />
       <div className="cn-card flex flex-col gap-3 px-4 pb-4 pt-3.5">
         <div className="flex items-center">
           <div className="ml-auto flex rounded-full border border-[var(--line-1)] bg-[var(--indigo)] p-0.5">
-            {([['my', 'My constellation'], ...(canSeeAllChurch ? [['gbc', 'GBC']] : [])] as ['my' | 'gbc', string][]).map(([val, label]) => (
+            {modes.map(([val, label]) => (
               <button
                 key={val}
                 type="button"
@@ -201,7 +236,8 @@ export default function MomentumCard({
           <div>
             <p className="text-[10px] font-bold uppercase tracking-[.14em] text-[var(--fg-3)]">People moving</p>
             <p className="mt-1 text-[15px] font-semibold leading-snug text-[var(--fg-1)]">{moveLine}</p>
-            <p className="mt-1 text-[11px] text-[var(--fg-3)]">{deltaLine}</p>
+            <p className={`mt-1 text-[11px] ${deltaUp ? 'text-[var(--success)]' : 'text-[var(--fg-3)]'}`}>{deltaLine}</p>
+            <p className="mt-1.5 text-[10.5px] leading-[1.35] text-[var(--fg-3)] opacity-85">A &ldquo;step&rdquo; = one person completing a checklist item or advancing a booklet chapter.</p>
           </div>
           <svg width="104" height="48" viewBox="0 0 104 48" aria-hidden="true">
             <line x1="4" y1={baseY} x2="100" y2={baseY} stroke="rgba(246,241,231,.28)" strokeWidth="1" strokeDasharray="3 4" />
@@ -236,58 +272,48 @@ export default function MomentumCard({
             </div>
           </div>
 
-          <div className="flex gap-2.5">
-            <div className="flex-1 rounded-xl border border-[var(--line-1)] bg-[var(--indigo)] px-3 py-2.5">
-              <p className="text-[24px] font-semibold leading-7 text-[var(--gbm-cobalt-soft,#8FA6E8)]" style={{ fontFamily: 'var(--font-display)' }}>{data.newPeople}</p>
-              <p className="mt-0.5 text-[10.5px] text-[var(--fg-3)]">New people · {win === 'week' ? 'since Sun' : '30d'}</p>
-            </div>
-            <div className="flex-1 rounded-xl border border-[var(--line-1)] bg-[var(--indigo)] px-3 py-2.5">
-              <p className="text-[24px] font-semibold leading-7 text-[var(--success)]" style={{ fontFamily: 'var(--font-display)' }}>{data.winMilestones}</p>
-              <p className="mt-0.5 text-[10.5px] text-[var(--fg-3)]">Milestones · {win === 'week' ? 'since Sun' : '30d'}</p>
-            </div>
+          {/* Three tappable stat tiles — the selected one drives the chart. */}
+          <div className="flex gap-2">
+            {tiles.map(t => {
+              const on = metric === t.key
+              return (
+                <button
+                  key={t.key}
+                  type="button"
+                  onClick={() => setMetric(t.key)}
+                  className="flex-1 rounded-xl border px-2.5 py-2.5 text-left transition-all"
+                  style={{
+                    borderColor: on ? t.color : 'var(--line-1)',
+                    background: on ? `color-mix(in srgb, ${t.color} 12%, transparent)` : 'var(--indigo)',
+                  }}
+                >
+                  <p className="text-[10.5px] font-semibold text-[var(--fg-2)] truncate">{t.label}</p>
+                  <p className="text-[23px] font-semibold leading-7" style={{ fontFamily: 'var(--font-display)', color: t.color }}>{t.num}</p>
+                  <p className="text-[9.5px] text-[var(--fg-3)] truncate">{winSub}</p>
+                </button>
+              )
+            })}
           </div>
 
           <div className="flex items-center justify-between">
-            <p className="text-[9.5px] font-semibold uppercase tracking-[.08em] text-[var(--fg-3)]">Milestones / week</p>
-            <p className="text-[9.5px] font-semibold uppercase tracking-[.08em] text-[var(--fg-3)]">Peak {data.peak}</p>
+            <p className="text-[9.5px] font-semibold uppercase tracking-[.08em]" style={{ color: activeTile.color }}>{activeTile.chart}</p>
+            <p className="text-[9.5px] font-semibold uppercase tracking-[.08em] text-[var(--fg-3)]">Peak {activePeak}</p>
           </div>
           <div className="flex h-11 items-end gap-[5px]">
-            {data.weekBuckets.map((v, i) => (
+            {activeBuckets.map((v, i) => (
               <div key={i} className="flex h-11 flex-1 items-end">
                 <div
                   className="w-full rounded-[3px]"
-                  style={{ height: Math.max(3, (v / data.peak) * 40), background: v > 0 ? 'var(--success)' : 'rgba(246,241,231,.12)' }}
+                  style={{ height: Math.max(3, (v / activePeak) * 40), background: v > 0 ? activeTile.color : 'rgba(246,241,231,.12)' }}
                 />
               </div>
             ))}
           </div>
           <div className="flex items-center justify-between">
-            <p className="text-[9.5px] text-[var(--fg-3)]">{data.weekBuckets.length}w ago</p>
+            <p className="text-[9.5px] text-[var(--fg-3)]">{activeBuckets.length}w ago</p>
             <p className="text-[9.5px] text-[var(--fg-3)]">this week</p>
           </div>
         </div>
-
-        {risers.length > 0 && (
-          <div className="flex flex-col gap-2 border-t border-[var(--line-1)] pt-3">
-            {risers.map((r, i) => (
-              <button
-                key={r.person.id}
-                type="button"
-                onClick={() => onPersonClick(r.person)}
-                className="flex items-center gap-2.5 text-left text-[12.5px]"
-              >
-                <span
-                  className="h-[7px] w-[7px] shrink-0 rounded-full"
-                  style={{ background: 'var(--empower)', boxShadow: '0 0 9px 1px rgba(240,114,159,.65)', opacity: i === 0 ? 1 : 0.55 }}
-                />
-                <span className="font-semibold text-[var(--fg-1)]">{r.person.name}</span>
-                <span className="ml-auto text-[11px] text-[var(--fg-3)]">
-                  {r.person.current_stage} · {r.pct >= 100 ? 'checklist complete' : r.pct > 0 ? `${r.pct}% of the way` : 'on the way'}
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
       </div>
     </section>
   )
