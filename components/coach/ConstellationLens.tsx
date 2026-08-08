@@ -165,9 +165,9 @@ export default function ConstellationLens({
   }
 
   const scopes: [LensScope, string][] = [
-    ...(canSeeAllChurch ? [['church', 'Grace Bible'] as [LensScope, string]] : []),
+    ...(canSeeAllChurch ? [['church', 'GBC'] as [LensScope, string]] : []),
     ['mine', 'My constellation'],
-    ['leaders', 'Leaders'],
+    ['leaders', 'Emerging Leaders'],
   ]
   const zoomed = scope !== 'church'
   const focus = scope === 'leaders'

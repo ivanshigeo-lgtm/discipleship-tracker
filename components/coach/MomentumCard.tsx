@@ -132,7 +132,7 @@ export default function MomentumCard({
 
   const moveLine = small
     ? <><b className="font-semibold text-[var(--fg-1)]">{moversNow} of your {n}</b> took a step this month</>
-    : <><b className="font-semibold text-[var(--fg-1)]">{pctNow}%</b> of {mode === 'gbc' ? 'Grace Bible' : 'your constellation'} took a step this week</>
+    : <><b className="font-semibold text-[var(--fg-1)]">{pctNow}%</b> of {mode === 'gbc' ? 'GBC' : 'your constellation'} took a step this week</>
 
   const deltaLine = small
     ? moversNow >= moversPrev
@@ -148,7 +148,7 @@ export default function MomentumCard({
       <div className="cn-card flex flex-col gap-3 px-4 pb-4 pt-3.5">
         <div className="flex items-center">
           <div className="ml-auto flex rounded-full border border-[var(--line-1)] bg-[var(--indigo)] p-0.5">
-            {([['my', 'My constellation'], ...(canSeeAllChurch ? [['gbc', 'Grace Bible']] : [])] as ['my' | 'gbc', string][]).map(([val, label]) => (
+            {([['my', 'My constellation'], ...(canSeeAllChurch ? [['gbc', 'GBC']] : [])] as ['my' | 'gbc', string][]).map(([val, label]) => (
               <button
                 key={val}
                 type="button"

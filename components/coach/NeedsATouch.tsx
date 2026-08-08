@@ -324,7 +324,7 @@ export default function NeedsATouch({
       )}
       {ranked.list.length === 0 ? (
         <div className="cn-card p-4 text-center text-[12.5px] text-[var(--fg-3)]">
-          Everyone in {mode === 'gbc' ? 'Grace Bible' : mode === 'direct' ? 'your people' : 'your constellation'} has a recent touch. 🙌
+          Everyone in {mode === 'gbc' ? 'GBC' : mode === 'direct' ? 'your people' : 'your constellation'} has a recent touch. 🙌
         </div>
       ) : (
       <div className="cn-card flex flex-col p-0">
