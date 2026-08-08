@@ -32,7 +32,6 @@ export default function ConstellationLens({
   canSeeAllChurch,
   refreshKey,
   onInvite,
-  onOpenExplore,
   onPersonClick,
 }: {
   personId: string
@@ -40,7 +39,6 @@ export default function ConstellationLens({
   canSeeAllChurch: boolean
   refreshKey: number
   onInvite: () => void
-  onOpenExplore: () => void
   onPersonClick: (person: Person) => void
 }) {
   const [people, setPeople] = useState<Person[]>([])
@@ -191,7 +189,7 @@ export default function ConstellationLens({
 
   return (
     <section className="mb-5">
-      <ZoneLabel label="Your constellation" right="Open full map →" onRight={onOpenExplore} />
+      <ZoneLabel label="Your constellation" />
       <div className="cn-card overflow-hidden p-0">
         <div
           className="relative h-[216px] overflow-hidden border-b border-[var(--line-1)]"
@@ -326,13 +324,6 @@ export default function ConstellationLens({
               ✦ Invite someone
             </button>
           )}
-          <button
-            type="button"
-            onClick={onOpenExplore}
-            className="flex-1 rounded-[var(--r-md)] border border-[var(--line-2)] bg-[var(--indigo-3)] px-3 py-2.5 text-center text-[12.5px] font-semibold text-[var(--fg-1)] transition-all hover:brightness-110"
-          >
-            Open constellation
-          </button>
         </div>
       </div>
     </section>

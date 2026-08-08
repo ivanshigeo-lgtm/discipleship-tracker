@@ -39,6 +39,7 @@ import SignalsRow from '../../components/coach/SignalsRow'
 import NeedsATouch from '../../components/coach/NeedsATouch'
 import MomentumCard from '../../components/coach/MomentumCard'
 import ConstellationLens from '../../components/coach/ConstellationLens'
+import CompactPipelineCard from '../../components/coach/CompactPipelineCard'
 
 // True at phone widths — drives the mobile "Our Journey" redesign overlay.
 // Matches Tailwind's `sm` breakpoint (640px) used throughout this page.
@@ -737,6 +738,14 @@ export default function DiscipleshipTracker() {
             <div className="mx-auto w-full max-w-2xl">
               {/* TodayStrip + SignalsRow removed from the briefing to match native
                   redesign v2 (Ivan): the briefing now leads with the pipeline. */}
+              <ErrorBoundary name="CompactPipelineCard">
+                <CompactPipelineCard
+                  myPersonIds={myCircleIds ? Array.from(myCircleIds) : undefined}
+                  canSeeAllChurch={canSeeAllChurch}
+                  refreshKey={refreshKey}
+                  onOpenExplore={() => setHomeView('explore')}
+                />
+              </ErrorBoundary>
               <ErrorBoundary name="NeedsATouch">
                 <NeedsATouch
                   personId={profile.id}
@@ -764,7 +773,6 @@ export default function DiscipleshipTracker() {
                   canSeeAllChurch={canSeeAllChurch}
                   refreshKey={refreshKey}
                   onInvite={() => shareInvite(profile.id.slice(-6).toUpperCase())}
-                  onOpenExplore={() => setHomeView('explore')}
                   onPersonClick={p => openPerson(p)}
                 />
               </ErrorBoundary>
