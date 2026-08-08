@@ -754,7 +754,9 @@ export default function DiscipleshipTracker() {
               <ErrorBoundary name="NeedsATouch">
                 <NeedsATouch
                   personId={profile.id}
-                  allowedPersonIds={myCircleIds ? Array.from(myCircleIds) : undefined}
+                  myCircleIds={myCircleIds ? Array.from(myCircleIds) : undefined}
+                  myPeopleIds={myPeopleIds ? Array.from(myPeopleIds) : undefined}
+                  canSeeAllChurch={canSeeAllChurch}
                   refreshKey={refreshKey}
                   onPersonClick={p => openPerson(p)}
                   onOpenMessages={openMessages}

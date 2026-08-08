@@ -135,6 +135,15 @@ export type Engagement = {
   created_at: string
 }
 
+// A lightweight "contact was made" marker — NOT a meeting/attendance/engagement.
+// Its own table so touch points can be counted and cooled off by timestamp.
+export type Touch = {
+  id: string
+  person_id: string
+  created_by_person_id: string | null
+  created_at: string
+}
+
 export type PrayerRequest = {
   id: string
   person_id: string

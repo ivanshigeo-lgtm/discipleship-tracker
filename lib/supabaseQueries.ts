@@ -472,6 +472,37 @@ export const deleteEngagement = async (id: string) => {
   return { error }
 }
 
+// ── Touches: a lightweight "contact made" marker, NOT a meeting/engagement ──
+// Its own table so needs-a-touch can count touch points (graduation) and cool a
+// person off the list by timestamp (~1h). Per-coach: created_by is the coach.
+export const addTouch = async (personId: string, coachPersonId: string | null) => {
+  const { data, error } = await supabase
+    .from('touches')
+    .insert({ person_id: personId, created_by_person_id: coachPersonId })
+    .select()
+    .single()
+  return { data, error }
+}
+
+export const deleteTouch = async (id: string) => {
+  const { error } = await supabase
+    .from('touches')
+    .delete()
+    .eq('id', id)
+  return { error }
+}
+
+// The viewing coach's own touches since `sinceISO`, newest first.
+export const getRecentTouches = async (coachPersonId: string, sinceISO: string) => {
+  const { data, error } = await supabase
+    .from('touches')
+    .select('*')
+    .eq('created_by_person_id', coachPersonId)
+    .gte('created_at', sinceISO)
+    .order('created_at', { ascending: false })
+  return { data, error }
+}
+
 export const markActionCompleted = async (id: string, completed: boolean) => {
   const { data, error } = await supabase
     .from('engagements')

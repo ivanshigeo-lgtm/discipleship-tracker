@@ -6,22 +6,33 @@
 // completed_at in practice), a 2+ missed-group streak, and the coach's private
 // priority stars. Each row also carries the person's NEXT journey step, so the
 // touch always points at the mission.
+//
+// v2 (the "touch" is now a first-class marker, NOT a meeting): a logged touch is
+// a row in `touches` (created_by = the coach) — it does NOT count as a One2One /
+// attendance / engagement and never resets silence. A touched person cools off
+// the list within ~1h (then returns if still owed a touch). GRADUATION: someone
+// who has not attended a group in >3 weeks AND has ≥3 touch points logged falls
+// off entirely and stops nagging (and their priority star is cleared) until they
+// attend again. A scope chip (My constellation / My people / GBC) filters the
+// ranking person-set.
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   getPeople,
   getAllEngagements,
   getMyPriorityPersonIds,
+  setPersonPriority,
   getAllStageChecklistItems,
   getVictoryGroups,
   getAllGroupMemberships,
   getRecentGroupAttendance,
-  addEngagement,
-  deleteEngagement,
+  getRecentTouches,
+  addTouch,
+  deleteTouch,
 } from '../../lib/supabaseQueries'
 import { daysOf, WEEKDAY_NAMES } from '../../lib/meetingDays'
 import { STAGE_COLORS, initials, nextStepFor, silenceDays, toLocalDateStr, ZoneLabel } from './coachModel'
-import type { Person, Engagement, StageChecklistItem, VictoryGroup } from '../../types/database'
+import type { Person, Engagement, StageChecklistItem, VictoryGroup, Touch } from '../../types/database'
 
 type Ranked = {
   person: Person
@@ -31,18 +42,26 @@ type Ranked = {
   nextStep: string
   stall: string | null
 }
+type Mode = 'mine' | 'direct' | 'gbc'
 
 const MISSED_WINDOW_DAYS = 35
+const COOLDOWN_MS = 60 * 60 * 1000
+const GRAD_NO_ATTEND_DAYS = 21
+const GRAD_MIN_TOUCHES = 3
 
 export default function NeedsATouch({
   personId,
-  allowedPersonIds,
+  myCircleIds,
+  myPeopleIds,
+  canSeeAllChurch,
   refreshKey,
   onPersonClick,
   onOpenMessages,
 }: {
   personId: string
-  allowedPersonIds?: string[]
+  myCircleIds?: string[]
+  myPeopleIds?: string[]
+  canSeeAllChurch: boolean
   refreshKey: number
   onPersonClick: (person: Person) => void
   onOpenMessages: (targetPersonId: string) => void
@@ -54,28 +73,25 @@ export default function NeedsATouch({
   const [groups, setGroups] = useState<VictoryGroup[]>([])
   const [memberships, setMemberships] = useState<{ person_id: string; victory_group_id: string }[]>([])
   const [attendance, setAttendance] = useState<{ person_id: string; victory_group_id: string; meeting_date: string }[]>([])
+  const [touches, setTouches] = useState<Touch[]>([])
   const [ready, setReady] = useState(false)
+  const [mode, setMode] = useState<Mode>('mine')
   // Optimistic per-person override for the checkmark (true = logged, false =
-  // un-logged) so a tap reads instantly; the persisted engagement is the source
-  // of truth once it lands. `pending` disables re-tap while a write is in flight.
+  // un-logged) so a tap reads instantly; the persisted touch is the source of
+  // truth once it lands. `pending` disables re-tap while a write is in flight.
   const [override, setOverride] = useState<Record<string, boolean>>({})
   const [pending, setPending] = useState<Set<string>>(new Set())
-  // Ids of quick-touches created THIS session — bridges un-log before the
-  // engagements state round-trips, so a second tap can find the row to delete.
+  // Ids of touches created THIS viewing — see native for the full rationale:
+  // excluded from cooldown + graduation so a fresh tap never yanks the row.
   const localIds = useRef<Map<string, string>>(new Map())
-  // Freeze which engagements drive the RANKING for this viewing, so logging a
-  // touch (which resets a person's silence) doesn't yank their row out from
-  // under the tap. The roster re-evaluates only on refresh (refreshKey) or when
-  // the section remounts — that's when quiet-only people drop off, exactly the
-  // "gone when I come back" behavior we want; the checkmark itself stays live.
-  const [baseEngs, setBaseEngs] = useState<Engagement[]>([])
+  const graduatedHandled = useRef<Set<string>>(new Set())
   const today = toLocalDateStr(new Date())
 
   useEffect(() => {
     let alive = true
     const since = new Date(); since.setDate(since.getDate() - MISSED_WINDOW_DAYS)
     ;(async () => {
-      const [p, e, prio, cl, g, gm, att] = await Promise.all([
+      const [p, e, prio, cl, g, gm, att, tch] = await Promise.all([
         getPeople(),
         getAllEngagements(),
         getMyPriorityPersonIds(personId),
@@ -83,39 +99,77 @@ export default function NeedsATouch({
         getVictoryGroups(),
         getAllGroupMemberships(),
         getRecentGroupAttendance(toLocalDateStr(since)),
+        getRecentTouches(personId, new Date(Date.now() - MISSED_WINDOW_DAYS * 86_400_000).toISOString()),
       ])
       if (!alive) return
       if (p.data) setPeople(p.data as Person[])
-      if (e.data) { setEngagements(e.data as Engagement[]); setBaseEngs(e.data as Engagement[]) }
+      if (e.data) setEngagements(e.data as Engagement[])
       setPriorityIds(prio.ids)
       if (cl.data) setChecklist(cl.data as StageChecklistItem[])
       if (g.data) setGroups(g.data as VictoryGroup[])
       if (gm.data) setMemberships(gm.data as { person_id: string; victory_group_id: string }[])
       if (att.data) setAttendance(att.data as { person_id: string; victory_group_id: string; meeting_date: string }[])
+      if (tch.data) setTouches(tch.data as Touch[])
       setReady(true)
     })()
     return () => { alive = false }
   }, [personId, refreshKey])
 
-  const ranked = useMemo<Ranked[]>(() => {
-    const allow = allowedPersonIds ? new Set(allowedPersonIds) : null
+  // Most recent touch per person (live) — drives the ✓ and the delete id.
+  const recentTouchByPerson = useMemo(() => {
+    const m = new Map<string, Touch>()
+    for (const t of touches) {
+      const cur = m.get(t.person_id)
+      if (!cur || t.created_at > cur.created_at) m.set(t.person_id, t)
+    }
+    return m
+  }, [touches])
+
+  const ranked = useMemo<{ list: Ranked[]; graduatedStars: string[] }>(() => {
+    const allowIds = mode === 'gbc' ? null : mode === 'direct' ? myPeopleIds : myCircleIds
+    const allow = mode === 'gbc' ? null : new Set(allowIds ?? [])
+    const now = Date.now()
+    const sessionIds = new Set(localIds.current.values())
+
+    const settledByPerson = new Map<string, Touch[]>()
+    for (const t of touches) {
+      if (sessionIds.has(t.id)) continue
+      const l = settledByPerson.get(t.person_id) ?? []
+      l.push(t); settledByPerson.set(t.person_id, l)
+    }
+    const cooledOff = (pid: string) => {
+      const list = settledByPerson.get(pid)
+      if (!list) return false
+      let newest = 0
+      for (const t of list) newest = Math.max(newest, new Date(t.created_at).getTime())
+      return now - newest < COOLDOWN_MS
+    }
 
     const engByPerson = new Map<string, Engagement[]>()
-    baseEngs.forEach(e => {
+    engagements.forEach(e => {
       const l = engByPerson.get(e.person_id) ?? []
       l.push(e); engByPerson.set(e.person_id, l)
     })
 
-    // Missed-streak inputs: for each group, which past dates actually HAPPENED
-    // (someone has an attended row) — a person misses only meetings that
-    // happened without them.
+    // Missed-streak + last-attendance inputs.
     const heldDates = new Map<string, Set<string>>() // groupId → dates
     const attended = new Set<string>() // `${personId}:${groupId}:${date}`
+    const lastAttended = new Map<string, string>() // personId → max meeting_date
     for (const a of attendance) {
       const s = heldDates.get(a.victory_group_id) ?? new Set<string>()
       s.add(a.meeting_date); heldDates.set(a.victory_group_id, s)
       attended.add(`${a.person_id}:${a.victory_group_id}:${a.meeting_date}`)
+      const prev = lastAttended.get(a.person_id)
+      if (!prev || a.meeting_date > prev) lastAttended.set(a.person_id, a.meeting_date)
     }
+    const cutoff21 = toLocalDateStr(new Date(Date.now() - GRAD_NO_ATTEND_DAYS * 86_400_000))
+    const graduated = (pid: string) => {
+      const touchCount = (settledByPerson.get(pid) ?? []).length
+      if (touchCount < GRAD_MIN_TOUCHES) return false
+      const last = lastAttended.get(pid)
+      return !last || last < cutoff21
+    }
+
     const groupById = new Map(groups.map(g => [g.id, g]))
     const groupsByPerson = new Map<string, string[]>()
     for (const m of memberships) {
@@ -139,12 +193,18 @@ export default function NeedsATouch({
     }
 
     const out: Ranked[] = []
+    const graduatedStars: string[] = []
     for (const p of people) {
       if (p.id === personId || p.status === 'Inactive') continue
       if (allow && !allow.has(p.id)) continue
+      if (graduated(p.id)) {
+        if (priorityIds.has(p.id)) graduatedStars.push(p.id)
+        continue
+      }
+      if (cooledOff(p.id)) continue
+
       const engs = engByPerson.get(p.id) ?? []
 
-      // Overdue pending follow-up (soonest pending date already in the past).
       const pendingDates = engs.filter(e => e.status === 'Pending' && e.follow_up_date).map(e => e.follow_up_date!).sort()
       const overdueDays = pendingDates.length && pendingDates[0] < today
         ? Math.round((new Date(today + 'T00:00:00').getTime() - new Date(pendingDates[0] + 'T00:00:00').getTime()) / 86_400_000)
@@ -159,7 +219,7 @@ export default function NeedsATouch({
       if (missed >= 2) score += 40 + missed * 5
       score += Math.min(silence, 45)
       if (priority) score += 25
-      if (score <= 5) continue // freshly-touched people don't need a nudge
+      if (score <= 5) continue
 
       const quiet = silence > 0 ? `quiet for ${silence}d` : null
       let reason: string; let warn = false
@@ -177,52 +237,56 @@ export default function NeedsATouch({
         stall: silence >= 14 ? `stalled ${Math.floor(silence / 7)} wks` : silence > 0 ? `${silence}d quiet` : null,
       })
     }
-    return out.sort((a, b) => b.score - a.score).slice(0, 5)
-  }, [people, baseEngs, priorityIds, checklist, groups, memberships, attendance, allowedPersonIds, personId, today])
+    return { list: out.sort((a, b) => b.score - a.score).slice(0, 5), graduatedStars }
+  }, [people, engagements, priorityIds, checklist, groups, memberships, attendance, touches, mode, myCircleIds, myPeopleIds, personId, today])
 
-  // Persisted source of truth for the checkmark: a Completed "Quick touch" dated
-  // today. Maps person → that engagement's id so a second tap can delete it.
-  const touchIdByPerson = useMemo(() => {
-    const m = new Map<string, string>()
-    for (const e of engagements) {
-      if (e.status === 'Completed' && e.description === 'Quick touch' && e.follow_up_date === today) m.set(e.person_id, e.id)
+  // Clear the coach's star on anyone who just graduated (fire once each).
+  useEffect(() => {
+    for (const pid of ranked.graduatedStars) {
+      if (graduatedHandled.current.has(pid)) continue
+      graduatedHandled.current.add(pid)
+      setPriorityIds(prev => { const n = new Set(prev); n.delete(pid); return n })
+      void setPersonPriority(personId, pid, false)
     }
-    return m
-  }, [engagements, today])
+  }, [ranked.graduatedStars, personId])
 
-  if (!ready || ranked.length === 0) return null
+  const hasAnyPeople = useMemo(
+    () => people.some(p => p.id !== personId && p.status !== 'Inactive'),
+    [people, personId],
+  )
+  if (!ready || !hasAnyPeople) return null
 
-  const isLogged = (pid: string) => override[pid] ?? touchIdByPerson.has(pid)
+  const isLogged = (pid: string) => {
+    if (pid in override) return override[pid]
+    const t = recentTouchByPerson.get(pid)
+    return !!t && Date.now() - new Date(t.created_at).getTime() < COOLDOWN_MS
+  }
+
+  const modes: [Mode, string][] = [
+    ['mine', 'My constellation'],
+    ['direct', 'My people'],
+    ...(canSeeAllChurch ? [['gbc', 'GBC'] as [Mode, string]] : []),
+  ]
 
   // Toggle a quick touch. Optimistic checkmark first, then persist; on error we
-  // roll the override back. Logging adds the row to engagements (source of truth
-  // for the checkmark) so it survives a refresh; un-logging deletes today's row.
+  // roll the override back.
   const toggleTouch = async (p: Person) => {
     if (pending.has(p.id)) return
     const logged = isLogged(p.id)
     setPending(s => new Set(s).add(p.id))
     if (logged) {
-      const id = touchIdByPerson.get(p.id) ?? localIds.current.get(p.id)
+      const id = localIds.current.get(p.id) ?? recentTouchByPerson.get(p.id)?.id
       setOverride(o => ({ ...o, [p.id]: false }))
       if (id) {
-        const { error } = await deleteEngagement(id)
+        const { error } = await deleteTouch(id)
         if (error) setOverride(o => ({ ...o, [p.id]: true }))
-        else { localIds.current.delete(p.id); setEngagements(prev => prev.filter(e => e.id !== id)) }
+        else { localIds.current.delete(p.id); setTouches(prev => prev.filter(t => t.id !== id)) }
       }
     } else {
       setOverride(o => ({ ...o, [p.id]: true }))
-      const { data, error } = await addEngagement({
-        person_id: p.id,
-        created_by_person_id: personId,
-        description: 'Quick touch',
-        follow_up_date: today,
-        follow_up_time: null,
-        location: null,
-        meeting_type: 'One2One',
-        status: 'Completed',
-      })
+      const { data, error } = await addTouch(p.id, personId)
       if (error || !data) setOverride(o => ({ ...o, [p.id]: false }))
-      else { localIds.current.set(p.id, (data as Engagement).id); setEngagements(prev => [...prev, data as Engagement]) }
+      else { localIds.current.set(p.id, (data as Touch).id); setTouches(prev => [data as Touch, ...prev]) }
     }
     setPending(s => { const n = new Set(s); n.delete(p.id); return n })
   }
@@ -242,8 +306,29 @@ export default function NeedsATouch({
   return (
     <section className="mb-5">
       <ZoneLabel label="Needs a touch" />
+      {modes.length > 1 && (
+        <div className="mb-2 flex justify-end">
+          <div className="flex rounded-full border border-[var(--line-1)] bg-[var(--indigo-2)] p-0.5">
+            {modes.map(([val, label]) => (
+              <button
+                key={val}
+                type="button"
+                onClick={() => setMode(val)}
+                className={`rounded-full px-2.5 py-1 text-[10.5px] font-semibold transition-all ${mode === val ? 'bg-[var(--indigo-3)] text-[var(--fg-1)]' : 'text-[var(--fg-3)] hover:text-[var(--fg-1)]'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {ranked.list.length === 0 ? (
+        <div className="cn-card p-4 text-center text-[12.5px] text-[var(--fg-3)]">
+          Everyone in {mode === 'gbc' ? 'Grace Bible' : mode === 'direct' ? 'your people' : 'your constellation'} has a recent touch. 🙌
+        </div>
+      ) : (
       <div className="cn-card flex flex-col p-0">
-        {ranked.map((r, i) => {
+        {ranked.list.map((r, i) => {
           const c = STAGE_COLORS[r.person.current_stage]
           return (
             <div
@@ -301,6 +386,7 @@ export default function NeedsATouch({
           )
         })}
       </div>
+      )}
     </section>
   )
 }
