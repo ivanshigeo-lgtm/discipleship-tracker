@@ -40,6 +40,7 @@ import NeedsATouch from '../../components/coach/NeedsATouch'
 import MomentumCard from '../../components/coach/MomentumCard'
 import ConstellationLens from '../../components/coach/ConstellationLens'
 import CompactPipelineCard from '../../components/coach/CompactPipelineCard'
+import LeaderReviewCard from '../../components/coach/LeaderReviewCard'
 
 // True at phone widths — drives the mobile "Our Journey" redesign overlay.
 // Matches Tailwind's `sm` breakpoint (640px) used throughout this page.
@@ -773,6 +774,14 @@ export default function DiscipleshipTracker() {
                   canSeeAllChurch={canSeeAllChurch}
                   refreshKey={refreshKey}
                   onInvite={() => shareInvite(profile.id.slice(-6).toUpperCase())}
+                  onPersonClick={p => openPerson(p)}
+                />
+              </ErrorBoundary>
+              <ErrorBoundary name="LeaderReviewCard">
+                <LeaderReviewCard
+                  personId={profile.id}
+                  isAdmin={isAdmin}
+                  refreshKey={refreshKey}
                   onPersonClick={p => openPerson(p)}
                 />
               </ErrorBoundary>

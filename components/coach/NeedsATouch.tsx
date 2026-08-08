@@ -75,7 +75,10 @@ export default function NeedsATouch({
   const [attendance, setAttendance] = useState<{ person_id: string; victory_group_id: string; meeting_date: string }[]>([])
   const [touches, setTouches] = useState<Touch[]>([])
   const [ready, setReady] = useState(false)
-  const [mode, setMode] = useState<Mode>('mine')
+  // My people only (direct reports). Jonavan (Aug 8): the list caps at 5, so a
+  // "My constellation" scope is redundant — it'd surface the same five, and a
+  // coach only reaches out to their own people anyway. Single scope, no toggle.
+  const [mode, setMode] = useState<Mode>('direct')
   // Optimistic per-person override for the checkmark (true = logged, false =
   // un-logged) so a tap reads instantly; the persisted touch is the source of
   // truth once it lands. `pending` disables re-tap while a write is in flight.
@@ -262,10 +265,8 @@ export default function NeedsATouch({
     return !!t && Date.now() - new Date(t.created_at).getTime() < COOLDOWN_MS
   }
 
-  // Needs-a-touch is personal-only: a coach nudges people they're walking with,
-  // not the whole church. GBC chip dropped to match native (Ivan's redesign v2).
+  // My people only — single scope, so the toggle row stays hidden (see mode init).
   const modes: [Mode, string][] = [
-    ['mine', 'My constellation'],
     ['direct', 'My people'],
   ]
 
