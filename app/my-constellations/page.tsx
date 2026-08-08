@@ -773,6 +773,17 @@ export default function DiscipleshipTracker() {
                   onPersonClick={p => openPerson(p)}
                 />
               </ErrorBoundary>
+              {/* Quiet verse floor — the briefing ends on Scripture, not a metric */}
+              <div className="px-4 pb-2 pt-5 text-center">
+                <div className="mb-2 text-[15px] text-[var(--gbm-gold,#F2C879)] opacity-90">✦</div>
+                <p
+                  className="mx-auto max-w-sm text-[15.5px] italic leading-snug text-[var(--fg-1)]"
+                  style={{ fontFamily: 'var(--font-display)' }}
+                >
+                  “Shepherd the flock of God that is among you — not under compulsion, but willingly.”
+                </p>
+                <p className="mt-1.5 text-[10.5px] font-semibold uppercase tracking-[.14em] text-[var(--fg-3)]">1 Peter 5:2</p>
+              </div>
             </div>
           )}
 
