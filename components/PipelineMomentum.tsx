@@ -55,6 +55,10 @@ export default function PipelineMomentum({ refreshKey = 0, allowedPersonIds }: {
     const inScope = (personId: string) => !allow || allow.has(personId)
 
     const newPeople = people.filter(p => inScope(p.id) && inWindow(p.created_at)).length
+    // Fixed 7-day net-new (independent of the period toggle) for the "+X this
+    // week" total badge — mirrors the native explore ring's Total delta.
+    const weekCutoff = Date.now() - 7 * 24 * 3600 * 1000
+    const newThisWeek = people.filter(p => p.status !== 'Inactive' && inScope(p.id) && !!p.created_at && new Date(p.created_at).getTime() >= weekCutoff).length
     const completions = items.filter(it => it.completed && it.label.startsWith('Completed ') && inScope(it.person_id) && inWindow(it.completed_at)).length
     const empoweredInPeriod = events.filter(ev => ev.to_stage === 'Empower' && inScope(ev.person_id) && inWindow(ev.created_at)).length
     const weeks = Math.max(1, period.days / 7)
@@ -92,7 +96,7 @@ export default function PipelineMomentum({ refreshKey = 0, allowedPersonIds }: {
     }
     const maxWeek = Math.max(1, ...series)
 
-    return { newPeople, completions, empoweredInPeriod, perWeek, avgWeeks, dist, total, series, maxWeek }
+    return { newPeople, newThisWeek, completions, empoweredInPeriod, perWeek, avgWeeks, dist, total, series, maxWeek }
   }, [people, items, events, period, allowedPersonIds])
 
   if (loading) {
@@ -175,7 +179,14 @@ export default function PipelineMomentum({ refreshKey = 0, allowedPersonIds }: {
       <div className="mt-4">
         <div className="mb-1.5 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wide text-[var(--fg-3)]">
           <span>In the pipeline now</span>
-          <span>{data.total} active</span>
+          <span className="flex items-center gap-1.5">
+            {data.newThisWeek > 0 && (
+              <span className="font-bold normal-case tracking-normal text-[var(--success)]" title={`${data.newThisWeek} added in the last 7 days`}>
+                +{data.newThisWeek} this wk
+              </span>
+            )}
+            <span>{data.total} active</span>
+          </span>
         </div>
         <div className="flex h-3 overflow-hidden rounded-full bg-[var(--indigo)]">
           {STAGES.map(s => {

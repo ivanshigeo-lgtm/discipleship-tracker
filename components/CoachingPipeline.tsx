@@ -8,9 +8,10 @@ import {
   updatePersonStage,
   getMyPriorityPersonIds,
   setPersonPriority,
+  getPipelineEvents,
 } from '../lib/supabaseQueries'
 import { stageLabels, stageOrder } from '../lib/stageLabels'
-import type { Person, Stage, Engagement, PrayerRequest } from '../types/database'
+import type { Person, Stage, Engagement, PrayerRequest, PipelineEvent } from '../types/database'
 
 interface CoachingPipelineProps {
   refreshKey?: number
@@ -247,16 +248,18 @@ export default function CoachingPipeline({
   const [people, setPeople] = useState<Person[]>([])
   const [engagements, setEngagements] = useState<Engagement[]>([])
   const [prayerRequests, setPrayerRequests] = useState<PrayerRequest[]>([])
+  const [pipelineEvents, setPipelineEvents] = useState<PipelineEvent[]>([])
   const [loading, setLoading] = useState(true)
 
   const loadData = async () => {
     setLoading(true)
     try {
-      const [peopleResult, engagementsResult, prayerResult, priorityResult] = await Promise.all([
+      const [peopleResult, engagementsResult, prayerResult, priorityResult, eventsResult] = await Promise.all([
         getPeople(),
         getAllEngagements(),
         getPrayerWallForViewer(viewerPersonId, isAdmin),
         getMyPriorityPersonIds(viewerPersonId),
+        getPipelineEvents(),
       ])
 
       // Priority is per-coach: overlay THIS viewer's private stars onto people,
@@ -267,6 +270,7 @@ export default function CoachingPipeline({
       }
       if (engagementsResult.data) setEngagements(engagementsResult.data as Engagement[])
       if (prayerResult.data) setPrayerRequests(prayerResult.data as PrayerRequest[])
+      if (eventsResult.data) setPipelineEvents(eventsResult.data as PipelineEvent[])
     } catch (err) {
       console.error('CoachingPipeline load error:', err)
     } finally {
@@ -318,6 +322,23 @@ export default function CoachingPipeline({
     })
     return map
   }, [people, searchQuery, allowedPersonIds])
+
+  // "+X this week" velocity per stage — people who ENTERED each stage in the
+  // last 7 days (pipeline_events, scope-aware). Only advances logged through
+  // updatePersonStage count; profile-correction stage sets don't. Mirrors the
+  // native explore ring.
+  const weeklyEntered = useMemo(() => {
+    const cutoff = Date.now() - 7 * 86_400_000
+    const allow = allowedPersonIds ? new Set(allowedPersonIds) : null
+    const byStage: Record<Stage, number> = { Engage: 0, Establish: 0, Equip: 0, Empower: 0 }
+    for (const ev of pipelineEvents) {
+      if (!ev.to_stage || !(ev.to_stage in byStage)) continue
+      if (allow && !allow.has(ev.person_id)) continue
+      if (new Date(ev.created_at).getTime() < cutoff) continue
+      byStage[ev.to_stage]++
+    }
+    return byStage
+  }, [pipelineEvents, allowedPersonIds])
 
   const handleAdvanceStage = async (personId: string, newStage: Stage) => {
     await updatePersonStage(personId, newStage)
@@ -379,12 +400,23 @@ export default function CoachingPipeline({
                     {stageLabels[stage].name}
                   </span>
                 </div>
-                <span
-                  className="rounded-full px-2.5 py-0.5 text-xs font-bold"
-                  style={{ background: `${stageColor}20`, color: stageColor }}
-                >
-                  {peopleByStage[stage].length}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  {weeklyEntered[stage] > 0 && (
+                    <span
+                      className="rounded-full px-2 py-0.5 text-[10px] font-bold"
+                      style={{ background: 'rgba(75,214,160,0.16)', color: 'var(--success)' }}
+                      title={`${weeklyEntered[stage]} entered ${stageLabels[stage].name} in the last 7 days`}
+                    >
+                      +{weeklyEntered[stage]} this wk
+                    </span>
+                  )}
+                  <span
+                    className="rounded-full px-2.5 py-0.5 text-xs font-bold"
+                    style={{ background: `${stageColor}20`, color: stageColor }}
+                  >
+                    {peopleByStage[stage].length}
+                  </span>
+                </div>
               </div>
               <div className="mt-1.5 text-xs text-[var(--fg-3)]">{stageLabel}</div>
             </div>
