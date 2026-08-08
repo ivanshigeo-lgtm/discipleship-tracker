@@ -458,6 +458,13 @@ export default function DiscipleshipTracker() {
     setSoapsLoaded(true)
   }, [profile?.id])
 
+  // Test-account viewers (App Review demo) must see is_test rows, but on a full
+  // page load the first fetches can race the profile load and run with the
+  // real-user filter — refetch everything once the viewer flag lands.
+  useEffect(() => {
+    if (profile?.is_test) setRefreshKey(p => p + 1)
+  }, [profile?.is_test])
+
   // Discipleship connections — used to scope the journey to "My Constellation"
   useEffect(() => {
     getAllDiscipleshipConnections().then(({ data }) => {
