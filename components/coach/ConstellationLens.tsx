@@ -283,8 +283,8 @@ export default function ConstellationLens({
             })}
           </div>
           <div
-            className="absolute inset-x-0 bottom-0 px-3 pb-2 pt-4 text-center text-[10.5px] text-[var(--fg-3)]"
-            style={{ background: 'linear-gradient(180deg, rgba(10,14,36,0), rgba(10,14,36,.7) 45%, rgba(10,14,36,.94) 80%)' }}
+            className="absolute inset-x-0 bottom-0 px-3 pb-2 pt-4 text-center text-[10.5px] text-[var(--fg-1)]"
+            style={{ background: 'linear-gradient(180deg, rgba(10,14,36,0), rgba(10,14,36,.35) 45%, rgba(10,14,36,.55) 80%)', textShadow: '0 1px 4px rgba(6,9,24,0.9)' }}
           >
             {legend[scope]}
           </div>

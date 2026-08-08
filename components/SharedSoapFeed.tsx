@@ -192,7 +192,7 @@ export default function SharedSoapFeed({
           // eslint-disable-next-line @next/next/no-img-element
           <img src={s.photo_url} alt="SOAP journal page" className="mt-2 w-full rounded-lg" />
         )}
-        <div className="mt-2 flex items-center justify-between gap-3">
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
           {expandable ? (
             <button
               type="button"
@@ -202,7 +202,7 @@ export default function SharedSoapFeed({
               {expanded ? '▴ Show less' : '▾ Read full entry'}
             </button>
           ) : <span />}
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
           {isDeleted ? (
             <button type="button" onClick={() => doRestore(s.id)} className="text-[11px] font-semibold text-[var(--gbm-cobalt-soft)] hover:text-[var(--fg-1)]">Restore to feed</button>
           ) : (
