@@ -1859,6 +1859,56 @@ export const setFeedLike = async (personId: string, targetType: FeedTargetType, 
   return { error }
 }
 
+// ── Public comments on shared feed items. Like feed_likes, a comment belongs
+// to the POST and is visible to whoever the app shows the post to; flagging
+// hides a comment immediately (flag_feed_comment RPC) pending review.
+export type FeedComment = {
+  id: string
+  person_id: string
+  target_type: FeedTargetType
+  target_id: string
+  body: string
+  created_at: string
+  people: { name: string | null } | null
+}
+
+export const getFeedComments = async (targetType: FeedTargetType, targetIds: string[]) => {
+  const byTarget = new Map<string, FeedComment[]>()
+  if (targetIds.length === 0) return { byTarget, error: null }
+  const { data, error } = await supabase
+    .from('feed_comments')
+    .select('id, person_id, target_type, target_id, body, created_at, people!person_id(name)')
+    .eq('target_type', targetType)
+    .eq('is_hidden', false)
+    .in('target_id', targetIds)
+    .order('created_at', { ascending: true })
+  for (const r of (data ?? []) as unknown as FeedComment[]) {
+    const list = byTarget.get(r.target_id) ?? []
+    list.push(r)
+    byTarget.set(r.target_id, list)
+  }
+  return { byTarget, error }
+}
+
+export const addFeedComment = async (personId: string, targetType: FeedTargetType, targetId: string, body: string) => {
+  const { data, error } = await supabase
+    .from('feed_comments')
+    .insert({ person_id: personId, target_type: targetType, target_id: targetId, body: body.trim() })
+    .select('id, person_id, target_type, target_id, body, created_at, people!person_id(name)')
+    .single()
+  return { data: data as unknown as FeedComment | null, error }
+}
+
+export const deleteFeedComment = async (commentId: string) => {
+  const { error } = await supabase.from('feed_comments').delete().eq('id', commentId)
+  return { error }
+}
+
+export const flagFeedComment = async (commentId: string) => {
+  const { error } = await supabase.rpc('flag_feed_comment', { p_comment_id: commentId })
+  return { error }
+}
+
 // Prayers/praises a person has authored and shared out (to coach/group/GBC).
 export const getSentPrayers = async (personId: string, limit = 50) => {
   const { data, error } = await supabase

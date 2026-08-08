@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getCoachSharedSoaps, getGroupSharedSoaps, getSharedSoaps, getFeedItemStates, setFeedItemState, clearFeedItemState, getFeedLikes, setFeedLike } from '../lib/supabaseQueries'
+import { getCoachSharedSoaps, getGroupSharedSoaps, getSharedSoaps, getFeedItemStates, setFeedItemState, clearFeedItemState, getFeedLikes, setFeedLike, getFeedComments, addFeedComment, deleteFeedComment, flagFeedComment, type FeedComment } from '../lib/supabaseQueries'
 import ReplyModal from './ReplyModal'
+import FeedComments from './FeedComments'
 
 type SharedSoap = {
   id: string
@@ -50,6 +51,8 @@ export default function SharedSoapFeed({
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [likeCounts, setLikeCounts] = useState<Map<string, number>>(new Map())
   const [myLikes, setMyLikes] = useState<Set<string>>(new Set())
+  const [comments, setComments] = useState<Map<string, FeedComment[]>>(new Map())
+  const [openComments, setOpenComments] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     let cancelled = false
@@ -72,6 +75,10 @@ export default function SharedSoapFeed({
         if (cancelled) return
         setLikeCounts(likes.counts)
         setMyLikes(likes.mine)
+      })
+      getFeedComments('soap', list.map(i => i.id)).then(res => {
+        if (cancelled) return
+        setComments(res.byTarget)
       })
     })
     return () => { cancelled = true }
@@ -110,6 +117,20 @@ export default function SharedSoapFeed({
     setMyLikes(prev => { const n = new Set(prev); if (liked) n.add(id); else n.delete(id); return n })
     setLikeCounts(prev => { const n = new Map(prev); n.set(id, Math.max(0, (n.get(id) ?? 0) + (liked ? 1 : -1))); return n })
     await setFeedLike(personId, 'soap', id, liked)
+  }
+  const toggleComments = (id: string) =>
+    setOpenComments(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  const submitComment = async (id: string, body: string) => {
+    const { data } = await addFeedComment(personId, 'soap', id, body)
+    if (data) setComments(prev => { const n = new Map(prev); n.set(id, [...(n.get(id) ?? []), data]); return n })
+  }
+  const removeComment = async (id: string, commentId: string) => {
+    setComments(prev => { const n = new Map(prev); n.set(id, (n.get(id) ?? []).filter(c => c.id !== commentId)); return n })
+    await deleteFeedComment(commentId)
+  }
+  const flagComment = async (id: string, commentId: string) => {
+    setComments(prev => { const n = new Map(prev); n.set(id, (n.get(id) ?? []).filter(c => c.id !== commentId)); return n })
+    await flagFeedComment(commentId)
   }
 
   const fmtDate = (d: string | null) =>
@@ -195,6 +216,15 @@ export default function SharedSoapFeed({
               >
                 {myLikes.has(s.id) ? '♥' : '♡'}{(likeCounts.get(s.id) ?? 0) > 0 ? ` ${likeCounts.get(s.id)}` : ''}
               </button>
+              <button
+                type="button"
+                onClick={() => toggleComments(s.id)}
+                className="text-[11px] font-semibold hover:text-[var(--fg-1)]"
+                style={{ color: openComments.has(s.id) ? 'var(--fg-1)' : 'var(--gbm-cobalt-soft)' }}
+                title="Comments are public to everyone who can see this post"
+              >
+                💬 Comment{(comments.get(s.id)?.length ?? 0) > 0 ? ` ${comments.get(s.id)!.length}` : ''}
+              </button>
               {!isArchived && s.person_id !== personId && (
                 <button type="button" onClick={() => setReply(s)} className="text-[11px] font-semibold text-[var(--gbm-cobalt-soft)] hover:text-[var(--fg-1)]">↩ Reply</button>
               )}
@@ -208,6 +238,15 @@ export default function SharedSoapFeed({
           )}
           </div>
         </div>
+        {openComments.has(s.id) && (
+          <FeedComments
+            personId={personId}
+            comments={comments.get(s.id) ?? []}
+            onSubmit={body => submitComment(s.id, body)}
+            onDelete={cid => void removeComment(s.id, cid)}
+            onFlag={cid => void flagComment(s.id, cid)}
+          />
+        )}
       </div>
     )
   }

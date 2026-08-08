@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getCoachSharedPrayers, getGroupSharedPrayers, getConstellationSharedPrayers, getFeedItemStates, setFeedItemState, clearFeedItemState, getFeedLikes, setFeedLike } from '../lib/supabaseQueries'
+import { getCoachSharedPrayers, getGroupSharedPrayers, getConstellationSharedPrayers, getFeedItemStates, setFeedItemState, clearFeedItemState, getFeedLikes, setFeedLike, getFeedComments, addFeedComment, deleteFeedComment, flagFeedComment, type FeedComment } from '../lib/supabaseQueries'
 import ReplyModal from './ReplyModal'
+import FeedComments from './FeedComments'
 
 type SharedPrayer = {
   id: string
@@ -44,6 +45,8 @@ export default function SharedPrayerFeed({
   const [reply, setReply] = useState<SharedPrayer | null>(null)
   const [likeCounts, setLikeCounts] = useState<Map<string, number>>(new Map())
   const [myLikes, setMyLikes] = useState<Set<string>>(new Set())
+  const [comments, setComments] = useState<Map<string, FeedComment[]>>(new Map())
+  const [openComments, setOpenComments] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     let cancelled = false
@@ -66,6 +69,10 @@ export default function SharedPrayerFeed({
         if (cancelled) return
         setLikeCounts(likes.counts)
         setMyLikes(likes.mine)
+      })
+      getFeedComments('prayer_request', list.map(i => i.id)).then(res => {
+        if (cancelled) return
+        setComments(res.byTarget)
       })
     })
     return () => { cancelled = true }
@@ -105,6 +112,20 @@ export default function SharedPrayerFeed({
     setLikeCounts(prev => { const n = new Map(prev); n.set(id, Math.max(0, (n.get(id) ?? 0) + (liked ? 1 : -1))); return n })
     await setFeedLike(personId, 'prayer_request', id, liked)
   }
+  const toggleComments = (id: string) =>
+    setOpenComments(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  const submitComment = async (id: string, body: string) => {
+    const { data } = await addFeedComment(personId, 'prayer_request', id, body)
+    if (data) setComments(prev => { const n = new Map(prev); n.set(id, [...(n.get(id) ?? []), data]); return n })
+  }
+  const removeComment = async (id: string, commentId: string) => {
+    setComments(prev => { const n = new Map(prev); n.set(id, (n.get(id) ?? []).filter(c => c.id !== commentId)); return n })
+    await deleteFeedComment(commentId)
+  }
+  const flagComment = async (id: string, commentId: string) => {
+    setComments(prev => { const n = new Map(prev); n.set(id, (n.get(id) ?? []).filter(c => c.id !== commentId)); return n })
+    await flagFeedComment(commentId)
+  }
 
   const Card = ({ p, isArchived, isDeleted }: { p: SharedPrayer; isArchived?: boolean; isDeleted?: boolean }) => (
     <div className="rounded-xl border border-[var(--line-1)] p-3" style={{ background: p.is_praise ? 'rgba(242,200,121,.08)' : 'var(--indigo-2)' }}>
@@ -133,6 +154,15 @@ export default function SharedPrayerFeed({
             >
               {myLikes.has(p.id) ? '♥' : '♡'}{(likeCounts.get(p.id) ?? 0) > 0 ? ` ${likeCounts.get(p.id)}` : ''}
             </button>
+            <button
+              type="button"
+              onClick={() => toggleComments(p.id)}
+              className="text-[11px] font-semibold hover:text-[var(--fg-1)]"
+              style={{ color: openComments.has(p.id) ? 'var(--fg-1)' : 'var(--gbm-cobalt-soft)' }}
+              title="Comments are public to everyone who can see this post"
+            >
+              💬 Comment{(comments.get(p.id)?.length ?? 0) > 0 ? ` ${comments.get(p.id)!.length}` : ''}
+            </button>
             {!isArchived && p.person_id !== personId && (
               <button type="button" onClick={() => setReply(p)} className="text-[11px] font-semibold text-[var(--gbm-cobalt-soft)] hover:text-[var(--fg-1)]">↩ Reply</button>
             )}
@@ -145,6 +175,15 @@ export default function SharedPrayerFeed({
           </>
         )}
       </div>
+      {openComments.has(p.id) && (
+        <FeedComments
+          personId={personId}
+          comments={comments.get(p.id) ?? []}
+          onSubmit={body => submitComment(p.id, body)}
+          onDelete={cid => void removeComment(p.id, cid)}
+          onFlag={cid => void flagComment(p.id, cid)}
+        />
+      )}
     </div>
   )
 
