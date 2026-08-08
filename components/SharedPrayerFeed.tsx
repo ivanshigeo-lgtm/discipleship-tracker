@@ -164,7 +164,7 @@ export default function SharedPrayerFeed({
               💬 Comment{(comments.get(p.id)?.length ?? 0) > 0 ? ` ${comments.get(p.id)!.length}` : ''}
             </button>
             {!isArchived && p.person_id !== personId && (
-              <button type="button" onClick={() => setReply(p)} className="text-[11px] font-semibold text-[var(--gbm-cobalt-soft)] hover:text-[var(--fg-1)]">↩ Reply</button>
+              <button type="button" onClick={() => setReply(p)} title="Private — only the author sees this, in their inbox" className="text-[11px] font-semibold text-[var(--gbm-cobalt-soft)] hover:text-[var(--fg-1)]">🔒 Message</button>
             )}
             {isArchived ? (
               <button type="button" onClick={() => doUnarchive(p.id)} className="text-[11px] font-semibold text-[var(--fg-3)] hover:text-[var(--fg-1)]">Unarchive</button>

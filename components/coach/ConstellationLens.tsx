@@ -111,17 +111,23 @@ export default function ConstellationLens({
 
     const risers = topRisers(mine, items, null)
     const topRiser = risers[0] ?? null
-    // Named stars in the coach's cluster (cap the labels so a big constellation
-    // doesn't become soup; the rest render as unnamed cluster stars).
+    // The coach's cluster scatters evenly by area, and BOTH its spread and the
+    // camera zoom scale with headcount: 3 people stay an intimate zoomed cluster,
+    // 100+ spread into an even starfield instead of a dense worm/blob crammed
+    // into a fixed radius. layout.cam drives the CSS transform below.
+    const N = mine.length
+    const t = Math.max(0, Math.min(1, (N - 8) / 52)) // 0 at ≤8 people → 1 at ≥60
+    const cx = 68 - 18 * t, cy = 62 - 20 * t, spread = 13 + 30 * t
+    const layout = { cx, cy, spread, z: 2.5 - 1.15 * t, txPct: 50 - cx, tyPct: 50 - cy }
     const named = mine.map((p, i) => {
       // Angle and radius come from INDEPENDENT hashes; radius uses a sqrt
       // distribution so stars scatter evenly by area (correlating both to one
       // hash — as this used to — folds the cluster into four spiral "worm" arms).
       const h1 = hash(p.id + 'm'), h2 = hash(p.id + 'mr')
       const a = (h1 % 360) * (Math.PI / 180)
-      const r = 5 + Math.sqrt((h2 % 1000) / 1000) * 13
-      const x = Math.min(94, Math.max(45, 68 + Math.cos(a) * r))
-      const y = Math.min(80, Math.max(40, 62 + Math.sin(a) * r * 0.8))
+      const r = spread * Math.sqrt((h2 % 1000) / 1000)
+      const x = Math.min(95, Math.max(5, cx + Math.cos(a) * r))
+      const y = Math.min(88, Math.max(6, cy + Math.sin(a) * r * 0.82))
       const isLeader = p.current_stage === 'Equip' || p.current_stage === 'Empower'
       const riser = risers.find(rr => rr.person.id === p.id) ?? null
       return {
@@ -134,18 +140,21 @@ export default function ConstellationLens({
       }
     })
 
-    return { active, mine, churchDist, mineDist, churchWk, mineWk, churchWkTotal, mineWkTotal, bg, named, risers, topRiser }
+    return { active, mine, churchDist, mineDist, churchWk, mineWk, churchWkTotal, mineWkTotal, bg, named, risers, topRiser, layout }
   }, [people, items, pipelineEvents, myPersonIds, personId])
 
   if (!ready) return null
 
-  const { active, mine, churchDist, mineDist, churchWk, mineWk, churchWkTotal, mineWkTotal, bg, named, topRiser } = world
+  const { active, mine, churchDist, mineDist, churchWk, mineWk, churchWkTotal, mineWkTotal, bg, named, topRiser, layout } = world
   const leaders = named.filter(s => s.isLeader).length
 
+  // Camera per scope: church = full frame; 'mine' = count-adaptive cluster cam
+  // (spread + zoom from layout); 'leaders' shares the center, zooms in a touch.
+  const leaderZ = Math.min(2.9, layout.z + 0.5)
   const Z: Record<LensScope, { t: string; zs: number }> = {
     church: { t: 'scale(1)', zs: 1 },
-    mine: { t: 'scale(2.5) translate(-18%,-12%)', zs: 2.5 },
-    leaders: { t: 'scale(2.9) translate(-18%,-12%)', zs: 2.9 },
+    mine: { t: `scale(${layout.z}) translate(${layout.txPct}%,${layout.tyPct}%)`, zs: layout.z },
+    leaders: { t: `scale(${leaderZ}) translate(${layout.txPct}%,${layout.tyPct}%)`, zs: leaderZ },
   }
   // Per-stage count with its "+N this week" delta appended (delta hidden at 0).
   const distLine = (d: Record<Stage, number>, wk: Record<Stage, number>) =>
@@ -175,7 +184,7 @@ export default function ConstellationLens({
   // camera transform's screen-space y: p' = center + z·(p − center + t)).
   const MAP_H = 216
   const camZ = Z[scope].zs
-  const camTy = scope === 'church' ? 0 : -0.12
+  const camTy = scope === 'church' ? 0 : layout.tyPct / 100
   const inLegendBand = (yPct: number) =>
     MAP_H / 2 + camZ * ((yPct / 100) * MAP_H - MAP_H / 2 + camTy * MAP_H) + 10 * camZ > MAP_H - 34
 

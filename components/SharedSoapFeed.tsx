@@ -226,7 +226,7 @@ export default function SharedSoapFeed({
                 💬 Comment{(comments.get(s.id)?.length ?? 0) > 0 ? ` ${comments.get(s.id)!.length}` : ''}
               </button>
               {!isArchived && s.person_id !== personId && (
-                <button type="button" onClick={() => setReply(s)} className="text-[11px] font-semibold text-[var(--gbm-cobalt-soft)] hover:text-[var(--fg-1)]">↩ Reply</button>
+                <button type="button" onClick={() => setReply(s)} title="Private — only the author sees this, in their inbox" className="text-[11px] font-semibold text-[var(--gbm-cobalt-soft)] hover:text-[var(--fg-1)]">🔒 Message</button>
               )}
               {isArchived ? (
                 <button type="button" onClick={() => doUnarchive(s.id)} className="text-[11px] font-semibold text-[var(--fg-3)] hover:text-[var(--fg-1)]">Unarchive</button>

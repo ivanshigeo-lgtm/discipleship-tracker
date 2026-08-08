@@ -49,14 +49,15 @@ export default function ReplyModal({
     <div className="fixed inset-0 z-[90] flex items-end justify-center sm:items-center" style={{ background: 'rgba(6,8,20,.7)', backdropFilter: 'blur(4px)' }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div className="jy-rise-in w-full max-w-md rounded-t-[var(--r-xl)] border border-b-0 border-[var(--line-2)] p-5 sm:rounded-[var(--r-xl)] sm:border-b" style={{ background: 'var(--indigo)' }}>
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-[var(--fg-1)]" style={{ fontFamily: 'var(--font-display)' }}>Reply to {toName}</h2>
+          <h2 className="text-base font-semibold text-[var(--fg-1)]" style={{ fontFamily: 'var(--font-display)' }}>Message {toName}</h2>
           <button type="button" onClick={onClose} className="text-lg leading-none text-[var(--fg-3)] hover:text-[var(--fg-1)]">×</button>
         </div>
 
         {sent ? (
-          <p className="py-6 text-center text-sm text-[var(--establish)]">✦ Reply sent</p>
+          <p className="py-6 text-center text-sm text-[var(--establish)]">✦ Message sent</p>
         ) : (
           <>
+            <p className="mb-3 text-xs text-[var(--fg-3)]">🔒 Only {toName} will see this — it lands in their inbox, not the public thread.</p>
             {/* attached original */}
             <div className="mb-3 rounded-lg border border-[var(--line-1)] bg-[var(--indigo-2)] p-2.5">
               <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--fg-3)]">{contextLabel}</p>
@@ -65,7 +66,7 @@ export default function ReplyModal({
             <textarea
               value={text}
               onChange={e => setText(e.target.value)}
-              placeholder={`Write your reply to ${toName}…`}
+              placeholder={`Write a private message to ${toName}…`}
               rows={4}
               className="w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] p-3 text-sm text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
               autoFocus
@@ -74,7 +75,7 @@ export default function ReplyModal({
             <div className="mt-3 flex justify-end gap-2">
               <button type="button" onClick={onClose} className="cn-chip">Cancel</button>
               <button type="button" onClick={send} disabled={sending || !text.trim()} className="cn-btn cn-btn-primary !px-4 !py-1.5 !text-xs disabled:opacity-50">
-                {sending ? 'Sending…' : 'Send reply'}
+                {sending ? 'Sending…' : 'Send message'}
               </button>
             </div>
           </>
