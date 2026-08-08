@@ -38,12 +38,12 @@ export async function GET(request: NextRequest) {
   const admin = getSupabaseAdmin()
 
   // Page through the whole overlay table (Supabase caps a response at 1,000).
-  type VisRow = { person_id: string; isoap_entry_id: string }
+  type VisRow = { wc_person_id: string; isoap_entry_id: string }
   const visRows: VisRow[] = []
   for (let from = 0; ; from += 1000) {
     const { data, error } = await admin
       .from('isoap_entry_visibility')
-      .select('person_id, isoap_entry_id')
+      .select('wc_person_id, isoap_entry_id')
       .order('isoap_entry_id')
       .range(from, from + 999)
     if (error) {
@@ -58,10 +58,10 @@ export async function GET(request: NextRequest) {
 
   const entryIdsByPerson = new Map<string, string[]>()
   for (const r of visRows) {
-    if (!r.person_id || !r.isoap_entry_id) continue
-    const list = entryIdsByPerson.get(r.person_id) ?? []
+    if (!r.wc_person_id || !r.isoap_entry_id) continue
+    const list = entryIdsByPerson.get(r.wc_person_id) ?? []
     list.push(r.isoap_entry_id)
-    entryIdsByPerson.set(r.person_id, list)
+    entryIdsByPerson.set(r.wc_person_id, list)
   }
 
   // Person → iSOAP account, chunked (never .in() an unbounded id list — the
@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
 
   let deleted = 0
   let skippedPeople = 0
-  const orphans: { person_id: string; entry_ids: string[] }[] = []
+  const orphans: { wc_person_id: string; entry_ids: string[] }[] = []
   for (const [pid, entryIds] of entryIdsByPerson) {
     const isoapUserId = isoapUserById.get(pid)
     if (!isoapUserId) {
@@ -120,13 +120,13 @@ export async function GET(request: NextRequest) {
         const { error: delErr } = await admin
           .from('isoap_entry_visibility')
           .delete()
-          .eq('person_id', pid)
+          .eq('wc_person_id', pid)
           .in('isoap_entry_id', chunk)
         if (delErr) continue
         deleted += chunk.length
       }
     }
-    orphans.push({ person_id: pid, entry_ids: gone })
+    orphans.push({ wc_person_id: pid, entry_ids: gone })
   }
 
   return NextResponse.json({
