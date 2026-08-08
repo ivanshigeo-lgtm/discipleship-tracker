@@ -106,7 +106,7 @@ export default function ConstellationLens({
         let y = 34 + Math.sin(a) * r * 0.85
         if (x > 52 && y > 42) { x -= 26; y -= 20 } // keep the coach's corner readable
         x = Math.min(97, Math.max(3, x)); y = Math.min(84, Math.max(4, y))
-        return { id: p.id, x, y, color: STAGE_COLORS[p.current_stage], size: 1.8 + (h2 % 26) / 10 }
+        return { id: p.id, x, y, color: STAGE_COLORS[p.current_stage], size: 1.6 + (h2 % 22) / 10 }
       })
 
     const risers = topRisers(mine, items, null)
@@ -114,9 +114,12 @@ export default function ConstellationLens({
     // Named stars in the coach's cluster (cap the labels so a big constellation
     // doesn't become soup; the rest render as unnamed cluster stars).
     const named = mine.map((p, i) => {
-      const h1 = hash(p.id + 'm')
+      // Angle and radius come from INDEPENDENT hashes; radius uses a sqrt
+      // distribution so stars scatter evenly by area (correlating both to one
+      // hash — as this used to — folds the cluster into four spiral "worm" arms).
+      const h1 = hash(p.id + 'm'), h2 = hash(p.id + 'mr')
       const a = (h1 % 360) * (Math.PI / 180)
-      const r = 4 + (h1 % 90) / 9
+      const r = 5 + Math.sqrt((h2 % 1000) / 1000) * 13
       const x = Math.min(94, Math.max(45, 68 + Math.cos(a) * r))
       const y = Math.min(80, Math.max(40, 62 + Math.sin(a) * r * 0.8))
       const isLeader = p.current_stage === 'Equip' || p.current_stage === 'Empower'
@@ -168,6 +171,13 @@ export default function ConstellationLens({
   ]
   const zoomed = scope !== 'church'
   const focus = scope === 'leaders'
+  // Drop a name label that would land in the bottom legend band (mirrors the
+  // camera transform's screen-space y: p' = center + z·(p − center + t)).
+  const MAP_H = 216
+  const camZ = Z[scope].zs
+  const camTy = scope === 'church' ? 0 : -0.12
+  const inLegendBand = (yPct: number) =>
+    MAP_H / 2 + camZ * ((yPct / 100) * MAP_H - MAP_H / 2 + camTy * MAP_H) + 10 * camZ > MAP_H - 34
 
   return (
     <section className="mb-5">
@@ -179,6 +189,7 @@ export default function ConstellationLens({
         >
           <style>{`
             .cl-tagwrap { transform: translateX(-50%) scale(calc(1 / var(--zs, 1))); transform-origin: 50% 0; }
+            .cl-label { background: rgba(6,9,24,.62); border-radius: 7px; padding: 2px 6px; }
             @keyframes cl-pulse {
               0%, 100% { box-shadow: 0 0 14px 2px rgba(240,114,159,.45); }
               50% { box-shadow: 0 0 24px 6px rgba(240,114,159,.9); }
@@ -208,7 +219,7 @@ export default function ConstellationLens({
                 style={{
                   left: `${s.x}%`, top: `${s.y}%`, width: s.size, height: s.size,
                   background: `radial-gradient(circle, ${s.color}f2, ${s.color}00 72%)`,
-                  boxShadow: `0 0 ${(s.size * 2.2).toFixed(0)}px ${s.color}80`,
+                  boxShadow: `0 0 ${(s.size * 1.3).toFixed(0)}px ${s.color}73`,
                   opacity: focus ? 0.05 : 0.7,
                 }}
               />
@@ -222,7 +233,7 @@ export default function ConstellationLens({
                   boxShadow: focus ? '0 0 18px 4px rgba(46,85,230,.9), 0 0 0 2px rgba(91,141,247,.45)' : '0 0 12px 2px rgba(46,85,230,.7)',
                 }}
               />
-              <div className="cl-tagwrap pointer-events-none absolute top-2.5 text-center transition-opacity duration-500" style={{ opacity: zoomed ? 1 : 0 }}>
+              <div className="cl-tagwrap cl-label pointer-events-none absolute top-2.5 text-center transition-opacity duration-500" style={{ opacity: zoomed ? 1 : 0 }}>
                 <p className="whitespace-nowrap text-[9.5px] font-semibold text-[var(--fg-2)]">You</p>
               </div>
             </div>
@@ -237,15 +248,15 @@ export default function ConstellationLens({
                   style={{ left: `${s.x}%`, top: `${s.y}%`, opacity: dim ? 0.16 : 1, transition: 'opacity .5s var(--ease-soft)' }}
                 >
                   <span
-                    className={`absolute h-[7px] w-[7px] -translate-x-1/2 -translate-y-1/2 rounded-full ${focus && s.isTopRiser ? 'cl-rising' : ''}`}
+                    className={`absolute h-[4px] w-[4px] -translate-x-1/2 -translate-y-1/2 rounded-full ${focus && s.isTopRiser ? 'cl-rising' : ''}`}
                     style={{
                       background: `radial-gradient(circle at 38% 32%, ${s.color}, ${s.color}40 78%)`,
-                      boxShadow: dim ? 'none' : `0 0 10px 2px ${s.color}8c`,
+                      boxShadow: dim ? 'none' : `0 0 4px 1px ${s.color}8c`,
                       animation: focus && s.isTopRiser ? 'cl-pulse 2.6s ease-in-out infinite' : undefined,
                     }}
                   />
-                  {s.labeled && (
-                    <span className="cl-tagwrap pointer-events-none absolute top-2.5 block text-center transition-opacity duration-500" style={{ opacity: zoomed ? 1 : 0 }}>
+                  {s.labeled && !inLegendBand(s.y) && (
+                    <span className="cl-tagwrap cl-label pointer-events-none absolute top-2.5 block text-center transition-opacity duration-500" style={{ opacity: zoomed ? 1 : 0 }}>
                       <span className="block whitespace-nowrap text-[9.5px] font-semibold text-[var(--fg-2)]">{s.person.name.split(' ')[0]}</span>
                       {focus && s.pct !== null && (
                         <span
@@ -263,7 +274,7 @@ export default function ConstellationLens({
           </div>
           <div
             className="absolute inset-x-0 bottom-0 px-3 pb-2 pt-4 text-center text-[10.5px] text-[var(--fg-3)]"
-            style={{ background: 'linear-gradient(180deg, rgba(10,14,36,0), rgba(10,14,36,.85) 55%)' }}
+            style={{ background: 'linear-gradient(180deg, rgba(10,14,36,0), rgba(10,14,36,.7) 45%, rgba(10,14,36,.94) 80%)' }}
           >
             {legend[scope]}
           </div>
