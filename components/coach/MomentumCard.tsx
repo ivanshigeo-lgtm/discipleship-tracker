@@ -184,7 +184,7 @@ export default function MomentumCard({
                 />
                 <span className="font-semibold text-[var(--fg-1)]">{r.person.name}</span>
                 <span className="ml-auto text-[11px] text-[var(--fg-3)]">
-                  {r.person.current_stage} · {r.pct >= 100 ? 'ready — awaiting sign-off' : r.pct > 0 ? `${r.pct}% of the way` : 'on the way'}
+                  {r.person.current_stage} · {r.pct >= 100 ? 'checklist complete' : r.pct > 0 ? `${r.pct}% of the way` : 'on the way'}
                 </span>
               </button>
             ))}
