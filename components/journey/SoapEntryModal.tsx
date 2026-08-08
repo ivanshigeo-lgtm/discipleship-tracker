@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { updateSoapJournal, deleteSoapJournal } from '../../lib/supabaseQueries'
+import { updateSoapJournal, deleteSoapJournal, getMyShareGroups } from '../../lib/supabaseQueries'
 import { prepareImage } from '../../lib/prepareImage'
 import type { ShareVisibility, SoapJournal } from '../../types/database'
 
@@ -52,6 +52,26 @@ export default function SoapEntryModal({
   const [entryDate, setEntryDate] = useState(editEntry?.journal_date ?? initialDate ?? todayIso)
   const [entry, setEntry] = useState(editEntry?.ocr_text ?? initialText ?? '')
   const [visibility, setVisibility] = useState<ShareVisibility>(editEntry?.visibility ?? 'private')
+  // Group targeting for a 'group' share: the groups this person may share to
+  // (memberships ∪ groups they lead) and the current picks (empty = broadcast to
+  // all my groups). Mirrors SoapCalendarSection so both surfaces share the same
+  // way; the capture flow just holds the picks locally until save.
+  const [groups, setGroups] = useState<{ id: string; name: string }[]>([])
+  const [groupIds, setGroupIds] = useState<string[]>(editEntry?.victory_group_ids ?? [])
+  const toggleGroup = (id: string | null) =>
+    setGroupIds(prev =>
+      id === null ? [] : prev.includes(id) ? prev.filter(g => g !== id) : [...prev, id]
+    )
+  useEffect(() => {
+    if (!personId) return
+    let alive = true
+    getMyShareGroups(personId).then(gs => {
+      if (alive) setGroups(gs)
+    })
+    return () => {
+      alive = false
+    }
+  }, [personId])
   const [photo, setPhoto] = useState<File | null>(null)
   // A newly-taken photo (File) replaces the entry image; on edit we seed the
   // preview from the existing photo so the user sees it, without a File to send.
@@ -141,7 +161,13 @@ export default function SoapEntryModal({
     await fetch('/api/soap/visibility', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ personId, isoap_entry_id: isoapEntryId, journal_date: entryDate, visibility }),
+      body: JSON.stringify({
+        personId,
+        isoap_entry_id: isoapEntryId,
+        journal_date: entryDate,
+        visibility,
+        victory_group_ids: visibility === 'group' && groupIds.length ? groupIds : null,
+      }),
     }).catch(() => {})
   }
 
@@ -412,6 +438,31 @@ export default function SoapEntryModal({
               </button>
             ))}
           </div>
+          {/* Group sub-picker — target specific groups or "All my groups" (the
+              default). Only shown for a 'group' share once groups are known. */}
+          {visibility === 'group' && groups.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {[{ id: null as string | null, name: 'All my groups' }, ...groups].map(g => {
+                const on = g.id === null ? groupIds.length === 0 : groupIds.includes(g.id)
+                return (
+                  <button
+                    key={g.id ?? 'all'}
+                    type="button"
+                    onClick={() => toggleGroup(g.id)}
+                    aria-pressed={on}
+                    className="rounded-full px-2.5 py-1 text-xs font-semibold transition-all"
+                    style={{
+                      background: on ? 'rgba(54,214,195,.14)' : 'transparent',
+                      border: `1px solid ${on ? 'rgba(54,214,195,.5)' : 'var(--line-2)'}`,
+                      color: on ? 'var(--establish, #36D6C3)' : 'var(--fg-3)',
+                    }}
+                  >
+                    {on ? '✓ ' : ''}{g.name}
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </div>
 
         {error && <p className="mt-3 text-xs text-[var(--danger)]">{error}</p>}
