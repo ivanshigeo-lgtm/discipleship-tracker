@@ -21,6 +21,10 @@ import type {
 // reads after a write always start fresh — no staleness.
 const _inflight = new Map<string, Promise<unknown>>()
 function dedup<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  // The viewer flag is part of the key: a refetch after the test-account
+  // viewer is stamped must NOT join a pre-stamp in-flight request, or it
+  // silently inherits real-user filtering (hides the App Review demo data).
+  key = `${key}|${_viewer.isTest ? 't' : 'r'}`
   const existing = _inflight.get(key)
   if (existing) return existing as Promise<T>
   const p = fn().finally(() => { _inflight.delete(key) })

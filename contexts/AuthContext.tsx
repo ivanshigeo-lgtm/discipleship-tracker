@@ -51,7 +51,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // decides whether is_test (App Review demo) rows are visible.
   const applyProfile = (p: Person | null) => {
     setProfile(p)
-    setViewerContext(p?.id ?? null, !!p?.is_test)
+    // Transient nulls (auth-state churn, re-fetches) must NOT unstamp the
+    // viewer — a later fetch racing through a null window would silently apply
+    // real-user filtering to the test account. Only sign-out clears it.
+    if (p) setViewerContext(p.id, !!p.is_test)
   }
 
   // Hydrate profile+downline instantly from the last visit; the network fetch
@@ -334,6 +337,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
     setSession(null)
     applyProfile(null)
+    setViewerContext(null, false)
     setDownline([])
     // Let one-per-sign-in nudges (e.g. the empowered coachmark) fire again next
     // time they sign in.
