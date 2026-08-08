@@ -90,15 +90,20 @@ export default function MomentumCard({
     const carried = n - leaders
     const ratio = leaders > 0 ? carried / leaders : null
 
-    // Since the most recent Sunday 00:00 local: raw milestone volume.
+    // Since the most recent Sunday 00:00 local: raw milestone volume. A milestone
+    // is a checklist completion OR a booklet chapter advance (both are "movement").
     const sunday = new Date(); sunday.setHours(0, 0, 0, 0); sunday.setDate(sunday.getDate() - sunday.getDay())
-    const sinceSunday = completions.filter(it =>
+    const checklistSinceSunday = completions.filter(it =>
       it.label.startsWith('Completed ') && new Date(it.completed_at!).getTime() >= sunday.getTime()
     ).length
+    const chapterSinceSunday = chapterMoves.filter(
+      bp => new Date(bp.updated_at).getTime() >= sunday.getTime()
+    ).length
+    const sinceSunday = checklistSinceSunday + chapterSinceSunday
 
     const risers = topRisers(people, items, allow).slice(0, 2)
 
-    return { n, small, rates, moversNow, moversPrev, leaders, carried, ratio, sinceSunday, risers }
+    return { n, small, rates, moversNow, moversPrev, leaders, carried, ratio, sinceSunday, checklistSinceSunday, chapterSinceSunday, risers }
   }, [people, items, bookletProgress, myPersonIds, mode])
 
   if (!ready) return null
@@ -177,7 +182,8 @@ export default function MomentumCard({
         </div>
 
         <p className="text-[11.5px] text-[var(--fg-3)]">
-          Since Sunday: {data.sinceSunday} {data.sinceSunday === 1 ? 'milestone' : 'milestones'} logged · {pendingSignoffs} {pendingSignoffs === 1 ? 'sign-off' : 'sign-offs'} waiting
+          Since Sunday: {data.sinceSunday} {data.sinceSunday === 1 ? 'milestone' : 'milestones'} logged
+          {data.chapterSinceSunday > 0 ? ` (${data.checklistSinceSunday} checklist + ${data.chapterSinceSunday} chapter ${data.chapterSinceSunday === 1 ? 'advance' : 'advances'})` : ''} · {pendingSignoffs} {pendingSignoffs === 1 ? 'sign-off' : 'sign-offs'} waiting
         </p>
 
         {risers.length > 0 && (

@@ -9,9 +9,9 @@
 // "Open constellation" (the explore view) — never on the briefing.
 
 import { useEffect, useMemo, useState } from 'react'
-import { getPeople, getAllStageChecklistItems } from '../../lib/supabaseQueries'
+import { getPeople, getAllStageChecklistItems, getPipelineEvents } from '../../lib/supabaseQueries'
 import { STAGE_COLORS, topRisers, ZoneLabel } from './coachModel'
-import type { Person, Stage, StageChecklistItem } from '../../types/database'
+import type { PipelineEvent, Person, Stage, StageChecklistItem } from '../../types/database'
 
 type LensScope = 'church' | 'mine' | 'leaders'
 const SCOPE_KEY = 'cn-lens-scope-v1'
@@ -45,6 +45,7 @@ export default function ConstellationLens({
 }) {
   const [people, setPeople] = useState<Person[]>([])
   const [items, setItems] = useState<StageChecklistItem[]>([])
+  const [pipelineEvents, setPipelineEvents] = useState<PipelineEvent[]>([])
   const [scope, setScope] = useState<LensScope>('mine')
   const [ready, setReady] = useState(false)
 
@@ -59,10 +60,11 @@ export default function ConstellationLens({
   useEffect(() => {
     let alive = true
     ;(async () => {
-      const [p, i] = await Promise.all([getPeople(), getAllStageChecklistItems()])
+      const [p, i, pe] = await Promise.all([getPeople(), getAllStageChecklistItems(), getPipelineEvents()])
       if (!alive) return
       if (p.data) setPeople(p.data as Person[])
       if (i.data) setItems(i.data as StageChecklistItem[])
+      if (pe.data) setPipelineEvents(pe.data as PipelineEvent[])
       setReady(true)
     })()
     return () => { alive = false }
@@ -76,6 +78,21 @@ export default function ConstellationLens({
     active.forEach(p => { churchDist[p.current_stage]++ })
     const mineDist: Record<Stage, number> = { Engage: 0, Establish: 0, Equip: 0, Empower: 0 }
     mine.forEach(p => { mineDist[p.current_stage]++ })
+
+    // "+X this week" velocity — people who ENTERED each stage in the last 7 days
+    // (pipeline_events, scope-aware) plus net-new people added (people.created_at).
+    // Same source the explore ring uses, so home + explore agree.
+    const WK = Date.now() - 7 * 86_400_000
+    const at = (iso?: string | null) => (iso ? new Date(iso).getTime() : NaN)
+    const churchWk: Record<Stage, number> = { Engage: 0, Establish: 0, Equip: 0, Empower: 0 }
+    const mineWk: Record<Stage, number> = { Engage: 0, Establish: 0, Equip: 0, Empower: 0 }
+    for (const ev of pipelineEvents) {
+      if (!ev.to_stage || !(ev.to_stage in churchWk) || at(ev.created_at) < WK) continue
+      churchWk[ev.to_stage]++
+      if (mineSet.has(ev.person_id)) mineWk[ev.to_stage]++
+    }
+    const churchWkTotal = active.filter(p => at(p.created_at) >= WK).length
+    const mineWkTotal = mine.filter(p => at(p.created_at) >= WK).length
 
     // Ambient church stars cluster around the flame; the coach's own cluster
     // sits lower-right (the camera's zoom target) and stays clear of overlap.
@@ -114,12 +131,12 @@ export default function ConstellationLens({
       }
     })
 
-    return { active, mine, churchDist, mineDist, bg, named, risers, topRiser }
-  }, [people, items, myPersonIds, personId])
+    return { active, mine, churchDist, mineDist, churchWk, mineWk, churchWkTotal, mineWkTotal, bg, named, risers, topRiser }
+  }, [people, items, pipelineEvents, myPersonIds, personId])
 
   if (!ready) return null
 
-  const { active, mine, churchDist, mineDist, bg, named, topRiser } = world
+  const { active, mine, churchDist, mineDist, churchWk, mineWk, churchWkTotal, mineWkTotal, bg, named, topRiser } = world
   const leaders = named.filter(s => s.isLeader).length
 
   const Z: Record<LensScope, { t: string; zs: number }> = {
@@ -127,11 +144,16 @@ export default function ConstellationLens({
     mine: { t: 'scale(2.5) translate(-18%,-12%)', zs: 2.5 },
     leaders: { t: 'scale(2.9) translate(-18%,-12%)', zs: 2.9 },
   }
-  const distLine = (d: Record<Stage, number>) => STAGE_ORDER.filter(s => d[s] > 0).map(s => `${d[s]} ${s}`).join(' · ')
+  // Per-stage count with its "+N this week" delta appended (delta hidden at 0).
+  const distLine = (d: Record<Stage, number>, wk: Record<Stage, number>) =>
+    STAGE_ORDER.filter(s => d[s] > 0).map(s => `${d[s]} ${s}${wk[s] > 0 ? ` +${wk[s]}` : ''}`).join(' · ')
+  const wkTotal = (total: number) => total > 0
+    ? <> · <span className="font-semibold text-[var(--success,#5fce9e)]">+{total} this wk</span></>
+    : null
   const legend: Record<LensScope, React.ReactNode> = {
-    church: <><b className="font-semibold text-[var(--fg-1)]">{active.length} people</b>{distLine(churchDist) && <> · {distLine(churchDist)}</>}</>,
+    church: <><b className="font-semibold text-[var(--fg-1)]">{active.length} people</b>{wkTotal(churchWkTotal)}{distLine(churchDist, churchWk) && <> · {distLine(churchDist, churchWk)}</>}</>,
     mine: mine.length
-      ? <><b className="font-semibold text-[var(--fg-1)]">{mine.length} walking with you</b>{distLine(mineDist) && <> · {distLine(mineDist)}</>}</>
+      ? <><b className="font-semibold text-[var(--fg-1)]">{mine.length} walking with you</b>{wkTotal(mineWkTotal)}{distLine(mineDist, mineWk) && <> · {distLine(mineDist, mineWk)}</>}</>
       : <>No one in your constellation yet — invite someone below.</>,
     leaders: <>
       <b className="font-semibold text-[var(--fg-1)]">{leaders + 1} leading</b> (incl. you)
