@@ -1,13 +1,14 @@
 'use client'
 
-// Feed preview on My Journey home: 2–3 recent items from the viewer's Grace
-// Group — shared SOAPs (they model the form for newcomers) and one open prayer
-// with a one-tap Pray pill. Falls back to church-wide shared SOAPs when the
-// group has nothing yet, so the section never teaches "this place is empty".
-// "See all" hands off to the Feed tab.
+// Feed preview on My Journey home: the 2–3 NEWEST shares across every scope
+// the viewer can see (disciples' shares, their Grace Group, church-wide) —
+// the same share-time order as the Feed tab, so the card always mirrors what
+// "See all" opens. (Group-first went stale: the freshest share often reaches
+// the viewer under the coach scope and never surfaced here.) Plus one open
+// prayer with a one-tap Pray pill.
 
 import { useEffect, useState } from 'react'
-import { getGroupSharedSoaps, getSharedSoaps, getGroupPrayerPreview } from '../../lib/supabaseQueries'
+import { getCoachSharedSoaps, getGroupSharedSoaps, getSharedSoaps, getGroupPrayerPreview } from '../../lib/supabaseQueries'
 
 type SoapItem = {
   id: string
@@ -18,6 +19,9 @@ type SoapItem = {
   // Typed iSOAP entries keep their words in `body` (no OCR pass), so the
   // excerpt must fall through to it.
   body?: string | null
+  // iSOAP rows stamp when the SHARE happened; local rows only have created_at.
+  shared_at?: string | null
+  created_at?: string | null
   people?: { name: string } | null
 }
 
@@ -44,22 +48,31 @@ export default function FeedPreview({
 
   useEffect(() => {
     let alive = true
-    Promise.all([getGroupSharedSoaps(personId, 3), getGroupPrayerPreview(personId, 1)]).then(
-      async ([soapRes, prayerRes]) => {
-        let rows = (soapRes.data as SoapItem[] | null) ?? []
-        let fallback = false
-        if (rows.length === 0) {
-          const { data } = await getSharedSoaps(3)
-          rows = (data as SoapItem[] | null) ?? []
-          fallback = true
-        }
-        if (!alive) return
-        setSoaps(rows)
-        setChurchWide(fallback)
-        setPrayer(((prayerRes.data as PrayerItem[] | null) ?? [])[0] ?? null)
-        setReady(true)
-      }
-    )
+    Promise.all([
+      getCoachSharedSoaps(personId, 3),
+      getGroupSharedSoaps(personId, 3),
+      getSharedSoaps(3),
+      getGroupPrayerPreview(personId, 1),
+    ]).then(([coachRes, groupRes, churchRes, prayerRes]) => {
+      if (!alive) return
+      // Merge the three scopes the Feed tab shows, newest share first, so the
+      // top of this card always matches the top of the feed. Dedupe keeps the
+      // closest scope's copy (coach > group > constellation).
+      const near = [...((coachRes.data as SoapItem[] | null) ?? []), ...((groupRes.data as SoapItem[] | null) ?? [])]
+      const nearIds = new Set(near.map(r => r.id))
+      const church = (((churchRes.data as SoapItem[] | null) ?? [])).filter(r => !nearIds.has(r.id))
+      const byId = new Map<string, SoapItem>()
+      for (const r of [...near, ...church]) if (!byId.has(r.id)) byId.set(r.id, r)
+      const rows = Array.from(byId.values()).sort((a, b) => {
+        const da = a.shared_at ?? a.created_at ?? a.journal_date ?? ''
+        const db = b.shared_at ?? b.created_at ?? b.journal_date ?? ''
+        return db.localeCompare(da)
+      }).slice(0, 3)
+      setSoaps(rows)
+      setChurchWide(rows.length > 0 && rows.every(r => !nearIds.has(r.id)))
+      setPrayer(((prayerRes.data as PrayerItem[] | null) ?? [])[0] ?? null)
+      setReady(true)
+    })
     return () => { alive = false }
   }, [personId])
 
@@ -70,7 +83,7 @@ export default function FeedPreview({
     <section className="mt-8">
       <div className="mb-2 flex items-baseline justify-between">
         <p className="cn-label" style={{ color: 'var(--fg-3)' }}>
-          {churchWide ? 'From the constellation' : 'From your group'}
+          {churchWide ? 'From the constellation' : 'Shared with you'}
         </p>
         <button
           type="button"
