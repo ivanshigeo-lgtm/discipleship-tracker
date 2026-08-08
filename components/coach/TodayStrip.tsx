@@ -151,8 +151,8 @@ export default function TodayStrip({
     { date: tomorrow, label: `Tomorrow · ${dayName(tomorrow)}` },
   ]
 
-  const chip = 'rounded-full border border-[var(--line-2)] bg-[var(--indigo-3)] px-3 py-1 text-[11.5px] font-semibold text-[var(--fg-1)] transition-colors hover:bg-[#2a3565]'
-  const chipGlow = 'rounded-full border border-[rgba(91,141,247,.5)] px-3 py-1 text-[11.5px] font-semibold text-white transition-all hover:brightness-110'
+  const chip = 'shrink-0 whitespace-nowrap rounded-full border border-[var(--line-2)] bg-[var(--indigo-3)] px-2.5 py-1 text-[11px] font-semibold text-[var(--fg-1)] transition-colors hover:bg-[#2a3565]'
+  const chipGlow = 'shrink-0 whitespace-nowrap rounded-full border border-[rgba(91,141,247,.5)] px-2.5 py-1 text-[11px] font-semibold text-white transition-all hover:brightness-110'
 
   return (
     <section className="mb-5">
@@ -182,26 +182,25 @@ export default function TodayStrip({
               {items.map(item => {
                 const t = fmtTime(item.time)
                 return (
-                  <div key={item.key} className="cn-card flex flex-col gap-2.5 px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <div className="min-w-[52px] text-right text-xs font-bold tabular-nums leading-tight text-[var(--fg-1)]">
-                        {t ? <>{t.hm}<span className="block text-[9.5px] font-semibold tracking-[.08em] text-[var(--fg-3)]">{t.ap}</span></> : <span className="text-[var(--fg-3)]">—</span>}
-                      </div>
-                      <span
-                        className="h-[9px] w-[9px] shrink-0 rounded-full"
-                        style={item.kind === 'group'
-                          ? { background: 'var(--engage)', boxShadow: '0 0 10px 1px rgba(244,182,80,.7)' }
-                          : { background: 'var(--equip)', boxShadow: '0 0 10px 1px rgba(91,141,247,.75)' }}
-                      />
-                      <div className="min-w-0">
-                        <p className="truncate text-[14.5px] font-semibold leading-snug text-[var(--fg-1)]">{item.title}</p>
-                        {item.sub && <p className="truncate text-[11.5px] text-[var(--fg-3)]">{item.sub}</p>}
-                      </div>
+                  <div key={item.key} className="cn-card flex items-center gap-3 px-4 py-2.5">
+                    <div className="min-w-[52px] text-right text-xs font-bold tabular-nums leading-tight text-[var(--fg-1)]">
+                      {t ? <>{t.hm}<span className="block text-[9.5px] font-semibold tracking-[.08em] text-[var(--fg-3)]">{t.ap}</span></> : <span className="text-[var(--fg-3)]">—</span>}
                     </div>
-                    <div className="flex flex-wrap gap-1.5 pl-[63px]">
+                    <span
+                      className="h-[9px] w-[9px] shrink-0 rounded-full"
+                      style={item.kind === 'group'
+                        ? { background: 'var(--engage)', boxShadow: '0 0 10px 1px rgba(244,182,80,.7)' }
+                        : { background: 'var(--equip)', boxShadow: '0 0 10px 1px rgba(91,141,247,.75)' }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[14.5px] font-semibold leading-snug text-[var(--fg-1)]">{item.title}</p>
+                      {item.sub && <p className="truncate text-[11.5px] text-[var(--fg-3)]">{item.sub}</p>}
+                    </div>
+                    {/* Action(s) ride on the same row as the text, right-aligned. */}
+                    <div className="flex shrink-0 items-center gap-1.5">
                       {item.kind === 'group' ? (
                         <>
-                          <button type="button" onClick={onGoToEngagements} className={chipGlow} style={{ background: 'linear-gradient(180deg,#2E55E6,#1c3fd0)', boxShadow: '0 0 18px -4px rgba(46,85,230,.8)' }}>
+                          <button type="button" onClick={onGoToEngagements} className={chipGlow} style={{ background: 'linear-gradient(180deg,#2E55E6,#1c3fd0)', boxShadow: '0 0 10px -4px rgba(46,85,230,.8)' }}>
                             Take attendance
                           </button>
                           <button type="button" onClick={() => onOpenMessages()} className={chip}>Message group</button>
@@ -209,12 +208,12 @@ export default function TodayStrip({
                       ) : (
                         <>
                           {item.needsConfirm && item.engagementId && (
-                            <button type="button" onClick={() => confirm(item.engagementId!)} className={chipGlow} style={{ background: 'linear-gradient(180deg,#2E55E6,#1c3fd0)', boxShadow: '0 0 18px -4px rgba(46,85,230,.8)' }}>
+                            <button type="button" onClick={() => confirm(item.engagementId!)} className={chipGlow} style={{ background: 'linear-gradient(180deg,#2E55E6,#1c3fd0)', boxShadow: '0 0 10px -4px rgba(46,85,230,.8)' }}>
                               Confirm
                             </button>
                           )}
                           {item.engagementId && confirmed.has(item.engagementId) && (
-                            <span className="px-1 py-1 text-[11.5px] font-semibold text-[var(--success)]">Confirmed ✓</span>
+                            <span className="px-1 py-1 text-[11.5px] font-semibold text-[var(--success)]">✓</span>
                           )}
                           {item.otherPersonId && (
                             <button type="button" onClick={() => onOpenMessages(item.otherPersonId!)} className={chip}>Message</button>

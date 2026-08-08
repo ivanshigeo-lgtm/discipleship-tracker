@@ -2,7 +2,8 @@
 
 // Zone 4: leadership momentum in ONE card. The headline metric is the
 // MOVEMENT RATE — the share of active scoped people who took ≥1 journey step
-// (a stage_checklist_items completion) in the window — so the number carries
+// in the window — either a stage_checklist_items completion OR advancing a
+// booklet chapter (booklet_progress.updated_at) — so the number carries
 // its own denominator and scales honestly from 3 people to 165. Small
 // constellations get plain words on a monthly window; larger scopes get a
 // percentage with a weekly trend. The sparkline plots the RATE against a
@@ -11,9 +12,9 @@
 // checklist percent-complete (the heavy Empower forecast stays off the home).
 
 import { useEffect, useMemo, useState } from 'react'
-import { getPeople, getAllStageChecklistItems, getPendingLevelSignoffs } from '../../lib/supabaseQueries'
+import { getPeople, getAllStageChecklistItems, getAllBookletProgress, getPendingLevelSignoffs } from '../../lib/supabaseQueries'
 import { topRisers, ZoneLabel } from './coachModel'
-import type { Person, StageChecklistItem } from '../../types/database'
+import type { BookletProgress, Person, StageChecklistItem } from '../../types/database'
 
 const DAY_MS = 86_400_000
 
@@ -32,6 +33,7 @@ export default function MomentumCard({
 }) {
   const [people, setPeople] = useState<Person[]>([])
   const [items, setItems] = useState<StageChecklistItem[]>([])
+  const [bookletProgress, setBookletProgress] = useState<BookletProgress[]>([])
   const [pendingSignoffs, setPendingSignoffs] = useState(0)
   const [mode, setMode] = useState<'my' | 'gbc'>('my')
   const [ready, setReady] = useState(false)
@@ -39,12 +41,13 @@ export default function MomentumCard({
   useEffect(() => {
     let alive = true
     ;(async () => {
-      const [p, i, so] = await Promise.all([
-        getPeople(), getAllStageChecklistItems(), getPendingLevelSignoffs(personId),
+      const [p, i, bp, so] = await Promise.all([
+        getPeople(), getAllStageChecklistItems(), getAllBookletProgress(), getPendingLevelSignoffs(personId),
       ])
       if (!alive) return
       if (p.data) setPeople(p.data as Person[])
       if (i.data) setItems(i.data as StageChecklistItem[])
+      if (bp.data) setBookletProgress(bp.data as BookletProgress[])
       setPendingSignoffs((so.data as unknown[] | null)?.length ?? 0)
       setReady(true)
     })()
@@ -60,16 +63,24 @@ export default function MomentumCard({
     const small = n < 10
 
     const completions = items.filter(it => it.completed && it.completed_at && activeIds.has(it.person_id))
+    // A step = a checklist completion OR a booklet chapter advance. booklet_progress
+    // keeps only the latest advance's timestamp, which is exactly what buckets the
+    // most recent chapter move into the right week.
+    const chapterMoves = bookletProgress.filter(
+      bp => bp.current_chapter > 0 && bp.updated_at && activeIds.has(bp.person_id),
+    )
     // Distinct movers per bucket, newest bucket last. Small scopes bucket by
     // 30-day "months", larger by weeks.
     const bucketDays = small ? 30 : 7
     const numBuckets = small ? 4 : 8
     const now = Date.now()
     const buckets: Set<string>[] = Array.from({ length: numBuckets }, () => new Set<string>())
-    for (const it of completions) {
-      const ago = Math.floor((now - new Date(it.completed_at!).getTime()) / (bucketDays * DAY_MS))
-      if (ago >= 0 && ago < numBuckets) buckets[numBuckets - 1 - ago].add(it.person_id)
+    const bucketMove = (id: string, at: string) => {
+      const ago = Math.floor((now - new Date(at).getTime()) / (bucketDays * DAY_MS))
+      if (ago >= 0 && ago < numBuckets) buckets[numBuckets - 1 - ago].add(id)
     }
+    for (const it of completions) bucketMove(it.person_id, it.completed_at!)
+    for (const bp of chapterMoves) bucketMove(bp.person_id, bp.updated_at)
     const rates = buckets.map(b => (n ? (b.size / n) * 100 : 0))
     const moversNow = buckets[numBuckets - 1].size
     const moversPrev = buckets[numBuckets - 2].size
@@ -88,7 +99,7 @@ export default function MomentumCard({
     const risers = topRisers(people, items, allow).slice(0, 2)
 
     return { n, small, rates, moversNow, moversPrev, leaders, carried, ratio, sinceSunday, risers }
-  }, [people, items, myPersonIds, mode])
+  }, [people, items, bookletProgress, myPersonIds, mode])
 
   if (!ready) return null
 
