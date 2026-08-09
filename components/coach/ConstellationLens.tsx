@@ -5,7 +5,7 @@
 // between them (transform, .7s); labels counter-scale via --zs so type stays
 // readable at any zoom. Leaders dims everyone but Equip/Empower and pulses the
 // top riser. The action button follows the lens: Invite on the wide scopes,
-// "Invest in <name> →" on Leaders. The full pipeline/map/list lives behind
+// "Connect with <name> →" on Leaders. The full pipeline/map/list lives behind
 // "Open constellation" (the explore view) — never on the briefing.
 
 import { useEffect, useMemo, useState } from 'react'
@@ -312,7 +312,7 @@ export default function ConstellationLens({
               className="flex-1 rounded-[var(--r-md)] border border-[rgba(91,141,247,.5)] px-3 py-2.5 text-center text-[12.5px] font-semibold text-white transition-all hover:brightness-110"
               style={{ background: 'linear-gradient(180deg,#2E55E6,#1c3fd0)', boxShadow: '0 0 20px -6px rgba(46,85,230,.8)' }}
             >
-              Invest in {topRiser.person.name.split(' ')[0]} →
+              Connect with {topRiser.person.name.split(' ')[0]} →
             </button>
           ) : (
             <button
