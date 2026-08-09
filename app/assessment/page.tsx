@@ -107,8 +107,9 @@ export default function AssessmentPage() {
               How has God wired you to serve?
             </h1>
             <p className="mx-auto mt-4 max-w-md text-[var(--fg-2)]">
-              Take three short assessments and receive a personalized summary of your gifts,
-              personality, and passion — plus where you might thrive in ministry.
+              Using our unique gifts to minister to others is one of the greatest joys that we
+              can experience. These tests will help you discover, develop and deploy your gifts
+              that God has given to you.
             </p>
           </header>
         )}
