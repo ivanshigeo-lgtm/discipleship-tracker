@@ -50,6 +50,12 @@ const MISSED_WINDOW_DAYS = 35
 // so the row leaves on its own via a self-scheduled tick.
 const GRACE_MS = 5 * 1000
 const COOLDOWN_MS = 60 * 60 * 1000
+// If you actually MET with someone recently — a completed 1:1 or group
+// attendance within this many days — they drop off entirely, even over a past
+// group no-show or an overdue follow-up. Jonavan (Aug 8): "if I met with them
+// this week, why would I need to reach out again?" A quick TOUCH does NOT count
+// as a meeting (touches keep their own ~1h cooldown above).
+const RECENT_MEET_DAYS = 7
 const GRAD_NO_ATTEND_DAYS = 21
 const GRAD_MIN_TOUCHES = 3
 
@@ -179,6 +185,19 @@ export default function NeedsATouch({
       const prev = lastAttended.get(a.person_id)
       if (!prev || a.meeting_date > prev) lastAttended.set(a.person_id, a.meeting_date)
     }
+    // Recently met in person → drop them for the week. A completed 1:1 (NOT a
+    // legacy 'Quick touch' engagement) or group attendance within RECENT_MEET_DAYS.
+    const metCutoff = toLocalDateStr(new Date(Date.now() - RECENT_MEET_DAYS * 86_400_000))
+    const metRecently = (pid: string) => {
+      const la = lastAttended.get(pid)
+      if (la && la >= metCutoff) return true
+      for (const e of engByPerson.get(pid) ?? []) {
+        if (e.status === 'Completed' && e.description !== 'Quick touch'
+          && e.follow_up_date && e.follow_up_date >= metCutoff) return true
+      }
+      return false
+    }
+
     const cutoff21 = toLocalDateStr(new Date(Date.now() - GRAD_NO_ATTEND_DAYS * 86_400_000))
     const graduated = (pid: string) => {
       const touchCount = (settledByPerson.get(pid) ?? []).length
@@ -219,6 +238,9 @@ export default function NeedsATouch({
         continue
       }
       if (cooledOff(p.id)) continue
+      // Recently MET (1:1 or group attendance this week) → drop, overriding a
+      // past group miss / overdue follow-up. You already reached out.
+      if (metRecently(p.id)) continue
 
       const engs = engByPerson.get(p.id) ?? []
 
