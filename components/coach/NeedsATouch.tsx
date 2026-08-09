@@ -57,7 +57,7 @@ const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000
 // attendance within this many days — they drop off entirely, even over a past
 // group no-show or an overdue follow-up. Jonavan (Aug 8): "if I met with them
 // this week, why would I need to reach out again?" A quick TOUCH does NOT count
-// as a meeting (touches keep their own ~1h cooldown above).
+// as a meeting (touches keep their own week-long cooldown above).
 const RECENT_MEET_DAYS = 7
 const GRAD_NO_ATTEND_DAYS = 21
 const GRAD_MIN_TOUCHES = 3
