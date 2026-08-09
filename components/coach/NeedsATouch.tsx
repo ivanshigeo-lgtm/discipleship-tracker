@@ -49,7 +49,10 @@ const MISSED_WINDOW_DAYS = 35
 // drops off. Jonavan (Aug 8): 5s is enough. Timestamp-based (not remount-based)
 // so the row leaves on its own via a self-scheduled tick.
 const GRACE_MS = 5 * 1000
-const COOLDOWN_MS = 60 * 60 * 1000
+// A settled touch holds the person off the list for this window. Jonavan (Aug 8):
+// a touch should hold for the rest of the week — like a meeting, just lighter —
+// so it matches RECENT_MEET_DAYS below (not the old 1h that resurfaced same-day).
+const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000
 // If you actually MET with someone recently — a completed 1:1 or group
 // attendance within this many days — they drop off entirely, even over a past
 // group no-show or an overdue follow-up. Jonavan (Aug 8): "if I met with them
