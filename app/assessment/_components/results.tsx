@@ -3,10 +3,12 @@
 // Per-test result cards (shown immediately after finishing each test — no PII,
 // scored client-side from the same lib functions) + the final consolidated
 // ministry-fit summary card.
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { scoreGifts, type GiftScore } from '@/lib/spiritualGifts'
 import { scoreTraits, type TraitScore } from '@/lib/bigFive'
 import type { PassionAnswers } from '@/lib/passion'
+
+const SHARE_URL = 'https://wikichurch.app/assessment'
 
 const TIER_LABEL: Record<GiftScore['tier'], string> = {
   strong: 'Strong',
@@ -135,6 +137,75 @@ export function PassionResult({
 type Suggestion = { ministry: string; rationale: string; fitScore: number }
 type NewIdea = { name: string; rationale: string }
 
+// Plain-text version of the results, for the Copy / Share buttons.
+function buildShareText(
+  name: string,
+  summary: string | null,
+  suggestions: Suggestion[],
+  newIdeas: NewIdea[]
+): string {
+  const first = name.split(' ')[0]
+  const lines: string[] = [`How ${first} is wired to serve — Grace Bible Maui`, '']
+  if (summary) lines.push(summary, '')
+  if (suggestions.length) {
+    lines.push('Where you might thrive:')
+    suggestions.forEach((s, i) =>
+      lines.push(`${i + 1}. ${s.ministry} (${s.fitScore}% fit) — ${s.rationale}`)
+    )
+    lines.push('')
+  }
+  if (newIdeas.length) {
+    lines.push('A ministry you could help pioneer:')
+    newIdeas.forEach((n) => lines.push(`• ${n.name} — ${n.rationale}`))
+    lines.push('')
+  }
+  lines.push(`Discover how God wired you to serve: ${SHARE_URL}`)
+  return lines.join('\n')
+}
+
+function ShareActions({ text, name }: { text: string; name: string }) {
+  const [copied, setCopied] = useState(false)
+
+  const doCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // Clipboard blocked (insecure context / permission) — fall back to a prompt.
+      window.prompt('Copy your results:', text)
+    }
+  }
+
+  const doShare = async () => {
+    // Web Share API (mobile Safari/Chrome) — native share sheet. Desktop falls back to copy.
+    if (typeof navigator !== 'undefined' && 'share' in navigator) {
+      try {
+        await navigator.share({ title: `${name.split(' ')[0]}'s Ministry Fit`, text })
+        return
+      } catch {
+        // user cancelled or share failed — fall through to copy
+      }
+    }
+    void doCopy()
+  }
+
+  const canShare = typeof navigator !== 'undefined' && 'share' in navigator
+
+  return (
+    <div className="flex flex-col gap-3 sm:flex-row">
+      <button onClick={doCopy} className="cn-btn cn-btn-ghost flex-1">
+        {copied ? 'Copied ✓' : 'Copy results'}
+      </button>
+      {canShare && (
+        <button onClick={doShare} className="cn-btn cn-btn-primary flex-1">
+          Share
+        </button>
+      )}
+    </div>
+  )
+}
+
 export function SummaryView({
   name,
   summary,
@@ -146,6 +217,7 @@ export function SummaryView({
   suggestions: Suggestion[]
   newIdeas: NewIdea[]
 }) {
+  const shareText = buildShareText(name, summary, suggestions, newIdeas)
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-8">
       <div className="text-center">
@@ -156,6 +228,8 @@ export function SummaryView({
           How you're wired to serve, {name.split(' ')[0]}
         </h2>
       </div>
+
+      <ShareActions text={shareText} name={name} />
 
       {summary ? (
         <p className="rounded-[var(--r-lg)] border border-[var(--line-2)] bg-[var(--indigo-2)] p-6 text-lg leading-relaxed text-[var(--fg-1)] shadow-[var(--elev-2)]">
