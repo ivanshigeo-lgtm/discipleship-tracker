@@ -45,6 +45,10 @@ type Ranked = {
 type Mode = 'mine' | 'direct' | 'gbc'
 
 const MISSED_WINDOW_DAYS = 35
+// A freshly-logged touch stays visible this long (mis-tap undo), then the person
+// drops off. Jonavan (Aug 8): 5s is enough. Timestamp-based (not remount-based)
+// so the row leaves on its own via a self-scheduled tick.
+const GRACE_MS = 5 * 1000
 const COOLDOWN_MS = 60 * 60 * 1000
 const GRAD_NO_ATTEND_DAYS = 21
 const GRAD_MIN_TOUCHES = 3
@@ -84,9 +88,14 @@ export default function NeedsATouch({
   // truth once it lands. `pending` disables re-tap while a write is in flight.
   const [override, setOverride] = useState<Record<string, boolean>>({})
   const [pending, setPending] = useState<Set<string>>(new Set())
-  // Ids of touches created THIS viewing — see native for the full rationale:
-  // excluded from cooldown + graduation so a fresh tap never yanks the row.
+  // Bumped by each touch's settle timer to recompute at the grace mark so the
+  // just-touched row drops off even if the coach is still looking.
+  const [, setTick] = useState(0)
+  // Ids of touches created THIS viewing — lets the second tap find the row to
+  // delete before the state round-trips (recentTouchByPerson covers it after).
   const localIds = useRef<Map<string, string>>(new Map())
+  // Pending 5s settle timers, keyed by person — cleared on undo/unmount.
+  const settleTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
   const graduatedHandled = useRef<Set<string>>(new Set())
   const today = toLocalDateStr(new Date())
 
@@ -118,6 +127,9 @@ export default function NeedsATouch({
     return () => { alive = false }
   }, [personId, refreshKey])
 
+  // Clear any pending settle timers on unmount so they don't fire into a gone view.
+  useEffect(() => () => { settleTimers.current.forEach(clearTimeout) }, [])
+
   // Most recent touch per person (live) — drives the ✓ and the delete id.
   const recentTouchByPerson = useMemo(() => {
     const m = new Map<string, Touch>()
@@ -132,11 +144,13 @@ export default function NeedsATouch({
     const allowIds = mode === 'gbc' ? null : mode === 'direct' ? myPeopleIds : myCircleIds
     const allow = mode === 'gbc' ? null : new Set(allowIds ?? [])
     const now = Date.now()
-    const sessionIds = new Set(localIds.current.values())
 
+    // "Settled" = touches older than the 5s grace; a fresh tap keeps the person
+    // visible for 5s (mis-tap undo), then the cooldown below drops them off.
+    // Timestamp-based, so it fires on the settle-timer tick without a remount.
     const settledByPerson = new Map<string, Touch[]>()
     for (const t of touches) {
-      if (sessionIds.has(t.id)) continue
+      if (now - new Date(t.created_at).getTime() < GRACE_MS) continue
       const l = settledByPerson.get(t.person_id) ?? []
       l.push(t); settledByPerson.set(t.person_id, l)
     }
@@ -259,10 +273,11 @@ export default function NeedsATouch({
   )
   if (!ready || !hasAnyPeople) return null
 
+  // ✓ shows during the 5s grace; after it the person has dropped off the list.
   const isLogged = (pid: string) => {
     if (pid in override) return override[pid]
     const t = recentTouchByPerson.get(pid)
-    return !!t && Date.now() - new Date(t.created_at).getTime() < COOLDOWN_MS
+    return !!t && Date.now() - new Date(t.created_at).getTime() < GRACE_MS
   }
 
   // My people only — single scope, so the toggle row stays hidden (see mode init).
@@ -277,6 +292,8 @@ export default function NeedsATouch({
     const logged = isLogged(p.id)
     setPending(s => new Set(s).add(p.id))
     if (logged) {
+      const t = settleTimers.current.get(p.id)
+      if (t) { clearTimeout(t); settleTimers.current.delete(p.id) }
       const id = localIds.current.get(p.id) ?? recentTouchByPerson.get(p.id)?.id
       setOverride(o => ({ ...o, [p.id]: false }))
       if (id) {
@@ -288,7 +305,19 @@ export default function NeedsATouch({
       setOverride(o => ({ ...o, [p.id]: true }))
       const { data, error } = await addTouch(p.id, personId)
       if (error || !data) setOverride(o => ({ ...o, [p.id]: false }))
-      else { localIds.current.set(p.id, (data as Touch).id); setTouches(prev => [data as Touch, ...prev]) }
+      else {
+        localIds.current.set(p.id, (data as Touch).id); setTouches(prev => [data as Touch, ...prev])
+        // Settle after the grace: drop the override + recompute so the row leaves
+        // the list at ~5s even if the coach never navigates away.
+        const prev = settleTimers.current.get(p.id)
+        if (prev) clearTimeout(prev)
+        settleTimers.current.set(p.id, setTimeout(() => {
+          setOverride(o => { const n = { ...o }; delete n[p.id]; return n })
+          localIds.current.delete(p.id)
+          settleTimers.current.delete(p.id)
+          setTick(x => x + 1)
+        }, GRACE_MS + 50))
+      }
     }
     setPending(s => { const n = new Set(s); n.delete(p.id); return n })
   }
