@@ -1,10 +1,12 @@
 'use client'
 
-// Standalone public assessment onramp (no login). A funnel: menu → take each of
+// Standalone public assessment onramp (no login). A funnel: name + email UP FRONT
+// (so progress is saved and can be resumed on any device) → menu → take each of
 // the three tests (Spiritual Gifts, Big Five, Passion), seeing each result as you
-// finish → name + email → consolidated ministry-fit summary. Submitting creates
-// an unassigned lead on WikiChurch for the team to follow up.
-import { useState } from 'react'
+// finish → consolidated ministry-fit summary. Answers autosave server-side after
+// each test; returning takers resume where they left off. Submitting creates /
+// updates an unassigned lead on WikiChurch for the team to follow up.
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { QRCodeSVG } from 'qrcode.react'
 import {
@@ -22,8 +24,11 @@ import { GiftsResult, BigFiveResult, PassionResult, SummaryView } from './_compo
 import VisitTracker from '@/components/VisitTracker'
 
 const ASSESSMENT_URL = 'https://wikichurch.app/assessment'
+const RESUME_KEY = 'cn-onramp-resume'
 
 type Phase =
+  | 'boot'
+  | 'start'
   | 'menu'
   | 'gifts'
   | 'bigfive'
@@ -31,9 +36,10 @@ type Phase =
   | 'giftsResult'
   | 'bigfiveResult'
   | 'passionResult'
-  | 'capture'
   | 'generating'
   | 'summary'
+
+type Session = { personId: string; resumeToken: string; name: string }
 
 const TESTS = [
   { key: 'gifts', label: 'Spiritual Gifts', blurb: 'Discover how the Spirit has gifted you.', minutes: '10 min', color: 'var(--equip)' },
@@ -42,7 +48,7 @@ const TESTS = [
 ] as const
 
 export default function AssessmentPage() {
-  const [phase, setPhase] = useState<Phase>('menu')
+  const [phase, setPhase] = useState<Phase>('boot')
   const [gifts, setGifts] = useState<Record<number, number> | null>(null)
   const [bigFive, setBigFive] = useState<Record<number, number> | null>(null)
   const [passion, setPassion] = useState<PassionAnswers | null>(null)
@@ -50,6 +56,11 @@ export default function AssessmentPage() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [error, setError] = useState('')
+  const [starting, setStarting] = useState(false)
+  const [resumed, setResumed] = useState(false)
+
+  // Server session identifying this taker's saved progress.
+  const session = useRef<Session | null>(null)
   const [result, setResult] = useState<{
     summary: string | null
     suggestions: { ministry: string; rationale: string; fitScore: number }[]
@@ -60,10 +71,104 @@ export default function AssessmentPage() {
   const allDone = done.gifts && done.bigfive && done.passion
   const nextContinue = allDone ? 'Continue to your results' : 'Back to menu'
 
-  const submit = async () => {
+  // On load: if we have a saved session, read it back and resume; else show start.
+  useEffect(() => {
+    let cancelled = false
+    const raw = typeof window !== 'undefined' ? window.localStorage.getItem(RESUME_KEY) : null
+    if (!raw) {
+      setPhase('start')
+      return
+    }
+    let stored: Session
+    try {
+      stored = JSON.parse(raw)
+    } catch {
+      window.localStorage.removeItem(RESUME_KEY)
+      setPhase('start')
+      return
+    }
+    ;(async () => {
+      try {
+        const res = await fetch('/api/assessment/progress', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ personId: stored.personId, resumeToken: stored.resumeToken }),
+        })
+        const data = await res.json()
+        if (cancelled) return
+        if (!res.ok) {
+          window.localStorage.removeItem(RESUME_KEY)
+          setPhase('start')
+          return
+        }
+        session.current = stored
+        if (data.name) setName(data.name)
+        if (data.email) setEmail(data.email)
+        if (data.gifts) setGifts(data.gifts)
+        if (data.bigFive) setBigFive(data.bigFive)
+        if (data.passion) setPassion(data.passion)
+        setResumed(true)
+        setPhase('menu')
+      } catch {
+        if (!cancelled) setPhase('start')
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // Autosave a partial set of answers to the server (best-effort, non-blocking).
+  const saveProgress = (partial: {
+    giftsResponses?: Record<number, number>
+    bigFiveResponses?: Record<number, number>
+    passionAnswers?: PassionAnswers
+  }) => {
+    const s = session.current
+    if (!s) return
+    fetch('/api/assessment/progress', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ personId: s.personId, resumeToken: s.resumeToken, ...partial }),
+    }).catch(() => {})
+  }
+
+  const start = async () => {
     setError('')
     if (!name.trim()) return setError('Please enter your name.')
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return setError('Please enter a valid email.')
+    setStarting(true)
+    try {
+      const res = await fetch('/api/assessment/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), email: email.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data?.error ?? 'Something went wrong. Please try again.')
+        return
+      }
+      const s: Session = { personId: data.personId, resumeToken: data.resumeToken, name: data.name ?? name.trim() }
+      session.current = s
+      try {
+        window.localStorage.setItem(RESUME_KEY, JSON.stringify(s))
+      } catch {}
+      // Hydrate any previously-saved answers (returning taker via same email).
+      if (data.gifts) setGifts(data.gifts)
+      if (data.bigFive) setBigFive(data.bigFive)
+      if (data.passion) setPassion(data.passion)
+      if (data.gifts || data.bigFive || data.passion) setResumed(true)
+      setPhase('menu')
+    } catch {
+      setError('Could not reach the server. Please try again.')
+    } finally {
+      setStarting(false)
+    }
+  }
+
+  const submit = async () => {
+    setError('')
     setPhase('generating')
     try {
       const res = await fetch('/api/assessment-onramp', {
@@ -80,7 +185,7 @@ export default function AssessmentPage() {
       const data = await res.json()
       if (!res.ok) {
         setError(data?.error ?? 'Something went wrong. Please try again.')
-        setPhase('capture')
+        setPhase('menu')
         return
       }
       setResult({
@@ -91,7 +196,7 @@ export default function AssessmentPage() {
       setPhase('summary')
     } catch {
       setError('Could not reach the server. Please try again.')
-      setPhase('capture')
+      setPhase('menu')
     }
   }
 
@@ -99,75 +204,124 @@ export default function AssessmentPage() {
     <div className="min-h-screen bg-[var(--void)] px-5 py-10 text-[var(--fg-1)]">
       <VisitTracker path="/assessment" />
       <div className="mx-auto w-full max-w-2xl">
-        {/* header */}
-        {phase === 'menu' && (
-          <header className="mb-10 text-center">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--gold)]">
-              Grace Bible Maui
-            </p>
-            <h1 className="mt-3 [font-family:var(--font-display)] text-4xl leading-tight text-[var(--fg-1)]">
-              How has God wired you to serve?
-            </h1>
-            <p className="mx-auto mt-4 max-w-md text-[var(--fg-2)]">
-              Using our unique gifts to minister to others is one of the greatest joys that we
-              can experience. These tests will help you discover, develop and deploy your gifts
-              that God has given to you.
-            </p>
-          </header>
+        {/* boot: deciding start vs resume */}
+        {phase === 'boot' && (
+          <div className="flex flex-col items-center gap-4 py-24 text-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--line-2)] border-t-[var(--gold)]" />
+          </div>
+        )}
+
+        {/* start: capture name + email up front */}
+        {phase === 'start' && (
+          <>
+            <header className="mb-8 text-center">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--gold)]">
+                Grace Bible Maui
+              </p>
+              <h1 className="mt-3 [font-family:var(--font-display)] text-4xl leading-tight text-[var(--fg-1)]">
+                How has God wired you to serve?
+              </h1>
+              <p className="mx-auto mt-4 max-w-md text-[var(--fg-2)]">
+                Using our unique gifts to minister to others is one of the greatest joys that we
+                can experience. These tests will help you discover, develop and deploy your gifts
+                that God has given to you.
+              </p>
+            </header>
+            <div className="mx-auto flex w-full max-w-md flex-col gap-4">
+              <p className="text-center text-sm text-[var(--fg-3)]">
+                First, your name and email — so we can save your progress and you can pick up
+                where you left off on any device.
+              </p>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Full name"
+                className="w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-3 py-2.5 text-sm text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
+              />
+              <input
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                type="email"
+                placeholder="Email"
+                onKeyDown={(e) => { if (e.key === 'Enter' && !starting) start() }}
+                className="w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-3 py-2.5 text-sm text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
+              />
+              {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
+              <button onClick={start} disabled={starting} className="cn-btn cn-btn-primary w-full disabled:opacity-60">
+                {starting ? 'Starting…' : 'Begin →'}
+              </button>
+              <p className="text-center text-xs text-[var(--fg-3)]">
+                Three short tests, about 20 minutes total.
+              </p>
+            </div>
+          </>
         )}
 
         {/* menu */}
         {phase === 'menu' && (
-          <div className="flex flex-col gap-4">
-            {TESTS.map((t) => (
-              <button
-                key={t.key}
-                onClick={() => setPhase(t.key as Phase)}
-                className="flex items-center gap-4 rounded-[var(--r-lg)] border border-[var(--line-2)] bg-[var(--indigo-2)] p-5 text-left transition-all hover:border-[var(--gbm-cobalt-bright)] shadow-[var(--elev-2)]"
-              >
-                <span
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg"
-                  style={{ background: `${t.color}22`, color: t.color }}
-                >
-                  {done[t.key] ? '✓' : '✦'}
-                </span>
-                <span className="flex-1">
-                  <span className="flex items-center gap-2">
-                    <span className="text-lg font-semibold text-[var(--fg-1)]">{t.label}</span>
-                    {done[t.key] && (
-                      <span className="rounded-full bg-[var(--success)]/20 px-2 py-0.5 text-[11px] font-semibold text-[var(--success)]">
-                        Done
-                      </span>
-                    )}
-                  </span>
-                  <span className="block text-sm text-[var(--fg-3)]">{t.blurb}</span>
-                </span>
-                <span className="shrink-0 text-xs text-[var(--fg-3)]">{t.minutes}</span>
-              </button>
-            ))}
-
-            {allDone && (
-              <button
-                onClick={() => setPhase('capture')}
-                className="cn-btn cn-btn-primary mt-2 w-full"
-              >
-                Continue to your results →
-              </button>
-            )}
-
-            {/* on-page QR to share */}
-            <div className="mt-10 flex flex-col items-center gap-3 border-t border-[var(--line-1)] pt-8">
-              <div className="rounded-[var(--r-md)] bg-white p-3">
-                <QRCodeSVG value={ASSESSMENT_URL} size={104} />
-              </div>
-              <p className="text-xs text-[var(--fg-3)]">
-                Scan to share ·{' '}
-                <Link href="/assessment/qr" className="text-[var(--gbm-cobalt-soft)] underline">
-                  printable flyer
-                </Link>
+          <>
+            <header className="mb-10 text-center">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--gold)]">
+                Grace Bible Maui
               </p>
+              <h1 className="mt-3 [font-family:var(--font-display)] text-4xl leading-tight text-[var(--fg-1)]">
+                {resumed && name ? `Welcome back, ${name.split(' ')[0]}` : 'How has God wired you to serve?'}
+              </h1>
+              <p className="mx-auto mt-4 max-w-md text-[var(--fg-2)]">
+                {resumed
+                  ? 'Pick up where you left off — your answers are saved. Finish the remaining tests to see your ministry fit.'
+                  : 'Using our unique gifts to minister to others is one of the greatest joys that we can experience. These tests will help you discover, develop and deploy your gifts that God has given to you.'}
+              </p>
+            </header>
+
+            <div className="flex flex-col gap-4">
+              {TESTS.map((t) => (
+                <button
+                  key={t.key}
+                  onClick={() => setPhase(t.key as Phase)}
+                  className="flex items-center gap-4 rounded-[var(--r-lg)] border border-[var(--line-2)] bg-[var(--indigo-2)] p-5 text-left transition-all hover:border-[var(--gbm-cobalt-bright)] shadow-[var(--elev-2)]"
+                >
+                  <span
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg"
+                    style={{ background: `${t.color}22`, color: t.color }}
+                  >
+                    {done[t.key] ? '✓' : '✦'}
+                  </span>
+                  <span className="flex-1">
+                    <span className="flex items-center gap-2">
+                      <span className="text-lg font-semibold text-[var(--fg-1)]">{t.label}</span>
+                      {done[t.key] && (
+                        <span className="rounded-full bg-[var(--success)]/20 px-2 py-0.5 text-[11px] font-semibold text-[var(--success)]">
+                          Done
+                        </span>
+                      )}
+                    </span>
+                    <span className="block text-sm text-[var(--fg-3)]">{t.blurb}</span>
+                  </span>
+                  <span className="shrink-0 text-xs text-[var(--fg-3)]">{t.minutes}</span>
+                </button>
+              ))}
+
+              {allDone && (
+                <button onClick={submit} className="cn-btn cn-btn-primary mt-2 w-full">
+                  See my ministry fit →
+                </button>
+              )}
+
+              {/* on-page QR to share */}
+              <div className="mt-10 flex flex-col items-center gap-3 border-t border-[var(--line-1)] pt-8">
+                <div className="rounded-[var(--r-md)] bg-white p-3">
+                  <QRCodeSVG value={ASSESSMENT_URL} size={104} />
+                </div>
+                <p className="text-xs text-[var(--fg-3)]">
+                  Scan to share ·{' '}
+                  <Link href="/assessment/qr" className="text-[var(--gbm-cobalt-soft)] underline">
+                    printable flyer
+                  </Link>
+                </p>
+              </div>
             </div>
-          </div>
+          </>
         )}
 
         {/* tests */}
@@ -178,7 +332,7 @@ export default function AssessmentPage() {
             accent="var(--equip)"
             questions={GIFT_QUESTIONS}
             scale={GIFT_SCALE}
-            onComplete={(r) => { setGifts(r); setPhase('giftsResult') }}
+            onComplete={(r) => { setGifts(r); saveProgress({ giftsResponses: r }); setPhase('giftsResult') }}
             onExit={() => setPhase('menu')}
           />
         )}
@@ -189,13 +343,13 @@ export default function AssessmentPage() {
             accent="var(--establish)"
             questions={BIG_QUESTIONS}
             scale={BIG_SCALE}
-            onComplete={(r) => { setBigFive(r); setPhase('bigfiveResult') }}
+            onComplete={(r) => { setBigFive(r); saveProgress({ bigFiveResponses: r }); setPhase('bigfiveResult') }}
             onExit={() => setPhase('menu')}
           />
         )}
         {phase === 'passion' && (
           <PassionRunner
-            onComplete={(a) => { setPassion(a); setPhase('passionResult') }}
+            onComplete={(a) => { setPassion(a); saveProgress({ passionAnswers: a }); setPhase('passionResult') }}
             onExit={() => setPhase('menu')}
           />
         )}
@@ -203,52 +357,15 @@ export default function AssessmentPage() {
         {/* per-test results */}
         {phase === 'giftsResult' && gifts && (
           <GiftsResult responses={gifts} continueLabel={nextContinue}
-            onContinue={() => setPhase(allDone ? 'capture' : 'menu')} />
+            onContinue={() => (allDone ? submit() : setPhase('menu'))} />
         )}
         {phase === 'bigfiveResult' && bigFive && (
           <BigFiveResult responses={bigFive} continueLabel={nextContinue}
-            onContinue={() => setPhase(allDone ? 'capture' : 'menu')} />
+            onContinue={() => (allDone ? submit() : setPhase('menu'))} />
         )}
         {phase === 'passionResult' && passion && (
           <PassionResult answers={passion} continueLabel={nextContinue}
-            onContinue={() => setPhase(allDone ? 'capture' : 'menu')} />
-        )}
-
-        {/* capture */}
-        {phase === 'capture' && (
-          <div className="mx-auto flex w-full max-w-md flex-col gap-5">
-            <div className="text-center">
-              <h2 className="[font-family:var(--font-display)] text-3xl text-[var(--fg-1)]">
-                One last step
-              </h2>
-              <p className="mt-2 text-sm text-[var(--fg-3)]">
-                Tell us who you are and we'll put together your ministry-fit summary.
-              </p>
-            </div>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Full name"
-              className="w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-3 py-2.5 text-sm text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
-            />
-            <input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              type="email"
-              placeholder="Email"
-              className="w-full rounded-lg border border-[var(--line-2)] bg-[var(--indigo-2)] px-3 py-2.5 text-sm text-[var(--fg-1)] placeholder:text-[var(--fg-3)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none"
-            />
-            {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
-            <button onClick={submit} className="cn-btn cn-btn-primary w-full">
-              See my ministry fit →
-            </button>
-            <button
-              onClick={() => setPhase('menu')}
-              className="text-sm text-[var(--fg-3)] transition-colors hover:text-[var(--fg-1)]"
-            >
-              ← Back
-            </button>
-          </div>
+            onContinue={() => (allDone ? submit() : setPhase('menu'))} />
         )}
 
         {/* generating */}

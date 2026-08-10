@@ -117,15 +117,28 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Could not save your results.', detail: writeErr.message }, { status: 500 })
   }
 
-  // Log the collected name+email for the private admin stats view. Best-effort:
-  // one row per successful submission (dedup-by-email happens at read time).
-  const { error: subErr } = await supabase.from('onramp_submissions').insert({
-    person_id: personId,
-    name,
-    email,
-    created,
-  })
-  if (subErr) console.error('assessment-onramp submission log failed:', subErr)
+  // Mark this person's submission COMPLETE for the private admin stats view.
+  // If they came through /api/assessment/start there's already a (pending) row —
+  // stamp its completed_at. If they hit this route directly (legacy/no start),
+  // log a fresh already-completed row. Never double-logs: dedup-by-email at read.
+  const { data: subRows } = await supabase
+    .from('onramp_submissions')
+    .select('id')
+    .eq('person_id', personId)
+    .order('submitted_at', { ascending: false })
+    .limit(1)
+  if (subRows && subRows.length) {
+    const { error: updErr } = await supabase
+      .from('onramp_submissions')
+      .update({ completed_at: now })
+      .eq('id', subRows[0].id)
+    if (updErr) console.error('assessment-onramp completion stamp failed:', updErr)
+  } else {
+    const { error: subErr } = await supabase
+      .from('onramp_submissions')
+      .insert({ person_id: personId, name, email, created, completed_at: now })
+    if (subErr) console.error('assessment-onramp submission log failed:', subErr)
+  }
 
   // ── Consolidated exec summary + recommended ministries (idempotent, cached). ──
   // force:true so an existing person's summary regenerates from the fresh inputs.

@@ -15,8 +15,8 @@ type Stats = {
   first_at: string | null
   by_day: DayRow[]
 }
-type LeadRow = { name: string | null; email: string; created: boolean; submitted_at: string }
-type Leads = { count: number; total_submissions: number; list: LeadRow[] }
+type LeadRow = { name: string | null; email: string; created: boolean; completed: boolean; submitted_at: string }
+type Leads = { count: number; completed: number; total_submissions: number; list: LeadRow[] }
 
 export default function AssessmentStatsPage() {
   const { session, profile, profileLoading } = useAuth()
@@ -110,6 +110,9 @@ export default function AssessmentStatsPage() {
                 </h2>
                 <span className="[font-family:var(--font-display)] text-2xl text-[var(--gold)]">
                   {(leads?.count ?? 0).toLocaleString()}
+                  <span className="ml-2 text-base text-[var(--fg-3)]">
+                    · {(leads?.completed ?? 0).toLocaleString()} completed
+                  </span>
                 </span>
               </div>
 
@@ -133,11 +136,22 @@ export default function AssessmentStatsPage() {
                           {l.email}
                         </a>
                       </div>
-                      <span className="shrink-0 whitespace-nowrap text-xs text-[var(--fg-3)]">
-                        {new Date(l.submitted_at).toLocaleDateString(undefined, {
-                          month: 'short',
-                          day: 'numeric',
-                        })}
+                      <span className="flex shrink-0 items-center gap-2 whitespace-nowrap text-xs">
+                        <span
+                          className={`rounded-full px-2 py-0.5 font-semibold ${
+                            l.completed
+                              ? 'bg-[var(--success)]/20 text-[var(--success)]'
+                              : 'bg-[var(--gold)]/15 text-[var(--gold)]'
+                          }`}
+                        >
+                          {l.completed ? 'Completed' : 'Started'}
+                        </span>
+                        <span className="text-[var(--fg-3)]">
+                          {new Date(l.submitted_at).toLocaleDateString(undefined, {
+                            month: 'short',
+                            day: 'numeric',
+                          })}
+                        </span>
                       </span>
                     </div>
                   ))}
