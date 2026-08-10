@@ -862,6 +862,17 @@ export const upsertBookletProgress = async (
   booklet: Booklet,
   currentChapter: number,
 ) => {
+  // Capture the prior chapter so a TRUE forward advance can be logged for
+  // momentum (booklet_progress.updated_at bumps on any edit — corrections,
+  // re-saves — so it can't tell an advance from a touch). Mirrors
+  // updatePersonStage's pipeline_events logging.
+  const { data: prior } = await supabase
+    .from('booklet_progress')
+    .select('current_chapter')
+    .eq('person_id', personId)
+    .eq('booklet', booklet)
+    .maybeSingle()
+  const priorChapter = (prior as { current_chapter?: number } | null)?.current_chapter ?? 0
   const { data, error } = await supabase
     .from('booklet_progress')
     .upsert(
@@ -875,6 +886,24 @@ export const upsertBookletProgress = async (
     )
     .select()
     .single()
+  // Only a forward move counts — marking a whole book finished (0 → last
+  // chapter) is one advance, not N; stepping back never logs.
+  if (!error && currentChapter > priorChapter) {
+    await supabase
+      .from('booklet_chapter_events')
+      .insert({ person_id: personId, booklet, from_chapter: priorChapter, to_chapter: currentChapter })
+  }
+  return { data, error }
+}
+
+// Every true booklet chapter advance, newest first. The honest source for the
+// momentum "chapters" / chapter-milestone counts (vs booklet_progress.updated_at,
+// which any edit bumps). Mirrors getPipelineEvents.
+export const getBookletChapterEvents = async () => {
+  const { data, error } = await supabase
+    .from('booklet_chapter_events')
+    .select('*')
+    .order('created_at', { ascending: false })
   return { data, error }
 }
 

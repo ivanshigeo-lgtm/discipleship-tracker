@@ -171,6 +171,20 @@ export type PipelineEvent = {
   created_at: string
 }
 
+// Append-only log of true booklet chapter ADVANCES (a forward move only —
+// corrections/re-saves never log). One row per advance action, so marking a
+// whole booklet finished in one step is a SINGLE event, not N chapters.
+// Mirrors PipelineEvent; the honest source for momentum "chapter" counts
+// (booklet_progress.updated_at bumps on any edit, so it can't be trusted).
+export type BookletChapterEvent = {
+  id: string
+  person_id: string
+  booklet: Booklet
+  from_chapter: number | null
+  to_chapter: number
+  created_at: string
+}
+
 // Checkable action point captured inside an engagement.
 export type ActionItem = {
   id: string

@@ -2,8 +2,9 @@
 
 // Zone 4: leadership momentum in ONE card. The headline metric is the
 // MOVEMENT RATE — the share of active scoped people who took ≥1 journey step
-// in the window — either a stage_checklist_items completion OR advancing a
-// booklet chapter (booklet_progress.updated_at) — so the number carries
+// in the window — either a stage_checklist_items completion OR a true booklet
+// chapter advance (the append-only booklet_chapter_events log, NOT
+// booklet_progress.updated_at, which any edit bumps) — so the number carries
 // its own denominator and scales honestly from 3 people to 165. Small
 // constellations get plain words on a monthly window; larger scopes get a
 // percentage with a weekly trend. The sparkline plots the RATE against a
@@ -12,9 +13,9 @@
 // checklist percent-complete (the heavy Empower forecast stays off the home).
 
 import { useEffect, useMemo, useState } from 'react'
-import { getPeople, getAllStageChecklistItems, getAllBookletProgress, getPendingLevelSignoffs } from '../../lib/supabaseQueries'
+import { getPeople, getAllStageChecklistItems, getBookletChapterEvents, getPendingLevelSignoffs } from '../../lib/supabaseQueries'
 import { topRisers, ZoneLabel } from './coachModel'
-import type { BookletProgress, Person, StageChecklistItem } from '../../types/database'
+import type { BookletChapterEvent, Person, StageChecklistItem } from '../../types/database'
 
 const DAY_MS = 86_400_000
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -40,7 +41,7 @@ export default function MomentumCard({
 }) {
   const [people, setPeople] = useState<Person[]>([])
   const [items, setItems] = useState<StageChecklistItem[]>([])
-  const [bookletProgress, setBookletProgress] = useState<BookletProgress[]>([])
+  const [chapterEvents, setChapterEvents] = useState<BookletChapterEvent[]>([])
   const [pendingSignoffs, setPendingSignoffs] = useState(0)
   const [mode, setMode] = useState<Mode>('my')
   // The Wk/30d window controls only the tile counts (new people / milestones /
@@ -55,13 +56,13 @@ export default function MomentumCard({
   useEffect(() => {
     let alive = true
     ;(async () => {
-      const [p, i, bp, so] = await Promise.all([
-        getPeople(), getAllStageChecklistItems(), getAllBookletProgress(), getPendingLevelSignoffs(personId),
+      const [p, i, ce, so] = await Promise.all([
+        getPeople(), getAllStageChecklistItems(), getBookletChapterEvents(), getPendingLevelSignoffs(personId),
       ])
       if (!alive) return
       if (p.data) setPeople(p.data as Person[])
       if (i.data) setItems(i.data as StageChecklistItem[])
-      if (bp.data) setBookletProgress(bp.data as BookletProgress[])
+      if (ce.data) setChapterEvents(ce.data as BookletChapterEvent[])
       setPendingSignoffs((so.data as unknown[] | null)?.length ?? 0)
       setReady(true)
     })()
@@ -80,18 +81,19 @@ export default function MomentumCard({
 
     const now = Date.now()
     const WEEK = 7 * DAY_MS
-    // Movement events — a checklist completion OR a booklet chapter advance is a
-    // "step". Flatten both into one {id, at} list so every window/bucket below is a
-    // single pass. booklet_progress keeps only the latest advance's timestamp,
-    // which is exactly what buckets the most recent chapter move into its week.
+    // Movement events — a checklist completion OR a true booklet chapter advance
+    // is a "step". Flatten both into one {id, at} list so every window/bucket
+    // below is a single pass. Chapter advances come from booklet_chapter_events
+    // (one row per real forward move — a whole-book completion is one event),
+    // NOT booklet_progress.updated_at, which any re-save would inflate.
     const events: { id: string; at: number; chapter: boolean; label: string }[] = []
     for (const it of items) {
       if (it.completed && it.completed_at && it.label.startsWith('Completed ') && activeIds.has(it.person_id))
         events.push({ id: it.person_id, at: new Date(it.completed_at).getTime(), chapter: false, label: it.label.replace(/^Completed /, '') })
     }
-    for (const bp of bookletProgress) {
-      if (bp.current_chapter > 0 && bp.updated_at && activeIds.has(bp.person_id))
-        events.push({ id: bp.person_id, at: new Date(bp.updated_at).getTime(), chapter: true, label: `Chapter ${bp.current_chapter}` })
+    for (const ev of chapterEvents) {
+      if (activeIds.has(ev.person_id))
+        events.push({ id: ev.person_id, at: new Date(ev.created_at).getTime(), chapter: true, label: `Chapter ${ev.to_chapter}` })
     }
     const moversIn = (a: number, b: number) => {
       const s = new Set<string>()
@@ -167,7 +169,7 @@ export default function MomentumCard({
     const risers = topRisers(people, items, allow).slice(0, 2)
 
     return { n, small, rates, weekMovers, prevWeekMovers, newPeople, winMilestones, winChapters, weekBuckets, peopleBuckets, chapterBuckets, peak, leaders, carried, ratio, sinceSunday, checklistSinceSunday, chapterSinceSunday, risers, weekStarts, peopleRows, milestoneRows, chapterRows }
-  }, [people, items, bookletProgress, myPersonIds, myDirectIds, mode, win])
+  }, [people, items, chapterEvents, myPersonIds, myDirectIds, mode, win])
 
   if (!ready) return null
 
