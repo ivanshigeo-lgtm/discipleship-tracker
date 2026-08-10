@@ -19,6 +19,7 @@ import type { PassionAnswers } from '@/lib/passion'
 import QuestionRunner from './_components/QuestionRunner'
 import PassionRunner from './_components/PassionRunner'
 import { GiftsResult, BigFiveResult, PassionResult, SummaryView } from './_components/results'
+import VisitTracker from '@/components/VisitTracker'
 
 const ASSESSMENT_URL = 'https://wikichurch.app/assessment'
 
@@ -96,6 +97,7 @@ export default function AssessmentPage() {
 
   return (
     <div className="min-h-screen bg-[var(--void)] px-5 py-10 text-[var(--fg-1)]">
+      <VisitTracker path="/assessment" />
       <div className="mx-auto w-full max-w-2xl">
         {/* header */}
         {phase === 'menu' && (
