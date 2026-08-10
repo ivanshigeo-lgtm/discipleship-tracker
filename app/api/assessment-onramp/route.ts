@@ -117,6 +117,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Could not save your results.', detail: writeErr.message }, { status: 500 })
   }
 
+  // Log the collected name+email for the private admin stats view. Best-effort:
+  // one row per successful submission (dedup-by-email happens at read time).
+  const { error: subErr } = await supabase.from('onramp_submissions').insert({
+    person_id: personId,
+    name,
+    email,
+    created,
+  })
+  if (subErr) console.error('assessment-onramp submission log failed:', subErr)
+
   // ── Consolidated exec summary + recommended ministries (idempotent, cached). ──
   // force:true so an existing person's summary regenerates from the fresh inputs.
   let summary: string | null = null

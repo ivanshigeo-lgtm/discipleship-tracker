@@ -37,11 +37,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
   }
 
-  const { data: stats, error } = await admin.rpc('assessment_visit_stats')
-  if (error) {
-    console.error('visit-stats rpc failed:', error)
+  const [{ data: stats, error }, { data: leads, error: leadsError }] = await Promise.all([
+    admin.rpc('assessment_visit_stats'),
+    admin.rpc('assessment_leads'),
+  ])
+  if (error || leadsError) {
+    console.error('visit-stats rpc failed:', error ?? leadsError)
     return NextResponse.json({ error: 'Could not load stats' }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true, stats })
+  return NextResponse.json({ ok: true, stats, leads })
 }

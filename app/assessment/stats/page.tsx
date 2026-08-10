@@ -15,10 +15,13 @@ type Stats = {
   first_at: string | null
   by_day: DayRow[]
 }
+type LeadRow = { name: string | null; email: string; created: boolean; submitted_at: string }
+type Leads = { count: number; total_submissions: number; list: LeadRow[] }
 
 export default function AssessmentStatsPage() {
   const { session, profile, profileLoading } = useAuth()
   const [stats, setStats] = useState<Stats | null>(null)
+  const [leads, setLeads] = useState<Leads | null>(null)
   const [state, setState] = useState<'loading' | 'ready' | 'denied' | 'error'>('loading')
 
   useEffect(() => {
@@ -40,6 +43,7 @@ export default function AssessmentStatsPage() {
         if (cancelled) return
         if (res.ok && json.stats) {
           setStats(json.stats as Stats)
+          setLeads((json.leads ?? null) as Leads | null)
           setState('ready')
         } else {
           setState(res.status === 403 ? 'denied' : 'error')
@@ -98,6 +102,50 @@ export default function AssessmentStatsPage() {
                 : 'No visits recorded yet.'}
               {' '}“Unique” counts distinct browsers; “total” counts every page load.
             </p>
+
+            <div className="mt-10">
+              <div className="mb-3 flex items-baseline justify-between">
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--fg-3)]">
+                  Emails collected
+                </h2>
+                <span className="[font-family:var(--font-display)] text-2xl text-[var(--gold)]">
+                  {(leads?.count ?? 0).toLocaleString()}
+                </span>
+              </div>
+
+              {leads && leads.list.length > 0 ? (
+                <div className="overflow-hidden rounded-[var(--r-lg)] border border-[var(--line-1)]">
+                  {leads.list.map((l, i) => (
+                    <div
+                      key={l.email}
+                      className={`flex items-center justify-between gap-3 px-4 py-3 text-sm ${
+                        i % 2 ? 'bg-[var(--indigo-2)]/40' : ''
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <div className="truncate font-medium text-[var(--fg-1)]">
+                          {l.name || '—'}
+                        </div>
+                        <a
+                          href={`mailto:${l.email}`}
+                          className="truncate text-[var(--fg-3)] hover:text-[var(--gold)]"
+                        >
+                          {l.email}
+                        </a>
+                      </div>
+                      <span className="shrink-0 whitespace-nowrap text-xs text-[var(--fg-3)]">
+                        {new Date(l.submitted_at).toLocaleDateString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                        })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-[var(--fg-3)]">No emails collected yet.</p>
+              )}
+            </div>
 
             {stats.by_day.length > 0 && (
               <div className="mt-8">
