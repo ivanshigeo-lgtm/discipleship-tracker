@@ -24,10 +24,52 @@ const supabase = createClient(
 // week makes cost/latency a non-issue.
 const MODEL = 'claude-fable-5'
 
-// Current series page. Squarespace lists every sermon in the series here with
-// an audio block per message. Update the slug when the series changes; if the
-// page 404s or parses to nothing, the client's static rotation covers us.
-const SERIES_URL = 'https://www.gracebiblemaui.org/identity'
+const SITE_ORIGIN = 'https://www.gracebiblemaui.org'
+
+// The sermons index is the canonical list of every series, so we discover the
+// current series from it instead of hardcoding a slug that goes stale when GBM
+// starts a new series. FALLBACK_SERIES_URL is always kept in the candidate set
+// so we still work if the index changes shape; if everything 404s or parses to
+// nothing, the client's static rotation covers us.
+const SERMONS_INDEX_URL = `${SITE_ORIGIN}/sermons`
+const FALLBACK_SERIES_URL = `${SITE_ORIGIN}/identity`
+
+const UA = { 'user-agent': 'Mozilla/5.0 (verse-week)' }
+
+// Structural / nav pages on the sermons index that are never a sermon series.
+// Ministry pages (leadership, outreach, prayer, …) are deliberately NOT excluded:
+// if one has no dated sermon audio it parses to nothing (harmless), and if GBM
+// ever names a series after one it still gets picked up.
+const NON_SERIES_SLUGS = new Set([
+  'sermons', 'previous-sermons', 'give', 'giving', 'online-giving', 'events',
+  'connect', 'connect-1', 'connect-activities', 'home', 'plan-your-visit',
+  'about-us', 'who-we-are', 'contact', 'contact-1', 'how-to-soap',
+  'privacy-policy', 'terms-of-use',
+])
+
+// Discover candidate series pages from the sermons index. Returns absolute URLs
+// (fallback always included). parseSermons naturally ignores any candidate with
+// no dated sermon audio, and the caller picks the newest sermon across all of
+// them — so a new series is tracked automatically, no hardcoded slug to update.
+async function discoverSeriesUrls(): Promise<string[]> {
+  const urls = new Set<string>([FALLBACK_SERIES_URL])
+  try {
+    const res = await fetch(SERMONS_INDEX_URL, { headers: UA, next: { revalidate: 3600 } })
+    if (res.ok) {
+      const html = await res.text()
+      const linkRe = /href="\/([a-z0-9][a-z0-9-]*)"/gi
+      let m: RegExpExecArray | null
+      while ((m = linkRe.exec(html)) !== null) {
+        const slug = m[1].toLowerCase()
+        if (NON_SERIES_SLUGS.has(slug)) continue
+        urls.add(`${SITE_ORIGIN}/${slug}`)
+      }
+    }
+  } catch {
+    /* fall back to just FALLBACK_SERIES_URL */
+  }
+  return [...urls]
+}
 
 type Verse = { ref: string; text: string; whyLine: string }
 type Sermon = { date: string; title: string; speaker: string | null; series: string | null }
@@ -123,15 +165,27 @@ function parseSermons(html: string): Sermon[] {
 
 export async function GET() {
   try {
-    const res = await fetch(SERIES_URL, {
-      headers: { 'user-agent': 'Mozilla/5.0 (verse-week)' },
-      // Revalidate hourly; the page only changes weekly.
-      next: { revalidate: 3600 },
-    })
-    if (!res.ok) return NextResponse.json({ status: 'unavailable' }, { status: 200 })
+    // Auto-discover every series page, then parse sermons from all of them and
+    // take the single most-recent one across the lot — so whichever series has
+    // the newest message wins, even in the brief window when a new series page
+    // exists but the old series' last sermon is still the latest preached.
+    const seriesUrls = await discoverSeriesUrls()
+
+    const pages = await Promise.all(
+      seriesUrls.map(async (url) => {
+        try {
+          // Revalidate hourly; the pages only change weekly.
+          const r = await fetch(url, { headers: UA, next: { revalidate: 3600 } })
+          return r.ok ? await r.text() : ''
+        } catch {
+          return ''
+        }
+      })
+    )
 
     const today = new Date().toISOString().slice(0, 10)
-    const sermon = parseSermons(await res.text())
+    const sermon = pages
+      .flatMap(parseSermons)
       .filter((s) => s.date <= today)
       .sort((a, b) => (a.date < b.date ? 1 : -1))[0]
     if (!sermon) return NextResponse.json({ status: 'unavailable' }, { status: 200 })
