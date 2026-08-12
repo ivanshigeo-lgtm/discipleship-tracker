@@ -305,13 +305,64 @@ function extractVersesFromNotes(raw: string): Verse[] {
   return idxs.map((i) => verses[i])
 }
 
+// The sermon week a date falls in: the most recent Sunday on or before it.
+// A stored week for Sunday D stays current until the next Sunday comes around.
+function weekStart(isoDate: string): string {
+  const d = new Date(`${isoDate}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() - d.getUTCDay())
+  return d.toISOString().slice(0, 10)
+}
+
+// How far past its sermon week a stored set may still be served when the church
+// site is unreachable. Last week's real verses beat the client's generic static
+// rotation; a month-old set does not.
+const STALE_MAX_DAYS = 21
+
 export async function GET(req: Request) {
   const probe = new URL(req.url).searchParams.get('probe') === '1'
+  // Newest set we already hold, read once and reused as the outage fallback.
+  let newest: { sermon_date: string; [k: string]: unknown } | null = null
+
+  // Serve what we have rather than nothing: a scrape can fail because
+  // gracebiblemaui.org is slow or down, which says nothing about the verses we
+  // already generated. Marked stale so clients can tell it is last week's set.
+  const fallback = (detail: string) => {
+    if (newest) {
+      const ageDays =
+        (Date.now() - new Date(`${newest.sermon_date}T00:00:00Z`).getTime()) / 86_400_000
+      if (ageDays <= STALE_MAX_DAYS) {
+        return NextResponse.json({ status: 'ready', week: newest, cached: true, stale: true, detail })
+      }
+    }
+    return NextResponse.json({ status: 'unavailable', detail }, { status: 200 })
+  }
+
   try {
-    // Auto-discover every series page, then parse sermons from all of them and
-    // take the single most-recent one across the lot — so whichever series has
-    // the newest message wins, even in the brief window when a new series page
-    // exists but the old series' last sermon is still the latest preached.
+    const today = new Date().toISOString().slice(0, 10)
+
+    // Fast path: inside the current sermon week the stored set cannot be out of
+    // date, so answer from the database alone. This is the overwhelmingly common
+    // request — every app launch from Monday to Saturday — and it must not
+    // depend on the church site being up. Only a probe forces the live pipeline.
+    if (!probe) {
+      const { data } = await supabase
+        .from('sermon_verse_weeks')
+        .select('*')
+        .order('sermon_date', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      newest = data
+      if (newest && newest.sermon_date >= weekStart(today)) {
+        return NextResponse.json({ status: 'ready', week: newest, cached: true })
+      }
+    }
+
+    // A new Sunday has passed (or we hold nothing yet), so go look for a newer
+    // sermon. Auto-discover every series page, then parse sermons from all of
+    // them and take the single most-recent one across the lot — so whichever
+    // series has the newest message wins, even in the brief window when a new
+    // series page exists but the old series' last sermon is still the latest
+    // preached.
     const seriesUrls = await discoverSeriesUrls()
 
     const pages = await Promise.all(
@@ -326,12 +377,11 @@ export async function GET(req: Request) {
       })
     )
 
-    const today = new Date().toISOString().slice(0, 10)
     const sermon = pages
       .flatMap(parseSermons)
       .filter((s) => s.date <= today)
       .sort((a, b) => (a.date < b.date ? 1 : -1))[0]
-    if (!sermon) return NextResponse.json({ status: 'unavailable' }, { status: 200 })
+    if (!sermon) return fallback('no sermon found on the series pages')
 
     // Read-only diagnostics: run the generation pipeline with per-stage timings
     // and return the result WITHOUT touching the cache. Lets us confirm the
@@ -370,8 +420,7 @@ export async function GET(req: Request) {
     }
 
     // Read the sermon's notes PDF and pull the actual cited verses. If there are
-    // no notes, or nothing parses, we return unavailable rather than invent
-    // anything — the client's static rotation covers that case.
+    // no notes, or nothing parses, we fall back rather than invent anything.
     let verses: Verse[] = []
     if (sermon.notesUrl) {
       const fileId = await resolveNotesPdfId(sermon.notesUrl)
@@ -380,12 +429,7 @@ export async function GET(req: Request) {
         if (notesText) verses = extractVersesFromNotes(notesText)
       }
     }
-    if (verses.length === 0) {
-      return NextResponse.json(
-        { status: 'unavailable', detail: 'no verses in sermon notes' },
-        { status: 200 }
-      )
-    }
+    if (verses.length === 0) return fallback('no verses in sermon notes')
 
     const { data: saved, error: saveErr } = await supabase
       .from('sermon_verse_weeks')
@@ -403,12 +447,10 @@ export async function GET(req: Request) {
       )
       .select()
       .single()
-    if (saveErr) {
-      return NextResponse.json({ status: 'unavailable', detail: saveErr.message }, { status: 200 })
-    }
+    if (saveErr) return fallback(saveErr.message)
     return NextResponse.json({ status: 'ready', week: saved, cached: false })
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e)
-    return NextResponse.json({ status: 'unavailable', detail }, { status: 200 })
+    return fallback(detail)
   }
 }
