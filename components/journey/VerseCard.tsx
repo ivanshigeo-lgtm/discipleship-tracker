@@ -53,7 +53,12 @@ export default function VerseCard({
       .then((j) => {
         if (cancelled || j?.status !== 'ready') return
         const w = j.week as VerseWeek
-        if (Array.isArray(w?.verses) && w.verses.length === 7) setWeek(w)
+        if (Array.isArray(w?.verses) && w.verses.length >= 1 && w.verses.length <= 7) {
+          setWeek(w)
+          // Sunday's message rarely cites fewer than 7 verses, but if it does,
+          // clamp so we don't land past the end of the carousel.
+          setIdx(Math.min(today, w.verses.length - 1))
+        }
       })
       .catch(() => {})
     return () => {
@@ -64,7 +69,7 @@ export default function VerseCard({
   // Land on today's slide once the week renders (no animation on first paint).
   useEffect(() => {
     const el = trackRef.current
-    if (week && el) el.scrollLeft = el.clientWidth * today
+    if (week && el) el.scrollLeft = el.clientWidth * Math.min(today, week.verses.length - 1)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [week])
 
@@ -92,7 +97,7 @@ export default function VerseCard({
             onScroll={(e) => {
               const el = e.currentTarget
               const i = Math.round(el.scrollLeft / el.clientWidth)
-              if (i !== idx && i >= 0 && i < 7) setIdx(i)
+              if (i !== idx && i >= 0 && i < week.verses.length) setIdx(i)
             }}
             className="mt-2 flex snap-x snap-mandatory overflow-x-auto"
             style={{ scrollbarWidth: 'none' }}
