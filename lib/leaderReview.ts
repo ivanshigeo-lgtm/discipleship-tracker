@@ -141,6 +141,8 @@ export type Scorecard = {
     isToday: boolean
     count: number
     entries: { person: string; stage: Stage; kind: 'group' | '1on1'; with: string | null }[]
+    // groups whose attendance was taken and nobody came — shown greyed, counted zero
+    noMeetings: { group: string; roster: number }[]
   }[]
   movements: { name: string; to: Stage; dateMD: string }[]
 }
@@ -408,9 +410,15 @@ export function buildLeaderReview(
       }
     }
 
-    // met this week — group attendance and completed One2Ones both count, so
-    // this means the same thing as the church-wide headline of that name
-    const my1on1 = engagements.filter((e) => e.created_by_person_id === lid && e.meeting_type === 'One2One')
+    // met this week — group attendance and completed meetings both count, so
+    // this means the same thing as the church-wide headline of that name.
+    // EVERY meeting type counts as a meeting (One2One, Making Disciples,
+    // Empowering Leaders, Coffee, Church Community, untyped) — a leader who sat
+    // down with someone met them whatever label the engagement carries.
+    const myMeetings = engagements.filter((e) => e.created_by_person_id === lid)
+    // the rubric's engage criterion stays One2One-specific on purpose: it asks
+    // whether the One2One tool is on the calendar, not whether they met at all
+    const myOne2One = myMeetings.filter((e) => e.meeting_type === 'One2One')
     const met = new Set<string>()
     for (const a of attendance) {
       if (a.attended && ownedIds.has(a.victory_group_id) && a.meeting_date >= sundayStr && a.person_id !== lid && visible(byId.get(a.person_id))) {
@@ -418,7 +426,7 @@ export function buildLeaderReview(
         if (opts.countTowardTotals) metAll.add(a.person_id)
       }
     }
-    for (const e of my1on1) {
+    for (const e of myMeetings) {
       if (e.status === 'Completed' && e.follow_up_date && new Date(e.follow_up_date).getTime() >= WK && e.person_id !== lid && visible(byId.get(e.person_id))) {
         met.add(e.person_id)
         if (opts.countTowardTotals) metAll.add(e.person_id)
@@ -426,40 +434,76 @@ export function buildLeaderReview(
     }
 
     // ── week strip: Sun→Sat, who they are meeting each day ──
-    const oneOnOneByDate = new Map<string, Engagement[]>()
-    for (const e of my1on1) {
+    // Attendance, where it was taken, is the TRUTH — the roster is only a
+    // forecast. Without this the strip lists every member of every group
+    // scheduled that weekday, so people who were marked absent (and groups that
+    // never met at all) still show up as if the leader had seen them.
+    const attnByKey = new Map<string, { present: Set<string>; roster: number }>()
+    for (const a of attendance) {
+      if (!ownedIds.has(a.victory_group_id)) continue
+      const key = `${a.victory_group_id}|${a.meeting_date}`
+      let rec = attnByKey.get(key)
+      if (!rec) {
+        rec = { present: new Set(), roster: 0 }
+        attnByKey.set(key, rec)
+      }
+      if (a.person_id === lid) continue // the leader is never their own attendee
+      rec.roster++
+      if (a.attended) rec.present.add(a.person_id)
+    }
+
+    const meetingsByDate = new Map<string, Engagement[]>()
+    for (const e of myMeetings) {
       if (!e.follow_up_date || e.status === 'Cancelled') continue
-      const l = oneOnOneByDate.get(e.follow_up_date) ?? []
+      const l = meetingsByDate.get(e.follow_up_date) ?? []
       l.push(e)
-      oneOnOneByDate.set(e.follow_up_date, l)
+      meetingsByDate.set(e.follow_up_date, l)
     }
     const weekStrip = weekDates.map((dateStr, i) => {
       const dow = DAY_FULL[i]
       const entries: Scorecard['weekStrip'][number]['entries'] = []
+      const noMeetings: Scorecard['weekStrip'][number]['noMeetings'] = []
+
+      // one group meeting → either its real attendees, or a "no meeting" note
+      const pushGroup = (g: (typeof owned)[number], label: string) => {
+        const att = attnByKey.get(`${g.id}|${dateStr}`)
+        if (att) {
+          if (att.present.size === 0) {
+            noMeetings.push({ group: label, roster: att.roster })
+            return
+          }
+          for (const pid of att.present) {
+            const p = byId.get(pid)
+            if (!visible(p)) continue
+            entries.push({ person: p.name, stage: p.current_stage, kind: 'group', with: label })
+          }
+          return
+        }
+        // attendance not taken — the roster is the plan, which is all we know
+        for (const pid of g.members) {
+          const p = byId.get(pid)
+          if (!visible(p)) continue
+          entries.push({ person: p.name, stage: p.current_stage, kind: 'group', with: label })
+        }
+      }
+
       for (const g of owned) {
         if (!g.day || !g.day.split(' / ').includes(dow)) continue
         const st = statusByKey.get(`${g.id}|${dateStr}`)
         // cancelled, or moved to another date where it shows up instead
         if (st?.status === 'cancelled' || st?.status === 'rescheduled') continue
-        for (const pid of g.members) {
-          const p = byId.get(pid)
-          if (!visible(p)) continue
-          entries.push({ person: p.name, stage: p.current_stage, kind: 'group', with: g.name })
-        }
+        pushGroup(g, g.name)
       }
       for (const s of reschedIntoDate.get(dateStr) ?? []) {
         const g = owned.find((x) => x.id === s.victory_group_id)
         if (!g) continue
-        for (const pid of g.members) {
-          const p = byId.get(pid)
-          if (!visible(p)) continue
-          entries.push({ person: p.name, stage: p.current_stage, kind: 'group', with: `${g.name} · rescheduled` })
-        }
+        pushGroup(g, `${g.name} · rescheduled`)
       }
-      for (const e of oneOnOneByDate.get(dateStr) ?? []) {
+      for (const e of meetingsByDate.get(dateStr) ?? []) {
         const p = byId.get(e.person_id)
         if (!visible(p) || e.person_id === lid) continue
-        entries.push({ person: p.name, stage: p.current_stage, kind: '1on1', with: null })
+        // label with the meeting type so a Coffee reads differently from a One2One
+        entries.push({ person: p.name, stage: p.current_stage, kind: '1on1', with: e.meeting_type ?? null })
       }
       entries.sort((a, b) => a.person.localeCompare(b.person))
       return {
@@ -469,10 +513,13 @@ export function buildLeaderReview(
         isToday: dateStr === todayStr,
         count: entries.length,
         entries,
+        noMeetings,
       }
     })
 
-    const upcoming = my1on1
+    // One2One-only: this feeds the engage verdict, whose rubric asks specifically
+    // whether the One2One tool is booked — not whether any meeting is booked
+    const upcoming = myOne2One
       .filter((e) => e.follow_up_date && e.follow_up_date >= todayStr && e.follow_up_date <= in7Str && e.status !== 'Cancelled')
       .map((e) => ({
         person: byId.get(e.person_id)?.name ?? '—',
@@ -483,7 +530,7 @@ export function buildLeaderReview(
       .sort((a, b) => a.date.localeCompare(b.date))
 
     const reach = new Set(inGroup)
-    for (const e of my1on1) if (e.person_id && e.person_id !== lid) reach.add(e.person_id)
+    for (const e of myMeetings) if (e.person_id && e.person_id !== lid) reach.add(e.person_id)
 
     const byStage: Record<Stage, Person[]> = { Empower: [], Equip: [], Establish: [], Engage: [] }
     for (const p of direct) (byStage[p.current_stage] ?? byStage.Engage).push(p)
@@ -582,7 +629,7 @@ export function buildLeaderReview(
     const coverageGap = notInRhythm.length
 
     const flags: string[] = []
-    if (owned.length === 0 && my1on1.length > 0) {
+    if (owned.length === 0 && myMeetings.length > 0) {
       flags.push(`${Who}${self ? "'re" : ' is'} meeting people one-on-one but ${self ? "don't" : 'doesn’t'} lead a weekly group yet — is one forming?`)
     } else if (owned.length === 0 && C > 0) {
       flags.push(`${C} ${C === 1 ? 'person is' : 'people are'} on ${poss} constellation, but ${who} ${self ? "don't" : 'doesn’t'} lead a weekly group yet — where could they gather?`)
@@ -614,7 +661,7 @@ export function buildLeaderReview(
         break
       }
     }
-    if (owned.length > 0 && my1on1.length === 0) {
+    if (owned.length > 0 && myMeetings.length === 0) {
       flags.push(`${Poss} weekly rhythm runs entirely through groups — no one-on-ones logged. Who’s next for a one-on-one?`)
     }
     if (nOf('Establish') >= 3 && nOf('Equip') === 0) {

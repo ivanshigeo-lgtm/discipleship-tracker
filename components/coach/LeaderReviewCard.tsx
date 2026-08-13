@@ -329,7 +329,7 @@ function criterionLine(key: CriterionKey, s: Scorecard): string {
 }
 
 function WeekStrip({ strip }: { strip: Scorecard['weekStrip'] }) {
-  const total = strip.reduce((n, d) => n + d.count, 0)
+  const total = strip.reduce((n, d) => n + d.count + d.noMeetings.length, 0)
   if (total === 0) return null
   return (
     <>
@@ -349,7 +349,7 @@ function WeekStrip({ strip }: { strip: Scorecard['weekStrip'] }) {
               <span className="text-[9px] font-semibold uppercase tracking-[0.6px] text-[var(--fg-3)]">{d.dow} {d.num}</span>
               {d.count > 0 && <span className="text-[10px] font-semibold tabular-nums" style={{ color: GOLD }}>{d.count}</span>}
             </div>
-            {d.count === 0 ? (
+            {d.count === 0 && d.noMeetings.length === 0 ? (
               <span className="text-[11px] text-[var(--fg-3)]">—</span>
             ) : (
               <div className="flex flex-col gap-[3px]">
@@ -358,13 +358,23 @@ function WeekStrip({ strip }: { strip: Scorecard['weekStrip'] }) {
                     <span className="mt-[5px] h-[5px] w-[5px] shrink-0 rounded-full" style={{ background: STAGE_COLORS[e.stage as Stage] }} />
                     <span className="flex-1 text-[11px] leading-[15px] text-[var(--fg-1)]">
                       {e.person}
-                      <span className="block text-[9.5px] leading-[13px] text-[var(--fg-3)]">{e.kind === '1on1' ? '1:1' : e.with}</span>
+                      <span className="block text-[9.5px] leading-[13px] text-[var(--fg-3)]">{e.kind === '1on1' ? e.with ?? '1:1' : e.with}</span>
                     </span>
                   </div>
                 ))}
                 {d.entries.length > 5 && (
                   <span className="text-[10px] font-semibold" style={{ color: GOLD }}>+{d.entries.length - 5} more</span>
                 )}
+                {/* attendance was taken and nobody came — say so rather than
+                    listing the roster as if the meeting had happened */}
+                {d.noMeetings.map((n, i) => (
+                  <div key={`nm${i}`} className="mt-[3px] border-t pt-[3px]" style={{ borderColor: 'var(--line-1)' }}>
+                    <span className="block text-[10.5px] leading-[14px] text-[var(--fg-3)]">{n.group}</span>
+                    <span className="block text-[9.5px] leading-[13px] italic text-[var(--fg-3)] opacity-70">
+                      no meeting · 0 of {n.roster}
+                    </span>
+                  </div>
+                ))}
               </div>
             )}
           </div>
