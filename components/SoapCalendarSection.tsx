@@ -18,6 +18,9 @@ interface Props {
   onEditEntry?: (entry: SoapJournal) => void  // open the editor for an existing entry
   belowSearch?: ReactNode   // rendered right under the search bar
   personId?: string         // whose journals — needed for the weekly summary
+  // Rendered full-width directly under the title bar, above the search
+  // (e.g. today's verse card). Mirrors native SoapCalendar's headerAccessory.
+  headerAccessory?: ReactNode
 }
 
 const DAY_HEADERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
@@ -319,7 +322,7 @@ function shiftMonth(year: number, month: number, delta: number) {
   return { year: y, month: m }
 }
 
-export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, currentStreak = 0, onRefresh, onNewEntryForDate, onEditEntry, belowSearch, personId }: Props) {
+export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, currentStreak = 0, onRefresh, onNewEntryForDate, onEditEntry, belowSearch, personId, headerAccessory }: Props) {
   const today = new Date()
   const todayIso = toLocalIso(today)
 
@@ -830,6 +833,8 @@ export default function SoapCalendarSection({ soaps, onNewEntry, soapStreak, cur
           )}
         </div>
       </div>
+
+      {headerAccessory}
 
       {/* ── Search bar ── */}
       <input

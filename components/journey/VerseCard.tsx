@@ -5,7 +5,7 @@
 // weekday) with attribution back to the sermon; the whole week is swipeable
 // (snap carousel, lands on today) so you can look ahead or back. Falls back
 // to a single static day-of-year verse if the week is unavailable.
-// "Sit with this verse" opens the SOAP editor pre-seeded with the Scripture
+// "SOAP this verse" opens the SOAP editor pre-seeded with the Scripture
 // line. Deliberately no glow, no streak, no guilt.
 
 import { useEffect, useRef, useState } from 'react'
@@ -34,23 +34,37 @@ const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frid
 type WeekVerse = { ref: string; text: string; whyLine?: string }
 type VerseWeek = { sermon_title: string; sermon_date?: string; verses: WeekVerse[] }
 
+/* The card mounts on BOTH home and the SOAPs tab, and tabs unmount when you
+   switch. Without this memo the week re-fetches on every switch and the card
+   flashes the static fallback verse for a beat first. One result per page
+   session is plenty — the set only changes once a week. */
+let cachedWeek: { week: VerseWeek; stale: boolean } | null = null
+
 export default function VerseCard({
   soapCount,
   onStart,
+  className = 'mt-8',
 }: {
   soapCount: number
   onStart: (seedText: string) => void
+  /* Spacing override for the host. Home wants the big top margin that sets the
+     card apart down the page; the SOAPs tab mounts it under the title bar and
+     needs that gap closed. */
+  className?: string
 }) {
   const today = new Date().getDay()
-  const [week, setWeek] = useState<VerseWeek | null>(null)
+  const [week, setWeek] = useState<VerseWeek | null>(cachedWeek?.week ?? null)
   // The API serves the newest set it holds when the church site is unreachable,
   // flagged stale. Those verses are still worth reading, but they are not this
   // Sunday's, so the attribution has to say which message they came from.
-  const [stale, setStale] = useState(false)
-  const [idx, setIdx] = useState(today)
+  const [stale, setStale] = useState(cachedWeek?.stale ?? false)
+  const [idx, setIdx] = useState(
+    cachedWeek ? Math.min(today, cachedWeek.week.verses.length - 1) : today,
+  )
   const trackRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
+    if (cachedWeek) return
     let cancelled = false
     fetch('/api/verse-week')
       .then((r) => r.json())
@@ -58,6 +72,7 @@ export default function VerseCard({
         if (cancelled || j?.status !== 'ready') return
         const w = j.week as VerseWeek
         if (Array.isArray(w?.verses) && w.verses.length >= 1 && w.verses.length <= 7) {
+          cachedWeek = { week: w, stale: j.stale === true }
           setWeek(w)
           setStale(j.stale === true)
           // Sunday's message rarely cites fewer than 7 verses, but if it does,
@@ -100,7 +115,7 @@ export default function VerseCard({
       : 'From Sunday’s message'
 
   return (
-    <section className="mt-8 rounded-[var(--r-xl)] border border-[var(--line-2)] bg-[rgba(9,12,26,.55)] p-5 text-center">
+    <section className={`${className} rounded-[var(--r-xl)] border border-[var(--line-2)] bg-[rgba(9,12,26,.55)] p-5 text-center`}>
       <p className="cn-label" style={{ color: 'var(--fg-3)' }}>
         {!week || idx === today ? 'Today’s verse' : `${DAY_NAMES[idx]}’s verse`}
       </p>
@@ -159,7 +174,7 @@ export default function VerseCard({
         onClick={() => onStart(`S — Scripture: "${verse.text}" — ${verse.ref}\n\n`)}
         className="cn-chip mt-4 !text-xs"
       >
-        {seasoned ? 'Start today’s SOAP from this verse' : 'Sit with this verse'} ✍
+        {seasoned ? 'Start today’s SOAP from this verse' : 'SOAP this verse'} ✍
       </button>
     </section>
   )

@@ -923,6 +923,15 @@ export default function MyJourneyPage() {
         {tab === 'soaps' && (
           <section className="pt-2">
             <SoapCalendarSection
+              /* Today's verse, mirrored from home — the same on-ramp, put where
+                 people actually come to write. */
+              headerAccessory={
+                <VerseCard
+                  className="mt-0"
+                  soapCount={soapJournals.length}
+                  onStart={seed => { setSoapSeedText(seed); setSoapEntryDate(null); setSoapEditEntry(null); setActiveModal('soap') }}
+                />
+              }
               soaps={soapJournals}
               onNewEntry={() => { setSoapEntryDate(null); setActiveModal('soap') }}
               soapStreak={soapStreak}

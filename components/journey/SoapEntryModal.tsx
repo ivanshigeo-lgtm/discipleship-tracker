@@ -39,7 +39,7 @@ export default function SoapEntryModal({
   onClose: () => void
   onSaved: () => void
   initialDate?: string
-  // Pre-seeds a NEW entry's text (e.g. home's "Sit with this verse" passes the
+  // Pre-seeds a NEW entry's text (e.g. home's "SOAP this verse" passes the
   // Scripture line). Ignored when editing — the existing entry's text wins.
   initialText?: string
   // When present the modal edits an existing SOAP in place (create otherwise).
