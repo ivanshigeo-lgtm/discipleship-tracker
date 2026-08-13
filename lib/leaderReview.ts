@@ -511,7 +511,10 @@ export function buildLeaderReview(
         dow: DOW_SHORT[i],
         num: Number(dateStr.slice(8, 10)),
         isToday: dateStr === todayStr,
-        count: entries.length,
+        // distinct PEOPLE, so the badge means the same thing as the tiles.
+        // Rows stay un-collapsed on purpose — someone in a group and a 1:1 the
+        // same day shows twice, so you can see how many meetings they were in.
+        count: new Set(entries.map((e) => e.person)).size,
         entries,
         noMeetings,
       }
