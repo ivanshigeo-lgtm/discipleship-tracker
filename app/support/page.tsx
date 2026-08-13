@@ -40,6 +40,35 @@ export default function Support() {
         </section>
 
         <section>
+          <h2 className="mb-2 text-xl font-semibold text-[var(--fg-1)]">Get the apps</h2>
+          <p className="mb-3">Both apps are free on the App Store.</p>
+          <ul className="space-y-2">
+            <li>
+              <a
+                href="https://apps.apple.com/us/app/wikichurch/id6790726239"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[var(--gbm-cobalt-bright)] hover:underline"
+              >
+                Constellations (WikiChurch) on the App Store
+              </a>{' '}
+              <span className="text-sm text-[var(--fg-3)]">— the discipleship app on this site.</span>
+            </li>
+            <li>
+              <a
+                href="https://apps.apple.com/us/app/isoap/id6788583040"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[var(--gbm-cobalt-bright)] hover:underline"
+              >
+                iSOAP on the App Store
+              </a>{' '}
+              <span className="text-sm text-[var(--fg-3)]">— the companion journaling app for SOAP entries.</span>
+            </li>
+          </ul>
+        </section>
+
+        <section>
           <h2 className="mb-2 text-xl font-semibold text-[var(--fg-1)]">Common questions</h2>
           <div className="space-y-4">
             <div>

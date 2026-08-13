@@ -178,6 +178,17 @@ export default function LoginPage() {
         <p className="mt-4 text-center text-xs text-[var(--fg-3)]">
           Contact your coach if you need access
         </p>
+
+        <div className="mt-6 border-t border-[var(--line-2)] pt-4 text-center">
+          <a
+            href="https://apps.apple.com/us/app/wikichurch/id6790726239"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-[var(--gbm-cobalt-bright)] hover:underline"
+          >
+            Get Constellations on iPhone →
+          </a>
+        </div>
       </div>
     </div>
   )
