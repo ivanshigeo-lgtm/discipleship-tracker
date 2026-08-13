@@ -32,7 +32,7 @@ const VERSES: { text: string; ref: string }[] = [
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 type WeekVerse = { ref: string; text: string; whyLine?: string }
-type VerseWeek = { sermon_title: string; verses: WeekVerse[] }
+type VerseWeek = { sermon_title: string; sermon_date?: string; verses: WeekVerse[] }
 
 export default function VerseCard({
   soapCount,
@@ -43,6 +43,10 @@ export default function VerseCard({
 }) {
   const today = new Date().getDay()
   const [week, setWeek] = useState<VerseWeek | null>(null)
+  // The API serves the newest set it holds when the church site is unreachable,
+  // flagged stale. Those verses are still worth reading, but they are not this
+  // Sunday's, so the attribution has to say which message they came from.
+  const [stale, setStale] = useState(false)
   const [idx, setIdx] = useState(today)
   const trackRef = useRef<HTMLDivElement>(null)
 
@@ -55,6 +59,7 @@ export default function VerseCard({
         const w = j.week as VerseWeek
         if (Array.isArray(w?.verses) && w.verses.length >= 1 && w.verses.length <= 7) {
           setWeek(w)
+          setStale(j.stale === true)
           // Sunday's message rarely cites fewer than 7 verses, but if it does,
           // clamp so we don't land past the end of the carousel.
           setIdx(Math.min(today, w.verses.length - 1))
@@ -83,6 +88,16 @@ export default function VerseCard({
   const staticVerse = VERSES[dayOfYear % VERSES.length]
   const verse = week ? week.verses[idx] : staticVerse
   const seasoned = soapCount >= 3
+  // A stale set can be up to three weeks old, so name its date rather than
+  // calling it Sunday's. Parsed without a zone so the label reads as the local
+  // calendar date, not the UTC one.
+  const source =
+    stale && week?.sermon_date
+      ? `From the ${new Date(`${week.sermon_date}T00:00:00`).toLocaleDateString(undefined, {
+          month: 'short',
+          day: 'numeric',
+        })} message`
+      : 'From Sunday’s message'
 
   return (
     <section className="mt-8 rounded-[var(--r-xl)] border border-[var(--line-2)] bg-[rgba(9,12,26,.55)] p-5 text-center">
@@ -109,7 +124,7 @@ export default function VerseCard({
                 </p>
                 <p className="mt-1.5 text-xs font-medium" style={{ color: 'var(--establish)' }}>{v.ref}</p>
                 <p className="mx-auto mt-1 max-w-sm text-[11px]" style={{ color: 'var(--fg-3)' }}>
-                  {v.whyLine ? `${v.whyLine} · ` : ''}From Sunday&rsquo;s message · {week.sermon_title}
+                  {v.whyLine ? `${v.whyLine} · ` : ''}{source} · {week.sermon_title}
                 </p>
               </div>
             ))}
