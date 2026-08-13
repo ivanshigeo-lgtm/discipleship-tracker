@@ -27,6 +27,7 @@ import LoginPage from '../../components/LoginPage'
 import GoogleCalendarConnect from '../../components/GoogleCalendarConnect'
 import MessageCenter from '../../components/MessageCenter'
 import SoapEntryModal from '../../components/journey/SoapEntryModal'
+import VerseCard from '../../components/journey/VerseCard'
 import SoapCalendarSection from '../../components/SoapCalendarSection'
 import { getSoapJournals, getAllDiscipleshipConnections, getPeople, getLevelSignoffs, getAllEngagements, getAllActionItems, getVictoryGroups, getPrayerLifeForPerson, getMyConversations, getConfirmedEngagementIds, getPendingLevelSignoffs } from '../../lib/supabaseQueries'
 import type { Person, SoapJournal, Stage, DiscipleshipConnection, Engagement } from '../../types/database'
@@ -376,6 +377,8 @@ export default function DiscipleshipTracker() {
   const [selectedSoap, setSelectedSoap] = useState<SoapJournal | null>(null)
   const [showSoapEntry, setShowSoapEntry] = useState(false)
   const [soapEntryDate, setSoapEntryDate] = useState<string | null>(null)
+  // Seeds a new entry with the verse card's Scripture line (see the SOAPs tab)
+  const [soapSeedText, setSoapSeedText] = useState<string | null>(null)
   const [profileLoading, setProfileLoading] = useState(true)
   const isMobile = useIsMobile()
 
@@ -1223,6 +1226,15 @@ export default function DiscipleshipTracker() {
                 </div>
               ) : (
                 <SoapCalendarSection
+                  /* Today's verse, same on-ramp a coach gets on My Journey —
+                     this is the other place they come to write. */
+                  headerAccessory={
+                    <VerseCard
+                      className="mt-0"
+                      soapCount={coachSoaps.length}
+                      onStart={seed => { setSoapSeedText(seed); setSoapEntryDate(null); setShowSoapEntry(true) }}
+                    />
+                  }
                   soaps={coachSoaps}
                   onNewEntry={() => { setSoapEntryDate(null); setShowSoapEntry(true) }}
                   soapStreak={soapStreak}
@@ -1335,7 +1347,8 @@ export default function DiscipleshipTracker() {
         <SoapEntryModal
           personId={profile.id}
           initialDate={soapEntryDate ?? undefined}
-          onClose={() => { setShowSoapEntry(false); setSoapEntryDate(null) }}
+          initialText={soapSeedText ?? undefined}
+          onClose={() => { setShowSoapEntry(false); setSoapEntryDate(null); setSoapSeedText(null) }}
           onSaved={() => { setSoapsLoaded(false); loadSoaps() }}
         />
       )}
