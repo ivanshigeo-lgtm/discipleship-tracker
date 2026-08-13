@@ -12,6 +12,7 @@ import {
 } from '../lib/supabaseQueries'
 import type { Person, Engagement, PrayerRequest, VictoryGroup, StageChecklistItem, Stage } from '../types/database'
 import { stageChecklistTemplates } from '../lib/stageChecklistTemplates'
+import { fmtTime12 } from '../lib/formatTime'
 
 const STAGE_COLORS: Record<Stage, string> = {
   Engage: '#F4B650',
@@ -437,7 +438,7 @@ export default function FocusDashboard({
                     <p className="truncate font-medium text-[var(--fg-1)]">{person!.name}</p>
                     <p className="truncate text-xs text-[var(--fg-3)]">
                       {engagement.description || engagement.meeting_type || 'Meeting'}
-                      {engagement.follow_up_time && ` · ${engagement.follow_up_time}`}
+                      {engagement.follow_up_time && ` · ${fmtTime12(engagement.follow_up_time)}`}
                     </p>
                   </div>
                 </div>

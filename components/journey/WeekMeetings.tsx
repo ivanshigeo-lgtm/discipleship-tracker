@@ -10,6 +10,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { getWeekEngagementsForPerson, getGroupMeetingStatuses } from '../../lib/supabaseQueries'
 import { daysOf, occurrencesWithin } from '../../lib/meetingDays'
 import type { Engagement, VictoryGroup, GroupMeetingStatus } from '../../types/database'
+import { fmtTime12 } from '../../lib/formatTime'
 
 type WeekItem = {
   key: string
@@ -119,7 +120,7 @@ export default function WeekMeetings({ personId, groups }: { personId: string; g
               ) : (
                 <>
                   <span className={dayLabel(item.date) === 'Today' ? 'font-semibold text-[var(--fg-1)]' : ''}>{dayLabel(item.date)}</span>
-                  {item.time && <span className="text-[var(--fg-3)]"> · {item.time.slice(0, 5)}</span>}
+                  {item.time && <span className="text-[var(--fg-3)]"> · {fmtTime12(item.time)}</span>}
                   {item.rescheduled && <span className="block text-[10px]" style={{ color: '#A78BFA' }}>rescheduled</span>}
                 </>
               )}

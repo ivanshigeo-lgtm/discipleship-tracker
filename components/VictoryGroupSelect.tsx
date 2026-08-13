@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { getVictoryGroups, updatePersonVictoryGroup } from '../lib/supabaseQueries'
 import type { VictoryGroup } from '../types/database'
 import { daysOf, fmtDaysShort } from '../lib/meetingDays'
+import { fmtTime12 } from '../lib/formatTime'
 
 export default function VictoryGroupSelect({
   personId,
@@ -65,7 +66,7 @@ export default function VictoryGroupSelect({
           <option key={group.id} value={group.id}>
             {group.name}
             {daysOf(group).length ? ` — ${fmtDaysShort(daysOf(group))}` : ''}
-            {group.meeting_time ? ` at ${group.meeting_time}` : ''}
+            {group.meeting_time ? ` at ${fmtTime12(group.meeting_time)}` : ''}
           </option>
         ))}
       </select>

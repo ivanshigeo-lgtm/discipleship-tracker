@@ -14,6 +14,7 @@ import {
 } from '../lib/supabaseQueries'
 import { useAuth } from '../contexts/AuthContext'
 import type { Engagement, ActionItem, PrayerRequest } from '../types/database'
+import { fmtTime12 } from '../lib/formatTime'
 
 export default function EngagementDetailModal({
   engagement,
@@ -200,7 +201,7 @@ export default function EngagementDetailModal({
               {engagement.description || engagement.meeting_type || 'Meeting'}
             </h2>
             <p className="mt-0.5 text-xs text-[var(--fg-3)]">
-              {[engagement.meeting_type, dateLabel, timeVal, engagement.location].filter(Boolean).join(' · ')}
+              {[engagement.meeting_type, dateLabel, fmtTime12(timeVal), engagement.location].filter(Boolean).join(' · ')}
             </p>
             {cancelled && (
               <span className="mt-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'rgba(240,114,159,.15)', color: '#F0729F' }}>

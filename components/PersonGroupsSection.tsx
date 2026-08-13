@@ -9,6 +9,7 @@ import {
 } from '../lib/supabaseQueries'
 import type { PersonVictoryGroupWithGroup, VictoryGroup } from '../types/database'
 import { daysOf, fmtDaysShort } from '../lib/meetingDays'
+import { fmtTime12 } from '../lib/formatTime'
 
 export default function PersonGroupsSection({
   personId,
@@ -94,7 +95,7 @@ export default function PersonGroupsSection({
                   <div className="text-xs font-semibold text-[var(--fg-1)]">{group.name}</div>
                   <div className="mt-0.5 text-[10px] text-[var(--fg-3)]">
                     {daysOf(group).length || group.meeting_time ? (
-                      <span>{fmtDaysShort(daysOf(group))}{group.meeting_time ? ` @ ${group.meeting_time}` : ''}</span>
+                      <span>{fmtDaysShort(daysOf(group))}{group.meeting_time ? ` @ ${fmtTime12(group.meeting_time)}` : ''}</span>
                     ) : (
                       <span>No time set</span>
                     )}

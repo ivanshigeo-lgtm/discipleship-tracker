@@ -25,6 +25,7 @@ import SharedPrayerFeed from '../SharedPrayerFeed'
 import type { Engagement, PrayerRequest, Stage, ShareVisibility } from '../../types/database'
 import type { JourneyLevel, JourneyStep } from './journeyModel'
 import { StageStepList } from './StageStepList'
+import { fmtTime12 } from '../../lib/formatTime'
 
 
 // ─── Content panel (bottom sheet / center modal) ─────────────────────────────
@@ -271,7 +272,7 @@ export function EngagementsPanel({ personId, onClose }: { personId: string; onCl
                     {e.follow_up_date && (
                       <p className="mt-0.5 text-xs" style={{ color: '#F4B650' }}>
                         {new Date(e.follow_up_date + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
-                        {e.follow_up_time ? ` · ${e.follow_up_time.slice(0, 5)}` : ''}
+                        {e.follow_up_time ? ` · ${fmtTime12(e.follow_up_time)}` : ''}
                       </p>
                     )}
                     {e.notes && <p className="mt-1 text-xs text-[var(--fg-3)]">{e.notes}</p>}

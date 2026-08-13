@@ -9,6 +9,7 @@ import {
 } from '../../lib/supabaseQueries'
 import type { Person, VictoryGroup } from '../../types/database'
 import { daysOf, fmtDaysShort } from '../../lib/meetingDays'
+import { fmtTime12 } from '../../lib/formatTime'
 
 /*
  * Choose a Grace Group and join it. Groups your coach belongs to are
@@ -130,7 +131,7 @@ export default function JoinGroupModal({
                         </div>
                         {(daysOf(group).length > 0 || group.meeting_time) && (
                           <span className="text-xs text-[var(--fg-3)]">
-                            {[fmtDaysShort(daysOf(group)), group.meeting_time].filter(Boolean).join(' · ')}
+                            {[fmtDaysShort(daysOf(group)), fmtTime12(group.meeting_time)].filter(Boolean).join(' · ')}
                           </span>
                         )}
                       </div>

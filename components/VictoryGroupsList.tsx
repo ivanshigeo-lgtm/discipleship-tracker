@@ -21,6 +21,7 @@ import { stageLabels } from '../lib/stageLabels'
 import { WEEKDAY_NAMES, daysOf, fmtDaysShort, nextOccurrenceDate, weekdayOf, shiftDayInSchedule } from '../lib/meetingDays'
 import { GROUP_FOCUS_OPTIONS, bookletStage } from '../lib/curriculum'
 import { useAuth } from '../contexts/AuthContext'
+import { fmtTime12 } from '../lib/formatTime'
 
 const stageRank: Record<Stage, number> = { Empower: 0, Equip: 1, Establish: 2, Engage: 3 }
 
@@ -70,8 +71,8 @@ const attnWarnFor = (s: number) =>
   : null
 const fmtHistDate = (d: string) =>
   new Date(d + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
-// meeting_time / rescheduled_time come back as HH:MM or HH:MM:SS (Postgres time) — trim seconds for display
-const fmtTime = (t: string) => t.slice(0, 5)
+// meeting_time / rescheduled_time come back as HH:MM or HH:MM:SS (Postgres time).
+const fmtTime = (t: string) => fmtTime12(t) ?? t
 
 export default function VictoryGroupsList({
   onChanged,

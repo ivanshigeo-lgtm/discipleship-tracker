@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { getPendingMeetingInvites, setMeetingInviteStatus, getPeople } from '../lib/supabaseQueries'
 import type { Engagement, Person } from '../types/database'
+import { fmtTime12 } from '../lib/formatTime'
 
 // Meetings someone has been invited to. They confirm (it then shows on their
 // engagement page) or decline. The creator owns the meeting either way.
@@ -61,7 +62,7 @@ export default function MeetingInvites({
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-[var(--fg-1)]">{eng.description || eng.meeting_type || 'Meeting'}</p>
               <p className="text-xs text-[var(--fg-3)]">
-                {fmtDate(eng.follow_up_date)}{eng.follow_up_time ? ` · ${eng.follow_up_time}` : ''}
+                {fmtDate(eng.follow_up_date)}{eng.follow_up_time ? ` · ${fmtTime12(eng.follow_up_time)}` : ''}
                 {eng.created_by_person_id ? ` · from ${names[eng.created_by_person_id] ?? 'a coach'}` : ''}
               </p>
             </div>

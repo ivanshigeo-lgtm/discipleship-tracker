@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { getEngagementsByPerson, getConfirmedEngagementIds, updateEngagement, deleteEngagement, addEngagement } from '../lib/supabaseQueries'
 import type { Engagement, MeetingType } from '../types/database'
 import { type Recurrence, RECURRENCE_OPTIONS, recurrenceDates, recurrenceLabel } from '../lib/recurrence'
+import { fmtTime12 } from '../lib/formatTime'
 
 const MEETING_TYPES: MeetingType[] = ['One2One', 'Making Disciples', 'Coffee', 'Church Community', 'Empowering Leaders']
 
@@ -477,7 +478,7 @@ function EngagementCard({
                 <span>{new Date(eng.follow_up_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
               )}
               {eng.follow_up_time && (
-                <span>@ {eng.follow_up_time}</span>
+                <span>@ {fmtTime12(eng.follow_up_time)}</span>
               )}
               {eng.location && (
                 <span className="text-[var(--fg-2)]">{eng.location}</span>

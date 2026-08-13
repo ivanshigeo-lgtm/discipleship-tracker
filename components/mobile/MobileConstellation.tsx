@@ -26,6 +26,7 @@ import { bookletStage } from '../../lib/curriculum'
 import { daysOf } from '../../lib/meetingDays'
 import type { Person, Stage, Engagement, PrayerRequest, StageChecklistItem, VictoryGroup } from '../../types/database'
 import PipelineMomentum from '../PipelineMomentum'
+import { fmtTime12 } from '../../lib/formatTime'
 
 // ── Palette (kept explicit to stay pixel-faithful to the mock) ────────────────
 const E_COLOR: Record<Stage, string> = {
@@ -602,7 +603,7 @@ export default function MobileConstellation({
                         )}
                       </div>
                       <div style={{ textAlign: 'right', flex: '0 0 auto' }}>
-                        <div style={{ fontSize: 12.5, fontWeight: 600, color: '#B4BAD6' }}>{g.meeting_time || '—'}</div>
+                        <div style={{ fontSize: 12.5, fontWeight: 600, color: '#B4BAD6' }}>{fmtTime12(g.meeting_time) || '—'}</div>
                         <div style={{ fontSize: 10.5, color: '#7A82A8', marginTop: 2 }}>{members.length} {members.length === 1 ? 'person' : 'people'}</div>
                       </div>
                       <Chevron dir={expanded ? 'down' : 'right'} size={16} />

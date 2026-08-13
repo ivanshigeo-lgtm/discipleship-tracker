@@ -23,6 +23,7 @@ import { SectionSkeleton } from './Skeleton'
 import { bookletStage } from '../lib/curriculum'
 import { daysOf, fmtDaysShort, occurrencesWithin, weekdayOf, shiftDayInSchedule } from '../lib/meetingDays'
 import { useAuth } from '../contexts/AuthContext'
+import { fmtTime12 } from '../lib/formatTime'
 
 interface MyOneToOnesSectionProps {
   refreshKey?: number
@@ -252,7 +253,7 @@ function GroupMeetingCard({
             <span className={item.cancelled ? 'line-through' : ''}>
               {new Date(item.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
             </span>
-            {item.time && <span className={item.cancelled ? 'line-through' : ''}>@ {item.time.slice(0, 5)}</span>}
+            {item.time && <span className={item.cancelled ? 'line-through' : ''}>@ {fmtTime12(item.time)}</span>}
             {item.rescheduled && !item.cancelled && <span style={{ color: accent }}>· rescheduled</span>}
           </div>
 
@@ -524,7 +525,7 @@ function MeetingCard({
               </span>
             )}
             {item.engagement.follow_up_time && (
-              <span>@ {item.engagement.follow_up_time}</span>
+              <span>@ {fmtTime12(item.engagement.follow_up_time)}</span>
             )}
             {item.engagement.location && (
               <span className="text-[var(--fg-2)]">{item.engagement.location}</span>

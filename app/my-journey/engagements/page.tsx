@@ -22,6 +22,7 @@ import {
 import { daysOf, occurrencesWithin } from '../../../lib/meetingDays'
 import { Starfield } from '../../../components/journey/StarPrimitives'
 import type { Engagement, VictoryGroup, GroupMeetingStatus } from '../../../types/database'
+import { fmtTime12 } from '@/lib/formatTime'
 
 type MeetingItem = {
   kind: 'group' | 'one-on-one'
@@ -99,7 +100,7 @@ function MeetingCard({ item, withLine }: { item: MeetingItem; withLine: string |
         {item.date && (
           <p className="text-xs text-[var(--fg-2)]">
             <span className={dayLabel(item.date) === 'Today' ? 'font-semibold text-[var(--fg-1)]' : ''}>{dayLabel(item.date)}</span>
-            {item.time && <span className="text-[var(--fg-3)]"> · {item.time.slice(0, 5)}</span>}
+            {item.time && <span className="text-[var(--fg-3)]"> · {fmtTime12(item.time)}</span>}
             {item.rescheduled && <span style={{ color: '#A78BFA' }}> · rescheduled</span>}
           </p>
         )}
