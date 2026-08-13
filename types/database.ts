@@ -8,8 +8,8 @@ export type Booklet = 'One2One' | 'Church Community' | 'Making Disciples' | 'Emp
 
 // What a Grace Group focuses on: a curriculum booklet, or a non-chapter
 // material (SOAPS = Engage rhythm; Purple Book / Message Notes = Establish
-// studies).
-export type GroupFocus = Booklet | 'SOAPS' | 'Purple Book' | 'Message Notes'
+// studies; Ministry = a serving team, Equip).
+export type GroupFocus = Booklet | 'SOAPS' | 'Purple Book' | 'Message Notes' | 'Ministry'
 
 export type BookletProgress = {
   id: string

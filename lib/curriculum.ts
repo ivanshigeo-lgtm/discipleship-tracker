@@ -31,6 +31,7 @@ export const CURRICULUM_MEETING_TYPES: MeetingType[] = BOOKLETS.map(b => b.meeti
 // members are counted toward.
 export const GROUP_FOCUS_OPTIONS: { key: GroupFocus; label: string; stage: Stage }[] = [
   ...BOOKLETS.map(b => ({ key: b.key as GroupFocus, label: b.label, stage: b.stage })),
+  { key: 'Ministry', label: 'Ministry', stage: 'Equip' },
   { key: 'Purple Book', label: 'Purple Book', stage: 'Establish' },
   { key: 'Message Notes', label: 'Message Notes', stage: 'Establish' },
   { key: 'SOAPS', label: 'SOAPS', stage: 'Engage' },
