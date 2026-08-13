@@ -173,7 +173,7 @@ export default function LeaderReviewCard({
               <Stat n={subject.stats.peopleInGroups} l="In a group" tip={`Unique people across their small groups — 3 or more people, so the leader plus at least two others — not counting themselves. Their full weekly reach, including anyone they only meet 1:1, is ${subject.stats.weeklyReach}.`} />
               <Stat n={subject.notInRhythm.length} l="Not in a group" accent={subject.notInRhythm.length > 0} tip="People they disciple directly who are not in any of their weekly groups — the coverage gap." />
               <Stat n={subject.stats.constellation} l="Discipling" tip="People linked to them as direct disciples. One level only — their disciples' disciples are not counted." />
-              <Stat n={subject.stats.oneOnOnesNext7} l="1:1 next 7d" tip="Meetings with one other person that they created, scheduled from today through the next 7 days and not cancelled. Every type counts — One2One, Making Disciples, Coffee, Church Community, Empowering Leaders, SOAP or untyped. Forward-looking — a plan, not attendance." />
+              <Stat n={subject.stats.oneOnOnesNext7} l="1:1 next 7d" tip="Distinct people they have booked a 1:1 with from today through the next 7 days, not cancelled — someone booked three times counts once, though the list below shows every meeting. Every type counts — One2One, Making Disciples, Coffee, Church Community, Empowering Leaders, SOAP or untyped. Forward-looking — a plan, not attendance." />
               <Stat n={subject.stats.metThisWeek} l="Met this week" tip="Their slice of the church-wide number: people met since Sunday in their own groups or in a 1:1 they ran, whatever type that meeting was labelled." />
             </div>
 
@@ -299,7 +299,7 @@ function criterionLine(key: CriterionKey, s: Scorecard): string {
   switch (key) {
     case 'engage':
       return s.stats.oneOnOnesNext7 > 0
-        ? `${s.stats.oneOnOnesNext7} 1:1${s.stats.oneOnOnesNext7 === 1 ? '' : 's'} booked in the next 7 days.`
+        ? `${s.stats.oneOnOnesNext7} ${s.stats.oneOnOnesNext7 === 1 ? 'person' : 'people'} booked for a 1:1 in the next 7 days${s.upcoming.length > s.stats.oneOnOnesNext7 ? ` (${s.upcoming.length} meetings)` : ''}.`
         : s.movements.length > 0
           ? `Nothing booked, but ${s.movements.length} stage move${s.movements.length === 1 ? '' : 's'} driven in the last 6 weeks.`
           : 'No 1:1 booked and no stage moves in the last 6 weeks.'

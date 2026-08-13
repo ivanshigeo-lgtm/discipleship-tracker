@@ -128,7 +128,7 @@ export type Scorecard = {
   }[]
   futureLeaders: { equip: { name: string; inStage: string | null }[]; released: { name: string }[] }
   notInRhythm: string[]
-  upcoming: { person: string; date: string; time: string | null; location: string | null; kind: string | null }[]
+  upcoming: { personId: string; person: string; date: string; time: string | null; location: string | null; kind: string | null }[]
   flags: string[]
   nextSteps: string[]
   soap: { ownEntries: number; poolSize: number; doersCount: number; doers: { name: string; entries: number }[] }
@@ -253,8 +253,10 @@ export function buildLeaderReview(
   sunday.setDate(sunday.getDate() - sunday.getDay())
   const sundayStr = toLocalDateStr(sunday)
   const WK = sunday.getTime()
+  // Both ends of the upcoming window are inclusive, so today + 6 is seven days
+  // counting today — "next 7 days" on the tile used to reach eight.
   const in7 = new Date(today)
-  in7.setDate(in7.getDate() + 7)
+  in7.setDate(in7.getDate() + 6)
   const in7Str = toLocalDateStr(in7)
   const sixWeeksAgo = new Date(today)
   sixWeeksAgo.setDate(sixWeeksAgo.getDate() - 42)
@@ -537,6 +539,7 @@ export function buildLeaderReview(
     const upcoming = myMeetings
       .filter((e) => e.follow_up_date && e.follow_up_date >= todayStr && e.follow_up_date <= in7Str && e.status !== 'Cancelled')
       .map((e) => ({
+        personId: e.person_id as string,
         person: byId.get(e.person_id)?.name ?? '—',
         date: e.follow_up_date as string,
         time: e.follow_up_time,
@@ -724,7 +727,10 @@ export function buildLeaderReview(
         groupsLed: owned.length,
         peopleInGroups: inGroup.size,
         metThisWeek: met.size,
-        oneOnOnesNext7: upcoming.length,
+        // distinct PEOPLE, matching the week strip's day badge and the way a
+        // leader reads their own week: someone booked three times is one person
+        // you are meeting, not three. The list below stays un-collapsed.
+        oneOnOnesNext7: new Set(upcoming.map((u) => u.personId)).size,
         weeklyReach: reach.size,
         constellation: direct.length,
       },
