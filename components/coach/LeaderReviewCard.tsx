@@ -92,9 +92,9 @@ export default function LeaderReviewCard({
       <ZoneLabel label="Leader review" />
       <div className="cn-card p-4" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <p className="text-[12px] leading-[17px] text-[var(--fg-2)]">
-          The discipleship rhythm, measured: <b>engage</b> people One2One, <b>establish</b> them in a group and the
-          SOAP habit, <b>equip</b> the next generation, and <b>multiply</b> — the day someone you disciple takes
-          another person through their own One2One.
+          The discipleship rhythm, measured: <b>engage</b> people 1:1, <b>establish</b> them in a group and the
+          SOAP habit, <b>equip</b> the next generation, and <b>multiply</b> — the day someone you disciple starts
+          meeting another person 1:1 of their own.
         </p>
 
         {/* ── consolidated team numbers — the same for everyone on the team ── */}
@@ -104,7 +104,7 @@ export default function LeaderReviewCard({
           <Band n={c.totalGroups} l="Groups" tip="Groups whose owner is one of the leaders. A co-led group counts once, for its owner." />
           <Band n={c.totalReleased} l="Released" tip="Direct disciples now at Empower, added up across all leaders. Someone released by two leaders counts twice." />
           <Band n={c.microsites} l="Microsites" tip="Groups grown past 15 members — big enough to plant a microsite." />
-          <Band n={c.metThisWeek} l="Met this week" tip="Since Sunday 00:00 — NOT a rolling 7 days. It grows through the week and resets Sunday. Counts a person once whether they were met in a group or a completed One2One." />
+          <Band n={c.metThisWeek} l="Met this week" tip="Since Sunday 00:00 — NOT a rolling 7 days. It grows through the week and resets Sunday. Counts a person once whether they were met in a group or in a completed 1:1 of any type." />
         </div>
 
         {/* ── admin only: every leader, scored ── */}
@@ -170,11 +170,11 @@ export default function LeaderReviewCard({
                 the slot went to the number nobody could see — who has no group. */}
             <div className="flex flex-wrap gap-2">
               <Stat n={subject.stats.groupsLed} l={subject.stats.groupsLed === 1 ? 'Group led' : 'Groups led'} tip="Groups where this leader is the recorded owner." />
-              <Stat n={subject.stats.peopleInGroups} l="In a group" tip={`Unique people across their groups, not counting themselves. Their full weekly reach, including anyone they meet One2One outside a group, is ${subject.stats.weeklyReach}.`} />
+              <Stat n={subject.stats.peopleInGroups} l="In a group" tip={`Unique people across their small groups — 3 or more people, so the leader plus at least two others — not counting themselves. Their full weekly reach, including anyone they only meet 1:1, is ${subject.stats.weeklyReach}.`} />
               <Stat n={subject.notInRhythm.length} l="Not in a group" accent={subject.notInRhythm.length > 0} tip="People they disciple directly who are not in any of their weekly groups — the coverage gap." />
               <Stat n={subject.stats.constellation} l="Discipling" tip="People linked to them as direct disciples. One level only — their disciples' disciples are not counted." />
-              <Stat n={subject.stats.oneOnOnesNext7} l="1:1 next 7d" tip="One2Ones they created, scheduled from today through the next 7 days and not cancelled. Forward-looking — a plan, not attendance." />
-              <Stat n={subject.stats.metThisWeek} l="Met this week" tip="Their slice of the church-wide number: people met since Sunday in their own groups or a One2One they ran." />
+              <Stat n={subject.stats.oneOnOnesNext7} l="1:1 next 7d" tip="Meetings with one other person that they created, scheduled from today through the next 7 days and not cancelled. Every type counts — One2One, Making Disciples, Coffee, Church Community, Empowering Leaders, SOAP or untyped. Forward-looking — a plan, not attendance." />
+              <Stat n={subject.stats.metThisWeek} l="Met this week" tip="Their slice of the church-wide number: people met since Sunday in their own groups or in a 1:1 they ran, whatever type that meeting was labelled." />
             </div>
 
             {/* the six-part read */}
@@ -260,7 +260,7 @@ export default function LeaderReviewCard({
             <TeamLine label="Ready to multiply" tone="good">
               {data.teamDetail.readyToMultiply.length
                 ? data.teamDetail.readyToMultiply.map((r) => `${r.leader} (${r.names.join(', ')})`).join(' · ')
-                : 'No emerging leader is running their own One2One yet.'}
+                : 'No emerging leader is running their own 1:1 yet.'}
             </TeamLine>
             <TeamLine label="No emerging leader yet" tone="bad">
               {data.teamDetail.noMultiply.join(', ') || '—'}
@@ -299,10 +299,10 @@ function criterionLine(key: CriterionKey, s: Scorecard): string {
   switch (key) {
     case 'engage':
       return s.stats.oneOnOnesNext7 > 0
-        ? `${s.stats.oneOnOnesNext7} One2One${s.stats.oneOnOnesNext7 === 1 ? '' : 's'} booked in the next 7 days.`
+        ? `${s.stats.oneOnOnesNext7} 1:1${s.stats.oneOnOnesNext7 === 1 ? '' : 's'} booked in the next 7 days.`
         : s.movements.length > 0
           ? `Nothing booked, but ${s.movements.length} stage move${s.movements.length === 1 ? '' : 's'} driven in the last 6 weeks.`
-          : 'No One2One booked and no stage moves in the last 6 weeks.'
+          : 'No 1:1 booked and no stage moves in the last 6 weeks.'
     case 'establish': {
       const g6 = s.groups.filter((g) => g.count >= 6).length
       const soap = s.soap.doersCount > 0 ? `${s.soap.doersCount} doing SOAPs` : 'no SOAP activity yet'
@@ -320,10 +320,10 @@ function criterionLine(key: CriterionKey, s: Scorecard): string {
     case 'mentor':
       return `Discipling ${s.stats.constellation} ${s.stats.constellation === 1 ? 'person' : 'people'} directly.`
     case 'multiply':
-      return s.emergingOne2One.length
-        ? `${s.emergingOne2One.join(', ')} ${s.emergingOne2One.length === 1 ? 'is running their' : 'are running their'} own One2One.`
+      return s.emergingRuns1on1.length
+        ? `${s.emergingRuns1on1.join(', ')} ${s.emergingRuns1on1.length === 1 ? 'is running their' : 'are running their'} own 1:1.`
         : s.emergingRunning.length
-          ? `${s.emergingRunning.join(', ')} lead${s.emergingRunning.length === 1 ? 's' : ''} something, but no One2One of their own yet.`
+          ? `${s.emergingRunning.join(', ')} lead${s.emergingRunning.length === 1 ? 's' : ''} something, but no 1:1 of their own yet.`
           : 'No one they disciple is multiplying yet.'
   }
 }

@@ -69,8 +69,8 @@ export const CRITERIA: { key: CriterionKey; label: string; sub: string; tip: str
   {
     key: 'engage',
     label: 'Engage',
-    sub: 'One2One',
-    tip: 'Green when a One2One is on the calendar in the next 7 days. Amber when none is booked but they have driven someone forward a stage in the last 6 weeks.',
+    sub: '1:1 booked',
+    tip: 'Green when a 1:1 is on the calendar in the next 7 days — any meeting with one other person, whatever type it is labelled. Amber when none is booked but they have driven someone forward a stage in the last 6 weeks.',
   },
   {
     key: 'establish',
@@ -99,8 +99,8 @@ export const CRITERIA: { key: CriterionKey; label: string; sub: string; tip: str
   {
     key: 'multiply',
     label: 'Multiply',
-    sub: 'emerging leader runs a One2One',
-    tip: 'The biggest win. Green when someone they disciple is running their OWN One2One. Amber when an emerging leader leads a group or disciples someone but has not run a One2One yet.',
+    sub: 'emerging leader runs their own 1:1',
+    tip: 'The biggest win. Green when someone they disciple is running their OWN 1:1 with someone else. Amber when an emerging leader leads a group or disciples someone but has not run a 1:1 yet.',
   },
 ]
 
@@ -128,11 +128,11 @@ export type Scorecard = {
   }[]
   futureLeaders: { equip: { name: string; inStage: string | null }[]; released: { name: string }[] }
   notInRhythm: string[]
-  upcoming: { person: string; date: string; time: string | null; location: string | null }[]
+  upcoming: { person: string; date: string; time: string | null; location: string | null; kind: string | null }[]
   flags: string[]
   nextSteps: string[]
   soap: { ownEntries: number; poolSize: number; doersCount: number; doers: { name: string; entries: number }[] }
-  emergingOne2One: string[]
+  emergingRuns1on1: string[]
   emergingRunning: string[]
   weekStrip: {
     date: string
@@ -290,9 +290,12 @@ export function buildLeaderReview(
 
   // ── multiplication signals: is this person themselves leading anything? ──
   const ownsGroup = new Set(groups.map((g) => g.owner_person_id).filter(Boolean) as string[])
+  // a 1:1 is any meeting with exactly one other person — One2One, Making
+  // Disciples, Coffee, Church Community, Empowering Leaders, SOAP or untyped.
+  // Every engagement row IS such a meeting, so the label never matters here.
   const runs1on1 = new Map<string, number>()
   for (const e of engagements) {
-    if (e.meeting_type === 'One2One' && e.created_by_person_id) {
+    if (e.created_by_person_id) {
       runs1on1.set(e.created_by_person_id, (runs1on1.get(e.created_by_person_id) ?? 0) + 1)
     }
   }
@@ -381,7 +384,7 @@ export function buildLeaderReview(
     const directIds = [...(disciplesOf.get(lid) ?? new Set<string>())]
     const direct = directIds.map((id) => byId.get(id)).filter(visible)
 
-    const owned = groups
+    const ownedAll = groups
       .filter((g) => g.owner_person_id === lid && (viewer.isTest ? true : g.is_test !== true))
       .map((g) => {
         const memberIds = [
@@ -396,7 +399,16 @@ export function buildLeaderReview(
       })
       .sort((a, b) => b.members.length - a.members.length)
 
-    const ownedIds = new Set(owned.map((g) => g.id))
+    // A small group is 3 or more people — the leader plus at least two others.
+    // A "group" holding exactly one other person is really a 1:1, and one with
+    // nobody on the roster is not a meeting at all. `members` already excludes
+    // the leader, so the split is on 2.
+    const owned = ownedAll.filter((g) => g.members.length >= 2)
+    const pairGroups = ownedAll.filter((g) => g.members.length === 1)
+
+    // Attendance is read for BOTH kinds: a 1:1 that happens to be recorded as a
+    // group still means the leader met that person this week.
+    const ownedIds = new Set(ownedAll.map((g) => g.id))
     const inGroup = new Set<string>()
     for (const g of owned) for (const pid of g.members) inGroup.add(pid)
 
@@ -416,9 +428,6 @@ export function buildLeaderReview(
     // Empowering Leaders, Coffee, Church Community, untyped) — a leader who sat
     // down with someone met them whatever label the engagement carries.
     const myMeetings = engagements.filter((e) => e.created_by_person_id === lid)
-    // the rubric's engage criterion stays One2One-specific on purpose: it asks
-    // whether the One2One tool is on the calendar, not whether they met at all
-    const myOne2One = myMeetings.filter((e) => e.meeting_type === 'One2One')
     const met = new Set<string>()
     for (const a of attendance) {
       if (a.attended && ownedIds.has(a.victory_group_id) && a.meeting_date >= sundayStr && a.person_id !== lid && visible(byId.get(a.person_id))) {
@@ -464,8 +473,10 @@ export function buildLeaderReview(
       const entries: Scorecard['weekStrip'][number]['entries'] = []
       const noMeetings: Scorecard['weekStrip'][number]['noMeetings'] = []
 
-      // one group meeting → either its real attendees, or a "no meeting" note
-      const pushGroup = (g: (typeof owned)[number], label: string) => {
+      // one scheduled meeting → either its real attendees, or a "no meeting" note.
+      // A roster of one other person is a 1:1, so it is marked as one here too.
+      const pushGroup = (g: (typeof ownedAll)[number], label: string) => {
+        const kind: 'group' | '1on1' = g.members.length >= 2 ? 'group' : '1on1'
         const att = attnByKey.get(`${g.id}|${dateStr}`)
         if (att) {
           if (att.present.size === 0) {
@@ -475,7 +486,7 @@ export function buildLeaderReview(
           for (const pid of att.present) {
             const p = byId.get(pid)
             if (!visible(p)) continue
-            entries.push({ person: p.name, stage: p.current_stage, kind: 'group', with: label })
+            entries.push({ person: p.name, stage: p.current_stage, kind, with: label })
           }
           return
         }
@@ -483,11 +494,11 @@ export function buildLeaderReview(
         for (const pid of g.members) {
           const p = byId.get(pid)
           if (!visible(p)) continue
-          entries.push({ person: p.name, stage: p.current_stage, kind: 'group', with: label })
+          entries.push({ person: p.name, stage: p.current_stage, kind, with: label })
         }
       }
 
-      for (const g of owned) {
+      for (const g of [...owned, ...pairGroups]) {
         if (!g.day || !g.day.split(' / ').includes(dow)) continue
         const st = statusByKey.get(`${g.id}|${dateStr}`)
         // cancelled, or moved to another date where it shows up instead
@@ -495,14 +506,15 @@ export function buildLeaderReview(
         pushGroup(g, g.name)
       }
       for (const s of reschedIntoDate.get(dateStr) ?? []) {
-        const g = owned.find((x) => x.id === s.victory_group_id)
+        const g = ownedAll.find((x) => x.id === s.victory_group_id)
         if (!g) continue
         pushGroup(g, `${g.name} · rescheduled`)
       }
       for (const e of meetingsByDate.get(dateStr) ?? []) {
         const p = byId.get(e.person_id)
         if (!visible(p) || e.person_id === lid) continue
-        // label with the meeting type so a Coffee reads differently from a One2One
+        // every one of these is a 1:1 — the leader and one other person. The
+        // type is only a label, so it is shown but never used to filter.
         entries.push({ person: p.name, stage: p.current_stage, kind: '1on1', with: e.meeting_type ?? null })
       }
       entries.sort((a, b) => a.person.localeCompare(b.person))
@@ -520,15 +532,16 @@ export function buildLeaderReview(
       }
     })
 
-    // One2One-only: this feeds the engage verdict, whose rubric asks specifically
-    // whether the One2One tool is booked — not whether any meeting is booked
-    const upcoming = myOne2One
+    // every booked meeting counts, whatever type it carries: a 1:1 is a meeting
+    // with one other person, and the label on it says nothing about that
+    const upcoming = myMeetings
       .filter((e) => e.follow_up_date && e.follow_up_date >= todayStr && e.follow_up_date <= in7Str && e.status !== 'Cancelled')
       .map((e) => ({
         person: byId.get(e.person_id)?.name ?? '—',
         date: e.follow_up_date as string,
         time: e.follow_up_time,
         location: e.location,
+        kind: e.meeting_type ?? null,
       }))
       .sort((a, b) => a.date.localeCompare(b.date))
 
@@ -580,9 +593,9 @@ export function buildLeaderReview(
     const emerging = [...byStage.Equip, ...byStage.Empower].map((p) => {
       const ones = runs1on1.get(p.id) ?? 0
       const disc = disciplesOf.get(p.id)?.size ?? 0
-      return { name: p.name, runsOne2One: ones > 0, multiplying: ones > 0 || ownsGroup.has(p.id) || disc > 0 }
+      return { name: p.name, runsOwn1on1: ones > 0, multiplying: ones > 0 || ownsGroup.has(p.id) || disc > 0 }
     })
-    const emergingOne2One = emerging.filter((e) => e.runsOne2One).map((e) => e.name)
+    const emergingRuns1on1 = emerging.filter((e) => e.runsOwn1on1).map((e) => e.name)
     const emergingRunning = emerging.filter((e) => e.multiplying).map((e) => e.name)
 
     const movements = pipelineEvents
@@ -617,7 +630,7 @@ export function buildLeaderReview(
             : 'p'
           : 'n',
       mentor: direct.length >= 3 ? 'y' : 'n',
-      multiply: emergingOne2One.length ? 'y' : emergingRunning.length || disciplesALeader ? 'p' : 'n',
+      multiply: emergingRuns1on1.length ? 'y' : emergingRunning.length || disciplesALeader ? 'p' : 'n',
     }
     const score = Object.values(verdicts).filter((v) => v === 'y').length
 
@@ -687,13 +700,13 @@ export function buildLeaderReview(
 
     // ── next steps: what would turn an amber light green ──
     const nextSteps: string[] = []
-    if (verdicts.engage !== 'y') nextSteps.push('Book a One2One with someone new this week.')
+    if (verdicts.engage !== 'y') nextSteps.push('Book a 1:1 with someone new this week.')
     if (biggest > 0 && biggest < 6) nextSteps.push(`Grow the group from ${biggest} toward 6 — the size where you can go through Making Disciples together.`)
     if (owned.length === 0 && C > 0) nextSteps.push('Gather the people you disciple into one weekly group.')
     if (verdicts.equip === 'n') nextSteps.push('Identify someone to begin equipping as a leader.')
     if (futureLeaders.equip.length && !futureLeaders.released.length) nextSteps.push('Release an equipped person to disciple someone of their own.')
     if (verdicts.multiply !== 'y' && (futureLeaders.equip.length || futureLeaders.released.length)) {
-      nextSteps.push('Have an emerging leader take someone through their own One2One — the biggest win on this card.')
+      nextSteps.push('Have an emerging leader start their own 1:1 with someone — the biggest win on this card.')
     }
     if (soap.poolSize > 0 && soap.doersCount === 0) nextSteps.push('Get people started on SOAPs — no one in your circle is journaling in WikiChurch yet.')
     if (notInRhythm.length) {
@@ -725,7 +738,7 @@ export function buildLeaderReview(
       flags: flags.slice(0, 5),
       nextSteps,
       soap,
-      emergingOne2One,
+      emergingRuns1on1,
       emergingRunning,
       weekStrip,
       movements,
@@ -752,7 +765,7 @@ export function buildLeaderReview(
   const groupsUnder6 = team.flatMap((s) =>
     s.groups.filter((g) => g.count > 0 && g.count < 6).map((g) => ({ leader: s.first, group: g.name, count: g.count })),
   )
-  const noMultiply = team.filter((s) => !s.emergingOne2One.length)
+  const noMultiply = team.filter((s) => !s.emergingRuns1on1.length)
 
   const consolidated: Consolidated = {
     weekOf: `${DAY_FULL[now.getDay()]}, ${MONTH_FULL[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`,
@@ -779,7 +792,7 @@ export function buildLeaderReview(
     team: viewer.isAdmin ? team : null,
     teamDetail: viewer.isAdmin
       ? {
-          readyToMultiply: team.filter((s) => s.emergingOne2One.length).map((s) => ({ leader: s.first, names: s.emergingOne2One })),
+          readyToMultiply: team.filter((s) => s.emergingRuns1on1.length).map((s) => ({ leader: s.first, names: s.emergingRuns1on1 })),
           noMultiply: noMultiply.map((s) => s.first),
           micrositeCandidates: micrositeList,
           noEquipBench: noEquipBench.map((s) => s.first),
