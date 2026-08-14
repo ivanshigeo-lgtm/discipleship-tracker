@@ -221,7 +221,10 @@ export default function MobileConstellation({
     const allow = allowedPersonIds ? new Set(allowedPersonIds) : null
     const inScope = (id: string) => !allow || allow.has(id)
     const newPeople = people.filter(p => inScope(p.id) && inWin(p.created_at)).length
-    const milestones = checklist.filter(it => it.completed && it.label.startsWith('Completed ') && inScope(it.person_id) && inWin(it.completed_at)).length
+    // Every checklist completion is a milestone. The old `startsWith
+    // ('Completed ')` filter kept only booklet rows and dropped 87% of real
+    // completions — see PipelineMomentum for the same fix.
+    const milestones = checklist.filter(it => it.completed && inScope(it.person_id) && inWin(it.completed_at)).length
     return { newPeople, milestones }
   }, [people, checklist, allowedPersonIds])
 

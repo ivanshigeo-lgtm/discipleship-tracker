@@ -252,7 +252,6 @@ export function buildLeaderReview(
   const sunday = new Date(today)
   sunday.setDate(sunday.getDate() - sunday.getDay())
   const sundayStr = toLocalDateStr(sunday)
-  const WK = sunday.getTime()
   // Both ends of the upcoming window are inclusive, so today + 6 is seven days
   // counting today — "next 7 days" on the tile used to reach eight.
   const in7 = new Date(today)
@@ -438,7 +437,11 @@ export function buildLeaderReview(
       }
     }
     for (const e of myMeetings) {
-      if (e.status === 'Completed' && e.follow_up_date && new Date(e.follow_up_date).getTime() >= WK && e.person_id !== lid && visible(byId.get(e.person_id))) {
+      // Compare date STRINGS, exactly as the attendance loop above does.
+      // `new Date('2026-08-16')` parses as UTC midnight, which in HST (UTC-10)
+      // is 14:00 the day BEFORE — so every Sunday meeting landed 10 hours
+      // before the week boundary and was silently dropped from the week.
+      if (e.status === 'Completed' && e.follow_up_date && e.follow_up_date >= sundayStr && e.person_id !== lid && visible(byId.get(e.person_id))) {
         met.add(e.person_id)
         if (opts.countTowardTotals) metAll.add(e.person_id)
       }

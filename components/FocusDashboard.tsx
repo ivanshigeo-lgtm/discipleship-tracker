@@ -202,22 +202,30 @@ export default function FocusDashboard({
   }, [people, engagements, prayerRequests, checklistItems])
 
   const upcomingMeetings = useMemo(() => {
-    const now = new Date()
-    const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+    // follow_up_date is a PG `date`. `new Date('2026-08-14')` parses as UTC
+    // midnight = 14:00 the PREVIOUS day in HST, so comparing it against a
+    // wall-clock `now` dropped TODAY's meetings entirely and lost tomorrow's
+    // after 2pm. Parse as local midnight and compare against the start of
+    // today. Window is today..today+6 inclusive — "next 7 days" counting
+    // today, matching the 1:1 tile.
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const in7 = new Date(today)
+    in7.setDate(in7.getDate() + 6)
     const peopleById = new Map(people.map(p => [p.id, p]))
 
     return engagements
       .filter(e => {
         if (e.status !== 'Pending' || !e.follow_up_date) return false
-        const meetingDate = new Date(e.follow_up_date)
-        return meetingDate >= now && meetingDate <= weekFromNow
+        const meetingDate = new Date(e.follow_up_date + 'T00:00:00')
+        return meetingDate >= today && meetingDate <= in7
       })
       .map(e => ({
         engagement: e,
         person: peopleById.get(e.person_id),
       }))
       .filter(m => m.person)
-      .sort((a, b) => new Date(a.engagement.follow_up_date!).getTime() - new Date(b.engagement.follow_up_date!).getTime())
+      .sort((a, b) => new Date(a.engagement.follow_up_date! + 'T00:00:00').getTime() - new Date(b.engagement.follow_up_date! + 'T00:00:00').getTime())
       .slice(0, 5)
   }, [engagements, people])
 

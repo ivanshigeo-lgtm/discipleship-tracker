@@ -86,21 +86,44 @@ export default function MomentumCard({
     // below is a single pass. Chapter advances come from booklet_chapter_events
     // (one row per real forward move — a whole-book completion is one event),
     // NOT booklet_progress.updated_at, which any re-save would inflate.
-    const events: { id: string; at: number; chapter: boolean; label: string }[] = []
+    // A checklist completion is a MILESTONE — every one of them, not just the
+    // "Completed <Booklet>" rows. An earlier prefix filter here silently dropped
+    // the real milestones of faith ("Confirm salvation…", "Water baptism
+    // conversation", "Connect to Small Group", …) and left only booklet
+    // completions, which also double-count against the chapter log.
+    const events: { id: string; at: number; chapter: boolean; label: string; booklet: string; from: number; to: number }[] = []
     for (const it of items) {
-      if (it.completed && it.completed_at && it.label.startsWith('Completed ') && activeIds.has(it.person_id))
-        events.push({ id: it.person_id, at: new Date(it.completed_at).getTime(), chapter: false, label: it.label.replace(/^Completed /, '') })
+      if (it.completed && it.completed_at && activeIds.has(it.person_id))
+        events.push({ id: it.person_id, at: new Date(it.completed_at).getTime(), chapter: false, label: it.label.replace(/^Completed /, ''), booklet: '', from: 0, to: 0 })
     }
     for (const ev of chapterEvents) {
       if (activeIds.has(ev.person_id))
-        events.push({ id: ev.person_id, at: new Date(ev.created_at).getTime(), chapter: true, label: `Chapter ${ev.to_chapter}` })
+        events.push({ id: ev.person_id, at: new Date(ev.created_at).getTime(), chapter: true, label: `Chapter ${ev.to_chapter}`, booklet: ev.booklet, from: ev.from_chapter ?? 0, to: ev.to_chapter })
     }
+    // A "step" is either kind — that is the movement rate's whole point.
     const moversIn = (a: number, b: number) => {
       const s = new Set<string>()
       for (const e of events) if (e.at >= a && e.at < b) s.add(e.id)
       return s.size
     }
-    const countIn = (a: number, b: number) => events.filter(e => e.at >= a && e.at < b).length
+    // MILESTONES = checklist completions only. Chapter advances have their own
+    // tile; counting them here made the two tiles report the same number.
+    const milestonesIn = (a: number, b: number) =>
+      events.filter(e => !e.chapter && e.at >= a && e.at < b).length
+    // CHAPTERS = distinct chapters newly covered, NOT the raw advance rows. Two
+    // rapid saves both read the same prior chapter, so 5→6 and 5→7 can both be
+    // logged; and a single 0→12 "finished the book" row really is 12 chapters.
+    // Expanding each row to the chapters it spans and de-duplicating per
+    // person+booklet counts every chapter exactly once either way.
+    const chapterKeys = (a: number, b: number) => {
+      const seen = new Set<string>()
+      for (const e of events) {
+        if (!e.chapter || e.at < a || e.at >= b) continue
+        for (let c = e.from + 1; c <= e.to; c++) seen.add(`${e.id}|${e.booklet}|${c}`)
+      }
+      return seen
+    }
+    const chaptersIn = (a: number, b: number) => chapterKeys(a, b).size
 
     // Sunday 00:00 local. `elapsed` is how far into this week we are, so the
     // week-over-week comparison is same-slice: Sun→now this week vs Sun→(same
@@ -113,17 +136,16 @@ export default function MomentumCard({
     const weekMovers = moversIn(weekStart, now + 1)
     const prevWeekMovers = moversIn(weekStart - WEEK, weekStart - WEEK + elapsed)
 
-    // Since Sunday raw milestone volume + type breakdown.
-    const checklistSinceSunday = events.filter(e => !e.chapter && e.at >= weekStart).length
-    const chapterSinceSunday = events.filter(e => e.chapter && e.at >= weekStart).length
-    const sinceSunday = checklistSinceSunday + chapterSinceSunday
+    // Since Sunday: the two volumes, kept separate — they measure different things.
+    const checklistSinceSunday = milestonesIn(weekStart, now + 1)
+    const chapterSinceSunday = chaptersIn(weekStart, now + 1)
 
     // Toggle-controlled window: new people + milestone + chapter volume.
     const winStart = win === 'week' ? weekStart : now - 30 * DAY_MS
     const peopleAt = (p: Person) => (p.created_at ? new Date(p.created_at).getTime() : -1)
     const newPeople = active.filter(p => peopleAt(p) >= winStart).length
-    const winMilestones = countIn(winStart, now + 1)
-    const winChapters = events.filter(e => e.chapter && e.at >= winStart).length
+    const winMilestones = milestonesIn(winStart, now + 1)
+    const winChapters = chaptersIn(winStart, now + 1)
 
     // Per-metric weekly series + movement-rate sparkline over the last 8 Sunday
     // weeks (the current, partial week is the last bar/point). One bucket array
@@ -142,22 +164,39 @@ export default function MomentumCard({
     const nameById = new Map(people.map(p => [p.id, p]))
     // Collapse a week's events to one row per person (sub = their single label,
     // or an "N milestones" count when a person logged several that week).
-    const distinctRows = (evs: typeof events): BarRow[] => {
+    const distinctRows = (evs: typeof events, noun: string): BarRow[] => {
       const m = new Map<string, { count: number; label: string }>()
       for (const e of evs) { const c = m.get(e.id); if (c) c.count++; else m.set(e.id, { count: 1, label: e.label }) }
-      return [...m.entries()].map(([id, v]) => ({ id, name: nameById.get(id)?.name ?? 'Someone', sub: v.count > 1 ? `${v.count} milestones` : v.label }))
+      return [...m.entries()].map(([id, v]) => ({ id, name: nameById.get(id)?.name ?? 'Someone', sub: v.count > 1 ? `${v.count} ${noun}` : v.label }))
+    }
+    // Chapter rows count DISTINCT chapters (same de-dup as the tile), and say
+    // "chapters" — the shared formatter used to label them "N milestones".
+    const chapterRowsIn = (a: number, b: number): BarRow[] => {
+      const m = new Map<string, { chapters: Set<string>; top: number; label: string }>()
+      for (const e of events) {
+        if (!e.chapter || e.at < a || e.at >= b) continue
+        let c = m.get(e.id)
+        if (!c) { c = { chapters: new Set(), top: -1, label: e.label }; m.set(e.id, c) }
+        for (let k = e.from + 1; k <= e.to; k++) c.chapters.add(`${e.booklet}|${k}`)
+        if (e.to > c.top) { c.top = e.to; c.label = e.label }
+      }
+      return [...m.entries()].map(([id, v]) => ({
+        id,
+        name: nameById.get(id)?.name ?? 'Someone',
+        sub: v.chapters.size > 1 ? `${v.chapters.size} chapters` : v.label,
+      }))
     }
     for (let i = 0; i < NW; i++) {
       const a = weekStart - (NW - 1 - i) * WEEK
       const b = i === NW - 1 ? now + 1 : a + WEEK
       weekStarts.push(a)
-      weekBuckets.push(countIn(a, b))
-      chapterBuckets.push(events.filter(e => e.chapter && e.at >= a && e.at < b).length)
+      weekBuckets.push(milestonesIn(a, b))
+      chapterBuckets.push(chaptersIn(a, b))
       peopleBuckets.push(active.filter(p => { const t = peopleAt(p); return t >= a && t < b }).length)
       rates.push(n ? (moversIn(a, b) / n) * 100 : 0)
       peopleRows.push(active.filter(p => { const t = peopleAt(p); return t >= a && t < b }).map(p => ({ id: p.id, name: p.name, sub: p.current_stage ?? 'New' })))
-      milestoneRows.push(distinctRows(events.filter(e => e.at >= a && e.at < b)))
-      chapterRows.push(distinctRows(events.filter(e => e.chapter && e.at >= a && e.at < b)))
+      milestoneRows.push(distinctRows(events.filter(e => !e.chapter && e.at >= a && e.at < b), 'milestones'))
+      chapterRows.push(chapterRowsIn(a, b))
     }
     const peak = Math.max(1, ...weekBuckets)
 
@@ -168,7 +207,7 @@ export default function MomentumCard({
 
     const risers = topRisers(people, items, allow).slice(0, 2)
 
-    return { n, small, rates, weekMovers, prevWeekMovers, newPeople, winMilestones, winChapters, weekBuckets, peopleBuckets, chapterBuckets, peak, leaders, carried, ratio, sinceSunday, checklistSinceSunday, chapterSinceSunday, risers, weekStarts, peopleRows, milestoneRows, chapterRows }
+    return { n, small, rates, weekMovers, prevWeekMovers, newPeople, winMilestones, winChapters, weekBuckets, peopleBuckets, chapterBuckets, peak, leaders, carried, ratio, checklistSinceSunday, chapterSinceSunday, risers, weekStarts, peopleRows, milestoneRows, chapterRows }
   }, [people, items, chapterEvents, myPersonIds, myDirectIds, mode, win])
 
   if (!ready) return null
@@ -228,7 +267,7 @@ export default function MomentumCard({
   const tiles = [
     { key: 'people' as const, label: 'New people', noun: 'new', num: data.newPeople, color: 'var(--gbm-cobalt-soft,#8FA6E8)', buckets: data.peopleBuckets, rows: data.peopleRows, chart: 'New people / week' },
     { key: 'milestones' as const, label: 'Milestones', noun: 'milestones', num: data.winMilestones, color: 'var(--success)', buckets: data.weekBuckets, rows: data.milestoneRows, chart: 'Milestones / week' },
-    { key: 'chapters' as const, label: 'Chapters', noun: 'chapter advances', num: data.winChapters, color: 'var(--gold)', buckets: data.chapterBuckets, rows: data.chapterRows, chart: 'Chapters / week' },
+    { key: 'chapters' as const, label: 'Chapters', noun: 'chapters', num: data.winChapters, color: 'var(--gold)', buckets: data.chapterBuckets, rows: data.chapterRows, chart: 'Chapters / week' },
   ]
   const activeTile = tiles.find(t => t.key === metric) ?? tiles[1]
   const activeBuckets = activeTile.buckets
@@ -286,8 +325,7 @@ export default function MomentumCard({
         </div>
 
         <p className="text-[11.5px] text-[var(--fg-3)]">
-          Since Sunday: {data.sinceSunday} {data.sinceSunday === 1 ? 'milestone' : 'milestones'} logged
-          {data.chapterSinceSunday > 0 ? ` (${data.checklistSinceSunday} checklist + ${data.chapterSinceSunday} chapter ${data.chapterSinceSunday === 1 ? 'advance' : 'advances'})` : ''} · {pendingSignoffs} {pendingSignoffs === 1 ? 'sign-off' : 'sign-offs'} waiting
+          Since Sunday: {data.checklistSinceSunday} {data.checklistSinceSunday === 1 ? 'milestone' : 'milestones'} + {data.chapterSinceSunday} {data.chapterSinceSunday === 1 ? 'chapter' : 'chapters'} · {pendingSignoffs} {pendingSignoffs === 1 ? 'sign-off' : 'sign-offs'} waiting
         </p>
 
         {/* ── Window block: new people + milestone volume (Wk/30d controls THIS only) ── */}

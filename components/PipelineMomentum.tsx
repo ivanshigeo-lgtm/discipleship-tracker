@@ -59,7 +59,14 @@ export default function PipelineMomentum({ refreshKey = 0, allowedPersonIds }: {
     // week" total badge — mirrors the native explore ring's Total delta.
     const weekCutoff = Date.now() - 7 * 24 * 3600 * 1000
     const newThisWeek = people.filter(p => p.status !== 'Inactive' && inScope(p.id) && !!p.created_at && new Date(p.created_at).getTime() >= weekCutoff).length
-    const completions = items.filter(it => it.completed && it.label.startsWith('Completed ') && inScope(it.person_id) && inWindow(it.completed_at)).length
+    // A MILESTONE is any checklist completion — the tile says "Milestones
+    // completed", and that is what it must count. An earlier `startsWith
+    // ('Completed ')` filter here was written for booklet rows and silently
+    // dropped every milestone of faith ("Water baptism conversation",
+    // "Confirm salvation…", "Connect to Small Group", …): over 90 days it kept
+    // 139 of 1,056 completions, an 87% undercount that also deflated the
+    // ~N/week sub-label and the trend bars below.
+    const completions = items.filter(it => it.completed && inScope(it.person_id) && inWindow(it.completed_at)).length
     const empoweredInPeriod = events.filter(ev => ev.to_stage === 'Empower' && inScope(ev.person_id) && inWindow(ev.created_at)).length
     const weeks = Math.max(1, period.days / 7)
     const perWeek = (completions / weeks)
@@ -90,7 +97,7 @@ export default function PipelineMomentum({ refreshKey = 0, allowedPersonIds }: {
     const series = new Array(numWeeks).fill(0)
     const nowMs = Date.now()
     for (const it of items) {
-      if (!it.completed || !it.label.startsWith('Completed ') || !it.completed_at || !inScope(it.person_id)) continue
+      if (!it.completed || !it.completed_at || !inScope(it.person_id)) continue
       const weeksAgo = Math.floor((nowMs - new Date(it.completed_at).getTime()) / weekMs)
       if (weeksAgo >= 0 && weeksAgo < numWeeks) series[numWeeks - 1 - weeksAgo]++
     }
