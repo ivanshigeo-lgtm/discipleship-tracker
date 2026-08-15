@@ -830,6 +830,16 @@ export default function DiscipleshipTracker() {
                     <p className="mt-1 text-xs text-[var(--fg-2)] sm:text-sm">
                       {circleView === 'pipeline' ? 'Move people through stages with the coaching pipeline.' : 'Visualize people moving toward Christ together.'}
                     </p>
+                    {/* GBC scope shows the whole church but only the viewer's downline is
+                        editable, so most cards drop their action buttons. Say that once
+                        here rather than badging every card — outside a coach's own
+                        constellation the read-only case is the rule, not the exception. */}
+                    {effectiveScope === 'gbc' && !isAdmin && (
+                      <p className="mt-1 text-xs text-[var(--fg-3)]">
+                        Viewing the whole church. Outside your own constellation this is read-only —
+                        switch to <span className="font-semibold text-[var(--fg-2)]">My Constellation</span> to make changes.
+                      </p>
+                    )}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     {/* Scope: whole church (admins + empowered coaches) vs full coaching tree vs direct people */}
