@@ -82,12 +82,14 @@ function TeamMemberCard({
   onEmpower,
   empowering,
   onOpenTracker,
+  canEdit = true,
 }: {
   forecast: EmpowerForecast
   onPersonClick: () => void
   onEmpower: () => void
   empowering: boolean
   onOpenTracker: () => void
+  canEdit?: boolean
 }) {
   const { person, isReady, percentComplete, currentBooklet, chaptersLeft, etaWeeks, projectedDate, unmetMilestones, cadenceFromData } = forecast
   const equipColor = STAGE_COLORS.Equip
@@ -193,8 +195,9 @@ function TeamMemberCard({
           </button>
         </div>
 
-        {/* Empower button or arrow */}
-        {isReady ? (
+        {/* Empower button or arrow — the promotion is can_edit_person, so in GBC
+            scope a card outside the downline shows the arrow, not the button. */}
+        {isReady && canEdit ? (
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onEmpower() }}
@@ -264,7 +267,7 @@ export default function EmergingTeamSection({
   onPersonClick,
   onChanged,
 }: EmergingTeamSectionProps) {
-  const { profile } = useAuth()
+  const { profile, canEdit: checkCanEdit } = useAuth()
   // GBC = all Equip-stage people; My Constellation = only people in my circle.
   const [scope, setScope] = useState<'gbc' | 'mine'>('mine')
   const [people, setPeople] = useState<Person[]>([])
@@ -365,6 +368,9 @@ export default function EmergingTeamSection({
   const trackerForecast = trackerForId ? forecasts.find(f => f.person.id === trackerForId) : undefined
 
   const handleEmpower = async (personId: string) => {
+    // In GBC scope this list reaches well past the viewer's downline; the
+    // Empower promotion writes people.current_stage (can_edit_person).
+    if (!checkCanEdit(personId)) return
     setEmpowering(personId)
     await updatePersonStage(personId, 'Empower')
     await loadData()
@@ -373,6 +379,9 @@ export default function EmergingTeamSection({
   }
 
   const handleSetChapter = async (personId: string, booklet: Booklet, chapter: number) => {
+    // Guard ahead of the optimistic paint — otherwise the stepper advances and
+    // silently reverts on the next load. booklet_progress is can_edit_person.
+    if (!checkCanEdit(personId)) return
     setSavingChapterFor(personId)
     // Optimistic update so the steppers feel instant.
     setBookletProgress(prev => {
@@ -461,6 +470,7 @@ export default function EmergingTeamSection({
                     forecast={forecast}
                     onPersonClick={() => onPersonClick?.(forecast.person)}
                     onEmpower={() => handleEmpower(forecast.person.id)}
+                    canEdit={checkCanEdit(forecast.person.id)}
                     empowering={empowering === forecast.person.id}
                     onOpenTracker={() => setTrackerForId(forecast.person.id)}
                   />
@@ -505,6 +515,7 @@ export default function EmergingTeamSection({
         onEmpower={async () => { await handleEmpower(trackerForecast.person.id); setTrackerForId(null) }}
         empowering={empowering === trackerForecast.person.id}
         saving={savingChapterFor === trackerForecast.person.id}
+        canEdit={checkCanEdit(trackerForecast.person.id)}
       />
     )}
     </>

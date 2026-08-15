@@ -21,14 +21,23 @@ const STAGE_COLORS: Record<Stage, string> = {
   Empower: '#F0729F',
 }
 
+// `canEdit` mirrors the DB's can_edit_person(person_id) — the exact predicate on
+// BOTH tables this component writes (stage_checklist_items, booklet_progress).
+// Reads on those tables are USING(true), so a coach can open all 210 people but
+// only write their downline; ungated, the checkbox ticks, the optimistic state
+// paints, and RLS refuses by changing nothing WITHOUT returning an error.
+// Defaults true: /my-journey renders this for the signed-in person themselves,
+// who always passes can_edit_person via the self branch.
 export default function StageChecklist({
   personId,
   currentStage,
   onChanged,
+  canEdit = true,
 }: {
   personId: string
   currentStage: Stage
   onChanged?: () => void
+  canEdit?: boolean
 }) {
   const [items, setItems] = useState<StageChecklistItem[]>([])
   const [openStages, setOpenStages] = useState<Record<Stage, boolean>>({
@@ -47,6 +56,9 @@ export default function StageChecklist({
   }, [personId])
 
   const setChapter = async (booklet: Booklet, chapter: number) => {
+    // Guard BEFORE the optimistic paint, not after the write: otherwise the
+    // chapter count advances on screen and only a reload reveals it never saved.
+    if (!canEdit) return
     setBookletProgress(prev => {
       const idx = prev.findIndex(b => b.booklet === booklet)
       if (idx >= 0) {
@@ -114,6 +126,7 @@ export default function StageChecklist({
   }
 
   const handleToggle = async (stage: Stage, category: ChecklistCategory, label: string, checked: boolean) => {
+    if (!canEdit) return
     const savedItem = findSavedItem(stage, category, label)
     const optimisticId = savedItem?.id ?? `${stage}-${category}-${label}`
     setSavingId(optimisticId)
@@ -183,12 +196,14 @@ export default function StageChecklist({
           return (
             <label
               key={templateItem.label}
-              className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-[var(--line-1)] bg-[var(--indigo-2)] p-2.5 transition-colors hover:border-[var(--line-2)]"
+              className={`flex items-start gap-2.5 rounded-lg border border-[var(--line-1)] bg-[var(--indigo-2)] p-2.5 transition-colors ${
+                canEdit ? 'cursor-pointer hover:border-[var(--line-2)]' : 'cursor-default opacity-70'
+              }`}
             >
               <input
                 type="checkbox"
                 checked={checked}
-                disabled={savingId === itemId}
+                disabled={savingId === itemId || !canEdit}
                 onChange={event => handleToggle(stage, category, templateItem.label, event.target.checked)}
                 className="mt-0.5 h-4 w-4 shrink-0 rounded border-[var(--line-2)] bg-[var(--indigo)]"
                 style={{ accentColor: stageColor }}
@@ -282,7 +297,7 @@ export default function StageChecklist({
                             <div className="flex items-center gap-1.5">
                               <button
                                 type="button"
-                                disabled={current <= 0}
+                                disabled={current <= 0 || !canEdit}
                                 onClick={() => setChapter(b.key, current - 1)}
                                 className="flex h-6 w-6 items-center justify-center rounded-full border border-[var(--line-2)] text-sm text-[var(--fg-2)] disabled:opacity-30 hover:bg-[var(--indigo-3)]"
                               >
@@ -293,7 +308,7 @@ export default function StageChecklist({
                               </span>
                               <button
                                 type="button"
-                                disabled={current >= b.chapters}
+                                disabled={current >= b.chapters || !canEdit}
                                 onClick={() => setChapter(b.key, current + 1)}
                                 className="flex h-6 w-6 items-center justify-center rounded-full border border-[var(--line-2)] text-sm text-[var(--fg-2)] disabled:opacity-30 hover:bg-[var(--indigo-3)]"
                               >

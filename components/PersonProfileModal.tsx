@@ -659,7 +659,7 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
                   <select
                     value={status}
                     onChange={event => handleQuickStatusChange(event.target.value as Person['status'])}
-                    disabled={loading}
+                    disabled={loading || !canEdit}
                     className="rounded-lg border border-[var(--line-2)] bg-[var(--indigo)] px-3 py-1.5 text-xs font-semibold text-[var(--fg-1)] focus:border-[var(--gbm-cobalt-bright)] focus:outline-none disabled:opacity-60"
                   >
                     <option value="Active">Active</option>
@@ -669,6 +669,7 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
                 <StageChecklist
                   personId={savedPerson.id}
                   currentStage={currentStage}
+                  canEdit={canEdit}
                   onChanged={() => setStarRefreshKey(key => key + 1)}
                 />
               </div>
@@ -719,14 +720,19 @@ export default function PersonProfileModal({ person, initialTab = 'profile', onC
                   personName={savedPerson.name}
                   coachPersonId={profile?.id}
                   refreshKey={refreshKey}
+                  canEdit={canEdit}
                   onUpdate={() => setRefreshKey(key => key + 1)}
                   onOpenEngagement={onOpenEngagement}
                 />
-                <AddNextStepForm
-                  personId={savedPerson.id}
-                  personName={savedPerson.name}
-                  onAdded={() => setRefreshKey(key => key + 1)}
-                />
+                {/* `engagements` INSERT is can_edit_person(person_id) too, so the
+                    add form could only ever fail here — don't offer it. */}
+                {canEdit && (
+                  <AddNextStepForm
+                    personId={savedPerson.id}
+                    personName={savedPerson.name}
+                    onAdded={() => setRefreshKey(key => key + 1)}
+                  />
+                )}
               </div>
             </ModalSectionCard>
           )}

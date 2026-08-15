@@ -21,6 +21,7 @@ import {
   getMyPriorityPersonIds,
   setPersonPriority,
 } from '../../lib/supabaseQueries'
+import { useAuth } from '../../contexts/AuthContext'
 import { stageLabels, stageOrder } from '../../lib/stageLabels'
 import { bookletStage } from '../../lib/curriculum'
 import { daysOf } from '../../lib/meetingDays'
@@ -113,6 +114,7 @@ export default function MobileConstellation({
   // Unread conversation total for the Messages tab dot (page-supplied).
   unreadCount?: number
 }) {
+  const { canEdit: checkCanEdit } = useAuth()
   const [people, setPeople] = useState<Person[]>([])
   const [engagements, setEngagements] = useState<Engagement[]>([])
   const [prayers, setPrayers] = useState<PrayerRequest[]>([])
@@ -269,6 +271,9 @@ export default function MobileConstellation({
     else onChanged()
   }
   const advance = async (p: Person) => {
+    // people.current_stage is can_edit_person; GBC scope lists far more people
+    // than the viewer may write.
+    if (!checkCanEdit(p.id)) return
     const i = stageOrder.indexOf(p.current_stage)
     if (i >= stageOrder.length - 1) return
     const next = stageOrder[i + 1]
@@ -480,6 +485,7 @@ export default function MobileConstellation({
               onOpen={() => setSheetPerson(e.person)}
               onPriority={() => togglePriority(e.person)}
               onAdvance={() => advance(e.person)}
+              canEdit={checkCanEdit(e.person.id)}
             />
           ))}
           {shown.length > 0 && <div style={{ textAlign: 'center', fontSize: 11, color: '#7A82A8', padding: '2px 0' }}>Swipe left on a person for quick actions</div>}
@@ -686,7 +692,7 @@ export default function MobileConstellation({
                 <button type="button" onClick={() => { setSheetPerson(null); onOpenFullProfile(p, 'engagements') }} style={{ minHeight: 52, border: 'none', borderRadius: 14, background: 'linear-gradient(160deg,#2E55E6,#1539C9)', color: '#FBF6EC', fontSize: 15.5, fontWeight: 700, boxShadow: '0 0 0 1px rgba(91,141,247,.25), 0 0 32px -4px rgba(46,85,230,.6)' }}>Log a follow-up</button>
                 <div style={{ display: 'flex', gap: 10 }}>
                   <button type="button" onClick={() => togglePriority(p)} style={{ flex: 1, minHeight: 48, borderRadius: 14, background: 'rgba(27,35,71,.9)', border: '1px solid rgba(242,200,121,.35)', color: GOLD, fontSize: 13.5, fontWeight: 600 }}>{p.priority ? '★ Priority' : '☆ Mark priority'}</button>
-                  {next && <button type="button" onClick={() => advance(p)} style={{ flex: 1, minHeight: 48, borderRadius: 14, background: 'rgba(27,35,71,.9)', border: '1px solid rgba(91,141,247,.35)', color: '#5B8DF7', fontSize: 13.5, fontWeight: 600 }}>Move to {next} →</button>}
+                  {next && checkCanEdit(p.id) && <button type="button" onClick={() => advance(p)} style={{ flex: 1, minHeight: 48, borderRadius: 14, background: 'rgba(27,35,71,.9)', border: '1px solid rgba(91,141,247,.35)', color: '#5B8DF7', fontSize: 13.5, fontWeight: 600 }}>Move to {next} →</button>}
                 </div>
                 <button type="button" onClick={() => { setSheetPerson(null); onOpenFullProfile(p) }} style={{ minHeight: 48, borderRadius: 14, background: 'transparent', border: '1px solid rgba(246,241,231,.14)', color: '#B4BAD6', fontSize: 13.5, fontWeight: 600 }}>View full profile</button>
               </div>
@@ -710,15 +716,20 @@ export default function MobileConstellation({
 }
 
 // ── Swipe-to-reveal row for the stage list (1c) ────────────────────────────────
-function SwipeRow({ e, onOpen, onPriority, onAdvance }: {
+function SwipeRow({ e, onOpen, onPriority, onAdvance, canEdit }: {
   e: Enriched
   onOpen: () => void
   onPriority: () => void
   onAdvance: () => void
+  canEdit: boolean
 }) {
   const c = E_COLOR[e.person.current_stage]
   const i = stageOrder.indexOf(e.person.current_stage)
-  const next = i < stageOrder.length - 1 ? stageOrder[i + 1] : null
+  // No next stage when the viewer can't write this person: `next` already
+  // drives both the swipe-reveal width and the button, so one condition here
+  // removes the whole affordance instead of leaving a dead 72px slot.
+  // Priority stays — person_priorities is keyed on the COACH, not the person.
+  const next = canEdit && i < stageOrder.length - 1 ? stageOrder[i + 1] : null
   const revealW = next ? 144 : 72
   const [dx, setDx] = useState(0)
   const [open, setOpen] = useState(false)

@@ -77,6 +77,7 @@ export default function ChapterTrackerModal({
   onEmpower,
   empowering,
   saving,
+  canEdit = true,
 }: {
   forecast: EmpowerForecast
   onClose: () => void
@@ -84,6 +85,9 @@ export default function ChapterTrackerModal({
   onEmpower: () => void
   empowering: boolean
   saving: boolean
+  // can_edit_person — booklet_progress (steppers) and people.current_stage
+  // (Empower) are both gated by it. Read-only viewers still see the forecast.
+  canEdit?: boolean
 }) {
   const {
     person,
@@ -200,7 +204,7 @@ export default function ChapterTrackerModal({
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      disabled={saving || b.current <= 0}
+                      disabled={saving || !canEdit || b.current <= 0}
                       onClick={() => onSetChapter(b.key, b.current - 1)}
                       className="flex h-[38px] w-[38px] items-center justify-center rounded-full border border-[var(--line-2)] text-lg text-[var(--fg-2)] transition-colors hover:bg-[var(--indigo)] disabled:opacity-30"
                       aria-label={`Decrease ${b.label} chapter`}
@@ -215,7 +219,7 @@ export default function ChapterTrackerModal({
                     </span>
                     <button
                       type="button"
-                      disabled={saving || b.current >= b.chapters}
+                      disabled={saving || !canEdit || b.current >= b.chapters}
                       onClick={() => onSetChapter(b.key, b.current + 1)}
                       className="flex h-[38px] w-[38px] items-center justify-center rounded-full border border-[var(--line-2)] text-lg text-[var(--fg-2)] transition-colors hover:bg-[var(--indigo)] disabled:opacity-30"
                       aria-label={`Increase ${b.label} chapter`}
@@ -255,7 +259,7 @@ export default function ChapterTrackerModal({
               <button
                 type="button"
                 onClick={onEmpower}
-                disabled={empowering}
+                disabled={empowering || !canEdit}
                 className="mt-3 flex min-h-[50px] w-full items-center justify-center rounded-2xl text-[15px] font-bold transition-all disabled:opacity-50"
                 style={{
                   background: `linear-gradient(160deg, ${empowerColor}, #C9457A)`,

@@ -51,6 +51,10 @@ function repeatCopies(start: string, until: string, rec: Recurrence): string[] {
   return recurrenceDates(start, until, rec).filter(d => d > start)
 }
 
+// `canEdit` mirrors can_edit_person(person_id) — the exact RLS predicate on
+// `engagements`. Reads are USING(true), so every coach lists all 210 people's
+// engagements while only their downline is writable. Defaults true for the
+// self-service surfaces, where the viewer is the subject.
 export default function NextStepsList({
   personId,
   personName,
@@ -58,6 +62,7 @@ export default function NextStepsList({
   refreshKey,
   onUpdate,
   onOpenEngagement,
+  canEdit = true,
 }: {
   personId: string
   personName: string
@@ -65,6 +70,7 @@ export default function NextStepsList({
   refreshKey: number
   onUpdate?: () => void
   onOpenEngagement?: (engagement: Engagement, personName: string) => void
+  canEdit?: boolean
 }) {
   const [engagements, setEngagements] = useState<Engagement[]>([])
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -96,6 +102,7 @@ export default function NextStepsList({
   }, [personId, refreshKey])
 
   const handleToggleComplete = async (eng: Engagement) => {
+    if (!canEdit) return
     setSavingId(eng.id)
     const newStatus = eng.status === 'Completed' ? 'Pending' : 'Completed'
 
@@ -123,7 +130,7 @@ export default function NextStepsList({
   }
 
   const handleSave = async (eng: Engagement) => {
-    if (!editingData) return
+    if (!editingData || !canEdit) return
     setSavingId(eng.id)
 
     const updates = {
@@ -226,6 +233,7 @@ export default function NextStepsList({
   }
 
   const handleDelete = async (id: string) => {
+    if (!canEdit) return
     if (!confirm('Delete this engagement?')) return
     setSavingId(id)
     const { error } = await deleteEngagement(id)
@@ -237,6 +245,10 @@ export default function NextStepsList({
   }
 
   const handleExpand = (eng: Engagement) => {
+    // The expanded panel IS the editor — every input, Save and Delete live
+    // inside `isExpanded && editingData`. Refusing to open it is one choke point
+    // that removes the whole editing surface, rather than disabling 12 fields.
+    if (!canEdit) return
     if (expandedId === eng.id) {
       setExpandedId(null)
       setEditingData(null)
@@ -321,6 +333,7 @@ export default function NextStepsList({
               editingData={editingData}
               savingId={savingId}
               canSyncCalendar={!!coachPersonId && !!eng.follow_up_date && !eng.google_calendar_event_id}
+              canEdit={canEdit}
               onToggleComplete={() => handleToggleComplete(eng)}
               onExpand={() => handleExpand(eng)}
               onOpen={() => onOpenEngagement?.(eng, personName)}
@@ -347,6 +360,7 @@ export default function NextStepsList({
               editingData={editingData}
               savingId={savingId}
               canSyncCalendar={!!coachPersonId && !!eng.follow_up_date && !eng.google_calendar_event_id}
+              canEdit={canEdit}
               onToggleComplete={() => handleToggleComplete(eng)}
               onExpand={() => handleExpand(eng)}
               onOpen={() => onOpenEngagement?.(eng, personName)}
@@ -373,6 +387,7 @@ export default function NextStepsList({
               editingData={editingData}
               savingId={savingId}
               canSyncCalendar={!!coachPersonId && !!eng.follow_up_date && !eng.google_calendar_event_id}
+              canEdit={canEdit}
               onToggleComplete={() => handleToggleComplete(eng)}
               onExpand={() => handleExpand(eng)}
               onOpen={() => onOpenEngagement?.(eng, personName)}
@@ -395,6 +410,7 @@ function EngagementCard({
   editingData,
   savingId,
   canSyncCalendar,
+  canEdit,
   onToggleComplete,
   onExpand,
   onOpen,
@@ -409,6 +425,7 @@ function EngagementCard({
   editingData: EditingEngagement | null
   savingId: string | null
   canSyncCalendar: boolean
+  canEdit: boolean
   onToggleComplete: () => void
   onExpand: () => void
   onOpen: () => void
@@ -439,8 +456,8 @@ function EngagementCard({
         <button
           type="button"
           onClick={onToggleComplete}
-          disabled={isSaving}
-          className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all disabled:opacity-60"
+          disabled={isSaving || !canEdit}
+          className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all disabled:cursor-not-allowed disabled:opacity-60"
           style={{
             borderColor: isCompleted ? 'var(--establish)' : 'var(--line-2)',
             background: isCompleted ? 'var(--establish)' : 'transparent',
@@ -458,7 +475,9 @@ function EngagementCard({
           <button
             type="button"
             onClick={onExpand}
-            className="w-full text-left"
+            disabled={!canEdit}
+            title={canEdit ? undefined : 'View only — not in your downline'}
+            className="w-full text-left disabled:cursor-default"
           >
             <div className="flex items-center gap-2">
               {eng.meeting_type && (

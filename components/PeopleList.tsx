@@ -74,7 +74,7 @@ function SectionCard({
 }
 
 export default function PeopleList({ filterStages, sortMode = '4e', searchQuery = '', allowedPersonIds, onChanged }: PeopleListProps) {
-  const { profile } = useAuth()
+  const { profile, canEdit: checkCanEdit } = useAuth()
   const [people, setPeople] = useState<Person[]>([])
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
@@ -127,6 +127,9 @@ export default function PeopleList({ filterStages, sortMode = '4e', searchQuery 
   }
 
   const handleStageChange = async (personId: string, newStage: Stage) => {
+    // people.current_stage UPDATE and the pipeline_events INSERT that follows it
+    // are both can_edit_person — outside the downline this only ever no-ops.
+    if (!checkCanEdit(personId)) return
     await updatePersonStage(personId, newStage)
     setRefreshKey(k => k + 1)
     onChanged?.()
@@ -229,7 +232,8 @@ export default function PeopleList({ filterStages, sortMode = '4e', searchQuery 
                           <button
                             key={stage}
                             onClick={() => handleStageChange(person.id, stage)}
-                            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all ${
+                            disabled={!checkCanEdit(person.id)}
+                            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
                               person.current_stage === stage
                                 ? 'bg-black text-white'
                                 : 'border border-gray-300 bg-white text-gray-900 hover:bg-gray-100'
@@ -239,11 +243,14 @@ export default function PeopleList({ filterStages, sortMode = '4e', searchQuery 
                           </button>
                         ))}
                       </div>
+                      {!checkCanEdit(person.id) && (
+                        <p className="mt-2 text-xs text-gray-600">View only — {person.name.split(' ')[0]} is not in your downline.</p>
+                      )}
                     </div>
 
                     <div>
                       <div className="mb-3 font-semibold text-gray-900">4E Tools & Action Steps</div>
-                      <StageChecklist personId={person.id} currentStage={person.current_stage} />
+                      <StageChecklist personId={person.id} currentStage={person.current_stage} canEdit={checkCanEdit(person.id)} />
                     </div>
 
                     <div>
@@ -251,12 +258,14 @@ export default function PeopleList({ filterStages, sortMode = '4e', searchQuery 
                         <div className="font-semibold text-gray-900">Next Steps</div>
                         <span className="text-xs font-medium text-gray-700">Follow-up dates</span>
                       </div>
-                      <NextStepsList personId={person.id} personName={person.name} coachPersonId={profile?.id} refreshKey={refreshKey} />
-                      <AddNextStepForm
-                        personId={person.id}
-                        personName={person.name}
-                        onAdded={() => setRefreshKey(k => k + 1)}
-                      />
+                      <NextStepsList personId={person.id} personName={person.name} coachPersonId={profile?.id} refreshKey={refreshKey} canEdit={checkCanEdit(person.id)} />
+                      {checkCanEdit(person.id) && (
+                        <AddNextStepForm
+                          personId={person.id}
+                          personName={person.name}
+                          onAdded={() => setRefreshKey(k => k + 1)}
+                        />
+                      )}
                     </div>
                   </div>
                 </SectionCard>

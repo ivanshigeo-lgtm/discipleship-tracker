@@ -10,6 +10,7 @@ import {
   setPersonPriority,
   getPipelineEvents,
 } from '../lib/supabaseQueries'
+import { useAuth } from '../contexts/AuthContext'
 import { stageLabels, stageOrder } from '../lib/stageLabels'
 import type { Person, Stage, Engagement, PrayerRequest, PipelineEvent } from '../types/database'
 
@@ -70,6 +71,7 @@ function PersonCard({
   engagements,
   prayerCount,
   daysInStage,
+  canEdit,
   onAdvance,
   onClick,
   onFollowUpClick,
@@ -79,6 +81,7 @@ function PersonCard({
   engagements: Engagement[]
   prayerCount: number
   daysInStage: number | null
+  canEdit: boolean
   onAdvance?: (newStage: Stage) => void
   onClick?: () => void
   onFollowUpClick?: () => void
@@ -213,8 +216,9 @@ function PersonCard({
         </button>
       </div>
 
-      {/* Advance button */}
-      {nextStage && onAdvance && (
+      {/* Advance button — hidden outside the downline, where the write can only
+          no-op. The card stays fully readable; only the action goes away. */}
+      {nextStage && onAdvance && canEdit && (
         <button
           type="button"
           onClick={(e) => {
@@ -245,6 +249,7 @@ export default function CoachingPipeline({
   onPersonClick,
   onChanged,
 }: CoachingPipelineProps) {
+  const { canEdit: checkCanEdit } = useAuth()
   const [people, setPeople] = useState<Person[]>([])
   const [engagements, setEngagements] = useState<Engagement[]>([])
   const [prayerRequests, setPrayerRequests] = useState<PrayerRequest[]>([])
@@ -343,6 +348,10 @@ export default function CoachingPipeline({
   }, [pipelineEvents, allowedPersonIds])
 
   const handleAdvanceStage = async (personId: string, newStage: Stage) => {
+    // can_edit_person on both people.current_stage and pipeline_events. The
+    // pipeline lists everyone in scope (reads are USING(true)), so without this
+    // an out-of-downline card advanced on screen and reverted on the next load.
+    if (!checkCanEdit(personId)) return
     await updatePersonStage(personId, newStage)
     await loadData()
     onChanged?.()
@@ -444,6 +453,7 @@ export default function CoachingPipeline({
                       engagements={engagementsByPerson.get(person.id) || []}
                       prayerCount={activePrayerCountByPerson.get(person.id) || 0}
                       daysInStage={daysSince(person.updated_at)}
+                      canEdit={checkCanEdit(person.id)}
                       onAdvance={(newStage) => handleAdvanceStage(person.id, newStage)}
                       onClick={() => onPersonClick?.(person)}
                       onFollowUpClick={() => onPersonClick?.(person, 'engagements')}
