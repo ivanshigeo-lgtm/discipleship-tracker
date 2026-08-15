@@ -32,6 +32,28 @@ function dedup<T>(key: string, fn: () => Promise<T>): Promise<T> {
   return p
 }
 
+// PostgREST caps ONE response at 1000 rows and says so only in the
+// Content-Range header — the client gets a short array and NO error, so a
+// truncated whole-table read is indistinguishable from a small table. That is
+// exactly how stage_checklist_items silently dropped 169 rows (20 people) out
+// of every momentum tile in Aug 2026. Any read of a whole table goes through
+// here, before it crosses the cap rather than after.
+// ⚠️ The page() ordering MUST end in a UNIQUE column (id). Ranged pagination
+// over a non-unique sort is its own bug: rows shift across the page boundary,
+// so some are fetched twice and others never at all.
+const PAGE_SIZE = 1000
+async function fetchAllPages<T, E>(
+  page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: E | null }>
+): Promise<{ data: T[] | null; error: E | null }> {
+  const all: T[] = []
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await page(from, from + PAGE_SIZE - 1)
+    if (error) return { data: null, error }
+    all.push(...(data ?? []))
+    if ((data?.length ?? 0) < PAGE_SIZE) return { data: all, error: null }
+  }
+}
+
 // ==================== TEST-DATA SCOPE ====================
 // The App Review demo rig (claude.tester = Kai Nakamura + fictional downline +
 // their Grace Group) lives in the same database as the real church, flagged
@@ -47,22 +69,24 @@ const hideTestRows = () => !_viewer.isTest
 
 // ==================== PEOPLE ====================
 export const getPeople = (stage?: Stage | Stage[]) =>
-  dedup(`getPeople:${Array.isArray(stage) ? stage.join(',') : stage ?? ''}`, async () => {
-    let query = supabase
-      .from('people')
-      .select('*')
-      .order('created_at', { ascending: false })
-    if (hideTestRows()) query = query.eq('is_test', false)
+  dedup(`getPeople:${Array.isArray(stage) ? stage.join(',') : stage ?? ''}`, () =>
+    fetchAllPages((from, to) => {
+      let query = supabase
+        .from('people')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: true })
+      if (hideTestRows()) query = query.eq('is_test', false)
 
-    if (Array.isArray(stage) && stage.length > 0) {
-      query = query.in('current_stage', stage)
-    } else if (stage) {
-      query = query.eq('current_stage', stage)
-    }
+      if (Array.isArray(stage) && stage.length > 0) {
+        query = query.in('current_stage', stage)
+      } else if (stage) {
+        query = query.eq('current_stage', stage)
+      }
 
-    const { data, error } = await query
-    return { data, error }
-  })
+      return query.range(from, to)
+    })
+  )
 
 export const addPerson = async (
   person: Omit<Person, 'id' | 'created_at' | 'updated_at' | 'auth_user_id' | 'is_admin' | 'is_test' | 'testimony_text' | 'testimony_video_url'>,
@@ -205,13 +229,15 @@ export const updatePersonStage = async (personId: string, newStage: Stage) => {
   return result
 }
 
-export const getPipelineEvents = async () => {
-  const { data, error } = await supabase
-    .from('pipeline_events')
-    .select('*')
-    .order('created_at', { ascending: false })
-  return { data, error }
-}
+export const getPipelineEvents = async () =>
+  fetchAllPages((from, to) =>
+    supabase
+      .from('pipeline_events')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: true })
+      .range(from, to)
+  )
 
 // Goes through the server so NO ACTION references (prayers they authored,
 // engagements/sign-offs they created for others) are cleared or de-attributed
@@ -438,13 +464,16 @@ export const setMeetingInviteStatus = async (engagementId: string, personId: str
 }
 
 export const getAllEngagements = () =>
-  dedup('getAllEngagements', async () => {
-    const { data, error } = await supabase
-      .from('engagements')
-      .select('*')
-      .order('follow_up_date', { ascending: true, nullsFirst: false })
-    return { data, error }
-  })
+  dedup('getAllEngagements', () =>
+    fetchAllPages((from, to) =>
+      supabase
+        .from('engagements')
+        .select('*')
+        .order('follow_up_date', { ascending: true, nullsFirst: false })
+        .order('id', { ascending: true })
+        .range(from, to)
+    )
+  )
 
 export const addEngagement = async (engagement: Omit<Engagement, 'id' | 'created_at' | 'notes' | 'completed_at' | 'action_completed' | 'action_completed_at' | 'google_calendar_event_id'> & { follow_up_time?: string | null; location?: string | null }) => {
   const { data, error } = await supabase
@@ -666,13 +695,16 @@ export const deleteActionItem = async (id: string) => {
 }
 
 export const getAllActionItems = () =>
-  dedup('getAllActionItems', async () => {
-    const { data, error } = await supabase
-      .from('engagement_action_items')
-      .select('*')
-      .order('created_at', { ascending: false })
-    return { data, error }
-  })
+  dedup('getAllActionItems', () =>
+    fetchAllPages((from, to) =>
+      supabase
+        .from('engagement_action_items')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: true })
+        .range(from, to)
+    )
+  )
 
 export const getPrayerRequestsByEngagement = async (engagementId: string) => {
   const { data, error } = await supabase
@@ -786,15 +818,17 @@ export const deletePrayerRequest = async (id: string) => {
 
 // ==================== VICTORY GROUPS ====================
 export const getVictoryGroups = () =>
-  dedup('getVictoryGroups', async () => {
-    let query = supabase
-      .from('victory_groups')
-      .select('*')
-      .order('name', { ascending: true })
-    if (hideTestRows()) query = query.eq('is_test', false)
-    const { data, error } = await query
-    return { data, error }
-  })
+  dedup('getVictoryGroups', () =>
+    fetchAllPages((from, to) => {
+      let query = supabase
+        .from('victory_groups')
+        .select('*')
+        .order('name', { ascending: true })
+        .order('id', { ascending: true })
+      if (hideTestRows()) query = query.eq('is_test', false)
+      return query.range(from, to)
+    })
+  )
 
 export const addVictoryGroup = async (group: Omit<VictoryGroup, 'id' | 'created_at' | 'google_calendar_event_id' | 'last_edited_by' | 'is_test'>) => {
   const { data, error } = await supabase
@@ -833,21 +867,27 @@ export const updateVictoryGroup = async (groupId: string, updates: Partial<Omit<
 
 // ==================== GROUP MEMBERSHIPS ====================
 export const getAllGroupMemberships = () =>
-  dedup('getAllGroupMemberships', async () => {
-    const { data, error } = await supabase
-      .from('person_victory_groups')
-      .select('person_id, victory_group_id')
-    return { data, error }
-  })
+  dedup('getAllGroupMemberships', () =>
+    fetchAllPages((from, to) =>
+      supabase
+        .from('person_victory_groups')
+        .select('person_id, victory_group_id')
+        .order('id', { ascending: true })
+        .range(from, to)
+    )
+  )
 
 // ==================== BOOKLET PROGRESS ====================
 export const getAllBookletProgress = () =>
-  dedup('getAllBookletProgress', async () => {
-    const { data, error } = await supabase
-      .from('booklet_progress')
-      .select('*')
-    return { data, error }
-  })
+  dedup('getAllBookletProgress', () =>
+    fetchAllPages((from, to) =>
+      supabase
+        .from('booklet_progress')
+        .select('*')
+        .order('id', { ascending: true })
+        .range(from, to)
+    )
+  )
 
 export const getBookletProgress = async (personId: string) => {
   const { data, error } = await supabase
@@ -899,13 +939,15 @@ export const upsertBookletProgress = async (
 // Every true booklet chapter advance, newest first. The honest source for the
 // momentum "chapters" / chapter-milestone counts (vs booklet_progress.updated_at,
 // which any edit bumps). Mirrors getPipelineEvents.
-export const getBookletChapterEvents = async () => {
-  const { data, error } = await supabase
-    .from('booklet_chapter_events')
-    .select('*')
-    .order('created_at', { ascending: false })
-  return { data, error }
-}
+export const getBookletChapterEvents = async () =>
+  fetchAllPages((from, to) =>
+    supabase
+      .from('booklet_chapter_events')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: true })
+      .range(from, to)
+  )
 
 // ==================== SPIRITUAL GIFTS ====================
 export const getSpiritualGiftsResult = async (personId: string) => {
@@ -1123,32 +1165,22 @@ export const getStageChecklistItems = async (personId: string) => {
   return { data, error }
 }
 
-// PostgREST caps one response at 1000 rows and reports it ONLY in the
-// Content-Range header — the client just gets a short array and no error, so a
-// truncated read is indistinguishable from a small table. This table crossed
-// 1000 rows in Aug 2026 and quietly dropped the tail of the person_id ordering
-// (20 people, 167 completed milestones) out of every momentum tile, lens, badge
-// and needs-a-touch count that reads it. Page until a short read.
-// `id` is the tiebreaker: person_id+stage is NOT unique, and an unstable sort
-// across page boundaries would duplicate some rows and skip others.
-const CHECKLIST_PAGE = 1000
+// This is the table the truncation was FOUND on: it crossed 1000 rows in Aug
+// 2026 and quietly dropped the tail of the person_id ordering (20 people, 167
+// completed milestones) out of every momentum tile, lens, badge and
+// needs-a-touch count. See fetchAllPages for the mechanism.
 export const getAllStageChecklistItems = () =>
-  dedup('getAllStageChecklistItems', async () => {
-    const all: StageChecklistItem[] = []
-    for (let from = 0; ; from += CHECKLIST_PAGE) {
-      const { data, error } = await supabase
+  dedup('getAllStageChecklistItems', () =>
+    fetchAllPages((from, to) =>
+      supabase
         .from('stage_checklist_items')
         .select('*')
         .order('person_id', { ascending: true })
         .order('stage', { ascending: true })
         .order('id', { ascending: true })
-        .range(from, from + CHECKLIST_PAGE - 1)
-      if (error) return { data: null, error }
-      all.push(...((data ?? []) as StageChecklistItem[]))
-      if ((data?.length ?? 0) < CHECKLIST_PAGE) break
-    }
-    return { data: all, error: null }
-  })
+        .range(from, to)
+    )
+  )
 
 // is_historical / achieved_on are omitted deliberately: the sync_historical DB
 // trigger owns them. A client write is not just unnecessary, it is immediately
@@ -1199,14 +1231,16 @@ export const getGroupAttendance = async (groupId: string) => {
 // (a local 'YYYY-MM-DD'). Returns person_id so callers can de-dupe a member who
 // attends multiple groups; scope filtering happens in the UI via allowedPersonIds.
 // Powers the "N attended this week" metric in the Groups view.
-export const getRecentGroupAttendance = async (since: string) => {
-  const { data, error } = await supabase
-    .from('group_attendance')
-    .select('person_id, victory_group_id, meeting_date, attended')
-    .gte('meeting_date', since)
-    .eq('attended', true)
-  return { data, error }
-}
+export const getRecentGroupAttendance = async (since: string) =>
+  fetchAllPages((from, to) =>
+    supabase
+      .from('group_attendance')
+      .select('person_id, victory_group_id, meeting_date, attended')
+      .gte('meeting_date', since)
+      .eq('attended', true)
+      .order('id', { ascending: true })
+      .range(from, to)
+  )
 
 export const upsertGroupAttendance = async (
   attendance: Omit<GroupAttendance, 'id' | 'created_at' | 'updated_at'>
@@ -1228,12 +1262,14 @@ export const upsertGroupAttendance = async (
 // ==================== GROUP MEETING STATUS (per-occurrence cancel/reschedule) ====================
 // A recurring group meeting has no per-occurrence row; these override a SINGLE
 // occurrence, keyed by its original meeting_date. See GroupMeetingStatus type.
-export const getGroupMeetingStatuses = async () => {
-  const { data, error } = await supabase
-    .from('group_meeting_status')
-    .select('id, victory_group_id, meeting_date, status, rescheduled_to, rescheduled_time, note, created_by_person_id, created_at, updated_at')
-  return { data, error }
-}
+export const getGroupMeetingStatuses = async () =>
+  fetchAllPages((from, to) =>
+    supabase
+      .from('group_meeting_status')
+      .select('id, victory_group_id, meeting_date, status, rescheduled_to, rescheduled_time, note, created_by_person_id, created_at, updated_at')
+      .order('id', { ascending: true })
+      .range(from, to)
+  )
 
 // Upsert one group's status for one original meeting_date. onConflict matches the
 // unique (victory_group_id, meeting_date) so re-submitting overwrites.
@@ -1277,12 +1313,15 @@ export const getDiscipleshipConnections = async (disciplerPersonId: string) => {
 }
 
 export const getAllDiscipleshipConnections = () =>
-  dedup('getAllDiscipleshipConnections', async () => {
-    const { data, error } = await supabase
-      .from('discipleship_connections')
-      .select('*')
-    return { data, error }
-  })
+  dedup('getAllDiscipleshipConnections', () =>
+    fetchAllPages((from, to) =>
+      supabase
+        .from('discipleship_connections')
+        .select('*')
+        .order('id', { ascending: true })
+        .range(from, to)
+    )
+  )
 
 // Pending self-service connection requests awaiting this coach's acceptance
 // (from open web signup — a disciple entered this coach's code). The coach
