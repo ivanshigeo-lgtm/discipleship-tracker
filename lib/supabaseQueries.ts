@@ -54,6 +54,40 @@ async function fetchAllPages<T, E>(
   }
 }
 
+// RLS refuses a write by changing NOTHING and returning NO error: PostgREST
+// signals the refusal only by returning zero rows. So `{ error: null }` means
+// "the statement ran", NOT "your change was saved" — the two are
+// indistinguishable unless you ask for the affected rows back.
+//
+// That gap is reachable in the UI, not theoretical. `canSeeAllChurch` (admin or
+// Empower) puts the whole church in scope, so 8 non-admin Empower coaches can
+// open any of the 53–205 people they can SEE but cannot EDIT — can_edit_person
+// is admin/self/downline only — and every write affordance is live on the
+// detail panel. Verified as claude.tester (downline 4 of 209): DELETE on a
+// non-downline engagement returns HTTP 204 with an empty body and the row
+// survives.
+//
+// ⚠️ `.select()` alone does NOT close this: it yields `{ data: [], error: null }`,
+// which a caller checking only `error` still reads as success. The row count is
+// the signal, so it has to be checked here.
+//
+// Only for writes the user explicitly initiated on a row they picked. Deletes
+// that are legitimately idempotent (unliking something not liked, clearing a
+// feed state that was never set) must keep treating zero rows as success.
+// Mirrors native src/lib/queries.ts wrote().
+// Shaped so a PostgrestError assigns straight into it and existing callers that
+// read .code/.details/.hint keep compiling.
+export type WriteError = { message: string; code?: string; details?: string; hint?: string }
+const NOT_PERMITTED: WriteError = {
+  message: "You don't have permission to change this. It belongs to someone outside the people you coach.",
+}
+const wrote = <T>(res: { data: T[] | null; error: WriteError | null }) =>
+  res.error
+    ? { data: null, error: res.error }
+    : (res.data?.length ?? 0) === 0
+      ? { data: null, error: NOT_PERMITTED }
+      : { data: res.data![0], error: null }
+
 // ==================== TEST-DATA SCOPE ====================
 // The App Review demo rig (claude.tester = Kai Nakamura + fictional downline +
 // their Grace Group) lives in the same database as the real church, flagged
@@ -454,14 +488,15 @@ export const getConfirmedEngagementIds = async (personId: string) => {
   return { data: (data ?? []).map(r => r.engagement_id as string), error }
 }
 
-export const setMeetingInviteStatus = async (engagementId: string, personId: string, status: 'confirmed' | 'declined') => {
-  const { error } = await supabase
-    .from('engagement_participants')
-    .update({ status })
-    .eq('engagement_id', engagementId)
-    .eq('person_id', personId)
-  return { error }
-}
+export const setMeetingInviteStatus = async (engagementId: string, personId: string, status: 'confirmed' | 'declined') =>
+  wrote(
+    await supabase
+      .from('engagement_participants')
+      .update({ status })
+      .eq('engagement_id', engagementId)
+      .eq('person_id', personId)
+      .select()
+  )
 
 export const getAllEngagements = () =>
   dedup('getAllEngagements', () =>
@@ -484,22 +519,13 @@ export const addEngagement = async (engagement: Omit<Engagement, 'id' | 'created
   return { data, error }
 }
 
-export const updateEngagement = async (id: string, updates: Partial<Omit<Engagement, 'id' | 'person_id' | 'created_at'>>) => {
-  const { data, error } = await supabase
-    .from('engagements')
-    .update(updates)
-    .eq('id', id)
-    .select()
-  return { data: data?.[0] ?? null, error }
-}
+export const updateEngagement = async (id: string, updates: Partial<Omit<Engagement, 'id' | 'person_id' | 'created_at'>>) =>
+  // `.select()` was already here but the empty-array case was read as success,
+  // so editing a meeting for someone outside the downline silently did nothing.
+  wrote(await supabase.from('engagements').update(updates).eq('id', id).select())
 
-export const deleteEngagement = async (id: string) => {
-  const { error } = await supabase
-    .from('engagements')
-    .delete()
-    .eq('id', id)
-  return { error }
-}
+export const deleteEngagement = async (id: string) =>
+  wrote(await supabase.from('engagements').delete().eq('id', id).select())
 
 // ── Touches: a lightweight "contact made" marker, NOT a meeting/engagement ──
 // Its own table so needs-a-touch can count touch points (graduation) and cool a
@@ -513,13 +539,8 @@ export const addTouch = async (personId: string, coachPersonId: string | null) =
   return { data, error }
 }
 
-export const deleteTouch = async (id: string) => {
-  const { error } = await supabase
-    .from('touches')
-    .delete()
-    .eq('id', id)
-  return { error }
-}
+export const deleteTouch = async (id: string) =>
+  wrote(await supabase.from('touches').delete().eq('id', id).select())
 
 // The viewing coach's own touches since `sinceISO`, newest first.
 export const getRecentTouches = async (coachPersonId: string, sinceISO: string) => {
@@ -689,10 +710,8 @@ export const updateActionItem = async (id: string, updates: { text?: string; com
   return { data, error }
 }
 
-export const deleteActionItem = async (id: string) => {
-  const { error } = await supabase.from('engagement_action_items').delete().eq('id', id)
-  return { error }
-}
+export const deleteActionItem = async (id: string) =>
+  wrote(await supabase.from('engagement_action_items').delete().eq('id', id).select())
 
 export const getAllActionItems = () =>
   dedup('getAllActionItems', () =>
@@ -1137,10 +1156,8 @@ export const setGroupMembershipStatus = async (membershipId: string, status: 'pe
   return { data, error }
 }
 
-export const deleteGroupMembership = async (membershipId: string) => {
-  const { error } = await supabase.from('person_victory_groups').delete().eq('id', membershipId)
-  return { error }
-}
+export const deleteGroupMembership = async (membershipId: string) =>
+  wrote(await supabase.from('person_victory_groups').delete().eq('id', membershipId).select())
 
 export const removePersonFromVictoryGroup = async (personId: string, victoryGroupId: string) => {
   const { data, error } = await supabase
@@ -1291,14 +1308,15 @@ export const upsertGroupMeetingStatus = async (record: {
 }
 
 // Undo a cancel/reschedule — the occurrence reverts to its normal day/time.
-export const clearGroupMeetingStatus = async (victoryGroupId: string, meetingDate: string) => {
-  const { error } = await supabase
-    .from('group_meeting_status')
-    .delete()
-    .eq('victory_group_id', victoryGroupId)
-    .eq('meeting_date', meetingDate)
-  return { error }
-}
+export const clearGroupMeetingStatus = async (victoryGroupId: string, meetingDate: string) =>
+  wrote(
+    await supabase
+      .from('group_meeting_status')
+      .delete()
+      .eq('victory_group_id', victoryGroupId)
+      .eq('meeting_date', meetingDate)
+      .select()
+  )
 
 // ==================== DISCIPLESHIP CONNECTIONS ====================
 export const getDiscipleshipConnections = async (disciplerPersonId: string) => {
