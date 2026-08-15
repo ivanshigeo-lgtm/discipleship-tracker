@@ -1123,14 +1123,31 @@ export const getStageChecklistItems = async (personId: string) => {
   return { data, error }
 }
 
+// PostgREST caps one response at 1000 rows and reports it ONLY in the
+// Content-Range header — the client just gets a short array and no error, so a
+// truncated read is indistinguishable from a small table. This table crossed
+// 1000 rows in Aug 2026 and quietly dropped the tail of the person_id ordering
+// (20 people, 167 completed milestones) out of every momentum tile, lens, badge
+// and needs-a-touch count that reads it. Page until a short read.
+// `id` is the tiebreaker: person_id+stage is NOT unique, and an unstable sort
+// across page boundaries would duplicate some rows and skip others.
+const CHECKLIST_PAGE = 1000
 export const getAllStageChecklistItems = () =>
   dedup('getAllStageChecklistItems', async () => {
-    const { data, error } = await supabase
-      .from('stage_checklist_items')
-      .select('*')
-      .order('person_id', { ascending: true })
-      .order('stage', { ascending: true })
-    return { data, error }
+    const all: StageChecklistItem[] = []
+    for (let from = 0; ; from += CHECKLIST_PAGE) {
+      const { data, error } = await supabase
+        .from('stage_checklist_items')
+        .select('*')
+        .order('person_id', { ascending: true })
+        .order('stage', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, from + CHECKLIST_PAGE - 1)
+      if (error) return { data: null, error }
+      all.push(...((data ?? []) as StageChecklistItem[]))
+      if ((data?.length ?? 0) < CHECKLIST_PAGE) break
+    }
+    return { data: all, error: null }
   })
 
 // is_historical / achieved_on are omitted deliberately: the sync_historical DB

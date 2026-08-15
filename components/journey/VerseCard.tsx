@@ -69,7 +69,14 @@ export default function VerseCard({
     fetch('/api/verse-week')
       .then((r) => r.json())
       .then((j) => {
-        if (cancelled || j?.status !== 'ready') return
+        if (cancelled) return
+        // Every rejection below lands on the same static fallback verse, so the
+        // card looks identical whether the church site is down, the API is still
+        // probing, or the payload came back malformed. Say which one it was.
+        if (j?.status !== 'ready') {
+          console.warn('verse-week not ready:', j?.status, j?.detail ?? '')
+          return
+        }
         const w = j.week as VerseWeek
         if (Array.isArray(w?.verses) && w.verses.length >= 1 && w.verses.length <= 7) {
           cachedWeek = { week: w, stale: j.stale === true }
@@ -78,9 +85,13 @@ export default function VerseCard({
           // Sunday's message rarely cites fewer than 7 verses, but if it does,
           // clamp so we don't land past the end of the carousel.
           setIdx(Math.min(today, w.verses.length - 1))
+        } else {
+          console.warn('verse-week payload unusable: verses =', w?.verses?.length)
         }
       })
-      .catch(() => {})
+      .catch((err) => {
+        if (!cancelled) console.warn('verse-week fetch failed:', err)
+      })
     return () => {
       cancelled = true
     }
