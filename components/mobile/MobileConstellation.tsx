@@ -224,7 +224,8 @@ export default function MobileConstellation({
     // Every checklist completion is a milestone. The old `startsWith
     // ('Completed ')` filter kept only booklet rows and dropped 87% of real
     // completions — see PipelineMomentum for the same fix.
-    const milestones = checklist.filter(it => it.completed && inScope(it.person_id) && inWin(it.completed_at)).length
+    // is_historical rows are baseline data entry, not momentum — see MomentumCard.
+    const milestones = checklist.filter(it => it.completed && !it.is_historical && inScope(it.person_id) && inWin(it.completed_at)).length
     return { newPeople, milestones }
   }, [people, checklist, allowedPersonIds])
 

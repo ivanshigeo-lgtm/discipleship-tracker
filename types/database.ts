@@ -183,6 +183,11 @@ export type BookletChapterEvent = {
   from_chapter: number | null
   to_chapter: number
   created_at: string
+  // Bulk catch-up entry rather than reading done that day — set automatically by
+  // the sync_historical trigger. Excluded from momentum, still shown on the journey.
+  is_historical: boolean
+  // Optional real date the chapters were actually read, when the coach knows it.
+  achieved_on: string | null
 }
 
 // Checkable action point captured inside an engagement.
@@ -238,6 +243,13 @@ export type StageChecklistItem = {
   completed_at: string | null
   created_at: string
   updated_at: string
+  // True when this completion was part of a bulk catch-up entry session (a coach
+  // typing in someone's history) rather than progress made that day. Set
+  // automatically by the sync_historical trigger — never written by the client.
+  // Momentum counts only is_historical === false; the journey still shows it.
+  is_historical: boolean
+  // Optional real date the milestone was achieved, when the coach knows it.
+  achieved_on: string | null
 }
 
 export type GroupAttendance = {

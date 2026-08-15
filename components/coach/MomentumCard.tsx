@@ -92,12 +92,17 @@ export default function MomentumCard({
     // conversation", "Connect to Small Group", …) and left only booklet
     // completions, which also double-count against the chapter log.
     const events: { id: string; at: number; chapter: boolean; label: string; booklet: string; from: number; to: number }[] = []
+    // is_historical rows are BASELINE, not momentum: a coach typing in someone's
+    // whole history at onboarding (Paige Asato's 10 milestones and 12 chapters
+    // went in during one 23-second session) logs when it was TYPED, not when it
+    // HAPPENED. The DB trigger flags those bursts; momentum counts only progress
+    // past that baseline. The journey/detail views still show every row.
     for (const it of items) {
-      if (it.completed && it.completed_at && activeIds.has(it.person_id))
+      if (it.completed && it.completed_at && !it.is_historical && activeIds.has(it.person_id))
         events.push({ id: it.person_id, at: new Date(it.completed_at).getTime(), chapter: false, label: it.label.replace(/^Completed /, ''), booklet: '', from: 0, to: 0 })
     }
     for (const ev of chapterEvents) {
-      if (activeIds.has(ev.person_id))
+      if (!ev.is_historical && activeIds.has(ev.person_id))
         events.push({ id: ev.person_id, at: new Date(ev.created_at).getTime(), chapter: true, label: `Chapter ${ev.to_chapter}`, booklet: ev.booklet, from: ev.from_chapter ?? 0, to: ev.to_chapter })
     }
     // A "step" is either kind — that is the movement rate's whole point.

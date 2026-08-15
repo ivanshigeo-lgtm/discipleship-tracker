@@ -1133,8 +1133,11 @@ export const getAllStageChecklistItems = () =>
     return { data, error }
   })
 
+// is_historical / achieved_on are omitted deliberately: the sync_historical DB
+// trigger owns them. A client write is not just unnecessary, it is immediately
+// recomputed away — keeping them out of the signature says so at compile time.
 export const upsertStageChecklistItem = async (
-  item: Omit<StageChecklistItem, 'id' | 'created_at' | 'updated_at' | 'completed_at'>
+  item: Omit<StageChecklistItem, 'id' | 'created_at' | 'updated_at' | 'completed_at' | 'is_historical' | 'achieved_on'>
 ) => {
   const { data, error } = await supabase
     .from('stage_checklist_items')
