@@ -115,6 +115,9 @@ export type Scorecard = {
     groupsLed: number
     peopleInGroups: number
     metLast7Days: number
+    /** @deprecated Alias of metLast7Days, kept so native builds shipped before
+     *  the rename keep rendering the tile. Remove once 1.1.2 is the floor. */
+    metThisWeek: number
     oneOnOnesNext7: number
     weeklyReach: number
     constellation: number
@@ -157,6 +160,8 @@ export type Consolidated = {
   totalReleased: number
   microsites: number
   metLast7Days: number
+  /** @deprecated Alias of metLast7Days — see the Scorecard stats field. */
+  metThisWeek: number
   // Counts only — no leader is ever named here, so this block is safe to show
   // to every leader on the team.
   teamGaps: {
@@ -741,6 +746,7 @@ export function buildLeaderReview(
         groupsLed: owned.length,
         peopleInGroups: inGroup.size,
         metLast7Days: met.size,
+        metThisWeek: met.size, // deprecated alias for pre-1.1.2 native builds
         // distinct PEOPLE, matching the week strip's day badge and the way a
         // leader reads their own week: someone booked three times is one person
         // you are meeting, not three. The list below stays un-collapsed.
@@ -802,6 +808,7 @@ export function buildLeaderReview(
     totalReleased,
     microsites: micrositeList.length,
     metLast7Days: metAll.size,
+    metThisWeek: metAll.size, // deprecated alias for pre-1.1.2 native builds
     teamGaps: {
       noEquipBench: noEquipBench.length,
       groupsUnder6: groupsUnder6.length,
