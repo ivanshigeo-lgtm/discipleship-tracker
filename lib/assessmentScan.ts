@@ -257,6 +257,46 @@ export async function authorizeScanCaller(
   return { caller }
 }
 
+// Scope a committed scan to the caller's downline, the way every other coach
+// write is scoped — except that here failing the check is not a refusal.
+// Scanning someone's packet IS the act of taking them on, so an empowered coach
+// who commits for a person outside their downline becomes their coach, exactly
+// as whoever inputs a name does (addPerson's auto coach-connection).
+//
+// The connection is added, never moved: `is_primary` stays false, so a person
+// who already has a primary coach keeps them and simply gains a second
+// discipler. get_downline follows ANY connection, so the person is in the
+// caller's downline from this moment on and every other gate in the app
+// (can_edit_person, canEdit, the RLS write policies) agrees without a special
+// case for scans.
+export async function claimPersonForScan(
+  supabase: SupabaseClient,
+  caller: ScanCaller,
+  person: { id: string; name: string | null }
+): Promise<{ claimed: boolean; error?: string }> {
+  // Admins may already edit anyone — an admin scanning a packet should not
+  // silently make them the coach of everyone they help out.
+  if (caller.is_admin || caller.id === person.id) return { claimed: false }
+
+  const { data: downline } = await supabase.rpc('get_downline', { coach_person_id: caller.id })
+  const ids = new Set(((downline ?? []) as { person_id: string }[]).map(r => r.person_id))
+  if (ids.has(person.id)) return { claimed: false }
+
+  // No direct connection can exist here — get_downline covers direct rows — so
+  // this cannot duplicate one. (discipleship_connections has no unique index on
+  // the pair, so the containment check above is what keeps it clean.)
+  const { error } = await supabase.from('discipleship_connections').insert({
+    discipler_person_id: caller.id,
+    disciple_person_id: person.id,
+    disciple_name: person.name ?? '',
+    relationship_notes: null,
+    status: 'Identified',
+    updated_at: new Date().toISOString(),
+  })
+  if (error) return { claimed: false, error: error.message }
+  return { claimed: true }
+}
+
 // ── assembling parsed pages into a reviewable draft ───────────────────────────
 type PageSpec = { ids: [number, number]; min: number; max: number }
 const PAGE_SPECS: Partial<Record<PageCode, PageSpec>> = {

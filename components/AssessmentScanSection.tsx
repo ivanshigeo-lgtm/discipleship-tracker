@@ -155,6 +155,8 @@ export default function AssessmentScanSection({
 
   const [saved, setSaved] = useState<{ gifts: boolean; bigFive: boolean; passion: boolean } | null>(null)
   const [summary, setSummary] = useState<string | null>(null)
+  // Set when the commit is what made this coach the person's coach.
+  const [coachConnected, setCoachConnected] = useState(false)
 
   // Past scans for this person (assessment_scans is select-readable to
   // authenticated users; both FKs point at people, so name the column).
@@ -288,6 +290,7 @@ export default function AssessmentScanSection({
       if (!res.ok) throw new Error(payload.error ?? `Save failed (${res.status}).`)
       setSaved(payload.saved)
       setSummary(payload.summary)
+      setCoachConnected(Boolean(payload.coachConnectionCreated))
       setPhase('done')
       setHistoryRefresh(k => k + 1)
       onCommitted?.()
@@ -304,6 +307,7 @@ export default function AssessmentScanSection({
     setScan(null)
     setSaved(null)
     setSummary(null)
+    setCoachConnected(false)
     setError('')
     setPhase('idle')
   }
@@ -595,6 +599,13 @@ export default function AssessmentScanSection({
           {phase === 'done' && (
             <div className="space-y-3">
               <div className="text-base font-bold text-[var(--fg-1)]">Saved to {first}&apos;s journey</div>
+              {coachConnected && (
+                <div className="rounded-xl border border-[var(--line-1)] bg-[var(--indigo-2)] p-3 text-sm text-[var(--fg-2)]">
+                  <span className="font-semibold text-[var(--fg-1)]">You&apos;re now {first}&apos;s coach.</span>{' '}
+                  Scanning their packet added them to your constellation, so you can keep
+                  tracking their journey from here.
+                </div>
+              )}
               <div className="space-y-1">
                 {([
                   ['gifts', 'Spiritual Gifts'],

@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import {
   authorizeScanCaller,
+  claimPersonForScan,
   validateGiftResponses,
   validateBigFiveResponses,
 } from '@/lib/assessmentScan'
@@ -53,6 +54,18 @@ export async function POST(request: NextRequest) {
 
   const { data: person } = await supabase.from('people').select('id, name').eq('id', personId).maybeSingle()
   if (!person) return NextResponse.json({ error: 'Person not found' }, { status: 404 })
+
+  // Scoped to the caller's downline like every other coach write — but a miss
+  // enrolls instead of refusing: committing someone's packet makes you their
+  // coach, the same way inputting their name does. Claimed at commit, not at
+  // scan, so an abandoned draft never creates a relationship.
+  const claim = await claimPersonForScan(supabase, auth.caller, person)
+  if (claim.error) {
+    return NextResponse.json(
+      { error: `Could not connect you as ${person.name ?? 'this person'}'s coach: ${claim.error}` },
+      { status: 500 }
+    )
+  }
 
   const now = new Date().toISOString()
   const saved: Record<string, boolean> = {}
@@ -142,6 +155,9 @@ export async function POST(request: NextRequest) {
     status: 'committed',
     person: { id: person.id, name: person.name },
     saved,
+    // True when this commit is what put the person in the caller's downline, so
+    // the UI can say so rather than silently changing who coaches whom.
+    coachConnectionCreated: claim.claimed,
     scanId: scanRow?.id ?? null,
     summary,
     ministryFit,
