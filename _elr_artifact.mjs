@@ -53,13 +53,13 @@ const TIP={
   groups:`Groups whose <b>owner</b> is one of the ten leaders. A group led by anyone outside the Empower team is not counted, and co-led groups count once, for the owner.`,
   released:`<b>Distinct people</b> whose discipler has them at stage <b>Empower</b>, across all ten leaders. Someone co-discipled by two leaders is counted once here, but still appears under each of them below.`,
   microsite:`Groups with <b>more than 15</b> members — the size where a group is big enough to plant a microsite. Counted per group, not per leader, so one leader can hold several.`,
-  met:`<b>A rolling 7 days</b> — today and the six days before it. It does not reset on Sunday, so a Wednesday reading and a Saturday one measure the same span and can be compared directly.<br><br>Counts a <em>person</em> once, whichever way they were met: marked present at a meeting of a group their leader owns, or a meeting of any type the leader created and marked <b>Completed</b>. Meetings dated in the future never count, and leaders don't count meeting themselves.`,
+  met:`<b>Confirmed / on the week.</b> The first number is contact the app can <em>prove</em>: someone was ticked present at a meeting of a group their leader owns, or a meeting the leader ran was marked <b>Completed</b>. The second is everyone the week's calendar says they were with.<br><br><b>The gap is unrecorded attendance, not people who stayed home.</b> When a group's sheet is never opened, nobody in it can be confirmed — so the first number falls while the ministry doesn't. Read the gap as "how much of my week is the app being told about."<br><br><b>A rolling 7 days</b> — today and the six days before it, so it never resets on Sunday and two readings can be compared directly. Meetings dated in the future never count, a person counts once however they were met, and leaders don't count meeting themselves.`,
   reach:`Everyone this leader touches in a normal week: their group members plus anyone they have a meeting with, deduped. The widest of the counts.`,
   inGroup:`Unique active people across the groups this leader owns, not counting the leader. Someone in two of their groups counts once.`,
   discipling:`People directly linked to this leader in the app's discipleship connections — one level down only. Their disciples' disciples are not counted here.`,
   groupsLed:`Groups where this leader is the recorded owner.`,
   next7:`<b>Distinct people</b> this leader has booked a 1:1 with from today through the next 7 days, not cancelled — someone booked three times counts once, though the list shows every meeting. <b>Every type counts</b> — One2One, Making Disciples, Coffee, Church Community, Empowering Leaders, SOAP or untyped. <b>Forward-looking</b> — a plan, not attendance.`,
-  metLeader:`This leader's slice of the church-wide "met, last 7 days": people met in the last rolling 7 days in their own groups or in a meeting they ran. These do not sum to the headline number — someone met by two leaders counts once church-wide.`,
+  metLeader:`<b>Confirmed / on the week</b> for this leader — people met in the last rolling 7 days in their own groups or in a meeting they ran.<br><br>A low first number next to a high second one means <b>attendance isn't being recorded</b>, not that the week was empty. These do not sum to the headline figure — someone met by two leaders counts once church-wide.`,
   score:`One point per part of the rhythm below, out of 6. Each dot is <em>green</em> (scored), <em>amber</em> (partway, no point) or <em>rose</em> (not started). Hover any column heading for its rule.`,
 }
 const CRITTIP={
@@ -123,7 +123,10 @@ function leaderCard(s){
     ['Discipling', l.stats.constellation, TIP.discipling, 'c'],
     ['Groups led', l.stats.groupsLed, TIP.groupsLed, 'c'],
     ['1:1 next 7d', l.stats.oneOnOnesNext7, TIP.next7, 'r'],
-    ['Met last 7d', l.stats.metThisWeek, TIP.metLeader, 'r'],
+    // "confirmed / on the week" — a bare confirmed number read as the whole
+    // week and made a well-run week look thin. The gap is unrecorded
+    // attendance, not people who did not show up.
+    ['Met last 7d', `${l.stats.metThisWeek}<span class="of"> / ${l.stats.metExpectedLast7Days ?? l.stats.metThisWeek}</span>`, TIP.metLeader, 'r'],
   ]
   const soap=s.soap
   const soapStr = soap.doersCount>0
@@ -304,6 +307,9 @@ table.matrix{border-collapse:collapse; width:100%; min-width:720px}
 .statstrip .stat:first-child{border-radius:9px 0 0 9px}
 .statstrip .stat:last-child{border-radius:0 9px 9px 0}
 .statstrip .statn{font-family:var(--serif); font-size:21px; font-weight:600; color:var(--ink); display:block; font-variant-numeric:tabular-nums; line-height:1}
+/* the "/ 35" half of "20 / 35": the confirmed number leads, the expected one
+   sits behind it so the tile still reads as one figure at a glance */
+.of{font-size:.66em; font-weight:500; opacity:.55}
 .statstrip .statk{font-size:10px; letter-spacing:.05em; text-transform:uppercase; color:var(--faint); margin-top:5px; display:block}
 @media(max-width:560px){ .statstrip{grid-template-columns:repeat(3,1fr)} }
 
@@ -387,7 +393,7 @@ a{color:var(--gold)}
     <div class="b"><span class="bn">${d.aggregates.totalGroups}</span><span class="bk">Groups${info(TIP.groups,'c')}</span></div>
     <div class="b"><span class="bn">${totalReleased}</span><span class="bk">Released to Empower${info(TIP.released,'c')}</span></div>
     <div class="b"><span class="bn">${microsites.length}</span><span class="bk">Microsite candidates${info(TIP.microsite,'r')}</span></div>
-    <div class="b"><span class="bn">${d.aggregates.metLast7Days}</span><span class="bk">Met, last 7 days${info(TIP.met,'r')}</span></div>
+    <div class="b"><span class="bn">${d.aggregates.metLast7Days}<span class="of"> / ${d.aggregates.metExpectedLast7Days ?? d.aggregates.metLast7Days}</span></span><span class="bk">Met, last 7 days${info(TIP.met,'r')}</span></div>
   </div>
 
   <h2 class="shead">The scorecard</h2>

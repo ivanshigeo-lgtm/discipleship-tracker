@@ -104,7 +104,7 @@ export default function LeaderReviewCard({
           <Band n={c.totalGroups} l="Groups" tip="Groups whose owner is one of the leaders. A co-led group counts once, for its owner." />
           <Band n={c.totalReleased} l="Released" tip="Distinct people whose discipler has them at Empower. Someone co-discipled by two leaders is counted once here, but still appears under each of them." />
           <Band n={c.microsites} l="Microsites" tip="Groups grown past 15 members — big enough to plant a microsite." />
-          <Band n={c.metLast7Days} l="Met, last 7 days" tip="A rolling 7 days — today and the 6 days before it. It does not reset on Sunday, so Wednesday and Saturday readings are comparable. Counts a person once whether they were met in a group or in a completed 1:1 of any type, and never counts a meeting dated in the future." />
+          <Band n={c.metLast7Days} of={c.metExpectedLast7Days} l="Met, last 7 days" tip="Confirmed / on the week. The first number is contact the app can prove — someone ticked present, or a meeting marked Completed. The second is everyone the week's calendar says was met. The gap is unrecorded attendance, not people who stayed home: when a group's sheet is never opened, nobody in it can be confirmed. A rolling 7 days — today and the 6 days before — so it never resets on Sunday and two readings are comparable. A person counts once however they were met, and a meeting dated in the future never counts." />
         </div>
 
         {/* ── admin only: every leader, scored ── */}
@@ -174,7 +174,7 @@ export default function LeaderReviewCard({
               <Stat n={subject.notInRhythm.length} l="Not in a group" accent={subject.notInRhythm.length > 0} tip="People they disciple directly who are not in any of their weekly groups — the coverage gap." />
               <Stat n={subject.stats.constellation} l="Discipling" tip="People linked to them as direct disciples. One level only — their disciples' disciples are not counted." />
               <Stat n={subject.stats.oneOnOnesNext7} l="1:1 next 7d" tip="Distinct people they have booked a 1:1 with from today through the next 7 days, not cancelled — someone booked three times counts once, though the list below shows every meeting. Every type counts — One2One, Making Disciples, Coffee, Church Community, Empowering Leaders, SOAP or untyped. Forward-looking — a plan, not attendance." />
-              <Stat n={subject.stats.metLast7Days} l="Met last 7d" tip="Their slice of the church-wide number, and the mirror of the tile beside it: people met in the last 7 days — today and the 6 days before — in their own groups or in a 1:1 they ran, whatever type that meeting was labelled." />
+              <Stat n={subject.stats.metLast7Days} of={subject.stats.metExpectedLast7Days} l="Met last 7d" tip="Confirmed / on the week for this leader: people met in the last 7 days — today and the 6 days before — in their own groups or in a 1:1 they ran, whatever type that meeting was labelled. A low first number beside a high second one means attendance isn't being recorded, not that the week was empty." />
             </div>
 
             {/* the six-part read */}
@@ -405,19 +405,27 @@ function Legend() {
   )
 }
 
-function Band({ n, l, tip }: { n: number; l: string; tip: string }) {
+// `of` renders the second half of a "20 / 35" figure — confirmed leading,
+// expected trailing at reduced size and opacity so the tile still reads as one
+// number at a glance rather than two competing ones.
+function Of({ of }: { of?: number }) {
+  if (of == null) return null
+  return <span className="text-[0.66em] font-medium opacity-[0.55]">{' / '}{of}</span>
+}
+
+function Band({ n, l, tip, of }: { n: number; l: string; tip: string; of?: number }) {
   return (
     <div className="bg-[var(--indigo)] px-2 py-[10px] text-center" title={tip}>
-      <div className="text-[19px] font-semibold leading-[22px]" style={{ color: GOLD }}>{n}</div>
+      <div className="text-[19px] font-semibold leading-[22px]" style={{ color: GOLD }}>{n}<Of of={of} /></div>
       <div className="mt-0.5 text-[8px] font-semibold uppercase tracking-[0.6px] text-[var(--fg-3)]">{l}</div>
     </div>
   )
 }
 
-function Stat({ n, l, tip, accent }: { n: number; l: string; tip: string; accent?: boolean }) {
+function Stat({ n, l, tip, accent, of }: { n: number; l: string; tip: string; accent?: boolean; of?: number }) {
   return (
     <div className="min-w-[86px] flex-1 rounded-[10px] border border-[var(--line-1)] bg-[var(--indigo)] px-2 py-[7px]" title={tip}>
-      <div className="text-[19px] font-semibold leading-[22px]" style={{ color: accent ? GOLD : 'var(--cobalt-soft, #7FA9F5)' }}>{n}</div>
+      <div className="text-[19px] font-semibold leading-[22px]" style={{ color: accent ? GOLD : 'var(--cobalt-soft, #7FA9F5)' }}>{n}<Of of={of} /></div>
       <div className="mt-0.5 text-[8px] font-semibold uppercase tracking-[0.6px] text-[var(--fg-3)]">{l}</div>
     </div>
   )

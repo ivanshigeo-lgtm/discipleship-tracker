@@ -138,6 +138,7 @@ const leaderPages=[]
 const allInRhythm=new Set()   // union of all group members across all leaders (unique people in weekly rhythm)
 let totalGroups=0, totalSeats=0
 const metLast7=new Set()
+const metExpected7=new Set()
 
 for(const lid of LEADERS){
   const L=byId.get(lid); if(!L) continue
@@ -237,6 +238,38 @@ for(const lid of LEADERS){
     return { date:dateStr, dow:DOWSHORT[i], num:Number(dateStr.slice(8,10)), isToday:dateStr===todayStr0, count:new Set(entries.map(e=>e.person)).size, entries, noMeetings }
   })
 
+  // ── the other half of "met": who we EXPECTED to be met ──
+  // `met` above is CONFIRMED contact only, so a group whose sheet was never
+  // opened contributes nobody and a real week reads small. This mirrors the
+  // week strip's rule exactly — same occurrence test, same "attendance is the
+  // truth, roster is the plan" fallback, same "sheet opened with nobody ticked
+  // = no meeting" reading — so the tile and the strip cannot disagree.
+  // ⚠️ Rolling window (last7Str..todayStr0), NOT the Sun→Sat weekDates the
+  // strip renders: that one is a calendar, this is a measure.
+  // ⭐ Keep in step with lib/leaderReview.ts — this metric has THREE
+  // implementations and they have drifted twice already.
+  const expected=new Set(met)
+  const addExpected=(g,dateStr)=>{ if(attnByKey.get(`${g.id}|${dateStr}`))return
+    for(const pid of g.members) if(active(byId.get(pid))) expected.add(pid) }
+  for(let d=new Date(last7); d<=today; d.setDate(d.getDate()+1)){
+    const dateStr=toLocal(d), dow=DAYFULL[d.getDay()]
+    for(const g of [...owned,...pairGroups]){
+      if(!g.day||!g.day.split(' / ').includes(dow))continue
+      const st=groupStatusByKey.get(`${g.id}|${dateStr}`)
+      if(st?.status==='cancelled'||st?.status==='rescheduled')continue
+      addExpected(g,dateStr)
+    }
+    for(const s of (reschedIntoByDate.get(dateStr)||[])){ if(!ownedGidSet.has(s.victory_group_id))continue
+      const g=ownedAll.find(x=>x.id===s.victory_group_id); if(g)addExpected(g,dateStr) }
+  }
+  // a booked meeting never marked Completed still happened as far as the
+  // calendar knows — only an explicit Cancelled says it did not
+  for(const e of myMeetings){ if(e.status==='Cancelled'||!e.follow_up_date)continue
+    if(e.follow_up_date<last7Str||e.follow_up_date>todayStr0)continue
+    if(e.person_id===lid||!active(byId.get(e.person_id)))continue
+    expected.add(e.person_id) }
+  for(const pid of expected) metExpected7.add(pid)
+
   // 1:1s scheduled next 7 days — every meeting type counts
   const upcoming=my1on1.filter(e=>e.follow_up_date&&e.follow_up_date>=toLocal(today)&&e.follow_up_date<=in7Str&&e.status!=='Cancelled')
     .map(e=>({ personId:e.person_id, person:byId.get(e.person_id)?.name||'—', date:e.follow_up_date, time:e.follow_up_time||null, location:e.location||null, kind:e.meeting_type||null }))
@@ -296,7 +329,7 @@ for(const lid of LEADERS){
 
   leaderPages.push({
     id:lid, name:L.name, first, stage:L.current_stage, isSelf,
-    stats:{ groupsLed:owned.length, peopleInGroups:inGroupIds.size, metThisWeek:met.size, oneOnOnesNext7:new Set(upcoming.map(u=>u.personId)).size, weeklyReach:reach.size, constellation:direct.length },
+    stats:{ groupsLed:owned.length, peopleInGroups:inGroupIds.size, metThisWeek:met.size, metExpectedLast7Days:expected.size, oneOnOnesNext7:new Set(upcoming.map(u=>u.personId)).size, weeklyReach:reach.size, constellation:direct.length },
     groups:owned.map(g=>({name:g.name,day:g.day,count:g.members.length})),
     stages, futureLeaders, notInRhythm, upcoming, flags:shownFlags,
     soap, emerging, emergingRunning:emergingRunning.map(e=>e.name), emergingRuns1on1:emergingRuns1on1.map(e=>e.name),
@@ -344,6 +377,7 @@ const out={
     uniquePeopleInRhythm:allInRhythm.size,
     totalSeats,
     metLast7Days:metLast7.size,
+    metExpectedLast7Days:metExpected7.size,
     leaders:leaderPages.length,
   },
   gaps,

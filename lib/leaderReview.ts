@@ -118,6 +118,10 @@ export type Scorecard = {
     /** @deprecated Alias of metLast7Days, kept so native builds shipped before
      *  the rename keep rendering the tile. Remove once 1.1.2 is the floor. */
     metThisWeek: number
+    /** People on this leader's week whether or not the meeting was recorded —
+     *  the strip's view. Always >= metLast7Days; the gap is unrecorded
+     *  attendance, not people who did not show up. */
+    metExpectedLast7Days: number
     oneOnOnesNext7: number
     weeklyReach: number
     constellation: number
@@ -162,6 +166,8 @@ export type Consolidated = {
   metLast7Days: number
   /** @deprecated Alias of metLast7Days — see the Scorecard stats field. */
   metThisWeek: number
+  /** Church-wide expected reach — see the Scorecard stats field of that name. */
+  metExpectedLast7Days: number
   // Counts only — no leader is ever named here, so this block is safe to show
   // to every leader on the team.
   teamGaps: {
@@ -385,6 +391,7 @@ export function buildLeaderReview(
   // numbers describe the Empower team's rhythm rather than the whole church.
   const inRhythmAll = new Set<string>()
   const metAll = new Set<string>()
+  const metExpectedAll = new Set<string>()
   let totalGroups = 0
   let totalSeats = 0
 
@@ -552,6 +559,56 @@ export function buildLeaderReview(
         noMeetings,
       }
     })
+
+    // ── the OTHER half of "met": who we EXPECTED to be met ──────────────────
+    // `met` above counts only CONFIRMED contact — someone ticked present, or a
+    // meeting marked Completed. That is a floor, not a total: a group whose
+    // leader never opened the attendance sheet contributes nobody, so a real
+    // week of ministry can read as a small number. Jonavan: 20 confirmed
+    // against 35 people actually on the week.
+    //
+    // ⭐ This deliberately REUSES the week strip's rule rather than inventing a
+    // second one — same scheduled-occurrence test (meeting day, not cancelled,
+    // rescheduled-in), same "attendance is the truth, roster is the plan"
+    // fallback, same "sheet opened with nobody ticked = no meeting" reading.
+    // The tile and the strip therefore cannot disagree, which is exactly the
+    // confusion that produced this number: a confirmed-only tile sitting beside
+    // a planned strip with nothing to tell them apart.
+    //
+    // The window is the ROLLING seven days, matching `met` — NOT the Sun→Sat
+    // `weekDates` the strip renders. The strip is a calendar; this is a measure.
+    const expected = new Set(met)
+    const addExpected = (g: (typeof ownedAll)[number], dateStr: string) => {
+      const att = attnByKey.get(`${g.id}|${dateStr}`)
+      // sheet opened and nobody ticked → the strip reads this as "no meeting"
+      if (att) return
+      for (const pid of g.members) {
+        if (visible(byId.get(pid))) expected.add(pid)
+      }
+    }
+    for (let d = new Date(last7); d <= today; d.setDate(d.getDate() + 1)) {
+      const dateStr = toLocalDateStr(d)
+      const dow = DAY_FULL[d.getDay()]
+      for (const g of [...owned, ...pairGroups]) {
+        if (!g.day || !g.day.split(' / ').includes(dow)) continue
+        const st = statusByKey.get(`${g.id}|${dateStr}`)
+        if (st?.status === 'cancelled' || st?.status === 'rescheduled') continue
+        addExpected(g, dateStr)
+      }
+      for (const s of reschedIntoDate.get(dateStr) ?? []) {
+        const g = ownedAll.find((x) => x.id === s.victory_group_id)
+        if (g) addExpected(g, dateStr)
+      }
+    }
+    // a booked meeting that was never marked Completed still happened as far as
+    // the calendar knows — only an explicit Cancelled says it did not
+    for (const e of myMeetings) {
+      if (e.status === 'Cancelled' || !e.follow_up_date) continue
+      if (e.follow_up_date < last7Str || e.follow_up_date > todayStr) continue
+      if (e.person_id === lid || !visible(byId.get(e.person_id))) continue
+      expected.add(e.person_id)
+    }
+    if (opts.countTowardTotals) for (const pid of expected) metExpectedAll.add(pid)
 
     // every booked meeting counts, whatever type it carries: a 1:1 is a meeting
     // with one other person, and the label on it says nothing about that
@@ -747,6 +804,10 @@ export function buildLeaderReview(
         peopleInGroups: inGroup.size,
         metLast7Days: met.size,
         metThisWeek: met.size, // deprecated alias for pre-1.1.2 native builds
+        // people on the week whether or not anyone confirmed it — always >=
+        // metLast7Days. The gap between the two is unrecorded attendance, not
+        // absent people. ADDED, never renamed: shipped native builds ignore it.
+        metExpectedLast7Days: expected.size,
         // distinct PEOPLE, matching the week strip's day badge and the way a
         // leader reads their own week: someone booked three times is one person
         // you are meeting, not three. The list below stays un-collapsed.
@@ -809,6 +870,7 @@ export function buildLeaderReview(
     microsites: micrositeList.length,
     metLast7Days: metAll.size,
     metThisWeek: metAll.size, // deprecated alias for pre-1.1.2 native builds
+    metExpectedLast7Days: metExpectedAll.size,
     teamGaps: {
       noEquipBench: noEquipBench.length,
       groupsUnder6: groupsUnder6.length,
