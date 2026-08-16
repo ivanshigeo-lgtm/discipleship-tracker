@@ -7,7 +7,22 @@ import { readFileSync } from 'node:fs'
 const env = readFileSync('/Users/ivanshigeo/discipleship-tracker/.env.local', 'utf8')
 const get = (k) => (env.match(new RegExp(`^${k}=(.*)$`, 'm'))?.[1] || '').trim()
 const sb = createClient(get('NEXT_PUBLIC_SUPABASE_URL'), get('SUPABASE_SERVICE_ROLE_KEY'), { auth: { persistSession: false } })
-const all = async (t, c='*') => { const r=[]; for(let f=0;;f+=1000){const {data,error}=await sb.from(t).select(c).range(f,f+999); if(error)throw new Error(t+': '+error.message); r.push(...data); if(data.length<1000)break} return r }
+// Paginated read. The ORDER KEY is not optional: .range() without a stable sort lets
+// Postgres return pages in any order, so rows can repeat or vanish across page bounds.
+// Every table here is under 1000 rows today, so this is insurance, not a live fix.
+// Tables with no `id` column pass their primary key instead.
+const all = async (t, c='*', key=['id']) => {
+  const r=[]
+  for(let f=0;;f+=1000){
+    let q=sb.from(t).select(c)
+    for(const k of key) q=q.order(k)
+    const {data,error}=await q.range(f,f+999)
+    if(error)throw new Error(t+': '+error.message)
+    r.push(...data)
+    if(data.length<1000)break
+  }
+  return r
+}
 
 const pad = (n)=>String(n).padStart(2,'0')
 const toLocal = (d)=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`
@@ -26,8 +41,8 @@ const [people, groups, pvg, conns, engagements, pipe, attnAll, soapVis, soapLink
   all('engagements','id,person_id,created_by_person_id,meeting_type,status,follow_up_date,follow_up_time,location,description'),
   all('pipeline_events','person_id,to_stage,from_stage,created_at'),
   all('group_attendance','person_id,victory_group_id,meeting_date,attended'),
-  all('isoap_entry_visibility','isoap_entry_id,wc_person_id,journal_date'),
-  all('isoap_links','wc_person_id,isoap_email'),
+  all('isoap_entry_visibility','isoap_entry_id,wc_person_id,journal_date',['isoap_entry_id','wc_person_id']),
+  all('isoap_links','wc_person_id,isoap_email',['wc_person_id']),
   all('group_meeting_status','id,victory_group_id,meeting_date,status,rescheduled_to,rescheduled_time'),
 ])
 const byId=new Map(people.map(p=>[p.id,p]))
