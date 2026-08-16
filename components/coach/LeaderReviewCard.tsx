@@ -104,7 +104,7 @@ export default function LeaderReviewCard({
           <Band n={c.totalGroups} l="Groups" tip="Groups whose owner is one of the leaders. A co-led group counts once, for its owner." />
           <Band n={c.totalReleased} l="Released" tip="Direct disciples now at Empower, added up across all leaders. Someone released by two leaders counts twice." />
           <Band n={c.microsites} l="Microsites" tip="Groups grown past 15 members — big enough to plant a microsite." />
-          <Band n={c.metThisWeek} l="Met this week" tip="Since Sunday 00:00 — NOT a rolling 7 days. It grows through the week and resets Sunday. Counts a person once whether they were met in a group or in a completed 1:1 of any type." />
+          <Band n={c.metLast7Days} l="Met, last 7 days" tip="A rolling 7 days — today and the 6 days before it. It does not reset on Sunday, so Wednesday and Saturday readings are comparable. Counts a person once whether they were met in a group or in a completed 1:1 of any type, and never counts a meeting dated in the future." />
         </div>
 
         {/* ── admin only: every leader, scored ── */}
@@ -174,7 +174,7 @@ export default function LeaderReviewCard({
               <Stat n={subject.notInRhythm.length} l="Not in a group" accent={subject.notInRhythm.length > 0} tip="People they disciple directly who are not in any of their weekly groups — the coverage gap." />
               <Stat n={subject.stats.constellation} l="Discipling" tip="People linked to them as direct disciples. One level only — their disciples' disciples are not counted." />
               <Stat n={subject.stats.oneOnOnesNext7} l="1:1 next 7d" tip="Distinct people they have booked a 1:1 with from today through the next 7 days, not cancelled — someone booked three times counts once, though the list below shows every meeting. Every type counts — One2One, Making Disciples, Coffee, Church Community, Empowering Leaders, SOAP or untyped. Forward-looking — a plan, not attendance." />
-              <Stat n={subject.stats.metThisWeek} l="Met this week" tip="Their slice of the church-wide number: people met since Sunday in their own groups or in a 1:1 they ran, whatever type that meeting was labelled." />
+              <Stat n={subject.stats.metLast7Days} l="Met last 7d" tip="Their slice of the church-wide number, and the mirror of the tile beside it: people met in the last 7 days — today and the 6 days before — in their own groups or in a 1:1 they ran, whatever type that meeting was labelled." />
             </div>
 
             {/* the six-part read */}

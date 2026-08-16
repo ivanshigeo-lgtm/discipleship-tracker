@@ -114,7 +114,7 @@ export type Scorecard = {
   stats: {
     groupsLed: number
     peopleInGroups: number
-    metThisWeek: number
+    metLast7Days: number
     oneOnOnesNext7: number
     weeklyReach: number
     constellation: number
@@ -156,7 +156,7 @@ export type Consolidated = {
   totalGroups: number
   totalReleased: number
   microsites: number
-  metThisWeek: number
+  metLast7Days: number
   // Counts only — no leader is ever named here, so this block is safe to show
   // to every leader on the team.
   teamGaps: {
@@ -251,12 +251,20 @@ export function buildLeaderReview(
   const todayStr = toLocalDateStr(today)
   const sunday = new Date(today)
   sunday.setDate(sunday.getDate() - sunday.getDay())
-  const sundayStr = toLocalDateStr(sunday)
   // Both ends of the upcoming window are inclusive, so today + 6 is seven days
   // counting today — "next 7 days" on the tile used to reach eight.
   const in7 = new Date(today)
   in7.setDate(in7.getDate() + 6)
   const in7Str = toLocalDateStr(in7)
+  // "Met" is a ROLLING seven days, mirroring the upcoming window: today - 6
+  // through today, both ends inclusive. It used to run from Sunday 00:00, which
+  // made a Wednesday reading cover 3½ days and a Saturday one cover 6½ — the
+  // number moved because of the day you looked, not because anyone met.
+  // The Sun→Sat calendar strip below stays Sunday-anchored: that one is a
+  // calendar, not a measure.
+  const last7 = new Date(today)
+  last7.setDate(last7.getDate() - 6)
+  const last7Str = toLocalDateStr(last7)
   const sixWeeksAgo = new Date(today)
   sixWeeksAgo.setDate(sixWeeksAgo.getDate() - 42)
 
@@ -423,15 +431,18 @@ export function buildLeaderReview(
       }
     }
 
-    // met this week — group attendance and completed meetings both count, so
-    // this means the same thing as the church-wide headline of that name.
+    // met in the last 7 days — group attendance and completed meetings both
+    // count, so this means the same thing as the church-wide headline of that name.
+    // ⚠️ The window is bounded at BOTH ends. Attendance can be marked ahead of a
+    // meeting (production holds rows dated next Wednesday), and the old
+    // open-ended `>= sunday` test counted those as already met.
     // EVERY meeting type counts as a meeting (One2One, Making Disciples,
     // Empowering Leaders, Coffee, Church Community, untyped) — a leader who sat
     // down with someone met them whatever label the engagement carries.
     const myMeetings = engagements.filter((e) => e.created_by_person_id === lid)
     const met = new Set<string>()
     for (const a of attendance) {
-      if (a.attended && ownedIds.has(a.victory_group_id) && a.meeting_date >= sundayStr && a.person_id !== lid && visible(byId.get(a.person_id))) {
+      if (a.attended && ownedIds.has(a.victory_group_id) && a.meeting_date >= last7Str && a.meeting_date <= todayStr && a.person_id !== lid && visible(byId.get(a.person_id))) {
         met.add(a.person_id)
         if (opts.countTowardTotals) metAll.add(a.person_id)
       }
@@ -439,9 +450,9 @@ export function buildLeaderReview(
     for (const e of myMeetings) {
       // Compare date STRINGS, exactly as the attendance loop above does.
       // `new Date('2026-08-16')` parses as UTC midnight, which in HST (UTC-10)
-      // is 14:00 the day BEFORE — so every Sunday meeting landed 10 hours
-      // before the week boundary and was silently dropped from the week.
-      if (e.status === 'Completed' && e.follow_up_date && e.follow_up_date >= sundayStr && e.person_id !== lid && visible(byId.get(e.person_id))) {
+      // is 14:00 the day BEFORE — so every meeting on the boundary landed 10
+      // hours before it and was silently dropped from the window.
+      if (e.status === 'Completed' && e.follow_up_date && e.follow_up_date >= last7Str && e.follow_up_date <= todayStr && e.person_id !== lid && visible(byId.get(e.person_id))) {
         met.add(e.person_id)
         if (opts.countTowardTotals) metAll.add(e.person_id)
       }
@@ -729,7 +740,7 @@ export function buildLeaderReview(
       stats: {
         groupsLed: owned.length,
         peopleInGroups: inGroup.size,
-        metThisWeek: met.size,
+        metLast7Days: met.size,
         // distinct PEOPLE, matching the week strip's day badge and the way a
         // leader reads their own week: someone booked three times is one person
         // you are meeting, not three. The list below stays un-collapsed.
@@ -785,7 +796,7 @@ export function buildLeaderReview(
     totalGroups,
     totalReleased,
     microsites: micrositeList.length,
-    metThisWeek: metAll.size,
+    metLast7Days: metAll.size,
     teamGaps: {
       noEquipBench: noEquipBench.length,
       groupsUnder6: groupsUnder6.length,
