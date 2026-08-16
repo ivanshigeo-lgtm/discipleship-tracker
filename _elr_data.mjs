@@ -71,19 +71,14 @@ const reschedIntoByDate=new Map()
 for(const s of groupStatuses){ if(s.status==='rescheduled'&&s.rescheduled_to){ const l=reschedIntoByDate.get(s.rescheduled_to)||[]; l.push(s); reschedIntoByDate.set(s.rescheduled_to,l) } }
 const STAGE_TAG=(p)=> (p&&STAGE_ORDER.includes(p.current_stage)) ? p.current_stage : 'Engage'
 
-// The 10 real leaders, in artifact summary order (by weekly reach). Kai Nakamura EXCLUDED (test acct).
-const LEADERS=[
-  '2aa35958-9057-44bd-aaf2-bd12a4cf9ecd', // Jonavan Asato
-  '60b9cae1-3ca0-478f-b646-5cbb543f377c', // Shahlise Wainui
-  'd72bb385-3c56-4881-a7eb-5458c6d5fb0e', // Eddie Asato
-  '8796044d-8429-441a-a7f8-26f2c6cc028b', // Andrea Pahukula
-  'd4292128-86f7-4bc8-983c-d774af366f0e', // Leilani Hearne
-  '2398f294-ba15-4eeb-9e39-884d364b5564', // Faith Lagazo
-  'b1672188-c395-4f59-8b49-1bc73904a250', // Lance Sokugawa
-  '3dfb67e8-848c-4da7-948f-7b843144ed3b', // Justin Barlahan
-  '1c9060b1-8786-444b-9bf2-86621648f6be', // Zachary Fetalvero
-  '9afc85c0-2ef5-49ab-b817-53f900943b75', // Mitchell Hondo
-]
+// The leader team is DERIVED, exactly as lib/leaderReview.ts derives it: anyone whose
+// current_stage is 'Empower' and who is visible (not Inactive, not is_test — so Kai
+// Nakamura stays out). This USED to be a hardcoded list of ten ids, and it had drifted:
+// Chu Somera and James Lagazo reached Empower and the artifact never gave them a card,
+// so it reported 10 leaders while the app reported 12. Keep this derived — the two
+// implementations of this metric must agree.
+// Pages are sorted by weekly reach after the loop, which is the artifact's summary order.
+const LEADERS=people.filter(p=>p.current_stage==='Empower'&&active(p)).map(p=>p.id)
 const STAGE_ORDER=['Empower','Equip','Establish','Engage']
 const meetingDayOf=(g)=>{ if(g.meeting_day) return g.meeting_day; if(Array.isArray(g.meeting_days)&&g.meeting_days.length) return g.meeting_days.join(' / '); return null }
 
@@ -308,6 +303,10 @@ for(const lid of LEADERS){
     weekStrip,
   })
 }
+
+// Summary order: widest weekly reach first, name as the tie-break so the ordering is
+// stable across runs (the roster is derived now, so DB row order must not leak through).
+leaderPages.sort((a,b)=>b.stats.weeklyReach-a.stats.weeklyReach||a.name.localeCompare(b.name))
 
 // pipeline movement timeline: last 6 weeks, real people only, with discipler
 const disciplerOf=new Map(); for(const c of conns) if(c.disciple_person_id&&!disciplerOf.has(c.disciple_person_id)) disciplerOf.set(c.disciple_person_id,c.discipler_person_id)
