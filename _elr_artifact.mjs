@@ -51,7 +51,7 @@ const TIP={
   leaders:`The Empower team, fixed as a list of ten person IDs in the generator. <b>It does not update on its own</b> — someone reaching Empower in the app is not added here until that list is edited.`,
   rhythm:`<b>Unique individuals, deduped.</b> Every active member of the ${d.aggregates.totalGroups} groups these leaders own, counted <em>once</em> even if they're in several groups — there are ${d.aggregates.totalSeats} total group seats, so ${d.aggregates.totalSeats-d.aggregates.uniquePeopleInRhythm} are repeat seats. Excludes each group's own owner, and inactive or test profiles.`,
   groups:`Groups whose <b>owner</b> is one of the ten leaders. A group led by anyone outside the Empower team is not counted, and co-led groups count once, for the owner.`,
-  released:`Direct disciples whose current stage in the app is <b>Empower</b>, added up across all ten leaders. Counts the discipleship link, so one person released by two leaders would count twice.`,
+  released:`<b>Distinct people</b> whose discipler has them at stage <b>Empower</b>, across all ten leaders. Someone co-discipled by two leaders is counted once here, but still appears under each of them below.`,
   microsite:`Groups with <b>more than 15</b> members — the size where a group is big enough to plant a microsite. Counted per group, not per leader, so one leader can hold several.`,
   met:`<b>A rolling 7 days</b> — today and the six days before it. It does not reset on Sunday, so a Wednesday reading and a Saturday one measure the same span and can be compared directly.<br><br>Counts a <em>person</em> once, whichever way they were met: marked present at a meeting of a group their leader owns, or a meeting of any type the leader created and marked <b>Completed</b>. Meetings dated in the future never count, and leaders don't count meeting themselves.`,
   reach:`Everyone this leader touches in a normal week: their group members plus anyone they have a meeting with, deduped. The widest of the counts.`,
@@ -78,7 +78,9 @@ const noMultiply=d.leaders.filter(l=>!(l.emergingRuns1on1&&l.emergingRuns1on1.le
 const soapAlive=d.leaders.filter(l=>l.soap&&l.soap.doersCount>0)
 const under6=d.leaders.flatMap(l=>l.groups.filter(g=>g.count>0&&g.count<6).map(g=>({leader:l.first,name:g.name,count:g.count})))
 const readyMD=d.leaders.flatMap(l=>l.groups.filter(g=>g.count>=6&&g.count<=15).map(g=>({leader:l.first,name:g.name,count:g.count})))
-const totalReleased=d.leaders.reduce((a,l)=>a+(l.futureLeaders.released?.length||0),0)
+// PEOPLE, not links — a co-discipled person sits on two leaders' cards.
+// Must match lib/leaderReview.ts; these two implementations have drifted before.
+const totalReleased=new Set(d.leaders.flatMap(l=>(l.futureLeaders.released||[]).map(r=>r.id))).size
 
 // ── week strip (calendar strip): who each leader is meeting with, per day, tagged by 4E stage ──
 // Colors match the app-wide stage palette (E_COLORS in journeyModel.ts) so this reads

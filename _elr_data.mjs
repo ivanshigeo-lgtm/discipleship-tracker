@@ -260,7 +260,7 @@ for(const lid of LEADERS){
   // future leaders = who they're training up: Equip bench (emerging) + Empower already released
   const futureLeaders={
     equip:byStage.Equip.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(p=>({name:p.name,inStage:fmtDur(daysInStage(p.id,'Equip'))})),
-    released:byStage.Empower.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(p=>({name:p.name})),
+    released:byStage.Empower.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(p=>({id:p.id,name:p.name})),
   }
 
   // ── SOAP: leader's own + how many of the people they establish are journaling (visible in WC) ──

@@ -102,7 +102,7 @@ export default function LeaderReviewCard({
           <Band n={c.leaders} l="Leaders" tip="Everyone at the Empower stage. Reaching Empower adds a scorecard automatically." />
           <Band n={c.uniquePeopleInRhythm} l="In weekly rhythm" tip={`Unique people across the ${c.totalGroups} groups these leaders own, counted once even if they are in several — ${c.totalSeats} total seats, so ${c.totalSeats - c.uniquePeopleInRhythm} are repeats.`} />
           <Band n={c.totalGroups} l="Groups" tip="Groups whose owner is one of the leaders. A co-led group counts once, for its owner." />
-          <Band n={c.totalReleased} l="Released" tip="Direct disciples now at Empower, added up across all leaders. Someone released by two leaders counts twice." />
+          <Band n={c.totalReleased} l="Released" tip="Distinct people whose discipler has them at Empower. Someone co-discipled by two leaders is counted once here, but still appears under each of them." />
           <Band n={c.microsites} l="Microsites" tip="Groups grown past 15 members — big enough to plant a microsite." />
           <Band n={c.metLast7Days} l="Met, last 7 days" tip="A rolling 7 days — today and the 6 days before it. It does not reset on Sunday, so Wednesday and Saturday readings are comparable. Counts a person once whether they were met in a group or in a completed 1:1 of any type, and never counts a meeting dated in the future." />
         </div>

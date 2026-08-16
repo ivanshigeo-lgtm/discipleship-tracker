@@ -126,7 +126,7 @@ export type Scorecard = {
     stage: Stage
     people: { id: string; name: string; since: string | null; inStage: string | null; inRhythm: boolean }[]
   }[]
-  futureLeaders: { equip: { name: string; inStage: string | null }[]; released: { name: string }[] }
+  futureLeaders: { equip: { name: string; inStage: string | null }[]; released: { id: string; name: string }[] }
   notInRhythm: string[]
   upcoming: { personId: string; person: string; date: string; time: string | null; location: string | null; kind: string | null }[]
   flags: string[]
@@ -592,7 +592,7 @@ export function buildLeaderReview(
         .map((p) => ({ name: p.name, inStage: fmtDur(daysInStage(p.id, 'Equip')) })),
       released: byStage.Empower.slice()
         .sort((a, b) => a.name.localeCompare(b.name))
-        .map((p) => ({ name: p.name })),
+        .map((p) => ({ id: p.id, name: p.name })),
     }
 
     // SOAP habit among the people this leader is establishing
@@ -777,7 +777,12 @@ export function buildLeaderReview(
   // (a coach who has not reached Empower) build it without touching the totals.
   const you = team.find((s) => s.id === viewer.id) ?? buildScorecard(viewer.id, { countTowardTotals: false })
 
-  const totalReleased = team.reduce((n, s) => n + s.futureLeaders.released.length, 0)
+  // PEOPLE, not links. discipleship_connections allows a second, non-primary
+  // discipler, so a co-discipled person appears on two leaders' cards and was
+  // being added twice here. The tiles beside this one count people; so does
+  // this one now. (Per-leader cards still show the person under each leader —
+  // that is correct, they really are discipling them.)
+  const totalReleased = new Set(team.flatMap((s) => s.futureLeaders.released.map((r) => r.id))).size
   const micrositeList = team.flatMap((s) =>
     s.groups.filter((g) => g.count > 15).map((g) => ({ leader: s.first, group: g.name, count: g.count })),
   )
