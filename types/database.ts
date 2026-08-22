@@ -128,14 +128,18 @@ export type Engagement = {
   location: string | null
   meeting_type: MeetingType | null
   // 'Cancelled' = a meeting that was scheduled but didn't happen. It stays
-  // visible (with a red badge) but is excluded from overdue / needs-attention /
-  // "met this week" tallies. Reopening flips it back to 'Pending'.
+  // visible (with a red badge) for a day, then drops into the cancelled
+  // archive — never deleted. Reopening flips it back to 'Pending'.
   status: 'Pending' | 'Completed' | 'Cancelled'
+  cancelled_at?: string | null
   notes: string | null
   completed_at: string | null
   action_completed: boolean
   action_completed_at: string | null
   google_calendar_event_id: string | null
+  // Shared grouping key for a finite recurring series. Null for one-offs and
+  // for rows created before this column existed (those are grouped by heuristic).
+  series_id?: string | null
   created_at: string
 }
 

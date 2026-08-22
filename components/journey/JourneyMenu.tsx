@@ -26,6 +26,7 @@ import type { Engagement, PrayerRequest, Stage, ShareVisibility } from '../../ty
 import type { JourneyLevel, JourneyStep } from './journeyModel'
 import { StageStepList } from './StageStepList'
 import { fmtTime12 } from '../../lib/formatTime'
+import { isCancelledArchived } from '../../lib/meetingStatus'
 
 
 // ─── Content panel (bottom sheet / center modal) ─────────────────────────────
@@ -228,6 +229,7 @@ export function EngagementsPanel({ personId, onClose }: { personId: string; onCl
   const [loading, setLoading] = useState(true)
   const [reloadKey, setReloadKey] = useState(0)
   const [showNewMeeting, setShowNewMeeting] = useState(false)
+  const [showCancelledArchive, setShowCancelledArchive] = useState(false)
 
   useEffect(() => {
     getEngagementsForPerson(personId).then(({ data }) => {
@@ -236,8 +238,14 @@ export function EngagementsPanel({ personId, onClose }: { personId: string; onCl
     })
   }, [personId, reloadKey])
 
-  const upcoming = engagements.filter(e => e.status !== 'Completed')
+  const upcoming = engagements.filter(e =>
+    e.status === 'Pending' ||
+    (e.status === 'Cancelled' && !isCancelledArchived(e.cancelled_at, e.follow_up_date))
+  )
   const past = engagements.filter(e => e.status === 'Completed')
+  const archivedCancelled = engagements.filter(e =>
+    e.status === 'Cancelled' && isCancelledArchived(e.cancelled_at, e.follow_up_date)
+  )
 
   return (
     <Panel title="Engagements" color="#F4B650" onClose={onClose}>
@@ -279,6 +287,27 @@ export function EngagementsPanel({ personId, onClose }: { personId: string; onCl
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+          {archivedCancelled.length > 0 && (
+            <div>
+              <button
+                type="button"
+                onClick={() => setShowCancelledArchive(v => !v)}
+                className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--fg-3)] hover:text-[var(--fg-1)]"
+              >
+                {showCancelledArchive ? 'Hide cancelled archive' : `Cancelled archive (${archivedCancelled.length})`}
+              </button>
+              {showCancelledArchive && (
+                <div className="space-y-2 opacity-60">
+                  {archivedCancelled.map(e => (
+                    <div key={e.id} className="rounded-xl bg-[var(--indigo-2)] px-3 py-2.5">
+                      <p className="text-sm text-[var(--fg-2)] line-through">{e.description}</p>
+                      <p className="mt-0.5 text-xs" style={{ color: '#F0729F' }}>Cancelled</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           {past.length > 0 && (

@@ -1,10 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getEngagementsByPerson, getConfirmedEngagementIds, updateEngagement, deleteEngagement, addEngagement } from '../lib/supabaseQueries'
+import { getEngagementsByPerson, getConfirmedEngagementIds, getSeriesEndAcks, updateEngagement, deleteEngagement, addEngagement } from '../lib/supabaseQueries'
 import type { Engagement, MeetingType } from '../types/database'
 import { type Recurrence, RECURRENCE_OPTIONS, recurrenceDates, recurrenceLabel } from '../lib/recurrence'
 import { fmtTime12 } from '../lib/formatTime'
+import { lastOfSeriesById, newSeriesId, type LastOfSeriesInfo } from '../lib/engagementSeries'
+import { isCancelledArchived } from '../lib/meetingStatus'
+import LastOfSeriesNote from './LastOfSeriesNote'
 
 const MEETING_TYPES: MeetingType[] = ['One2One', 'Making Disciples', 'Coffee', 'Church Community', 'Empowering Leaders']
 
@@ -40,9 +43,10 @@ function futureSiblings(all: Engagement[], eng: Engagement): Engagement[] {
   return all.filter(e =>
     e.id !== eng.id &&
     e.status === 'Pending' &&
-    e.person_id === eng.person_id &&
-    (e.meeting_type ?? null) === (eng.meeting_type ?? null) &&
-    !!e.follow_up_date && e.follow_up_date > eng.follow_up_date!
+    !!e.follow_up_date && e.follow_up_date > eng.follow_up_date! &&
+    (eng.series_id
+      ? e.series_id === eng.series_id
+      : e.person_id === eng.person_id && (e.meeting_type ?? null) === (eng.meeting_type ?? null))
   )
 }
 
@@ -76,6 +80,8 @@ export default function NextStepsList({
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [editingData, setEditingData] = useState<EditingEngagement | null>(null)
   const [savingId, setSavingId] = useState<string | null>(null)
+  const [seriesEndAcks, setSeriesEndAcks] = useState<Set<string>>(new Set())
+  const [showCancelledArchive, setShowCancelledArchive] = useState(false)
 
   const loadEngagements = async () => {
     try {
@@ -92,6 +98,10 @@ export default function NextStepsList({
         engs = engs.filter(e => e.created_by_person_id === coachPersonId || confirmed.has(e.id))
       }
       setEngagements(engs)
+      if (coachPersonId) {
+        const { data: acks } = await getSeriesEndAcks(coachPersonId)
+        setSeriesEndAcks(new Set(acks ?? []))
+      }
     } catch (err) {
       console.error('NextStepsList load error:', err)
     }
@@ -106,7 +116,10 @@ export default function NextStepsList({
     setSavingId(eng.id)
     const newStatus = eng.status === 'Completed' ? 'Pending' : 'Completed'
 
-    const { data, error } = await updateEngagement(eng.id, { status: newStatus })
+    const { data, error } = await updateEngagement(eng.id, {
+      status: newStatus,
+      completed_at: newStatus === 'Completed' ? new Date().toISOString() : null,
+    })
 
     if (error) {
       console.error('Failed to update engagement:', error.message || error.code || JSON.stringify(error))
@@ -197,6 +210,8 @@ export default function NextStepsList({
       // Create recurring copies (occurrences after this one)
       if (editingData.recurrence !== 'none' && updates.follow_up_date && editingData.repeatUntil) {
         const repeatDates = repeatCopies(updates.follow_up_date, editingData.repeatUntil, editingData.recurrence)
+        const seriesId = eng.series_id || (repeatDates.length > 0 ? newSeriesId() : null)
+        if (seriesId && !eng.series_id) await updateEngagement(eng.id, { series_id: seriesId })
         for (const date of repeatDates) {
           const { data: newEng } = await addEngagement({
             person_id: eng.person_id,
@@ -207,6 +222,7 @@ export default function NextStepsList({
             location: updates.location || null,
             meeting_type: updates.meeting_type || null,
             status: 'Pending',
+            series_id: seriesId,
           })
           if (newEng && coachPersonId) {
             try {
@@ -313,9 +329,13 @@ export default function NextStepsList({
 
   const pending = engagements.filter(e => e.status === 'Pending')
   const completed = engagements.filter(e => e.status === 'Completed')
-  // Cancelled meetings stay visible here (red badge, out of the pending count) so
-  // the coach can always find one and Reopen it — they're hidden from My Meetings.
+  const lastOfSeries = lastOfSeriesById(engagements, coachPersonId)
+  // Cancelled stay on file. Recent ones stay on the default list so they can
+  // be reopened; older than 24h move to the archive filter (never deleted).
   const cancelled = engagements.filter(e => e.status === 'Cancelled')
+  const recentCancelled = cancelled.filter(e => !isCancelledArchived(e.cancelled_at, e.follow_up_date))
+  const archivedCancelled = cancelled.filter(e => isCancelledArchived(e.cancelled_at, e.follow_up_date))
+  const cancelledToShow = showCancelledArchive ? cancelled : recentCancelled
 
   return (
     <div className="space-y-3">
@@ -334,6 +354,11 @@ export default function NextStepsList({
               savingId={savingId}
               canSyncCalendar={!!coachPersonId && !!eng.follow_up_date && !eng.google_calendar_event_id}
               canEdit={canEdit}
+              lastOfSeries={lastOfSeries.get(eng.id) && !seriesEndAcks.has(eng.id) ? lastOfSeries.get(eng.id)! : null}
+              personName={personName}
+              coachPersonId={coachPersonId ?? null}
+              onSeriesExtended={() => loadEngagements()}
+              onSeriesDismissed={() => setSeriesEndAcks(prev => new Set(prev).add(eng.id))}
               onToggleComplete={() => handleToggleComplete(eng)}
               onExpand={() => handleExpand(eng)}
               onOpen={() => onOpenEngagement?.(eng, personName)}
@@ -373,12 +398,23 @@ export default function NextStepsList({
         </div>
       )}
 
-      {cancelled.length > 0 && (
+      {(cancelledToShow.length > 0 || archivedCancelled.length > 0) && (
         <div className="space-y-1.5">
-          <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--fg-3)]">
-            Cancelled ({cancelled.length})
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--fg-3)]">
+              Cancelled ({showCancelledArchive ? cancelled.length : recentCancelled.length})
+            </div>
+            {archivedCancelled.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowCancelledArchive(v => !v)}
+                className="text-[10px] font-semibold text-[var(--fg-3)] hover:text-[var(--fg-1)]"
+              >
+                {showCancelledArchive ? 'Hide archive' : `Show archive (${archivedCancelled.length})`}
+              </button>
+            )}
           </div>
-          {cancelled.map(eng => (
+          {cancelledToShow.map(eng => (
             <EngagementCard
               key={eng.id}
               eng={eng}
@@ -411,6 +447,11 @@ function EngagementCard({
   savingId,
   canSyncCalendar,
   canEdit,
+  lastOfSeries = null,
+  personName = '',
+  coachPersonId = null,
+  onSeriesExtended,
+  onSeriesDismissed,
   onToggleComplete,
   onExpand,
   onOpen,
@@ -426,6 +467,11 @@ function EngagementCard({
   savingId: string | null
   canSyncCalendar: boolean
   canEdit: boolean
+  lastOfSeries?: LastOfSeriesInfo | null
+  personName?: string
+  coachPersonId?: string | null
+  onSeriesExtended?: () => void
+  onSeriesDismissed?: () => void
   onToggleComplete: () => void
   onExpand: () => void
   onOpen: () => void
@@ -511,6 +557,18 @@ function EngagementCard({
               {eng.google_calendar_event_id && <span className="text-[var(--fg-3)]">📅 Synced</span>}
             </div>
           </button>
+          {lastOfSeries && (
+            <div className="mt-2">
+              <LastOfSeriesNote
+                engagement={eng}
+                info={lastOfSeries}
+                personName={personName}
+                coachPersonId={coachPersonId}
+                onExtended={() => onSeriesExtended?.()}
+                onDismissed={() => onSeriesDismissed?.()}
+              />
+            </div>
+          )}
         </div>
 
         <div className="flex shrink-0 items-center gap-2">

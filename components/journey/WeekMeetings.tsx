@@ -9,6 +9,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { getWeekEngagementsForPerson, getGroupMeetingStatuses } from '../../lib/supabaseQueries'
 import { daysOf, occurrencesWithin } from '../../lib/meetingDays'
+import { isCancelledArchived } from '../../lib/meetingStatus'
 import type { Engagement, VictoryGroup, GroupMeetingStatus } from '../../types/database'
 import { fmtTime12 } from '../../lib/formatTime'
 
@@ -63,6 +64,7 @@ export default function WeekMeetings({ personId, groups }: { personId: string; g
         const st = statuses.find(s => s.victory_group_id === g.id && s.meeting_date === occ) ?? null
         const cancelled = st?.status === 'cancelled'
         const rescheduled = st?.status === 'rescheduled'
+        if (cancelled && isCancelledArchived(st?.updated_at ?? st?.created_at, occ)) continue
         out.push({
           key: `g-${g.id}-${occ}`,
           kind: 'group',

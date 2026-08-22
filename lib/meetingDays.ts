@@ -49,11 +49,20 @@ export const nextOccurrenceDate = (days: string[]): string | null => {
 // local YYYY-MM-DD strings sorted ascending. Used by agendas that surface one
 // card per meeting (a Tue & Thu group has two cards in a 7-day window).
 export const occurrencesWithin = (days: string[], daysAhead: number): string[] => {
+  return occurrencesAroundToday(days, 0, daysAhead)
+}
+
+// Occurrences of the group's days from `daysBack` days ago through `daysAhead`
+// days from today (inclusive). Used to find overdue group sessions that still
+// need attendance, without treating unbounded D-groups as a finite series.
+export const occurrencesAroundToday = (days: string[], daysBack: number, daysAhead: number): string[] => {
   const targets = new Set(days.map(d => WEEKDAY_NAMES.indexOf(d)).filter(i => i >= 0))
   if (targets.size === 0) return []
   const out: string[] = []
   const d = new Date(); d.setHours(0, 0, 0, 0)
-  for (let i = 0; i <= daysAhead; i++) {
+  d.setDate(d.getDate() - Math.max(0, daysBack))
+  const n = Math.max(0, daysBack) + Math.max(0, daysAhead)
+  for (let i = 0; i <= n; i++) {
     if (targets.has(d.getDay())) out.push(toLocalDateStr(d))
     d.setDate(d.getDate() + 1)
   }

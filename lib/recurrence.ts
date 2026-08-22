@@ -22,7 +22,7 @@ export const RECURRENCE_OPTIONS: { value: Recurrence; label: string }[] = [
 const WEEKS_PER: Partial<Record<Recurrence, number>> = { weekly: 1, biweekly: 2, triweekly: 3 }
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const ORDINALS = ['', '1st', '2nd', '3rd', '4th', '5th']
-const MAX_OCCURRENCES = 60 // safety cap
+export const MAX_OCCURRENCES = 60 // safety cap
 
 function parse(dateStr: string): Date {
   return new Date(dateStr + 'T00:00:00')
@@ -147,4 +147,14 @@ export function recurrenceDates(start: string, until: string, rec: Recurrence): 
   }
 
   return [start]
+}
+
+// Dates strictly after `after` for `count` more occurrences of `rec`.
+// Used when extending a finite series ("add 4 more weeks") without an until-date.
+export function nextOccurrenceDates(after: string, count: number, rec: Recurrence): string[] {
+  if (!after || rec === 'none' || count <= 0) return []
+  const n = Math.min(Math.floor(count), MAX_OCCURRENCES)
+  const untilDate = parse(after)
+  untilDate.setFullYear(untilDate.getFullYear() + 6)
+  return recurrenceDates(after, fmt(untilDate), rec).filter(d => d > after).slice(0, n)
 }

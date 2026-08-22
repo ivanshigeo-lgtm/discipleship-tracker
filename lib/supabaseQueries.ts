@@ -510,7 +510,31 @@ export const getAllEngagements = () =>
     )
   )
 
-export const addEngagement = async (engagement: Omit<Engagement, 'id' | 'created_at' | 'notes' | 'completed_at' | 'action_completed' | 'action_completed_at' | 'google_calendar_event_id'> & { follow_up_time?: string | null; location?: string | null }) => {
+export const getEngagementParticipantIds = async (engagementId: string) => {
+  const { data, error } = await supabase
+    .from('engagement_participants')
+    .select('person_id')
+    .eq('engagement_id', engagementId)
+  return { data: (data ?? []).map(r => r.person_id as string), error }
+}
+
+export const getSeriesEndAcks = async (personId: string) => {
+  const { data, error } = await supabase
+    .from('engagement_series_end_acks')
+    .select('engagement_id')
+    .eq('person_id', personId)
+  return { data: (data ?? []).map(r => r.engagement_id as string), error }
+}
+
+export const ackSeriesEndPrompt = async (personId: string, engagementId: string) =>
+  wrote(
+    await supabase
+      .from('engagement_series_end_acks')
+      .upsert({ person_id: personId, engagement_id: engagementId }, { onConflict: 'person_id,engagement_id' })
+      .select()
+  )
+
+export const addEngagement = async (engagement: Omit<Engagement, 'id' | 'created_at' | 'notes' | 'completed_at' | 'cancelled_at' | 'action_completed' | 'action_completed_at' | 'google_calendar_event_id'> & { follow_up_time?: string | null; location?: string | null; series_id?: string | null }) => {
   const { data, error } = await supabase
     .from('engagements')
     .insert({ ...engagement, action_completed: false, action_completed_at: null })
@@ -1255,6 +1279,18 @@ export const getRecentGroupAttendance = async (since: string) =>
       .select('person_id, victory_group_id, meeting_date, attended')
       .gte('meeting_date', since)
       .eq('attended', true)
+      .order('id', { ascending: true })
+      .range(from, to)
+  )
+
+// Any attendance sheet saved on/after `since` — present or absent. Used to
+// know a group session was recorded so it is not still "overdue attendance".
+export const getGroupAttendanceTakenSince = async (since: string) =>
+  fetchAllPages((from, to) =>
+    supabase
+      .from('group_attendance')
+      .select('victory_group_id, meeting_date')
+      .gte('meeting_date', since)
       .order('id', { ascending: true })
       .range(from, to)
   )

@@ -11,10 +11,13 @@ import {
   addPraise,
   updateEngagement,
   getEngagementsByPerson,
+  getSeriesEndAcks,
 } from '../lib/supabaseQueries'
 import { useAuth } from '../contexts/AuthContext'
 import type { Engagement, ActionItem, PrayerRequest } from '../types/database'
 import { fmtTime12 } from '../lib/formatTime'
+import { lastOfSeriesFor, type LastOfSeriesInfo } from '../lib/engagementSeries'
+import LastOfSeriesNote from './LastOfSeriesNote'
 
 export default function EngagementDetailModal({
   engagement,
@@ -46,11 +49,16 @@ export default function EngagementDetailModal({
   const [status, setStatus] = useState<Engagement['status']>(engagement.status)
   const [togglingCancel, setTogglingCancel] = useState(false)
   const cancelled = status === 'Cancelled'
+  const [seriesInfo, setSeriesInfo] = useState<LastOfSeriesInfo | null>(null)
+  const [seriesAcked, setSeriesAcked] = useState(false)
 
   const toggleCancel = async () => {
     const next: Engagement['status'] = cancelled ? 'Pending' : 'Cancelled'
     setTogglingCancel(true)
-    const { error } = await updateEngagement(engagement.id, { status: next })
+    const { error } = await updateEngagement(engagement.id, {
+      status: next,
+      cancelled_at: next === 'Cancelled' ? new Date().toISOString() : null,
+    })
     if (error) {
       alert(`Couldn't ${cancelled ? 'reopen' : 'cancel'} meeting: ${error.message || 'Unknown error'}`)
     } else {
@@ -79,8 +87,10 @@ export default function EngagementDetailModal({
       const siblings = (data as Engagement[] | null ?? []).filter(e =>
         e.id !== engagement.id &&
         e.status === 'Pending' &&
-        e.meeting_type === engagement.meeting_type &&
-        e.follow_up_date && origDate && e.follow_up_date >= origDate
+        e.follow_up_date && origDate && e.follow_up_date >= origDate &&
+        (engagement.series_id
+          ? e.series_id === engagement.series_id
+          : e.meeting_type === engagement.meeting_type)
       )
       if (siblings.length > 0 && window.confirm(
         `Shift the other ${siblings.length} repeated “${engagement.meeting_type}” meeting${siblings.length === 1 ? '' : 's'} by ${dayDelta > 0 ? '+' : ''}${dayDelta} day${Math.abs(dayDelta) === 1 ? '' : 's'} too?\n\nOK = all future meetings · Cancel = just this one`
@@ -116,16 +126,25 @@ export default function EngagementDetailModal({
   }
 
   const load = async () => {
-    const [a, p] = await Promise.all([
+    const [a, p, sibs] = await Promise.all([
       getActionItemsByEngagement(engagement.id),
       getPrayerRequestsByEngagement(engagement.id),
+      getEngagementsByPerson(engagement.person_id),
     ])
     if (a.data) setItems(a.data as ActionItem[])
     if (p.data) setPrayers(p.data as PrayerRequest[])
+    const ownerId = engagement.created_by_person_id
+    if (ownerId && ownerId === profile?.id) {
+      setSeriesInfo(lastOfSeriesFor(engagement, (sibs.data as Engagement[] | null) ?? [], ownerId))
+      const { data: acks } = await getSeriesEndAcks(ownerId)
+      setSeriesAcked((acks ?? []).includes(engagement.id))
+    } else {
+      setSeriesInfo(null)
+    }
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [engagement.id])
+  useEffect(() => { load() }, [engagement.id, profile?.id])
 
   // ── Action points ──────────────────────────────────────────────────────────
   const commitNewAction = async () => {
@@ -207,6 +226,18 @@ export default function EngagementDetailModal({
               <span className="mt-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'rgba(240,114,159,.15)', color: '#F0729F' }}>
                 Cancelled
               </span>
+            )}
+            {seriesInfo && !seriesAcked && status === 'Pending' && (
+              <div className="mt-2">
+                <LastOfSeriesNote
+                  engagement={engagement}
+                  info={seriesInfo}
+                  personName={personName}
+                  coachPersonId={profile?.id ?? null}
+                  onExtended={() => { setSeriesInfo(null); onChanged?.() }}
+                  onDismissed={() => setSeriesAcked(true)}
+                />
+              </div>
             )}
             {!rescheduling ? (
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">

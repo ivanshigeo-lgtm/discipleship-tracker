@@ -5,6 +5,7 @@ import { addEngagement, addMeetingParticipants, getPeople } from '../lib/supabas
 import { useAuth } from '../contexts/AuthContext'
 import type { MeetingType, Person } from '../types/database'
 import { type Recurrence, RECURRENCE_OPTIONS, recurrenceDates, recurrenceLabel } from '../lib/recurrence'
+import { newSeriesId } from '../lib/engagementSeries'
 
 const MEETING_TYPES: MeetingType[] = ['One2One', 'Making Disciples', 'Coffee', 'Church Community', 'Empowering Leaders']
 
@@ -65,6 +66,7 @@ export default function AddNextStepForm({
       recurrence !== 'none' && followUpDate && repeatUntil
         ? recurrenceDates(followUpDate, repeatUntil, recurrence)
         : [followUpDate || '']
+    const seriesId = dates.length > 1 ? newSeriesId() : null
 
     for (const date of dates) {
       const { data: newEngagement, error: insertError } = await addEngagement({
@@ -76,6 +78,7 @@ export default function AddNextStepForm({
         location: location.trim() || null,
         meeting_type: meetingType || null,
         status: 'Pending',
+        series_id: seriesId,
       })
 
       if (insertError) {

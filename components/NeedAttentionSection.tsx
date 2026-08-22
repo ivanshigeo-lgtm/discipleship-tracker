@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, type ReactNode } from 'react'
 import {
   getPeople,
   getAllEngagements,
@@ -8,7 +8,9 @@ import {
   getAllGroupMemberships,
   getConfirmedEngagementIds,
   getRecentGroupAttendance,
+  getGroupAttendanceTakenSince,
   getGroupMeetingStatuses,
+  getSeriesEndAcks,
   updateEngagement,
   getGroupAttendance,
   upsertGroupAttendance,
@@ -21,9 +23,13 @@ import VictoryGroupsList from './VictoryGroupsList'
 import MeetingBadges, { type MeetingCounts } from './MeetingBadges'
 import { SectionSkeleton } from './Skeleton'
 import { bookletStage } from '../lib/curriculum'
-import { daysOf, fmtDaysShort, occurrencesWithin, weekdayOf, shiftDayInSchedule } from '../lib/meetingDays'
+import { daysOf, occurrencesAroundToday, weekdayOf, shiftDayInSchedule } from '../lib/meetingDays'
 import { useAuth } from '../contexts/AuthContext'
 import { fmtTime12 } from '../lib/formatTime'
+import { lastOfSeriesById } from '../lib/engagementSeries'
+import { isCancelledArchived, isMeetingOverdue } from '../lib/meetingStatus'
+import LastOfSeriesNote from './LastOfSeriesNote'
+import OverdueMeetingActions from './OverdueMeetingActions'
 
 interface MyOneToOnesSectionProps {
   refreshKey?: number
@@ -62,6 +68,8 @@ type GroupMeetingItem = {
   isToday: boolean
   cancelled: boolean
   rescheduled: boolean
+  overdue: boolean
+  statusUpdatedAt: string | null
 }
 
 const STAGE_COLORS: Record<Stage, string> = {
@@ -97,6 +105,10 @@ function GroupMeetingCard({
   const initials = item.group.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
   const dateLabel = item.cancelled
     ? 'Cancelled'
+    : item.overdue
+    ? item.isToday
+      ? 'Attendance overdue'
+      : `${Math.abs(item.daysUntil)}d overdue`
     : item.isToday
     ? 'Today'
     : item.daysUntil === 1
@@ -213,7 +225,13 @@ function GroupMeetingCard({
       style={{
         background: 'var(--indigo-2)',
         opacity: item.cancelled ? 0.75 : 1,
-        boxShadow: !item.cancelled && item.isToday ? '0 0 16px -4px rgba(167,139,250,.3)' : 'none',
+        boxShadow: item.cancelled
+          ? 'none'
+          : item.overdue
+          ? '0 0 16px -4px rgba(242,114,138,.3)'
+          : item.isToday
+          ? '0 0 16px -4px rgba(167,139,250,.3)'
+          : 'none',
       }}
     >
       <div className="flex items-start gap-3">
@@ -234,8 +252,12 @@ function GroupMeetingCard({
             <span
               className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold"
               style={{
-                background: item.cancelled ? 'rgba(240,114,159,.15)' : 'rgba(167,139,250,.15)',
-                color: item.cancelled ? '#F0729F' : accent,
+                background: item.cancelled
+                  ? 'rgba(240,114,159,.15)'
+                  : item.overdue
+                  ? 'rgba(242,114,138,.15)'
+                  : 'rgba(167,139,250,.15)',
+                color: item.cancelled ? '#F0729F' : item.overdue ? '#F2728A' : accent,
               }}
             >
               {dateLabel}
@@ -393,6 +415,7 @@ function MeetingCard({
   onOpenPerson,
   completing,
   cancelled = false,
+  footer,
 }: {
   item: MeetingItem
   onClick: () => void
@@ -400,6 +423,7 @@ function MeetingCard({
   onOpenPerson: () => void
   completing: boolean
   cancelled?: boolean
+  footer?: ReactNode
 }) {
   const stageColor = STAGE_COLORS[item.person.current_stage]
 
@@ -410,10 +434,12 @@ function MeetingCard({
     .slice(0, 2)
     .toUpperCase()
 
-  const dateLabel = item.isToday
+  const dateLabel = item.isOverdue
+    ? item.isToday
+      ? 'Attendance overdue'
+      : `${Math.abs(item.daysUntil)}d overdue`
+    : item.isToday
     ? 'Today'
-    : item.isOverdue
-    ? `${Math.abs(item.daysUntil)}d overdue`
     : item.daysUntil === 1
     ? 'Tomorrow'
     : `In ${item.daysUntil}d`
@@ -531,6 +557,7 @@ function MeetingCard({
               <span className="text-[var(--fg-2)]">{item.engagement.location}</span>
             )}
           </div>
+          {footer}
         </div>
       </div>
     </div>
@@ -559,6 +586,9 @@ export default function NeedAttentionSection({
   const [groupMemberships, setGroupMemberships] = useState<{ person_id: string; victory_group_id: string }[]>([])
   // Small-group attendance in the rolling last-7-day window (attended=true).
   const [recentAttn, setRecentAttn] = useState<{ person_id: string; victory_group_id: string }[]>([])
+  // Group+date keys where any attendance sheet was saved (clears overdue).
+  const [attendanceTaken, setAttendanceTaken] = useState<Set<string>>(new Set())
+  const [seriesEndAcks, setSeriesEndAcks] = useState<Set<string>>(new Set())
   // Per-occurrence cancel/reschedule overrides for group meetings.
   const [groupStatuses, setGroupStatuses] = useState<GroupMeetingStatus[]>([])
   const { profile } = useAuth()
@@ -603,8 +633,17 @@ export default function NeedAttentionSection({
       // for the "met this week" tally on the header.
       const attnSince = new Date(); attnSince.setDate(attnSince.getDate() - 6)
       const attnSinceKey = `${attnSince.getFullYear()}-${String(attnSince.getMonth() + 1).padStart(2, '0')}-${String(attnSince.getDate()).padStart(2, '0')}`
-      const { data: attnData } = await getRecentGroupAttendance(attnSinceKey)
+      const [{ data: attnData }, { data: takenData }, ackRes] = await Promise.all([
+        getRecentGroupAttendance(attnSinceKey),
+        getGroupAttendanceTakenSince(attnSinceKey),
+        viewerPersonId ? getSeriesEndAcks(viewerPersonId) : Promise.resolve({ data: [] as string[] }),
+      ])
       setRecentAttn((attnData as { person_id: string; victory_group_id: string }[]) ?? [])
+      setAttendanceTaken(new Set(
+        ((takenData as { victory_group_id: string; meeting_date: string }[]) ?? [])
+          .map(r => `${r.victory_group_id}|${r.meeting_date}`)
+      ))
+      setSeriesEndAcks(new Set(ackRes.data ?? []))
     } catch (err) {
       console.error('NeedAttentionSection load error:', err)
       setLoadError(true)
@@ -615,7 +654,10 @@ export default function NeedAttentionSection({
 
   const handleComplete = async (item: MeetingItem) => {
     setCompletingId(item.engagement.id)
-    const { error } = await updateEngagement(item.engagement.id, { status: 'Completed' })
+    const { error } = await updateEngagement(item.engagement.id, {
+      status: 'Completed',
+      completed_at: new Date().toISOString(),
+    })
 
     if (error) {
       console.error('Failed to complete engagement:', error.message || JSON.stringify(error))
@@ -683,7 +725,7 @@ export default function NeedAttentionSection({
           engagement,
           person,
           daysUntil,
-          isOverdue: daysUntil < 0,
+          isOverdue: isMeetingOverdue(engagement.follow_up_date, engagement.follow_up_time),
           isToday: daysUntil === 0,
           isUpcoming: daysUntil > 0 && daysUntil <= 7,
         })
@@ -700,6 +742,11 @@ export default function NeedAttentionSection({
 
     return items
   }, [people, engagements, viewerPersonId, isAdmin, badgeScope, confirmedIds])
+
+  const lastOfSeries = useMemo(
+    () => lastOfSeriesById(engagements, viewerPersonId),
+    [engagements, viewerPersonId],
+  )
 
   // Cancelled 1:1s in the same window/scope. They stay on the agenda with a red
   // badge (so the coach can reopen them) but never feed any count — hence a
@@ -718,7 +765,13 @@ export default function NeedAttentionSection({
 
     const items: MeetingItem[] = []
     engagements
-      .filter(e => e.status === 'Cancelled' && !!e.follow_up_date && inScope(e) && e.follow_up_date <= next7Str)
+      .filter(e =>
+        e.status === 'Cancelled' &&
+        !!e.follow_up_date &&
+        inScope(e) &&
+        e.follow_up_date <= next7Str &&
+        !isCancelledArchived(e.cancelled_at, e.follow_up_date)
+      )
       .forEach(engagement => {
         const person = peopleById.get(engagement.person_id)
         if (!person) return
@@ -749,15 +802,20 @@ export default function NeedAttentionSection({
     const items: GroupMeetingItem[] = []
     for (const group of victoryGroups) {
       if (!scopeGroup(group)) continue
-      // 6 days ahead covers each weekday exactly once (weekly cadence).
-      for (const occ of occurrencesWithin(daysOf(group), 6)) {
+      // 7 days back (overdue attendance) + 6 ahead (each weekday once).
+      for (const occ of occurrencesAroundToday(daysOf(group), 6, 6)) {
         const st = statusFor(group.id, occ)
         const cancelled = st?.status === 'cancelled'
         const rescheduled = st?.status === 'rescheduled'
+        if (cancelled && isCancelledArchived(st?.updated_at ?? st?.created_at, occ)) continue
         const date = rescheduled && st?.rescheduled_to ? st.rescheduled_to : occ
         const time = rescheduled ? st?.rescheduled_time ?? null : group.meeting_time
         const dt = new Date(date + 'T00:00:00')
         const daysUntil = Math.round((dt.getTime() - today.getTime()) / 86_400_000)
+        const taken = attendanceTaken.has(`${group.id}|${date}`)
+        const overdue = !cancelled && !taken && isMeetingOverdue(date, time)
+        // Past sessions only stay on the agenda when attendance is still owed.
+        if (daysUntil < 0 && !overdue && !cancelled) continue
         items.push({
           group,
           occDate: occ,
@@ -769,12 +827,14 @@ export default function NeedAttentionSection({
           isToday: daysUntil === 0,
           cancelled,
           rescheduled,
+          overdue,
+          statusUpdatedAt: st?.updated_at ?? st?.created_at ?? null,
         })
       }
     }
     items.sort((a, b) => a.date.localeCompare(b.date))
     return items
-  }, [victoryGroups, groupMemberships, groupStatuses, isAdmin, badgeScope, profile?.id])
+  }, [victoryGroups, groupMemberships, groupStatuses, isAdmin, badgeScope, profile?.id, attendanceTaken])
 
   // Roster per group (resolved to Person for the attendance checklist), derived
   // from the flat memberships + people already loaded.
@@ -797,7 +857,8 @@ export default function NeedAttentionSection({
   const activeGroupMeetings = visibleGroupMeetings.filter(g => !g.cancelled)
 
   const overdueCount = meetings.filter(m => m.isOverdue).length
-  const todayCount = meetings.filter(m => m.isToday).length
+  const overdueGroupCount = visibleGroupMeetings.filter(g => g.overdue).length
+  const todayCount = meetings.filter(m => m.isToday && !m.isOverdue).length
 
   const meetingCounts = useMemo(() => {
     const now = new Date()
@@ -960,9 +1021,9 @@ export default function NeedAttentionSection({
             >
               🤝 {metThisWeekCount} met this week
             </span>
-            {overdueCount > 0 && (
+            {(overdueCount + overdueGroupCount) > 0 && (
               <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'rgba(242,114,138,.15)', color: '#F2728A' }}>
-                {overdueCount} overdue
+                {overdueCount + overdueGroupCount} overdue attendance
               </span>
             )}
             {todayCount > 0 && (
@@ -999,7 +1060,11 @@ export default function NeedAttentionSection({
           {meetings.length > 0 ? (
             <>
               <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {meetings.slice(0, 12).map(item => (
+                {meetings.slice(0, 12).map(item => {
+                  const seriesInfo = lastOfSeries.get(item.engagement.id)
+                  const showSeries = !!seriesInfo && !seriesEndAcks.has(item.engagement.id)
+                  const owns = !!viewerPersonId && item.engagement.created_by_person_id === viewerPersonId
+                  return (
                   <MeetingCard
                     key={item.engagement.id}
                     item={item}
@@ -1007,8 +1072,31 @@ export default function NeedAttentionSection({
                     onComplete={() => handleComplete(item)}
                     onOpenPerson={() => onPersonClick?.(item.person)}
                     completing={completingId === item.engagement.id}
+                    footer={(showSeries || (owns && item.isOverdue)) ? (
+                      <div className="mt-2 space-y-2">
+                        {showSeries && seriesInfo && (
+                          <LastOfSeriesNote
+                            engagement={item.engagement}
+                            info={seriesInfo}
+                            personName={item.person.name}
+                            coachPersonId={viewerPersonId ?? null}
+                            onExtended={() => { loadData() }}
+                            onDismissed={() => setSeriesEndAcks(prev => new Set(prev).add(item.engagement.id))}
+                          />
+                        )}
+                        {owns && item.isOverdue && (
+                          <OverdueMeetingActions
+                            engagement={item.engagement}
+                            personName={item.person.name}
+                            coachPersonId={viewerPersonId ?? null}
+                            onChanged={() => { loadData() }}
+                          />
+                        )}
+                      </div>
+                    ) : undefined}
                   />
-                ))}
+                  )
+                })}
               </div>
               {meetings.length > 12 && (
                 <p className="mt-2 text-center text-xs text-[var(--fg-3)]">
@@ -1066,13 +1154,16 @@ export default function NeedAttentionSection({
               <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {visibleGroupMeetings.slice(0, 12).map(item => (
                   <GroupMeetingCard
-                    key={item.group.id}
+                    key={`${item.group.id}|${item.occDate}`}
                     item={item}
                     members={groupMembersById.get(item.group.id) ?? []}
                     canManage={isAdmin || item.group.owner_person_id === profile?.id}
                     viewerPersonId={profile?.id}
                     onStatusChanged={reloadGroupStatuses}
-                    onDone={(groupId, date) => setGroupDone(prev => new Set(prev).add(`${groupId}|${date}`))}
+                    onDone={(groupId, date) => {
+                      setGroupDone(prev => new Set(prev).add(`${groupId}|${date}`))
+                      setAttendanceTaken(prev => new Set(prev).add(`${groupId}|${date}`))
+                    }}
                   />
                 ))}
               </div>
