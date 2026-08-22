@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getCoachSharedSoaps, getGroupSharedSoaps, getSharedSoaps, getFeedItemStates, setFeedItemState, clearFeedItemState, getFeedLikes, setFeedLike, getFeedComments, addFeedComment, deleteFeedComment, flagFeedComment, type FeedComment } from '../lib/supabaseQueries'
+import { getCoachSharedSoaps, getFocusedCoachSoap, getGroupSharedSoaps, getSharedSoaps, getFeedItemStates, setFeedItemState, clearFeedItemState, getFeedLikes, setFeedLike, getFeedComments, addFeedComment, deleteFeedComment, flagFeedComment, type FeedComment } from '../lib/supabaseQueries'
 import ReplyModal from './ReplyModal'
 import FeedComments from './FeedComments'
 
@@ -29,6 +29,7 @@ export default function SharedSoapFeed({
   subtitle,
   seenKey,
   showEmpty = false,
+  focusId,
 }: {
   personId: string
   scope: 'coach' | 'group' | 'constellation'
@@ -37,6 +38,7 @@ export default function SharedSoapFeed({
   subtitle?: string
   seenKey?: string
   showEmpty?: boolean
+  focusId?: string | null
 }) {
   const [items, setItems] = useState<SharedSoap[]>([])
   const [archivedIds, setArchivedIds] = useState<Set<string>>(new Set())
@@ -60,9 +62,15 @@ export default function SharedSoapFeed({
       scope === 'coach' ? getCoachSharedSoaps(personId)
       : scope === 'group' ? getGroupSharedSoaps(personId)
       : getSharedSoaps(20)
-    Promise.all([Promise.resolve(p), getFeedItemStates(personId, 'soap')]).then(([res, states]) => {
+    Promise.all([
+      Promise.resolve(p),
+      getFeedItemStates(personId, 'soap'),
+      focusId && scope === 'coach' ? getFocusedCoachSoap(personId, focusId) : Promise.resolve({ data: null }),
+    ]).then(([res, states, focused]) => {
       if (cancelled) return
-      const list = (res.data as unknown as SharedSoap[]) ?? []
+      const list = [...((res.data as unknown as SharedSoap[]) ?? [])]
+      const extra = focused.data as SharedSoap | null
+      if (extra && !list.some(i => i.id === extra.id)) list.unshift(extra)
       setItems(list)
       setArchivedIds(states.archived)
       setDeletedIds(states.deleted)
@@ -80,9 +88,14 @@ export default function SharedSoapFeed({
         if (cancelled) return
         setComments(res.byTarget)
       })
+      if (focusId && list.some(i => i.id === focusId)) {
+        setExpandedIds(prev => new Set(prev).add(focusId))
+        setOpenComments(prev => new Set(prev).add(focusId))
+        setTimeout(() => document.getElementById(`soap-${focusId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50)
+      }
     })
     return () => { cancelled = true }
-  }, [personId, scope, refreshKey, seenKey])
+  }, [personId, scope, refreshKey, seenKey, focusId])
 
   const T = title ?? (scope === 'coach' ? 'Shared with you' : scope === 'group' ? 'From your Grace Group' : 'From the constellation')
   const S = subtitle ?? (
@@ -163,7 +176,15 @@ export default function SharedSoapFeed({
     const expandable = fullText.length > 220 || fullText.split('\n').length > 4 || !!s.photo_url
     const mine = s.own || s.person_id === personId
     return (
-      <div className="rounded-xl border border-[var(--line-1)] bg-[var(--indigo-2)] p-3">
+      <div
+        id={`soap-${s.id}`}
+        className="rounded-xl border p-3"
+        style={{
+          borderColor: focusId === s.id ? 'var(--gbm-cobalt-bright)' : 'var(--line-1)',
+          background: 'var(--indigo-2)',
+          boxShadow: focusId === s.id ? '0 0 16px -4px rgba(91,141,247,.45)' : 'none',
+        }}
+      >
         <div className="flex items-center justify-between gap-2">
           <span className="min-w-0 truncate text-sm font-semibold text-[var(--fg-1)]">{s.people?.name ?? 'A disciple'}</span>
           {mine && (

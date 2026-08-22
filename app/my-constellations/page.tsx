@@ -42,6 +42,7 @@ import MomentumCard from '../../components/coach/MomentumCard'
 import ConstellationLens from '../../components/coach/ConstellationLens'
 import CompactPipelineCard from '../../components/coach/CompactPipelineCard'
 import LeaderReviewCard from '../../components/coach/LeaderReviewCard'
+import CoachNotifications from '../../components/CoachNotifications'
 
 // True at phone widths — drives the mobile "Our Journey" redesign overlay.
 // Matches Tailwind's `sm` breakpoint (640px) used throughout this page.
@@ -377,6 +378,7 @@ export default function DiscipleshipTracker() {
   const [selectedSoap, setSelectedSoap] = useState<SoapJournal | null>(null)
   const [showSoapEntry, setShowSoapEntry] = useState(false)
   const [soapEntryDate, setSoapEntryDate] = useState<string | null>(null)
+  const [focusSoapId, setFocusSoapId] = useState<string | null>(null)
   // Seeds a new entry with the verse card's Scripture line (see the SOAPs tab)
   const [soapSeedText, setSoapSeedText] = useState<string | null>(null)
   const [profileLoading, setProfileLoading] = useState(true)
@@ -707,6 +709,14 @@ export default function DiscipleshipTracker() {
             <span className="h-px w-4 rounded-full bg-[var(--fg-2)]" />
             <span className="h-px w-4 rounded-full bg-[var(--fg-2)]" />
           </button>
+          <CoachNotifications
+            personId={profile.id}
+            refreshKey={refreshKey}
+            mode="bell"
+            onOpenSoap={id => { setFocusSoapId(id); setActiveSection('soaps') }}
+            onOpenMessages={() => setMsgCenterOpen(true)}
+            onOpenSignoff={() => setMsgCenterOpen(true)}
+          />
 
           {/* Logo + title */}
           <div className="flex flex-1 items-center gap-4">
@@ -742,6 +752,15 @@ export default function DiscipleshipTracker() {
             <div className="mx-auto w-full max-w-2xl">
               {/* TodayStrip + SignalsRow removed from the briefing to match native
                   redesign v2 (Ivan): the briefing now leads with the pipeline. */}
+              <ErrorBoundary name="CoachNotifications">
+                <CoachNotifications
+                  personId={profile.id}
+                  refreshKey={refreshKey}
+                  onOpenSoap={id => { setFocusSoapId(id); setActiveSection('soaps') }}
+                  onOpenMessages={() => setMsgCenterOpen(true)}
+                  onOpenSignoff={() => setMsgCenterOpen(true)}
+                />
+              </ErrorBoundary>
               <ErrorBoundary name="CompactPipelineCard">
                 <CompactPipelineCard
                   myPersonIds={myCircleIds ? Array.from(myCircleIds) : undefined}
@@ -1135,6 +1154,15 @@ export default function DiscipleshipTracker() {
                   onChanged={() => setRefreshKey(p => p + 1)}
                 />
               </ErrorBoundary>
+              <ErrorBoundary name="CoachNotifications">
+                <CoachNotifications
+                  personId={profile.id}
+                  refreshKey={refreshKey}
+                  onOpenSoap={id => { setFocusSoapId(id); setActiveSection('soaps') }}
+                  onOpenMessages={() => setMsgCenterOpen(true)}
+                  onOpenSignoff={() => setMsgCenterOpen(true)}
+                />
+              </ErrorBoundary>
               <ErrorBoundary name="NeedAttentionSection">
                 <NeedAttentionSection
                   refreshKey={refreshKey}
@@ -1228,7 +1256,7 @@ export default function DiscipleshipTracker() {
           {activeSection === 'soaps' && (
             <div>
               <ErrorBoundary name="SharedSoapFeed">
-                <SharedSoapFeed personId={profile.id} scope="coach" refreshKey={refreshKey} />
+                <SharedSoapFeed personId={profile.id} scope="coach" refreshKey={refreshKey} focusId={focusSoapId} />
               </ErrorBoundary>
               {!soapsLoaded ? (
                 <div className="flex justify-center py-12">
