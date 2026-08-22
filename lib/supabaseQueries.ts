@@ -123,10 +123,10 @@ export const getPeople = (stage?: Stage | Stage[]) =>
   )
 
 export const addPerson = async (
-  person: Omit<Person, 'id' | 'created_at' | 'updated_at' | 'auth_user_id' | 'is_admin' | 'is_test' | 'testimony_text' | 'testimony_video_url'>,
-  // Whoever inputs a person becomes their coach. Without this connection a
-  // non-admin can't see the person they just added — "My Constellation" only
-  // shows your own downline.
+  person: Omit<Person, 'id' | 'created_at' | 'updated_at' | 'auth_user_id' | 'is_admin' | 'is_test' | 'testimony_text' | 'testimony_video_url' | 'created_by'>,
+  // Whoever inputs a person becomes their coach. people.created_by (DB trigger)
+  // is what makes INSERT ... RETURNING pass RLS; this connection is the
+  // follow-up so "My Constellation" lists them in the downline.
   coachPersonId?: string
 ) => {
   const { data, error } = await supabase
@@ -189,7 +189,7 @@ export const findPotentialDuplicatePeople = async ({
 
 export const updatePerson = async (
   personId: string,
-  updates: Partial<Omit<Person, 'id' | 'created_at' | 'updated_at'>>
+  updates: Partial<Omit<Person, 'id' | 'created_at' | 'updated_at' | 'created_by'>>
 ) => {
   const { data, error } = await supabase
     .from('people')

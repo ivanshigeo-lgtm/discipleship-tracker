@@ -108,6 +108,10 @@ export type Person = {
   is_test: boolean
   testimony_text: string | null
   testimony_video_url: string | null
+  // Person who created this row (DB trigger from the acting session). Used by
+  // people_sel so INSERT ... RETURNING can see the new row. Null for
+  // service-role/system writes.
+  created_by: string | null
   created_at: string
   updated_at: string
 }
