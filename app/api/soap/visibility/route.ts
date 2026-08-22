@@ -139,5 +139,29 @@ export async function POST(request: NextRequest) {
     .eq('target_type', 'soap')
     .eq('target_id', isoapEntryId)
 
+  // In-app notify the author's coaches (not a church-wide firehose).
+  const { data: conns } = await admin
+    .from('discipleship_connections')
+    .select('discipler_person_id, pending')
+    .eq('disciple_person_id', personId)
+  const coaches = Array.from(new Set(
+    (conns ?? [])
+      .filter((c: { discipler_person_id: string; pending?: boolean | null }) => c.pending !== true && c.discipler_person_id)
+      .map((c: { discipler_person_id: string }) => c.discipler_person_id)
+  ))
+  if (coaches.length) {
+    await admin.from('coach_notifications').upsert(
+      coaches.map(recipient_person_id => ({
+        recipient_person_id,
+        actor_person_id: personId,
+        kind: 'soap_shared',
+        target_type: 'soap',
+        target_id: isoapEntryId,
+        preview: 'Shared a SOAP',
+      })),
+      { onConflict: 'recipient_person_id,kind,target_id', ignoreDuplicates: true },
+    )
+  }
+
   return NextResponse.json({ ok: true, visibility })
 }

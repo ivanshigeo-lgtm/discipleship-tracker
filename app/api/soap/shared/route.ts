@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'ISOAP_INGEST_SECRET not configured' }, { status: 500 })
   }
 
-  let body: { scope?: string; coachPersonId?: string; personId?: string; viewerPersonId?: string; limit?: number }
+  let body: { scope?: string; coachPersonId?: string; personId?: string; viewerPersonId?: string; limit?: number; entryIds?: string[] }
   try {
     body = await request.json()
   } catch {
@@ -155,14 +155,21 @@ export async function POST(request: NextRequest) {
 
   // 2. Which iSOAP entries were shared at this level? Pull a generous buffer,
   //    ordered newest-first; the final slice is applied after content is fetched.
+  //    `entryIds` is the coach-notification deep-link: one (or a few) entries
+  //    the viewer is already authorized to see, even if they sat outside the
+  //    usual window or were shared at group/constellation instead of coach.
+  const entryIds = Array.isArray(body.entryIds)
+    ? body.entryIds.filter((id): id is string => typeof id === 'string' && id.length > 0).slice(0, 10)
+    : []
   let shareQuery = admin
     .from('isoap_entry_visibility')
     .select(
       'isoap_entry_id, wc_person_id, journal_date, victory_group_id, victory_group_ids, updated_at'
     )
-    .eq('visibility', scope)
+    .in('visibility', entryIds.length ? ['coach', 'group', 'constellation'] : [scope])
     .order('updated_at', { ascending: false })
-    .limit(limit * 4)
+    .limit(entryIds.length ? entryIds.length : limit * 4)
+  if (entryIds.length) shareQuery = shareQuery.in('isoap_entry_id', entryIds)
   if (authorIds !== null) shareQuery = shareQuery.in('wc_person_id', authorIds)
   const { data: shares, error: shareErr } = await shareQuery
   if (shareErr) {
@@ -191,7 +198,7 @@ export async function POST(request: NextRequest) {
       : s.victory_group_id
         ? [s.victory_group_id]
         : null
-    if (scope === 'group' && targets && !targets.some((g) => viewerGids.includes(g))) continue
+    if (!entryIds.length && scope === 'group' && targets && !targets.some((g) => viewerGids.includes(g))) continue
     if (scope === 'group' && viewerId && s.wc_person_id === viewerId) {
       ownTargetsByEntry.set(s.isoap_entry_id, targets)
     }

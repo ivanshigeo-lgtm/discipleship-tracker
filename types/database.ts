@@ -388,6 +388,22 @@ export type ConversationMessage = {
   created_at: string
 }
 
+export type CoachNotificationKind = 'soap_shared' | 'message' | 'signoff_requested'
+export type CoachNotificationTarget = 'soap' | 'message' | 'conversation' | 'level_signoff'
+
+export type CoachNotification = {
+  id: string
+  recipient_person_id: string
+  actor_person_id: string
+  kind: CoachNotificationKind
+  target_type: CoachNotificationTarget
+  target_id: string
+  preview: string | null
+  read_at: string | null
+  created_at: string
+  actor?: { id: string; name: string } | null
+}
+
 export type ConversationSummary = {
   id: string
   name: string | null

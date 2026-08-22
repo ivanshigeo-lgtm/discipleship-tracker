@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:series": "npx --yes tsx --test lib/engagementSeries.test.ts lib/meetingStatus.test.ts"
+    "test:series": "npx --yes tsx --test lib/engagementSeries.test.ts lib/meetingStatus.test.ts lib/notifyCoaches.test.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.81",

@@ -13,7 +13,9 @@ import type {
   InviteToken,
   ShareVisibility,
   Booklet,
+  CoachNotification,
 } from '../types/database'
+import { notifyCoaches } from './notifyCoaches'
 
 // In-flight request de-duplication. When several components mount at once and
 // each calls the same read (e.g. getPeople), they share ONE network request
@@ -1608,6 +1610,15 @@ export const addSoapJournal = async (
     .insert({ ...journal, updated_at: new Date().toISOString() })
     .select()
     .single()
+  if (!error && data && journal.visibility && journal.visibility !== 'private') {
+    void notifyCoaches({
+      actorPersonId: journal.person_id,
+      kind: 'soap_shared',
+      targetType: 'soap',
+      targetId: data.id,
+      preview: data.scripture_reference || data.summary || 'New SOAP',
+    })
+  }
   return { data, error }
 }
 
@@ -1621,6 +1632,15 @@ export const updateSoapJournal = async (
     .eq('id', id)
     .select()
     .single()
+  if (!error && data && updates.visibility && updates.visibility !== 'private') {
+    void notifyCoaches({
+      actorPersonId: data.person_id,
+      kind: 'soap_shared',
+      targetType: 'soap',
+      targetId: data.id,
+      preview: data.scripture_reference || data.summary || 'Shared a SOAP',
+    })
+  }
   return { data, error }
 }
 
@@ -1912,6 +1932,37 @@ export const getCoachSharedSoaps = async (coachPersonId: string, limit = 20) => 
     ...(isoap as unknown as { journal_date: string | null; id: string }[]),
   ]).slice(0, limit)
   return { data: merged, error: null }
+}
+
+// One SOAP a coach is allowed to open from a notification — even when it is
+// older than the feed window or was shared at group/constellation instead of
+// coach-only. Authorization is the existing coach↔disciple graph.
+export const getFocusedCoachSoap = async (coachPersonId: string, soapId: string) => {
+  const { data: conns, error: connErr } = await supabase
+    .from('discipleship_connections')
+    .select('disciple_person_id')
+    .eq('discipler_person_id', coachPersonId)
+  if (connErr) return { data: null, error: connErr }
+  const ids = [...(conns ?? []).map(c => c.disciple_person_id), coachPersonId].filter(Boolean)
+  if (ids.length === 0) return { data: null, error: null }
+
+  const { data: local, error: localErr } = await supabase
+    .from('soap_journals')
+    .select(SHARED_SOAP_COLS)
+    .eq('id', soapId)
+    .in('person_id', ids)
+    .neq('visibility', 'private')
+    .maybeSingle()
+  if (localErr) return { data: null, error: localErr }
+  if (local) return { data: local, error: null }
+
+  const isoap = await fetchIsoapSharedSoaps({
+    scope: 'coach',
+    coachPersonId,
+    entryIds: [soapId],
+    limit: 1,
+  })
+  return { data: isoap[0] ?? null, error: null }
 }
 
 // SOAPs shared with the Grace Group(s) this person belongs to (visibility =
@@ -2247,6 +2298,18 @@ export const sendMessage = async (
     .insert({ from_person_id: fromPersonId, to_person_id: toPersonId, kind, body })
     .select()
     .single()
+  // Greeting / prayer from a disciple to their coach. Sign-off notes use
+  // 'note' and fire a dedicated signoff_requested notification instead.
+  if (!error && data && (kind === 'greeting' || kind === 'prayer')) {
+    void notifyCoaches({
+      actorPersonId: fromPersonId,
+      kind: 'message',
+      targetType: 'message',
+      targetId: data.id,
+      preview: body.slice(0, 140),
+      onlyRecipientId: toPersonId,
+    })
+  }
   return { data, error }
 }
 
@@ -2269,6 +2332,15 @@ export const requestLevelSignoff = async (personId: string, stage: string) => {
     )
     .select()
     .single()
+  if (!error && data) {
+    void notifyCoaches({
+      actorPersonId: personId,
+      kind: 'signoff_requested',
+      targetType: 'level_signoff',
+      targetId: data.id,
+      preview: `${stage} sign-off requested`,
+    })
+  }
   return { data, error }
 }
 
@@ -2307,6 +2379,9 @@ export const approveLevelSignoff = async (id: string, coachPersonId: string, con
     .eq('id', id)
     .select()
     .single()
+  if (!error) {
+    await markCoachNotificationsReadForTarget(coachPersonId, 'signoff_requested', id)
+  }
   return { data, error }
 }
 
@@ -2440,6 +2515,23 @@ export const sendConversationMessage = async (conversationId: string, senderId: 
     .insert({ conversation_id: conversationId, sender_id: senderId, body })
     .select()
     .single()
+  if (!error && data) {
+    const { data: members } = await supabase
+      .from('conversation_members')
+      .select('person_id')
+      .eq('conversation_id', conversationId)
+    for (const m of members ?? []) {
+      if (m.person_id === senderId) continue
+      void notifyCoaches({
+        actorPersonId: senderId,
+        kind: 'message',
+        targetType: 'conversation',
+        targetId: data.id,
+        preview: body.slice(0, 140),
+        onlyRecipientId: m.person_id as string,
+      })
+    }
+  }
   return { data, error }
 }
 
@@ -2472,4 +2564,48 @@ export const searchPeople = async (query: string, limit = 12) => {
     .order('name')
     .limit(limit)
   return { data, error }
+}
+
+// ==================== COACH NOTIFICATIONS ====================
+export const getCoachNotifications = async (personId: string, limit = 40) => {
+  const { data, error } = await supabase
+    .from('coach_notifications')
+    .select('*, actor:people!actor_person_id(id, name)')
+    .eq('recipient_person_id', personId)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  return { data: (data as CoachNotification[] | null) ?? [], error }
+}
+
+export const countUnreadCoachNotifications = async (personId: string) => {
+  const { count, error } = await supabase
+    .from('coach_notifications')
+    .select('id', { count: 'exact', head: true })
+    .eq('recipient_person_id', personId)
+    .is('read_at', null)
+  return { count: count ?? 0, error }
+}
+
+export const markCoachNotificationRead = async (id: string) => {
+  const { error } = await supabase
+    .from('coach_notifications')
+    .update({ read_at: new Date().toISOString() })
+    .eq('id', id)
+    .is('read_at', null)
+  return { error }
+}
+
+export const markCoachNotificationsReadForTarget = async (
+  personId: string,
+  kind: CoachNotification['kind'],
+  targetId: string,
+) => {
+  const { error } = await supabase
+    .from('coach_notifications')
+    .update({ read_at: new Date().toISOString() })
+    .eq('recipient_person_id', personId)
+    .eq('kind', kind)
+    .eq('target_id', targetId)
+    .is('read_at', null)
+  return { error }
 }
