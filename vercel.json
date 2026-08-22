@@ -1,4 +1,8 @@
 {
+  "rewrites": [
+    { "source": "/site", "destination": "/site/index.html" },
+    { "source": "/site/", "destination": "/site/index.html" }
+  ],
   "crons": [
     {
       "path": "/api/soap/cleanup-orphans",

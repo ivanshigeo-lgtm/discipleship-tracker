@@ -8,6 +8,16 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/api/video/transcode": ["./node_modules/@ffmpeg-installer/**/*"],
   },
+  // WikiChurch brochure is a self-contained public/site/index.html.
+  // beforeFiles so /site and /site/ win before any app or catch-all route.
+  async rewrites() {
+    return {
+      beforeFiles: [
+        { source: "/site", destination: "/site/index.html" },
+        { source: "/site/", destination: "/site/index.html" },
+      ],
+    };
+  },
 };
 
 export default nextConfig;
