@@ -9,7 +9,8 @@
     "lint": "eslint",
     "test": "npx --yes tsx --test lib/*.test.ts",
     "test:series": "npx --yes tsx --test lib/engagementSeries.test.ts lib/meetingStatus.test.ts lib/notifyCoaches.test.ts",
-    "test:calendar": "npx --yes tsx --test lib/googleCalendarLogic.test.ts"
+    "test:calendar": "npx --yes tsx --test lib/googleCalendarLogic.test.ts",
+    "backfill:series": "npx tsx scripts/backfill-engagement-series.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.81",

@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext'
 import type { MeetingType, Person } from '../types/database'
 import { type Recurrence, RECURRENCE_OPTIONS, recurrenceDatesMultiDay, recurrenceLabel } from '../lib/recurrence'
 import { WEEKDAY_NAMES } from '../lib/meetingDays'
+import { newSeriesId } from '../lib/engagementSeries'
 
 const MEETING_TYPES: MeetingType[] = ['One2One', 'Making Disciples', 'Coffee', 'Church Community', 'Empowering Leaders']
 
@@ -66,6 +67,8 @@ export default function NewMeetingModal({ onClose, onCreated }: { onClose: () =>
     setLoading(true)
     setError('')
 
+    const seriesId = plannedDates.length > 1 ? newSeriesId() : null
+
     for (const d of plannedDates) {
       const { data: eng, error: insErr } = await addEngagement({
         person_id: participantIds[0],
@@ -76,6 +79,7 @@ export default function NewMeetingModal({ onClose, onCreated }: { onClose: () =>
         location: location.trim() || null,
         meeting_type: meetingType || null,
         status: 'Pending',
+        series_id: seriesId,
       })
       if (insErr) { setError(insErr.message || 'Could not create the meeting.'); setLoading(false); return }
       if (eng) await addMeetingParticipants(eng.id, participantIds, 'invited')
