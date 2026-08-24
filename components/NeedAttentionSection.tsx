@@ -72,6 +72,21 @@ type GroupMeetingItem = {
   statusUpdatedAt: string | null
 }
 
+const AGENDA_CAP = 12
+
+function toMeetingItem(engagement: Engagement, person: Person, today: Date): MeetingItem {
+  const followUpDate = new Date(engagement.follow_up_date! + 'T00:00:00')
+  const daysUntil = Math.round((followUpDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+  return {
+    engagement,
+    person,
+    daysUntil,
+    isOverdue: isMeetingOverdue(engagement.follow_up_date, engagement.follow_up_time),
+    isToday: daysUntil === 0,
+    isUpcoming: daysUntil > 0 && daysUntil <= 7,
+  }
+}
+
 const STAGE_COLORS: Record<Stage, string> = {
   Engage: '#F4B650',
   Establish: '#36D6C3',
@@ -714,21 +729,7 @@ export default function NeedAttentionSection({
       .forEach(engagement => {
         const person = peopleById.get(engagement.person_id)
         if (!person) return
-
-        // Parse as local time by appending T00:00:00 (otherwise JS parses YYYY-MM-DD as UTC)
-        const followUpDate = new Date(engagement.follow_up_date + 'T00:00:00')
-
-        const diffTime = followUpDate.getTime() - today.getTime()
-        const daysUntil = Math.round(diffTime / (1000 * 60 * 60 * 24))
-
-        items.push({
-          engagement,
-          person,
-          daysUntil,
-          isOverdue: isMeetingOverdue(engagement.follow_up_date, engagement.follow_up_time),
-          isToday: daysUntil === 0,
-          isUpcoming: daysUntil > 0 && daysUntil <= 7,
-        })
+        items.push(toMeetingItem(engagement, person, today))
       })
 
     // Sort: overdue first, then today, then upcoming by date
@@ -747,6 +748,36 @@ export default function NeedAttentionSection({
     () => lastOfSeriesById(engagements, viewerPersonId),
     [engagements, viewerPersonId],
   )
+
+  // Last pending occurrence of each owned finite series. The 7-day agenda
+  // otherwise hides that last date (often weeks out), so the owner never sees
+  // "Last meeting of this series". Standing victory_groups are not in this map.
+  const seriesEndingMeetings = useMemo(() => {
+    const peopleById = new Map(people.map(p => [p.id, p]))
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const inWindow = new Set(meetings.map(m => m.engagement.id))
+    const items: MeetingItem[] = []
+    for (const [id] of lastOfSeries) {
+      if (seriesEndAcks.has(id)) continue
+      if (inWindow.has(id)) continue
+      const engagement = engagements.find(e => e.id === id)
+      if (!engagement || engagement.status !== 'Pending' || !engagement.follow_up_date) continue
+      const person = peopleById.get(engagement.person_id)
+      if (!person) continue
+      items.push(toMeetingItem(engagement, person, today))
+    }
+    items.sort((a, b) => a.daysUntil - b.daysUntil)
+    return items
+  }, [people, meetings, lastOfSeries, seriesEndAcks, engagements])
+
+  // Don't let the 12-card cap bury an in-window last-of-series card under a
+  // pile of overdue 1:1s (GBC view is 40+ rows in a typical week).
+  const visibleMeetings = useMemo(() => {
+    const pinned = meetings.filter(m => lastOfSeries.has(m.engagement.id) && !seriesEndAcks.has(m.engagement.id))
+    const rest = meetings.filter(m => !pinned.some(p => p.engagement.id === m.engagement.id))
+    return [...pinned, ...rest].slice(0, Math.max(AGENDA_CAP, pinned.length))
+  }, [meetings, lastOfSeries, seriesEndAcks])
 
   // Cancelled 1:1s in the same window/scope. They stay on the agenda with a red
   // badge (so the coach can reopen them) but never feed any count — hence a
@@ -1060,7 +1091,7 @@ export default function NeedAttentionSection({
           {meetings.length > 0 ? (
             <>
               <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {meetings.slice(0, 12).map(item => {
+                {visibleMeetings.map(item => {
                   const seriesInfo = lastOfSeries.get(item.engagement.id)
                   const showSeries = !!seriesInfo && !seriesEndAcks.has(item.engagement.id)
                   const owns = !!viewerPersonId && item.engagement.created_by_person_id === viewerPersonId
@@ -1098,9 +1129,9 @@ export default function NeedAttentionSection({
                   )
                 })}
               </div>
-              {meetings.length > 12 && (
+              {meetings.length > visibleMeetings.length && (
                 <p className="mt-2 text-center text-xs text-[var(--fg-3)]">
-                  Showing 12 of {meetings.length} scheduled meetings
+                  Showing {visibleMeetings.length} of {meetings.length} scheduled meetings
                 </p>
               )}
             </>
@@ -1119,6 +1150,41 @@ export default function NeedAttentionSection({
             <p className="mt-4 text-sm text-[var(--fg-3)]">
               No one-to-one meetings scheduled. Add a follow-up date in someone's profile.
             </p>
+          )}
+
+          {seriesEndingMeetings.length > 0 && (
+            <>
+              <div className="mt-4 text-[10px] font-semibold uppercase tracking-wide text-[var(--fg-3)]">
+                Series ending ({seriesEndingMeetings.length})
+              </div>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {seriesEndingMeetings.map(item => {
+                  const seriesInfo = lastOfSeries.get(item.engagement.id)
+                  return (
+                    <MeetingCard
+                      key={item.engagement.id}
+                      item={item}
+                      onClick={() => onOpenEngagement?.(item.engagement, item.person.name)}
+                      onComplete={() => handleComplete(item)}
+                      onOpenPerson={() => onPersonClick?.(item.person)}
+                      completing={completingId === item.engagement.id}
+                      footer={seriesInfo ? (
+                        <div className="mt-2">
+                          <LastOfSeriesNote
+                            engagement={item.engagement}
+                            info={seriesInfo}
+                            personName={item.person.name}
+                            coachPersonId={viewerPersonId ?? null}
+                            onExtended={() => { loadData() }}
+                            onDismissed={() => setSeriesEndAcks(prev => new Set(prev).add(item.engagement.id))}
+                          />
+                        </div>
+                      ) : undefined}
+                    />
+                  )
+                })}
+              </div>
+            </>
           )}
 
           {/* Cancelled 1:1s — stay visible so they can be reopened; not counted */}

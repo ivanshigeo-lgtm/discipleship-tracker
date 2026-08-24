@@ -6,6 +6,11 @@
 // dates follow a regular cadence. The last *pending* date in a cluster of 2+
 // is the last remaining occurrence — that's where the in-app "add more" note
 // appears, and only for the creator (`created_by_person_id`).
+//
+// Every finite engagement meeting_type qualifies (One2One, Making Disciples,
+// Church Community, Empowering Leaders, Coffee, untyped, …). Standing unbounded
+// Grace Groups live in `victory_groups` (no end date) and are never clustered
+// here.
 
 import { type Recurrence, nextOccurrenceDates } from './recurrence'
 
@@ -30,8 +35,37 @@ export type LastOfSeriesInfo = {
   lastDate: string
 }
 
+export type HeuristicCluster = {
+  rows: SeriesOccurrence[]
+  cadence: Recurrence
+  dates: string[]
+}
+
+export type SeriesBackfillAssignment = {
+  seriesId: string
+  cadence: Recurrence
+  engagementIds: string[]
+  lastDate: string
+  meetingType: string | null
+}
+
 export function newSeriesId(): string {
   return crypto.randomUUID()
+}
+
+// PostgREST may hand back "09:00" or "09:00:00" for the same clock time.
+export function normalizeFollowUpTime(t: string | null | undefined): string {
+  if (!t) return ''
+  const parts = t.trim().split(':')
+  if (parts.length < 2) return t.trim()
+  const h = Number(parts[0])
+  const m = Number(parts[1])
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return t.trim()
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
+
+export function normalizeMeetingType(t: string | null | undefined): string {
+  return (t ?? '').trim().toLowerCase()
 }
 
 export function heuristicSeriesKey(e: SeriesOccurrence): string {
@@ -39,8 +73,8 @@ export function heuristicSeriesKey(e: SeriesOccurrence): string {
     e.created_by_person_id ?? '',
     e.person_id,
     (e.description ?? '').trim(),
-    e.follow_up_time ?? '',
-    e.meeting_type ?? '',
+    normalizeFollowUpTime(e.follow_up_time),
+    normalizeMeetingType(e.meeting_type),
   ].join('\u0001')
 }
 
@@ -113,6 +147,47 @@ function dated(rows: SeriesOccurrence[]): SeriesOccurrence[] {
   return rows.filter(r => !!r.follow_up_date)
 }
 
+// Recover finite series from rows that have no series_id. Same grouping used
+// at read time and by the one-time backfill. Does not look at victory_groups.
+export function clusterHeuristicSeries(rows: SeriesOccurrence[]): HeuristicCluster[] {
+  const heuristic = new Map<string, SeriesOccurrence[]>()
+  for (const e of rows) {
+    if (e.series_id) continue
+    const key = heuristicSeriesKey(e)
+    const arr = heuristic.get(key) ?? []
+    arr.push(e)
+    heuristic.set(key, arr)
+  }
+
+  const out: HeuristicCluster[] = []
+  for (const group of heuristic.values()) {
+    const dates = [...new Set(dated(group).map(r => r.follow_up_date!))].sort()
+    const cadence = inferCadence(dates)
+    if (!cadence) continue
+    for (const clusterDates of clusterByCadence(dates, cadence)) {
+      if (clusterDates.length < 2) continue
+      const dateSet = new Set(clusterDates)
+      const clusterRows = group.filter(r => r.follow_up_date && dateSet.has(r.follow_up_date))
+      const clusterCadence = inferCadence(clusterDates) ?? cadence
+      out.push({ rows: clusterRows, cadence: clusterCadence, dates: clusterDates })
+    }
+  }
+  return out
+}
+
+export function backfillSeriesAssignments(
+  rows: SeriesOccurrence[],
+  newId: () => string = newSeriesId,
+): SeriesBackfillAssignment[] {
+  return clusterHeuristicSeries(rows.filter(r => !r.series_id)).map(cluster => ({
+    seriesId: newId(),
+    cadence: cluster.cadence,
+    engagementIds: cluster.rows.map(r => r.id),
+    lastDate: cluster.dates[cluster.dates.length - 1]!,
+    meetingType: cluster.rows[0]?.meeting_type ?? null,
+  }))
+}
+
 function lastPendingOf(rows: SeriesOccurrence[], cadence: Recurrence): LastOfSeriesInfo | null {
   const withDates = dated(rows)
   if (withDates.length < 2) return null
@@ -171,25 +246,8 @@ export function lastOfSeriesById(
     pushInfo(out, rows, ownerPersonId, cadence)
   }
 
-  const heuristic = new Map<string, SeriesOccurrence[]>()
-  for (const e of withoutSeries) {
-    const key = heuristicSeriesKey(e)
-    const arr = heuristic.get(key) ?? []
-    arr.push(e)
-    heuristic.set(key, arr)
-  }
-
-  for (const rows of heuristic.values()) {
-    const dates = [...new Set(dated(rows).map(r => r.follow_up_date!))].sort()
-    const cadence = inferCadence(dates)
-    if (!cadence) continue
-    for (const clusterDates of clusterByCadence(dates, cadence)) {
-      if (clusterDates.length < 2) continue
-      const dateSet = new Set(clusterDates)
-      const clusterRows = rows.filter(r => r.follow_up_date && dateSet.has(r.follow_up_date))
-      const clusterCadence = inferCadence(clusterDates) ?? cadence
-      pushInfo(out, clusterRows, ownerPersonId, clusterCadence)
-    }
+  for (const cluster of clusterHeuristicSeries(withoutSeries)) {
+    pushInfo(out, cluster.rows, ownerPersonId, cluster.cadence)
   }
 
   return out
