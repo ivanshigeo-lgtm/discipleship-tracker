@@ -52,7 +52,7 @@ export async function extendEngagementSeries(opts: {
     await addMeetingParticipants(newEng.id, inviteIds, 'invited')
     if (opts.coachPersonId) {
       try {
-        await fetch('/api/calendar/sync', {
+        const res = await fetch('/api/calendar/sync', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -69,6 +69,10 @@ export async function extendEngagementSeries(opts: {
             },
           }),
         })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok || !data.synced) {
+          console.error('Calendar sync failed for series extend:', data.reason || data.error || res.status)
+        }
       } catch (err) {
         console.error('Calendar sync error for series extend:', err)
       }

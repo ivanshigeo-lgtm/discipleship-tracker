@@ -8,6 +8,22 @@ import {
   getGoogleTokens
 } from '../../../../lib/googleCalendar'
 import { getSupabaseAdmin } from '../../../../lib/supabaseServer'
+import { engagementEventSummary, groupEventSummary } from '../../../../lib/googleCalendarLogic'
+
+function syncFailureResponse(error: unknown) {
+  const message = error instanceof Error ? error.message : 'sync_failed'
+  const refreshFailed = /token refresh|invalid_grant|reconnect|no refresh_token/i.test(message)
+  const blocked = /ivanshigeo@gmail.com/i.test(message)
+  console.error('Calendar sync error:', error)
+  return NextResponse.json(
+    {
+      synced: false,
+      reason: blocked ? 'blocked_account' : refreshFailed ? 'token_refresh_failed' : 'sync_failed',
+      error: message,
+    },
+    { status: 500 },
+  )
+}
 
 export async function POST(request: NextRequest) {
   const body = await request.json()
@@ -39,7 +55,7 @@ export async function POST(request: NextRequest) {
         }
 
         const eventData = {
-          summary: `Grace Group: ${group.name}`,
+          summary: groupEventSummary(group.name),
           description: `Weekly Grace Group meeting`,
           dayOfWeek: group.meeting_day,
           time: group.meeting_time || undefined,
@@ -67,6 +83,12 @@ export async function POST(request: NextRequest) {
         }
       } else if (action === 'delete' && group.google_calendar_event_id) {
         const success = await deleteCalendarEvent(coachPersonId, group.google_calendar_event_id)
+        if (success && groupId) {
+          await supabase
+            .from('victory_groups')
+            .update({ google_calendar_event_id: null })
+            .eq('id', groupId)
+        }
         return NextResponse.json({ synced: success })
       }
 
@@ -81,7 +103,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ synced: false, reason: 'no_date' })
       }
 
-      const summary = `${personName}: ${engagement.description || engagement.meeting_type || 'Meeting'}`
+      const summary = engagementEventSummary(
+        personName,
+        engagement.description,
+        engagement.meeting_type,
+      )
       const eventData = {
         summary,
         description: engagement.notes || undefined,
@@ -108,12 +134,17 @@ export async function POST(request: NextRequest) {
       }
     } else if (action === 'delete' && engagement.google_calendar_event_id) {
       const success = await deleteCalendarEvent(coachPersonId, engagement.google_calendar_event_id)
+      if (success && engagementId) {
+        await supabase
+          .from('engagements')
+          .update({ google_calendar_event_id: null })
+          .eq('id', engagementId)
+      }
       return NextResponse.json({ synced: success })
     }
 
     return NextResponse.json({ synced: false })
   } catch (error) {
-    console.error('Calendar sync error:', error)
-    return NextResponse.json({ synced: false, error: 'sync_failed' }, { status: 500 })
+    return syncFailureResponse(error)
   }
 }
