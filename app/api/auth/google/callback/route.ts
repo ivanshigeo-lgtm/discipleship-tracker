@@ -1,5 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { getTokensFromCode, saveGoogleTokens } from '../../../../../lib/googleCalendar'
+import { after, NextRequest, NextResponse } from 'next/server'
+import {
+  backfillMissingCalendarEvents,
+  getTokensFromCode,
+  readGoogleAccountEmail,
+  saveGoogleTokens,
+} from '../../../../../lib/googleCalendar'
+import { googleAccountBlockedReason } from '../../../../../lib/googleCalendarLogic'
 
 const successPage = `
 <!DOCTYPE html>
@@ -61,7 +67,28 @@ export async function GET(request: NextRequest) {
 
   try {
     const tokens = await getTokensFromCode(code)
-    await saveGoogleTokens(personId, tokens)
+    const googleEmail = await readGoogleAccountEmail(tokens)
+    if (!googleEmail) {
+      return new NextResponse(
+        errorPage('Could not read the Google account email. Grant calendar and email permission, then try again.'),
+        { headers: { 'Content-Type': 'text/html' } },
+      )
+    }
+    const blocked = googleAccountBlockedReason(googleEmail)
+    if (blocked) {
+      return new NextResponse(errorPage(blocked), { headers: { 'Content-Type': 'text/html' } })
+    }
+    await saveGoogleTokens(personId, {
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      expiry_date: tokens.expiry_date,
+      google_account_email: googleEmail,
+    })
+    after(() =>
+      backfillMissingCalendarEvents(personId).catch((err) => {
+        console.error('Calendar backfill after Google connect failed:', err)
+      }),
+    )
     return new NextResponse(successPage, { headers: { 'Content-Type': 'text/html' } })
   } catch (error) {
     console.error('Google OAuth error:', error)

@@ -248,13 +248,29 @@ export default function NextStepsList({
     setSavingId(null)
   }
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (eng: Engagement) => {
     if (!canEdit) return
     if (!confirm('Delete this engagement?')) return
-    setSavingId(id)
-    const { error } = await deleteEngagement(id)
+    setSavingId(eng.id)
+    if (eng.google_calendar_event_id && coachPersonId) {
+      try {
+        await fetch('/api/calendar/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'delete',
+            coachPersonId,
+            engagementId: eng.id,
+            engagement: { google_calendar_event_id: eng.google_calendar_event_id },
+          }),
+        })
+      } catch (err) {
+        console.error('Calendar delete error:', err)
+      }
+    }
+    const { error } = await deleteEngagement(eng.id)
     if (!error) {
-      setEngagements(current => current.filter(e => e.id !== id))
+      setEngagements(current => current.filter(e => e.id !== eng.id))
       onUpdate?.()
     }
     setSavingId(null)
@@ -364,7 +380,7 @@ export default function NextStepsList({
               onOpen={() => onOpenEngagement?.(eng, personName)}
               onEditingChange={setEditingData}
               onSave={() => handleSave(eng)}
-              onDelete={() => handleDelete(eng.id)}
+              onDelete={() => handleDelete(eng)}
               onSyncToCalendar={() => handleSyncToCalendar(eng)}
             />
           ))}
@@ -391,7 +407,7 @@ export default function NextStepsList({
               onOpen={() => onOpenEngagement?.(eng, personName)}
               onEditingChange={setEditingData}
               onSave={() => handleSave(eng)}
-              onDelete={() => handleDelete(eng.id)}
+              onDelete={() => handleDelete(eng)}
               onSyncToCalendar={() => handleSyncToCalendar(eng)}
             />
           ))}
@@ -429,7 +445,7 @@ export default function NextStepsList({
               onOpen={() => onOpenEngagement?.(eng, personName)}
               onEditingChange={setEditingData}
               onSave={() => handleSave(eng)}
-              onDelete={() => handleDelete(eng.id)}
+              onDelete={() => handleDelete(eng)}
               onSyncToCalendar={() => handleSyncToCalendar(eng)}
             />
           ))}

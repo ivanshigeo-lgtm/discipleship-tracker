@@ -1,7 +1,27 @@
 import { google } from 'googleapis'
+import type { Credentials } from 'google-auth-library'
 import { getSupabaseAdmin } from './supabaseServer'
+import {
+  calendarToday,
+  calendarWriteSkipReason,
+  deleteEventParams,
+  engagementEventInsertParams,
+  engagementEventSummary,
+  googleAccountBlockedReason,
+  groupEventSummary,
+  groupRecurringEventParams,
+  isGoogleNotFound,
+  mergeGoogleTokens,
+  persistRefreshedGoogleTokens,
+  type StoredGoogleTokens,
+} from './googleCalendarLogic'
 
 const REDIRECT_URI = 'https://discipleship-tracker-ten.vercel.app/api/auth/google/callback'
+
+const GOOGLE_SCOPES = [
+  'https://www.googleapis.com/auth/calendar.events',
+  'https://www.googleapis.com/auth/userinfo.email',
+]
 
 export function getOAuth2Client() {
   const clientId = process.env.GOOGLE_CLIENT_ID
@@ -20,7 +40,7 @@ export function getAuthUrl(personId: string) {
   return oauth2Client.generateAuthUrl({
     access_type: 'offline',
     prompt: 'consent',
-    scope: ['https://www.googleapis.com/auth/calendar.events'],
+    scope: GOOGLE_SCOPES,
     state: personId,
   })
 }
@@ -31,21 +51,41 @@ export async function getTokensFromCode(code: string) {
   return tokens
 }
 
-export async function saveGoogleTokens(personId: string, tokens: {
-  access_token?: string | null
-  refresh_token?: string | null
-  expiry_date?: number | null
-}) {
+export async function readGoogleAccountEmail(tokens: Credentials): Promise<string | null> {
+  const oauth2Client = getOAuth2Client()
+  oauth2Client.setCredentials(tokens)
+  try {
+    const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client })
+    const { data } = await oauth2.userinfo.get()
+    return data.email ?? null
+  } catch (error) {
+    console.error('Failed to read Google account email:', error)
+    return null
+  }
+}
+
+export async function saveGoogleTokens(personId: string, tokens: StoredGoogleTokens) {
+  const existing = await getGoogleTokens(personId)
+  const merged = mergeGoogleTokens(existing ?? {}, tokens)
   const supabase = getSupabaseAdmin()
+  const row: Record<string, unknown> = {
+    person_id: personId,
+    access_token: merged.access_token,
+    expiry_date: merged.expiry_date ? new Date(merged.expiry_date).toISOString() : null,
+    updated_at: new Date().toISOString(),
+  }
+  // Never PUT a null refresh_token — Google omits it on refresh, and a failed
+  // re-read of the existing row must not wipe the stored refresh token.
+  if (merged.refresh_token) {
+    row.refresh_token = merged.refresh_token
+  }
+  if (merged.google_account_email) {
+    row.google_account_email = merged.google_account_email
+  }
+
   const { error } = await supabase
     .from('google_calendar_tokens')
-    .upsert({
-      person_id: personId,
-      access_token: tokens.access_token,
-      refresh_token: tokens.refresh_token,
-      expiry_date: tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : null,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'person_id' })
+    .upsert(row, { onConflict: 'person_id' })
 
   if (error) {
     console.error('Error saving Google tokens:', error)
@@ -84,21 +124,68 @@ export async function deleteGoogleTokens(personId: string) {
 
 export async function getAuthedCalendar(personId: string) {
   const tokens = await getGoogleTokens(personId)
-  if (!tokens) return null
+  if (calendarWriteSkipReason(tokens)) return null
+
+  const blocked = googleAccountBlockedReason(tokens.google_account_email)
+  if (blocked) {
+    throw new Error(blocked)
+  }
 
   const oauth2Client = getOAuth2Client()
   oauth2Client.setCredentials({
-    access_token: tokens.access_token,
-    refresh_token: tokens.refresh_token,
+    access_token: tokens.access_token ?? undefined,
+    refresh_token: tokens.refresh_token ?? undefined,
     expiry_date: tokens.expiry_date ? new Date(tokens.expiry_date).getTime() : undefined,
   })
 
-  // Handle token refresh
-  oauth2Client.on('tokens', async (newTokens) => {
-    await saveGoogleTokens(personId, {
+  // Refresh (if needed) and persist BEFORE any Calendar API call. The
+  // on('tokens') listener is fire-and-forget; on Vercel the isolate can freeze
+  // before that save finishes, so we cannot rely on it to keep expiry_date current.
+  await persistRefreshedGoogleTokens({
+    stored: tokens,
+    nowMs: Date.now(),
+    getAccessToken: async () => {
+      const { token } = await oauth2Client.getAccessToken()
+      return {
+        token: token ?? oauth2Client.credentials.access_token ?? null,
+        expiry_date: oauth2Client.credentials.expiry_date ?? null,
+        refresh_token: oauth2Client.credentials.refresh_token ?? null,
+      }
+    },
+    save: async (merged) => {
+      await saveGoogleTokens(personId, merged)
+      oauth2Client.setCredentials({
+        access_token: merged.access_token ?? undefined,
+        refresh_token: merged.refresh_token ?? undefined,
+        expiry_date: merged.expiry_date ?? undefined,
+      })
+    },
+  })
+
+  if (!tokens.google_account_email) {
+    try {
+      const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client })
+      const { data } = await oauth2.userinfo.get()
+      if (data.email) {
+        const emailBlock = googleAccountBlockedReason(data.email)
+        if (emailBlock) throw new Error(emailBlock)
+        await saveGoogleTokens(personId, { google_account_email: data.email })
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('Events must not be written')) {
+        throw error
+      }
+      console.error('Could not backfill google_account_email:', error)
+    }
+  }
+
+  oauth2Client.on('tokens', (newTokens) => {
+    void saveGoogleTokens(personId, {
       access_token: newTokens.access_token,
-      refresh_token: newTokens.refresh_token ?? tokens.refresh_token,
+      refresh_token: newTokens.refresh_token,
       expiry_date: newTokens.expiry_date,
+    }).catch((err) => {
+      console.error('Failed to persist Google tokens from on(tokens):', err)
     })
   })
 
@@ -119,38 +206,8 @@ export async function createCalendarEvent(
   const calendar = await getAuthedCalendar(personId)
   if (!calendar) return null
 
-  const startDateTime = event.startTime
-    ? `${event.startDate}T${event.startTime}:00`
-    : `${event.startDate}T09:00:00`
-
-  const endDateTime = event.endTime
-    ? `${event.startDate}T${event.endTime}:00`
-    : event.startTime
-      ? `${event.startDate}T${addHour(event.startTime)}:00`
-      : `${event.startDate}T10:00:00`
-
-  try {
-    const response = await calendar.events.insert({
-      calendarId: 'primary',
-      requestBody: {
-        summary: event.summary,
-        description: event.description,
-        location: event.location,
-        start: {
-          dateTime: startDateTime,
-          timeZone: 'Pacific/Honolulu',
-        },
-        end: {
-          dateTime: endDateTime,
-          timeZone: 'Pacific/Honolulu',
-        },
-      },
-    })
-    return response.data.id
-  } catch (error) {
-    console.error('Error creating calendar event:', error)
-    return null
-  }
+  const response = await calendar.events.insert(engagementEventInsertParams(event))
+  return response.data.id ?? null
 }
 
 export async function updateCalendarEvent(
@@ -168,39 +225,11 @@ export async function updateCalendarEvent(
   const calendar = await getAuthedCalendar(personId)
   if (!calendar) return false
 
-  const startDateTime = event.startTime
-    ? `${event.startDate}T${event.startTime}:00`
-    : `${event.startDate}T09:00:00`
-
-  const endDateTime = event.endTime
-    ? `${event.startDate}T${event.endTime}:00`
-    : event.startTime
-      ? `${event.startDate}T${addHour(event.startTime)}:00`
-      : `${event.startDate}T10:00:00`
-
-  try {
-    await calendar.events.update({
-      calendarId: 'primary',
-      eventId,
-      requestBody: {
-        summary: event.summary,
-        description: event.description,
-        location: event.location,
-        start: {
-          dateTime: startDateTime,
-          timeZone: 'Pacific/Honolulu',
-        },
-        end: {
-          dateTime: endDateTime,
-          timeZone: 'Pacific/Honolulu',
-        },
-      },
-    })
-    return true
-  } catch (error) {
-    console.error('Error updating calendar event:', error)
-    return false
-  }
+  await calendar.events.update({
+    ...engagementEventInsertParams(event),
+    eventId,
+  })
+  return true
 }
 
 export async function deleteCalendarEvent(personId: string, eventId: string) {
@@ -208,21 +237,12 @@ export async function deleteCalendarEvent(personId: string, eventId: string) {
   if (!calendar) return false
 
   try {
-    await calendar.events.delete({
-      calendarId: 'primary',
-      eventId,
-    })
+    await calendar.events.delete(deleteEventParams(eventId))
     return true
   } catch (error) {
-    console.error('Error deleting calendar event:', error)
-    return false
+    if (isGoogleNotFound(error)) return true
+    throw error
   }
-}
-
-function addHour(time: string): string {
-  const [hours, minutes] = time.split(':').map(Number)
-  const newHours = (hours + 1) % 24
-  return `${newHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
 }
 
 const DAY_TO_RRULE: Record<string, string> = {
@@ -265,32 +285,14 @@ export async function createRecurringCalendarEvent(
   const rruleDay = DAY_TO_RRULE[event.dayOfWeek]
   if (!rruleDay) return null
 
-  const startDate = getNextDayDate(event.dayOfWeek)
-  const startTime = event.time || '19:00'
-  const endTime = addHour(startTime)
-
-  try {
-    const response = await calendar.events.insert({
-      calendarId: 'primary',
-      requestBody: {
-        summary: event.summary,
-        description: event.description,
-        start: {
-          dateTime: `${startDate}T${startTime}:00`,
-          timeZone: 'Pacific/Honolulu',
-        },
-        end: {
-          dateTime: `${startDate}T${endTime}:00`,
-          timeZone: 'Pacific/Honolulu',
-        },
-        recurrence: [`RRULE:FREQ=WEEKLY;BYDAY=${rruleDay}`],
-      },
-    })
-    return response.data.id
-  } catch (error) {
-    console.error('Error creating recurring calendar event:', error)
-    return null
-  }
+  const response = await calendar.events.insert(groupRecurringEventParams({
+    summary: event.summary,
+    description: event.description,
+    startDate: getNextDayDate(event.dayOfWeek),
+    time: event.time,
+    rruleDay,
+  }))
+  return response.data.id ?? null
 }
 
 export async function updateRecurringCalendarEvent(
@@ -309,31 +311,128 @@ export async function updateRecurringCalendarEvent(
   const rruleDay = DAY_TO_RRULE[event.dayOfWeek]
   if (!rruleDay) return false
 
-  const startDate = getNextDayDate(event.dayOfWeek)
-  const startTime = event.time || '19:00'
-  const endTime = addHour(startTime)
+  await calendar.events.update({
+    ...groupRecurringEventParams({
+      summary: event.summary,
+      description: event.description,
+      startDate: getNextDayDate(event.dayOfWeek),
+      time: event.time,
+      rruleDay,
+    }),
+    eventId,
+  })
+  return true
+}
 
-  try {
-    await calendar.events.update({
-      calendarId: 'primary',
-      eventId,
-      requestBody: {
-        summary: event.summary,
-        description: event.description,
-        start: {
-          dateTime: `${startDate}T${startTime}:00`,
-          timeZone: 'Pacific/Honolulu',
-        },
-        end: {
-          dateTime: `${startDate}T${endTime}:00`,
-          timeZone: 'Pacific/Honolulu',
-        },
-        recurrence: [`RRULE:FREQ=WEEKLY;BYDAY=${rruleDay}`],
-      },
-    })
-    return true
-  } catch (error) {
-    console.error('Error updating recurring calendar event:', error)
-    return false
+export type CalendarBackfillResult = {
+  created: number
+  failed: number
+  skipped: number
+  errors: string[]
+}
+
+export async function backfillMissingCalendarEvents(personId: string): Promise<CalendarBackfillResult> {
+  const result: CalendarBackfillResult = { created: 0, failed: 0, skipped: 0, errors: [] }
+  const tokens = await getGoogleTokens(personId)
+  if (calendarWriteSkipReason(tokens)) {
+    result.skipped = 1
+    result.errors.push('not_connected')
+    return result
   }
+
+  const supabase = getSupabaseAdmin()
+  const today = calendarToday()
+
+  const { data: engagements, error: engError } = await supabase
+    .from('engagements')
+    .select('id, person_id, description, follow_up_date, follow_up_time, location, meeting_type, notes')
+    .eq('created_by_person_id', personId)
+    .gte('follow_up_date', today)
+    .neq('status', 'Cancelled')
+    .is('google_calendar_event_id', null)
+
+  if (engError) {
+    throw engError
+  }
+
+  const personIds = [...new Set((engagements ?? []).map((row) => row.person_id as string))]
+  const names = new Map<string, string>()
+  if (personIds.length > 0) {
+    const { data: people } = await supabase.from('people').select('id, name').in('id', personIds)
+    for (const person of people ?? []) {
+      names.set(person.id as string, person.name as string)
+    }
+  }
+
+  for (const row of engagements ?? []) {
+    if (!row.follow_up_date) {
+      result.skipped += 1
+      continue
+    }
+    try {
+      const eventId = await createCalendarEvent(personId, {
+        summary: engagementEventSummary(
+          names.get(row.person_id as string) || 'Someone',
+          row.description as string | null,
+          row.meeting_type as string | null,
+        ),
+        description: (row.notes as string | null) || undefined,
+        location: (row.location as string | null) || undefined,
+        startDate: row.follow_up_date as string,
+        startTime: (row.follow_up_time as string | null) || undefined,
+      })
+      if (!eventId) {
+        result.failed += 1
+        result.errors.push(`engagement ${row.id}: not_connected`)
+        continue
+      }
+      const { error: updateError } = await supabase
+        .from('engagements')
+        .update({ google_calendar_event_id: eventId })
+        .eq('id', row.id)
+      if (updateError) throw updateError
+      result.created += 1
+    } catch (error) {
+      result.failed += 1
+      result.errors.push(`engagement ${row.id}: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  const { data: groups, error: groupError } = await supabase
+    .from('victory_groups')
+    .select('id, name, meeting_day, meeting_time')
+    .eq('owner_person_id', personId)
+    .is('google_calendar_event_id', null)
+    .not('meeting_day', 'is', null)
+
+  if (groupError) {
+    throw groupError
+  }
+
+  for (const group of groups ?? []) {
+    try {
+      const eventId = await createRecurringCalendarEvent(personId, {
+        summary: groupEventSummary(group.name as string),
+        description: 'Weekly Grace Group meeting',
+        dayOfWeek: group.meeting_day as string,
+        time: (group.meeting_time as string | null) || undefined,
+      })
+      if (!eventId) {
+        result.failed += 1
+        result.errors.push(`group ${group.id}: create_failed`)
+        continue
+      }
+      const { error: updateError } = await supabase
+        .from('victory_groups')
+        .update({ google_calendar_event_id: eventId })
+        .eq('id', group.id)
+      if (updateError) throw updateError
+      result.created += 1
+    } catch (error) {
+      result.failed += 1
+      result.errors.push(`group ${group.id}: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  return result
 }

@@ -63,6 +63,43 @@ export default function EngagementDetailModal({
       alert(`Couldn't ${cancelled ? 'reopen' : 'cancel'} meeting: ${error.message || 'Unknown error'}`)
     } else {
       setStatus(next)
+      if (profile?.id) {
+        try {
+          if (next === 'Cancelled' && engagement.google_calendar_event_id) {
+            await fetch('/api/calendar/sync', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'delete',
+                coachPersonId: profile.id,
+                engagementId: engagement.id,
+                engagement: { google_calendar_event_id: engagement.google_calendar_event_id },
+              }),
+            })
+          } else if (next === 'Pending' && engagement.follow_up_date) {
+            await fetch('/api/calendar/sync', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'create',
+                coachPersonId: profile.id,
+                engagementId: engagement.id,
+                personName,
+                engagement: {
+                  description: engagement.description,
+                  follow_up_date: engagement.follow_up_date,
+                  follow_up_time: engagement.follow_up_time,
+                  location: engagement.location,
+                  meeting_type: engagement.meeting_type,
+                  notes: engagement.notes,
+                },
+              }),
+            })
+          }
+        } catch (err) {
+          console.error('Calendar sync error for cancel/reopen:', err)
+        }
+      }
       onChanged?.()
     }
     setTogglingCancel(false)

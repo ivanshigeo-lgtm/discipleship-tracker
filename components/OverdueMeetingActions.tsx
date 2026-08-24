@@ -59,8 +59,22 @@ export default function OverdueMeetingActions({
       status: 'Cancelled',
       cancelled_at: new Date().toISOString(),
     })
+    if (error) { setBusy(false); setErr(error.message); return }
+    if (coachPersonId && engagement.google_calendar_event_id) {
+      try {
+        await fetch('/api/calendar/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'delete',
+            coachPersonId,
+            engagementId: engagement.id,
+            engagement: { google_calendar_event_id: engagement.google_calendar_event_id },
+          }),
+        })
+      } catch { /* best-effort */ }
+    }
     setBusy(false)
-    if (error) { setErr(error.message); return }
     onChanged()
   }
 
