@@ -16,7 +16,7 @@ import { createClient } from '@supabase/supabase-js'
 import {
   backfillSeriesAssignments,
   type SeriesOccurrence,
-} from '../lib/engagementSeries.ts'
+} from '../lib/engagementSeries'
 
 function loadEnv() {
   for (const p of ['.env.local', '.env']) {
