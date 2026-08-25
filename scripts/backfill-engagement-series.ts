@@ -1,10 +1,13 @@
 #!/usr/bin/env npx tsx
 // One-time backfill of engagements.series_id for finite recurring series.
 //
-// Uses the same grouping as lib/engagementSeries.ts (owner + person +
-// description + time + meeting_type + regular cadence, 2+ dates). Does NOT
-// touch victory_groups — those are unbounded standing groups with no end.
-// Does not create calendar events or email anyone.
+// Uses heuristic grouping (owner + person + description + time + meeting_type
+// + regular cadence, 2+ dates). That same grouping would stamp rolling 1:1s
+// (completed weekly history + the next pending date) as if they were a counted
+// series — last-of-series display no longer uses the heuristic, and this
+// script must not be run against production without a dry-run review of the
+// clusters. Does NOT touch victory_groups — those are unbounded standing
+// groups with no end. Does not create calendar events or email anyone.
 //
 //   npx tsx scripts/backfill-engagement-series.ts          # dry-run
 //   npx tsx scripts/backfill-engagement-series.ts --apply  # write series_id

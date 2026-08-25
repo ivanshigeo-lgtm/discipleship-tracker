@@ -749,9 +749,10 @@ export default function NeedAttentionSection({
     [engagements, viewerPersonId],
   )
 
-  // Last pending occurrence of each owned finite series. The 7-day agenda
-  // otherwise hides that last date (often weeks out), so the owner never sees
-  // "Last meeting of this series". Standing victory_groups are not in this map.
+  // Last dated occurrence of each owned finite series_id group. The 7-day
+  // agenda otherwise hides that last date (often weeks out), so the owner
+  // never sees "Last meeting of this series". Rolling 1:1s and standing
+  // victory_groups are not in this map.
   const seriesEndingMeetings = useMemo(() => {
     const peopleById = new Map(people.map(p => [p.id, p]))
     const today = new Date()

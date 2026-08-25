@@ -1,16 +1,21 @@
 // Finite recurring *engagement* series (not standing victory_groups).
 //
-// New series stamp a shared `series_id` on every occurrence row. Rows created
-// before that column existed have no id, so we recover a series by grouping
-// sibling rows (same owner, person, description, time, meeting type) whose
-// dates follow a regular cadence. The last *pending* date in a cluster of 2+
-// is the last remaining occurrence — that's where the in-app "add more" note
-// appears, and only for the creator (`created_by_person_id`).
+// Creating multiple dates together stamps a shared `series_id` on every row.
+// The in-app "Last meeting of this series" note is display-only for that
+// explicit series: the last dated occurrence of a series_id group with 2+
+// rows, and only for the creator (`created_by_person_id`).
 //
-// Every finite engagement meeting_type qualifies (One2One, Making Disciples,
-// Church Community, Empowering Leaders, Coffee, untyped, …). Standing unbounded
-// Grace Groups live in `victory_groups` (no end date) and are never clustered
-// here.
+// Do NOT infer last-of-series from sibling rows that share a person / title /
+// time. Rolling 1:1s look like a weekly cadence (long completed history + one
+// upcoming date) but they are not a counted series and must not show the note.
+// Heuristic clustering below is for the optional one-time backfill only — it
+// is not used at read time.
+//
+// Every finite engagement meeting_type can be a series (One2One, Making
+// Disciples, Church Community, Empowering Leaders, Coffee, untyped, …) when
+// those rows share a series_id. Standing unbounded Grace Groups live in
+// `victory_groups` (no end date) and are never clustered here. One-off singles
+// are not a series (no series_id, or a lone series_id row).
 
 import { type Recurrence, nextOccurrenceDates } from './recurrence'
 
@@ -147,8 +152,9 @@ function dated(rows: SeriesOccurrence[]): SeriesOccurrence[] {
   return rows.filter(r => !!r.follow_up_date)
 }
 
-// Recover finite series from rows that have no series_id. Same grouping used
-// at read time and by the one-time backfill. Does not look at victory_groups.
+// Recover finite series from rows that have no series_id. Used by the optional
+// one-time backfill only — last-of-series display does not call this.
+// Does not look at victory_groups.
 export function clusterHeuristicSeries(rows: SeriesOccurrence[]): HeuristicCluster[] {
   const heuristic = new Map<string, SeriesOccurrence[]>()
   for (const e of rows) {
@@ -188,39 +194,39 @@ export function backfillSeriesAssignments(
   }))
 }
 
-function lastPendingOf(rows: SeriesOccurrence[], cadence: Recurrence): LastOfSeriesInfo | null {
-  const withDates = dated(rows)
-  if (withDates.length < 2) return null
-  const inferred = inferCadence([...new Set(withDates.map(r => r.follow_up_date!))].sort()) ?? cadence
-  const pending = withDates.filter(r => r.status === 'Pending')
-  if (pending.length === 0) return null
-  pending.sort((a, b) => a.follow_up_date!.localeCompare(b.follow_up_date!) || a.id.localeCompare(b.id))
-  const last = pending[pending.length - 1]!
-  const seriesId = rows.find(r => r.series_id)?.series_id ?? null
-  return {
-    engagementId: last.id,
-    seriesId,
-    cadence: inferred,
-    siblingIds: rows.filter(r => r.id !== last.id).map(r => r.id),
-    occurrenceCount: withDates.length,
-    lastDate: last.follow_up_date!,
-  }
-}
-
-function pushInfo(
-  out: Map<string, LastOfSeriesInfo>,
+// Last dated occurrence of an explicit series_id group. Earlier dates never
+// qualify, even if they are still pending. A cancelled/completed last date
+// does not fall back to an earlier pending row.
+function lastDateOfSeries(
   rows: SeriesOccurrence[],
   ownerPersonId: string,
   cadence: Recurrence,
-) {
-  const info = lastPendingOf(rows, cadence)
-  if (!info) return
-  const last = rows.find(r => r.id === info.engagementId)
-  if (!last?.created_by_person_id || last.created_by_person_id !== ownerPersonId) return
-  out.set(info.engagementId, info)
+): LastOfSeriesInfo | null {
+  const withDates = dated(rows)
+  if (withDates.length < 2) return null
+  const dates = [...new Set(withDates.map(r => r.follow_up_date!))].sort()
+  const lastDate = dates[dates.length - 1]!
+  const lastRows = withDates
+    .filter(r => r.follow_up_date === lastDate)
+    .sort((a, b) => a.id.localeCompare(b.id))
+  const last = lastRows[lastRows.length - 1]!
+  if (last.status !== 'Pending') return null
+  if (!last.created_by_person_id || last.created_by_person_id !== ownerPersonId) return null
+  const seriesId = last.series_id ?? rows.find(r => r.series_id)?.series_id ?? null
+  if (!seriesId) return null
+  return {
+    engagementId: last.id,
+    seriesId,
+    cadence: inferCadence(dates) ?? cadence,
+    siblingIds: rows.filter(r => r.id !== last.id).map(r => r.id),
+    occurrenceCount: withDates.length,
+    lastDate,
+  }
 }
 
-// Map of last-pending-occurrence id → series info, for the given series owner.
+// Map of last-date occurrence id → series info, for the given series owner.
+// Only explicit series_id groups of 2+ dated rows. Heuristic clusters (rolling
+// 1:1s, unstamped siblings) are never last-of-series.
 export function lastOfSeriesById(
   engagements: SeriesOccurrence[],
   ownerPersonId: string | null | undefined,
@@ -229,25 +235,18 @@ export function lastOfSeriesById(
   if (!ownerPersonId) return out
 
   const withSeries = new Map<string, SeriesOccurrence[]>()
-  const withoutSeries: SeriesOccurrence[] = []
   for (const e of engagements) {
-    if (e.series_id) {
-      const arr = withSeries.get(e.series_id) ?? []
-      arr.push(e)
-      withSeries.set(e.series_id, arr)
-    } else {
-      withoutSeries.push(e)
-    }
+    if (!e.series_id) continue
+    const arr = withSeries.get(e.series_id) ?? []
+    arr.push(e)
+    withSeries.set(e.series_id, arr)
   }
 
   for (const rows of withSeries.values()) {
     const dates = [...new Set(dated(rows).map(r => r.follow_up_date!))].sort()
     const cadence = inferCadence(dates) ?? 'weekly'
-    pushInfo(out, rows, ownerPersonId, cadence)
-  }
-
-  for (const cluster of clusterHeuristicSeries(withoutSeries)) {
-    pushInfo(out, cluster.rows, ownerPersonId, cluster.cadence)
+    const info = lastDateOfSeries(rows, ownerPersonId, cadence)
+    if (info) out.set(info.engagementId, info)
   }
 
   return out

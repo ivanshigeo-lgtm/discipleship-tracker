@@ -1,7 +1,11 @@
 -- One-time backfill of public.engagements.series_id for finite recurring
 -- series. Standing victory_groups are NOT touched (different table, no end).
 --
--- Preferred apply path (same clustering as the web app):
+-- Heuristic clustering will also match rolling 1:1s. Last-of-series display
+-- is series_id-only; do not apply this against production without a dry-run
+-- review of the clusters.
+--
+-- Preferred apply path:
 --   npx tsx scripts/backfill-engagement-series.ts          -- dry-run
 --   npx tsx scripts/backfill-engagement-series.ts --apply
 --
