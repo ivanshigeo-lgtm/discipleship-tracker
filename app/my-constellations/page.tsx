@@ -13,7 +13,6 @@ import NeedAttentionSection from '../../components/NeedAttentionSection'
 import GroupJoinRequests from '../../components/GroupJoinRequests'
 import NewDiscipleRequests from '../../components/NewDiscipleRequests'
 import MeetingInvites from '../../components/MeetingInvites'
-import MessagesInbox from '../../components/MessagesInbox'
 import NewMeetingModal from '../../components/NewMeetingModal'
 import SharedSoapFeed from '../../components/SharedSoapFeed'
 import PointsOfActionSection from '../../components/PointsOfActionSection'
@@ -1147,22 +1146,8 @@ export default function DiscipleshipTracker() {
                   onChanged={() => setRefreshKey(p => p + 1)}
                 />
               </ErrorBoundary>
-              <ErrorBoundary name="MessagesInbox">
-                <MessagesInbox
-                  personId={profile.id}
-                  refreshKey={refreshKey}
-                  onChanged={() => setRefreshKey(p => p + 1)}
-                />
-              </ErrorBoundary>
-              <ErrorBoundary name="CoachNotifications">
-                <CoachNotifications
-                  personId={profile.id}
-                  refreshKey={refreshKey}
-                  onOpenSoap={id => { setFocusSoapId(id); setActiveSection('soaps') }}
-                  onOpenMessages={() => setMsgCenterOpen(true)}
-                  onOpenSignoff={() => setMsgCenterOpen(true)}
-                />
-              </ErrorBoundary>
+              {/* Messages + Notifications stay on My Journey (feed/home).
+                  Do not duplicate the inbox or SOAP/sign-off cards here. */}
               <ErrorBoundary name="NeedAttentionSection">
                 <NeedAttentionSection
                   refreshKey={refreshKey}
