@@ -208,6 +208,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
+    // Stay on the spinner until getSession() has actually read storage. An
+    // onAuthStateChange INITIAL_SESSION of null that races ahead of storage
+    // would otherwise flash Sign In at a returning user (swipe-away / PWA).
+    let bootstrapped = false
+
     const initAuth = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession()
@@ -219,16 +224,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (session?.user) {
           // Last visit's profile paints the page NOW; the fetch refreshes it.
           hydrateProfileFromCache(session.user.id)
-          setLoading(false) // Stop blocking immediately once we know auth state
           loadProfileFor(session.user.id, session.user.email)
         } else {
-          setLoading(false)
           setProfileLoading(false)
         }
       } catch (err) {
         console.error('Auth init error:', err)
-        setLoading(false)
         setProfileLoading(false)
+      } finally {
+        bootstrapped = true
+        setLoading(false)
       }
     }
 
@@ -237,6 +242,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         console.log('Auth state change:', event, session?.user?.email)
+        // INITIAL_SESSION is handled by getSession() above. Applying a null
+        // INITIAL_SESSION that races storage would flash Sign In at a returning
+        // user; ignoring it keeps restore on one path.
+        if (event === 'INITIAL_SESSION') return
         setSession(session)
         setUser(session?.user ?? null)
         if (session?.user) {
@@ -254,7 +263,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setDownline([])
           setProfileLoading(false)
         }
-        setLoading(false)
+        if (bootstrapped) setLoading(false)
       }
     )
 

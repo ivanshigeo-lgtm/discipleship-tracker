@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../../contexts/AuthContext'
 import LoginPage from '../../components/LoginPage'
+import { authEntryState, FINISH_PROFILE_HINT, OPEN_ACCOUNT_LABEL, OPEN_ACCOUNT_PATH } from '../../lib/authGate'
 import {
   getMyCoach,
   getMyGroups,
@@ -626,9 +627,16 @@ export default function MyJourneyPage() {
   }
 
 
-  // Keep the spinner while the profile row is still on its way — never flash
-  // "no profile linked" at someone whose profile just hasn't arrived yet.
-  if (loading || (user && !profile && profileLoading)) {
+  const gate = authEntryState({
+    loading,
+    userId: user?.id ?? null,
+    profileId: profile?.id ?? null,
+    profileLoading,
+  })
+
+  // Keep the spinner while a stored session is restoring — never flash Sign In
+  // or "ask your coach" at someone whose auth/profile just hasn't arrived yet.
+  if (gate === 'loading') {
     return (
       <div className="relative flex min-h-screen items-center justify-center bg-[var(--void)]">
         <Starfield count={40} seed={3} />
@@ -637,17 +645,26 @@ export default function MyJourneyPage() {
     )
   }
 
-  if (!user) return <LoginPage />
+  if (gate === 'login') return <LoginPage />
 
-  if (!profile) {
+  if (gate === 'finish-profile') {
     return (
       <div className="relative flex min-h-screen flex-col items-center justify-center gap-4 bg-[var(--void)] p-4">
         <Starfield count={40} seed={3} />
         <p className="text-[var(--fg-2)]">No profile linked to your account.</p>
-        <p className="text-sm text-[var(--fg-3)]">Ask your coach for an invite link.</p>
+        <p className="text-sm text-[var(--fg-3)]">{FINISH_PROFILE_HINT}</p>
+        <button
+          type="button"
+          onClick={() => router.push(OPEN_ACCOUNT_PATH)}
+          className="cn-btn cn-btn-primary"
+        >
+          {OPEN_ACCOUNT_LABEL}
+        </button>
       </div>
     )
   }
+
+  if (!profile) return null
 
   const currentLevel = levels.find(l => l.unlocked && !l.completed) ?? levels[levels.length - 1]
 

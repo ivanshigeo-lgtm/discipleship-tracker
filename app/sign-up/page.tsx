@@ -16,7 +16,7 @@ const inputClass =
 
 export default function SignUpPage() {
   const router = useRouter()
-  const { startEmailOtp, verifyEmailOtp, setPassword } = useAuth()
+  const { startEmailOtp, verifyEmailOtp, setPassword, user, loading: authLoading } = useAuth()
 
   const [step, setStep] = useState<Step>('email')
   const [name, setName] = useState('')
@@ -59,6 +59,20 @@ export default function SignUpPage() {
       setInvited(true)
     }
   }, [])
+
+  // Returning visitor (or refresh mid-signup) already has a session — skip the
+  // email/OTP start and finish profile setup. A completed profile redirects
+  // into the app from loadOnboarding().
+  useEffect(() => {
+    if (authLoading || !user || step !== 'email') return
+    let cancelled = false
+    ;(async () => {
+      await loadOnboarding()
+      if (!cancelled) setStep('onboarding')
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, user, step])
 
   const getAccessToken = async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -204,7 +218,12 @@ export default function SignUpPage() {
           )}
 
           {/* ── Step 1: email ── */}
-          {step === 'email' && (
+          {step === 'email' && (authLoading || user) && (
+            <div className="flex justify-center py-6">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--gbm-cobalt-bright)] border-t-transparent" />
+            </div>
+          )}
+          {step === 'email' && !authLoading && !user && (
             <form onSubmit={handleEmail}>
               <h2 className="mb-4 text-lg font-semibold text-[var(--fg-1)]">Get started</h2>
               <div className="space-y-4">

@@ -3,16 +3,28 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../contexts/AuthContext'
+import { LOGIN_SUBTITLE, OPEN_ACCOUNT_LABEL, OPEN_ACCOUNT_PATH } from '../lib/authGate'
 
 export default function LoginPage() {
   const router = useRouter()
-  const { signIn, resetPassword } = useAuth()
+  const { signIn, resetPassword, user, loading: authLoading } = useAuth()
   const [mode, setMode] = useState<'signin' | 'reset'>('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [resetSent, setResetSent] = useState(false)
+
+  // A restored session must never keep the visitor on this gate. Parent pages
+  // also branch on `user`, but if restore completes after first paint we hide
+  // the form instead of asking them to sign in again.
+  if (authLoading || user) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--gbm-cobalt-bright)] border-t-transparent" />
+      </div>
+    )
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -59,7 +71,9 @@ export default function LoginPage() {
           <h1 className="mt-4 text-2xl font-semibold text-[var(--fg-1)]" style={{ fontFamily: 'var(--font-display)' }}>
             Constellations
           </h1>
-          <p className="mt-1 text-sm text-[var(--fg-3)]">Coach's Dashboard</p>
+          {LOGIN_SUBTITLE ? (
+            <p className="mt-1 text-sm text-[var(--fg-3)]">{LOGIN_SUBTITLE}</p>
+          ) : null}
         </div>
 
         {mode === 'reset' ? (
@@ -168,16 +182,12 @@ export default function LoginPage() {
         {mode === 'signin' && (
           <button
             type="button"
-            onClick={() => router.push('/sign-up')}
-            className="mt-4 w-full text-center text-xs text-[var(--gbm-cobalt-bright)] hover:underline"
+            onClick={() => router.push(OPEN_ACCOUNT_PATH)}
+            className="cn-btn cn-btn-ghost mt-4 w-full"
           >
-            Create an account
+            {OPEN_ACCOUNT_LABEL}
           </button>
         )}
-
-        <p className="mt-4 text-center text-xs text-[var(--fg-3)]">
-          Contact your coach if you need access
-        </p>
 
         <div className="mt-6 border-t border-[var(--line-2)] pt-4 text-center">
           <a
