@@ -1,0 +1,38 @@
+name: Restore Constellations access ship
+on:
+  workflow_dispatch:
+jobs:
+  ship:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: web-open-signup
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Restore My Journey from pre-corruption tip and apply permission patches
+        run: |
+          set -euo pipefail
+          git config user.name "wikichurch-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Restore good My Journey (blob still in history)
+          git checkout 56e57a7 -- app/my-journey/page.tsx
+          git apply scripts/patches/journey-permission.patch
+          git apply scripts/patches/constellations-permission.patch
+          git add app/my-journey/page.tsx app/my-constellations/page.tsx
+          if git diff --cached --quiet; then
+            echo "Nothing to commit"
+            exit 0
+          fi
+          git commit -m "$(cat <<'EOF'
+Expand Constellations/Add Person to 1:1 leaders (not only Empower).
+
+Anyone who has started leading a 1:1 can open Constellations / Add Person.
+GBC whole-church scope stays Empower/admin-only. Restores My Journey after
+temp redirect stub. Grant path is Constellations access (not RLS).
+EOF
+)"
+          git push origin web-open-signup
