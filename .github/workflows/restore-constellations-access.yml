@@ -17,7 +17,7 @@ jobs:
           ref: web-open-signup
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Restore My Journey from pre-corruption tip and apply permission patches
+      - name: Restore My Journey and apply permission patches
         run: |
           set -euo pipefail
           git config user.name "wikichurch-bot"
@@ -30,12 +30,5 @@ jobs:
             echo "Nothing to commit"
             exit 0
           fi
-          git commit -m "$(cat <<'EOF'
-Expand Constellations/Add Person to 1:1 leaders (not only Empower).
-
-Anyone who has started leading a 1:1 can open Constellations / Add Person.
-GBC whole-church scope stays Empower/admin-only. Restores My Journey after
-temp redirect stub. Grant path is Constellations access (not RLS).
-EOF
-)"
+          git commit -m "Expand Constellations/Add Person to 1:1 leaders (not only Empower)."
           git push origin web-open-signup
