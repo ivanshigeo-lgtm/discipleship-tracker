@@ -1,6 +1,10 @@
 name: Restore Constellations access ship
 on:
   workflow_dispatch:
+  push:
+    branches: [web-open-signup]
+    paths:
+      - 'scripts/ship-trigger'
 jobs:
   ship:
     runs-on: ubuntu-latest
@@ -18,7 +22,6 @@ jobs:
           set -euo pipefail
           git config user.name "wikichurch-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # Restore good My Journey (blob still in history)
           git checkout 56e57a7 -- app/my-journey/page.tsx
           git apply scripts/patches/journey-permission.patch
           git apply scripts/patches/constellations-permission.patch
