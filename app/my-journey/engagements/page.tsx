@@ -11,6 +11,8 @@ import { useAuth } from '../../../contexts/AuthContext'
 import LoginPage from '../../../components/LoginPage'
 import MeetingInvites from '../../../components/MeetingInvites'
 import NewMeetingModal from '../../../components/NewMeetingModal'
+import JourneyTabs, { type JourneyTab } from '../../../components/journey/JourneyTabs'
+import MessageCenter from '../../../components/MessageCenter'
 import {
   getEngagementsForPerson,
   getGroupsForPerson,
@@ -27,7 +29,7 @@ import { fmtTime12 } from '@/lib/formatTime'
 type MeetingItem = {
   kind: 'group' | 'one-on-one'
   title: string
-  date: string | null // local YYYY-MM-DD (post-reschedule for groups)
+  date: string | null
   time: string | null
   rescheduled: boolean
   completed: boolean
@@ -50,7 +52,6 @@ const dayLabel = (dateStr: string) => {
   return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
-// "Leilani Santos & Marcus Chen" / "Leilani Santos, Marcus Chen +2"
 const fmtWith = (names: string[]) => {
   if (names.length === 0) return null
   if (names.length === 1) return names[0]
@@ -119,7 +120,13 @@ export default function EngagementsPage() {
   const [ready, setReady] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
   const [showNewMeeting, setShowNewMeeting] = useState(false)
+  const [msgCenterOpen, setMsgCenterOpen] = useState(false)
   const [namesByKey, setNamesByKey] = useState<Record<string, string[]>>({})
+
+  const goJourneyTab = (t: JourneyTab) => {
+    if (t === 'home') router.push('/my-journey')
+    else router.push(`/my-journey?tab=${t}`)
+  }
 
   const personId = profile?.id ?? null
 
@@ -144,7 +151,6 @@ export default function EngagementsPage() {
   const { thisWeek, later, past } = useMemo(() => {
     const week: MeetingItem[] = []
     for (const g of groups) {
-      // 6 days ahead covers each weekday exactly once (weekly cadence).
       for (const occ of occurrencesWithin(daysOf(g), 6)) {
         const st = statuses.find(s => s.victory_group_id === g.id && s.meeting_date === occ) ?? null
         if (st?.status === 'cancelled') continue
@@ -194,8 +200,6 @@ export default function EngagementsPage() {
     return { thisWeek: week, later: laterItems, past: pastItems.slice(0, 6) }
   }, [groups, statuses, engagements])
 
-  // Who each meeting is with — group members / a 1:1's heads + invited
-  // participants; the viewer never lists themselves.
   useEffect(() => {
     if (!ready || !personId) return
     let alive = true
@@ -211,7 +215,6 @@ export default function EngagementsPage() {
             const { data } = await getPeopleByVictoryGroup(item.groupId)
             groupNames[item.groupId] = ((data as { person_id: string; people: { name: string } | null }[] | null) ?? [])
               .filter(m => m.person_id !== personId)
-              // `||` not `??` — rows can carry empty-string names
               .map(m => m.people?.name || '')
               .filter(Boolean)
           }
@@ -260,7 +263,16 @@ export default function EngagementsPage() {
       <div className="pointer-events-none fixed inset-0">
         <Starfield count={50} seed={7} />
       </div>
-      <div className="relative mx-auto max-w-3xl px-4 pb-16 pt-6">
+
+      <JourneyTabs
+        active="engagements"
+        onChange={goJourneyTab}
+        onMessage={() => setMsgCenterOpen(true)}
+        onEngagements={() => { /* already on meetings-only Engagements */ }}
+      />
+
+      <div className="md:pl-52">
+      <div className="relative mx-auto max-w-3xl px-4 pb-28 pt-6 md:pb-16">
         <button
           type="button"
           onClick={() => router.push('/my-journey')}
@@ -298,6 +310,18 @@ export default function EngagementsPage() {
           </>
         )}
       </div>
+      </div>
+
+      {profile && (
+        <MessageCenter
+          myPersonId={profile.id}
+          myName={profile.name}
+          isOpen={msgCenterOpen}
+          onClose={() => setMsgCenterOpen(false)}
+          initialTargetPersonId={null}
+          onConsumedTarget={() => {}}
+        />
+      )}
     </div>
   )
 }
