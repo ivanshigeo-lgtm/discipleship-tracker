@@ -3,12 +3,17 @@
 import type { ReactNode } from 'react'
 
 /*
- * JourneyTabs — the five first-class destinations, matching the native app
- * (Journey · SOAPs · Prayer · Feed · Milestones). Not a phone bottom-bar port:
- * on desktop it's a persistent left rail so content breathes wide; on phones it
- * collapses to the familiar bottom tab bar. One component, one source of truth.
+ * JourneyTabs — first-class destinations for My Journey.
+ * Desktop: persistent left rail (Journey · SOAPs · Prayer · Feed · Milestones)
+ *          plus Connect (Engagements · Message).
+ * Phone: bottom tab bar includes Engagements (meetings-only page) alongside
+ *        the five Journey destinations. Messages stay in the hamburger /
+ *        desktop Connect — not on Engagements (declutter rule intact).
  */
 export type JourneyTab = 'home' | 'soaps' | 'prayer' | 'feed' | 'milestones'
+
+/** Active destination including the meetings-only Engagements route. */
+export type JourneyNavActive = JourneyTab | 'engagements'
 
 type TabDef = { key: JourneyTab; label: string; icon: ReactNode }
 
@@ -27,15 +32,14 @@ const TABS: TabDef[] = [
   { key: 'milestones', label: 'Milestones', icon: I('M12 2 21 7v10l-9 5-9-5V7z', <path d="M12 7v10M8 9v6M16 9v6" />) },
 ]
 
-// Secondary "Connect" destinations — desktop-only rail entries. On phones these
-// live in the hamburger drawer (JourneyMenu); the rail surfaces them so desktop
-// users aren't missing them (they have no hamburger).
 const ENGAGEMENTS_ICON = I('M8 2v3M16 2v3M3.5 9h17', <path d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" />)
 const MESSAGE_ICON = I('M21 12a8 8 0 0 1-11.5 7.2L4 21l1.8-5.5A8 8 0 1 1 21 12z')
 
+const ENGAGEMENTS_TAB = { key: 'engagements' as const, label: 'Engagements', icon: ENGAGEMENTS_ICON }
+
 function TabButton({
   tab, active, onClick, orientation,
-}: { tab: TabDef; active: boolean; onClick: () => void; orientation: 'row' | 'col' }) {
+}: { tab: { key: string; label: string; icon: ReactNode }; active: boolean; onClick: () => void; orientation: 'row' | 'col' }) {
   const col = orientation === 'col'
   return (
     <button
@@ -45,7 +49,7 @@ function TabButton({
       className={`group flex items-center transition-colors ${
         col
           ? 'w-full gap-3 rounded-xl px-3 py-2.5 text-[15px]'
-          : 'flex-1 flex-col gap-1 py-2 text-[10px]'
+          : 'flex-1 flex-col gap-0.5 py-2 text-[9px] min-w-0'
       }`}
       style={{
         color: active ? 'var(--fg-1)' : 'var(--fg-3)',
@@ -61,22 +65,31 @@ function TabButton({
       >
         {tab.icon}
       </span>
-      <span className={`${col ? 'font-medium' : 'font-semibold uppercase tracking-wide'}`}>{tab.label}</span>
+      <span className={`${col ? 'font-medium' : 'font-semibold uppercase tracking-wide truncate max-w-full'}`}>{tab.label}</span>
     </button>
   )
 }
 
 // A rail row for a one-shot action (Connect items) — matches the `col` TabButton
-// look but has no persistent active state.
-function RailAction({ label, icon, onClick }: { label: string; icon: ReactNode; onClick: () => void }) {
+// look but has no persistent active state (except Engagements when that route is open).
+function RailAction({ label, icon, onClick, active }: { label: string; icon: ReactNode; onClick: () => void; active?: boolean }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      aria-current={active ? 'page' : undefined}
       className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] transition-colors hover:bg-[rgba(91,141,247,.08)]"
-      style={{ color: 'var(--fg-3)' }}
+      style={{
+        color: active ? 'var(--fg-1)' : 'var(--fg-3)',
+        background: active ? 'rgba(91,141,247,.12)' : 'transparent',
+      }}
     >
-      <span className="grid place-items-center transition-colors group-hover:text-[var(--gbm-cobalt-bright)]">{icon}</span>
+      <span
+        className="grid place-items-center transition-colors group-hover:text-[var(--gbm-cobalt-bright)]"
+        style={{ color: active ? 'var(--gbm-cobalt-bright)' : undefined }}
+      >
+        {icon}
+      </span>
       <span className="font-medium">{label}</span>
     </button>
   )
@@ -85,12 +98,22 @@ function RailAction({ label, icon, onClick }: { label: string; icon: ReactNode; 
 export default function JourneyTabs({
   active, onChange, onMessage, onEngagements,
 }: {
-  active: JourneyTab
+  active: JourneyNavActive
   onChange: (t: JourneyTab) => void
   onMessage?: () => void
   onEngagements?: () => void
 }) {
   const hasConnect = Boolean(onMessage || onEngagements)
+  const engagementsActive = active === 'engagements'
+  // Phone bottom: Journey, Engagements (meetings), SOAPs, Prayer, Feed, Milestones
+  const mobileTabs: { key: JourneyNavActive; label: string; icon: ReactNode; onClick: () => void }[] = [
+    { key: 'home', label: 'Journey', icon: TABS[0].icon, onClick: () => onChange('home') },
+    ...(onEngagements
+      ? [{ key: 'engagements' as const, label: ENGAGEMENTS_TAB.label, icon: ENGAGEMENTS_ICON, onClick: onEngagements }]
+      : []),
+    ...TABS.slice(1).map(t => ({ key: t.key as JourneyNavActive, label: t.label, icon: t.icon, onClick: () => onChange(t.key) })),
+  ]
+
   return (
     <>
       {/* Desktop: persistent left rail */}
@@ -109,7 +132,9 @@ export default function JourneyTabs({
           <>
             <p className="mb-1 mt-6 px-3 text-[10px] font-semibold uppercase tracking-[.14em] text-[var(--fg-3)]">Connect</p>
             <nav className="flex flex-col gap-1">
-              {onEngagements && <RailAction label="Engagements" icon={ENGAGEMENTS_ICON} onClick={onEngagements} />}
+              {onEngagements && (
+                <RailAction label="Engagements" icon={ENGAGEMENTS_ICON} onClick={onEngagements} active={engagementsActive} />
+              )}
               {onMessage && <RailAction label="Message" icon={MESSAGE_ICON} onClick={onMessage} />}
             </nav>
           </>
@@ -117,11 +142,17 @@ export default function JourneyTabs({
         <div className="mt-auto pb-6 pl-3 text-base" style={{ color: 'rgba(91,141,247,.25)' }}>✦</div>
       </aside>
 
-      {/* Phone: bottom tab bar (native feel) */}
-      <nav className="fixed bottom-0 left-0 right-0 z-30 flex border-t border-[var(--line-2)] px-1 pb-[env(safe-area-inset-bottom)] md:hidden"
+      {/* Phone: bottom tab bar — includes Engagements (meetings-only) when wired */}
+      <nav className="fixed bottom-0 left-0 right-0 z-30 flex border-t border-[var(--line-2)] px-0.5 pb-[env(safe-area-inset-bottom)] md:hidden"
            style={{ background: 'rgba(9,12,26,.9)', backdropFilter: 'blur(16px)' }}>
-        {TABS.map(t => (
-          <TabButton key={t.key} tab={t} active={active === t.key} onClick={() => onChange(t.key)} orientation="row" />
+        {mobileTabs.map(t => (
+          <TabButton
+            key={t.key}
+            tab={{ key: t.key, label: t.label, icon: t.icon }}
+            active={active === t.key}
+            onClick={t.onClick}
+            orientation="row"
+          />
         ))}
       </nav>
     </>
