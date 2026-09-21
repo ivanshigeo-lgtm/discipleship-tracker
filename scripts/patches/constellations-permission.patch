@@ -1,0 +1,59 @@
+--- a/app/my-constellations/page.tsx
++++ b/app/my-constellations/page.tsx
+@@ -29,6 +29,7 @@
+ import VerseCard from '../../components/journey/VerseCard'
+ import SoapCalendarSection from '../../components/SoapCalendarSection'
+ import { getSoapJournals, getAllDiscipleshipConnections, getPeople, getLevelSignoffs, getAllEngagements, getAllActionItems, getVictoryGroups, getPrayerLifeForPerson, getMyConversations, getConfirmedEngagementIds, getPendingLevelSignoffs } from '../../lib/supabaseQueries'
++import { hasStartedLeadingOneToOne } from '../../lib/hasStartedLeadingOneToOne'
+ import type { Person, SoapJournal, Stage, DiscipleshipConnection, Engagement } from '../../types/database'
+ import EngagementDetailModal from '../../components/EngagementDetailModal'
+ import { DashboardSkeleton } from '../../components/Skeleton'
+@@ -383,21 +384,38 @@
+   const [profileLoading, setProfileLoading] = useState(true)
+   const isMobile = useIsMobile()
+ 
+-  // Coach-dashboard access is gated on the coach having signed off this
+-  // person's Empower stage (admins always allowed). null = still loading.
++  // Coach-dashboard access: admin, approved Empower sign-off, OR already
++  // started leading a 1:1 (discipler connection / created Making Disciples or
++  // One2One). GBC whole-church scope still requires Empower/admin.
++  // null = still loading.
+   const [empowerApproved, setEmpowerApproved] = useState<boolean | null>(null)
++  const [coachAccess, setCoachAccess] = useState<boolean | null>(null)
+   useEffect(() => {
+     if (!profile?.id) return
+-    if (profile.is_admin) { setEmpowerApproved(true); return }
+-    getLevelSignoffs(profile.id).then(({ data }) => {
+-      setEmpowerApproved(Boolean(data?.some(s => s.stage === 'Empower' && s.status === 'approved')))
+-    })
++    if (profile.is_admin) {
++      setEmpowerApproved(true)
++      setCoachAccess(true)
++      return
++    }
++    let cancelled = false
++    ;(async () => {
++      const { data } = await getLevelSignoffs(profile.id)
++      if (cancelled) return
++      const empower = Boolean(data?.some(s => s.stage === 'Empower' && s.status === 'approved'))
++      setEmpowerApproved(empower)
++      if (empower) {
++        setCoachAccess(true)
++        return
++      }
++      const led = await hasStartedLeadingOneToOne(profile.id)
++      if (!cancelled) setCoachAccess(led)
++    })()
++    return () => { cancelled = true }
+   }, [profile?.id, profile?.is_admin])
+ 
+-  // Disciple = not admin and Empower not yet signed off. While we don't yet know
+-  // (null), don't redirect or render the dashboard.
+-  const accessUnknown = profile && !profile.is_admin && empowerApproved === null
+-  const isDisciple = profile && !profile.is_admin && empowerApproved === false
++  // Disciple = no coach access yet. While loading (null), don't redirect.
++  const accessUnknown = profile && !profile.is_admin && coachAccess === null
++  const isDisciple = profile && !profile.is_admin && coachAccess === false
+   useEffect(() => {
+     if (isDisciple) router.replace('/my-journey')
+   }, [isDisciple, router])

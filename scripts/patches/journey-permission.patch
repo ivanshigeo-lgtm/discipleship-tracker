@@ -1,0 +1,59 @@
+--- a/app/my-journey/page.tsx
++++ b/app/my-journey/page.tsx
+@@ -24,6 +24,7 @@
+   requestLevelSignoff,
+   sendMessage,
+ } from '../../lib/supabaseQueries'
++import { hasStartedLeadingOneToOne } from '../../lib/hasStartedLeadingOneToOne'
+ import { supabase } from '../../lib/supabaseClient'
+ import type { SoapJournal, StageChecklistItem, Person, VictoryGroup, DiscipleshipConnection, LevelSignoff, Stage, SpiritualGiftsResult, BigFiveResult, PassionResult, MinistryFitResult } from '../../types/database'
+ import { computeJourney, computeBadges, ringProgressFromLevels, levelByStage, STEP_CHECKLIST, JOURNEY_ORDER, type JourneyStep } from '../../components/journey/journeyModel'
+@@ -218,6 +219,8 @@
+   const [checklistItems, setChecklistItems] = useState<StageChecklistItem[]>([])
+   const [myDisciples, setMyDisciples] = useState<DiscipleshipConnection[]>([])
+   const [signoffs, setSignoffs] = useState<LevelSignoff[]>([])
++  // Open Constellations / Add Person without full Empower if already leading a 1:1
++  const [ledOneToOne, setLedOneToOne] = useState(false)
+   // Home sign-off gate: dismissed once per browser session (survives navigation,
+   // re-pops on a fresh session / new tab), so "Not now" isn't a nag.
+   const [gateDismissed, setGateDismissed] = useState(
+@@ -394,6 +397,12 @@
+     if (streakRes.current !== undefined) setCurrentStreak(streakRes.current)
+     if (checklistRes.data) setChecklistItems(checklistRes.data as StageChecklistItem[])
+     if (signoffsRes.data) setSignoffs(signoffsRes.data as LevelSignoff[])
++    const empowerOk = Boolean(profile.is_admin) || ((signoffsRes.data as LevelSignoff[] | null) ?? []).some(s => s.stage === 'Empower' && s.status === 'approved')
++    if (empowerOk) {
++      setLedOneToOne(true)
++    } else {
++      void hasStartedLeadingOneToOne(profile.id).then(setLedOneToOne)
++    }
+     setDataReady(true)
+     try {
+       localStorage.setItem(snapshotKey(profile.id), JSON.stringify({
+@@ -731,7 +740,7 @@
+             >
+               My Journey
+             </h1>
+-            {(profile.is_admin || signoffs.some(s => s.stage === 'Empower' && s.status === 'approved')) && (
++            {(Boolean(profile.is_admin) || ledOneToOne || signoffs.some(s => s.stage === 'Empower' && s.status === 'approved')) && (
+               <div className="flex rounded-full border border-[var(--line-2)] bg-[rgba(9,12,26,.6)] p-0.5 text-xs font-semibold">
+                 <span className="rounded-full px-3 py-1" style={{ background: 'var(--gbm-cobalt-bright)', color: '#fff' }}>
+                   My Journey
+@@ -756,7 +765,7 @@
+               // story is covering).
+               enabled={
+                 showIntro === false && !showTour &&
+-                (Boolean(profile.is_admin) || signoffs.some(s => s.stage === 'Empower' && s.status === 'approved'))
++                (Boolean(profile.is_admin) || ledOneToOne || signoffs.some(s => s.stage === 'Empower' && s.status === 'approved'))
+               }
+               onActiveChange={setCoachmarkActive}
+             />
+@@ -1072,7 +1081,7 @@
+         currentStreak={currentStreak}
+         unreadCount={unreadMsgCount}
+         isAdmin={Boolean(profile.is_admin)}
+-        empowered={Boolean(profile.is_admin) || signoffs.some(s => s.stage === 'Empower' && s.status === 'approved')}
++        empowered={(Boolean(profile.is_admin) || ledOneToOne || signoffs.some(s => s.stage === 'Empower' && s.status === 'approved'))}
+       />
+ 
+       {/* Message Center */}
